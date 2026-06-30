@@ -1,0 +1,5 @@
+# Optional Graphify AST extract (code-only workflow)
+# Install: pip install -r requirements-graphify.txt
+# Or:      pip install -e "./brainkm[graphify]"
+
+graphifyy>=0.8.48

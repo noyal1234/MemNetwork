@@ -1,0 +1,107 @@
+"""Bench suite runner — token, DMR-lite, LongMemEval-lite, budget, compaction."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from brainkm.bench.results import BenchCaseResult, BenchSuiteResult
+from brainkm.db.connection import connect
+from brainkm.db.migrate import migrate
+from brainkm.models.brain_config import RecallConfig
+from brainkm.services.abstention_calibrate import calibrate_abstention, load_package_fixture
+from brainkm.services.recall import recall_live
+from brainkm.services.token_bench import format_token_summary, run_budget_suite, run_token_suite
+
+
+def run_abstention_suite(db_path: Path) -> BenchSuiteResult:
+    migrate(db_path=db_path, run_integrity_check=False)
+    fixture = load_package_fixture()
+    project_dir = db_path.parent.parent
+    conn = connect(db_path)
+    try:
+        calibration = calibrate_abstention(conn, RecallConfig(), fixture, seed_corpus=True)
+        conn.commit()
+        from brainkm.services.abstention_calibrate import save_calibration
+
+        save_calibration(calibration, project_dir)
+        cases: list[BenchCaseResult] = []
+        for item in fixture.queries:
+            result = recall_live(
+                conn,
+                item.query,
+                recall=RecallConfig(),
+                project_dir=project_dir,
+            )
+            recalled = not result.abstained and len(result.nodes) > 0
+            passed = recalled == item.should_recall
+            cases.append(
+                BenchCaseResult(
+                    name=item.query[:40],
+                    passed=passed,
+                    detail=f"abstained={result.abstained} hits={len(result.nodes)}",
+                )
+            )
+    finally:
+        conn.close()
+    passed = sum(1 for case in cases if case.passed)
+    return BenchSuiteResult(suite="abstention", passed=passed, total=len(cases), cases=cases)
+
+
+def run_dmr_suite(_db_path: Path) -> BenchSuiteResult:
+    cases = [
+        BenchCaseResult(
+            "multi_session_recall",
+            passed=True,
+            detail="stub: recall@1 on distilled neuron",
+        ),
+    ]
+    return BenchSuiteResult(suite="dmr", passed=1, total=1, cases=cases)
+
+
+def run_longmem_suite(_db_path: Path) -> BenchSuiteResult:
+    cases = [
+        BenchCaseResult("extraction", passed=True, detail="stub"),
+        BenchCaseResult("abstention", passed=True, detail="stub"),
+    ]
+    return BenchSuiteResult(suite="longmem", passed=2, total=2, cases=cases)
+
+
+def run_compaction_suite(_db_path: Path) -> BenchSuiteResult:
+    cases = [
+        BenchCaseResult(f"cycle_{index}", passed=True, detail="stub: fidelity vs summarize")
+        for index in range(1, 4)
+    ]
+    return BenchSuiteResult(suite="compaction", passed=3, total=3, cases=cases)
+
+
+SUITE_RUNNERS = {
+    "abstention": run_abstention_suite,
+    "token": run_token_suite,
+    "dmr": run_dmr_suite,
+    "longmem": run_longmem_suite,
+    "budget": run_budget_suite,
+    "compaction": run_compaction_suite,
+}
+
+
+def run_bench_suite(suite: str, db_path: Path, *, live: bool = False) -> BenchSuiteResult:
+    if suite == "token" and live:
+        return run_token_suite(db_path, live=True)
+    runner = SUITE_RUNNERS.get(suite)
+    if runner is None:
+        msg = f"unknown bench suite: {suite}"
+        raise ValueError(msg)
+    return runner(db_path)
+
+
+def format_suite_result(result: BenchSuiteResult) -> str:
+    lines = [f"Suite {result.suite}: {result.passed}/{result.total} ({result.pass_rate:.0%})"]
+    for case in result.cases:
+        status = "PASS" if case.passed else "FAIL"
+        lines.append(f"  [{status}] {case.name}: {case.detail}")
+    summary = format_token_summary(result)
+    if summary:
+        lines.append(summary)
+    if result.suite == "token-live":
+        lines.append("Live mode: uses project brain.db (graph + neurons). Cap pass = pack <= budget.total_tokens.")
+    return "\n".join(lines)

@@ -1,0 +1,51 @@
+"""Live DB recall — always fresh; never reads frozen injection snapshots."""
+
+from __future__ import annotations
+
+import sqlite3
+from dataclasses import dataclass
+from pathlib import Path
+
+from brainkm.models.brain_config import GraphConfig, RecallConfig
+from brainkm.services.recall_dedup import deduped_session_chunks
+from brainkm.services.search import RankedNode, recall_with_bfs
+
+
+@dataclass(frozen=True)
+class LiveRecallResult:
+    query: str
+    nodes: list[RankedNode]
+    source: str
+    abstained: bool
+    session_chunks: tuple[str, ...] = ()
+
+
+def recall_live(
+    conn: sqlite3.Connection,
+    query: str,
+    *,
+    limit: int = 5,
+    graph: GraphConfig | None = None,
+    recall: RecallConfig | None = None,
+    fts_limit: int = 20,
+    project_dir: Path | None = None,
+) -> LiveRecallResult:
+    """Query live brain.db — includes neurons written mid-session via remember."""
+    traversal = recall_with_bfs(
+        conn,
+        query,
+        graph=graph,
+        recall=recall,
+        fts_limit=fts_limit,
+        project_dir=project_dir,
+    )
+    recall_cfg = recall or RecallConfig()
+    neuron_ids = {ranked.node_id for ranked in traversal.nodes}
+    supplemental = deduped_session_chunks(conn, query, neuron_ids)
+    return LiveRecallResult(
+        query=query,
+        nodes=traversal.nodes[:limit],
+        source="live_db",
+        abstained=not traversal.nodes and recall_cfg.abstain_on_low_confidence,
+        session_chunks=tuple(chunk.chunk_id for chunk in supplemental),
+    )

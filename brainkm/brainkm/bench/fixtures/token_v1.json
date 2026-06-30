@@ -1,0 +1,276 @@
+{
+  "version": 1,
+  "id": "token_v1",
+  "description": "Compare context_pack injection size vs naive multi-file read baseline",
+  "min_reduction_pct": 0.5,
+  "max_pack_tokens": 1500,
+  "cases": [
+    {
+      "name": "budget_truncation",
+      "query": "token budget greedy truncation priority",
+      "corpus": [
+        {
+          "id": "token-budget-policy",
+          "subtype": "decision",
+          "title": "Token budget policy",
+          "content": "greedy_truncate keeps highest-priority neurons under total_tokens cap"
+        },
+        {
+          "id": "token-budget-fact",
+          "subtype": "fact",
+          "title": "tiktoken counting",
+          "content": "token_count uses tiktoken for budget enforcement"
+        }
+      ],
+      "baseline_files": [
+        "brainkm/brainkm/services/budget.py",
+        "brainkm/brainkm/services/context_pack.py",
+        "brainkm/brainkm/services/memory.py"
+      ],
+      "baseline_tokens": 4824,
+      "must_include": ["token-budget-policy"]
+    },
+    {
+      "name": "mcp_dispatch",
+      "query": "MCP tool dispatch recall context_pack",
+      "corpus": [
+        {
+          "id": "mcp-dispatch-rule",
+          "subtype": "rule",
+          "title": "MCP dispatch pattern",
+          "content": "tools delegate to services; validate with Pydantic at entry"
+        }
+      ],
+      "baseline_files": [
+        "brainkm/brainkm/tools/dispatch.py",
+        "brainkm/brainkm/server.py",
+        "brainkm/brainkm/models/schemas.py"
+      ],
+      "baseline_tokens": 4200,
+      "must_include": ["mcp-dispatch-rule"]
+    },
+    {
+      "name": "hooks_snapshot",
+      "query": "SessionStart frozen injection snapshot hooks",
+      "corpus": [
+        {
+          "id": "frozen-snapshot-decision",
+          "subtype": "decision",
+          "title": "Frozen injection snapshot",
+          "content": "SessionStart builds frozen snapshot; mid-session remember does not mutate injection"
+        }
+      ],
+      "baseline_files": [
+        "brainkm/brainkm/services/hooks.py",
+        "brainkm/brainkm/services/snapshot.py"
+      ],
+      "baseline_tokens": 5200,
+      "must_include": ["frozen-snapshot-decision"]
+    },
+    {
+      "name": "recall_search",
+      "query": "BM25 FTS recall abstention search",
+      "corpus": [
+        {
+          "id": "recall-abstention",
+          "subtype": "rule",
+          "title": "Recall abstention",
+          "content": "Return empty list when BM25 score below min_recall_score threshold"
+        }
+      ],
+      "baseline_files": [
+        "brainkm/brainkm/services/recall.py",
+        "brainkm/brainkm/services/search.py",
+        "brainkm/brainkm/services/abstention.py"
+      ],
+      "baseline_tokens": 4500,
+      "must_include": ["recall-abstention"]
+    },
+    {
+      "name": "brain_config",
+      "query": "BrainConfig budget total_tokens dynamic reallocation",
+      "corpus": [
+        {
+          "id": "budget-config",
+          "subtype": "fact",
+          "title": "Configurable token budget",
+          "content": "budget.total_tokens defaults to 1500 and can be raised up to 8000"
+        }
+      ],
+      "baseline_files": [
+        "brainkm/brainkm/models/brain_config.py",
+        "brainkm/brainkm/config.py"
+      ],
+      "baseline_tokens": 2800,
+      "must_include": ["budget-config"]
+    },
+    {
+      "name": "graph_import",
+      "query": "Graphify graph.json import code nodes",
+      "corpus": [
+        {
+          "id": "graph-import-fact",
+          "subtype": "fact",
+          "title": "Graphify import",
+          "content": "graph_import loads graphify-out graph.json into SQLite code nodes"
+        }
+      ],
+      "baseline_files": [
+        "brainkm/brainkm/services/graph_import.py",
+        "brainkm/brainkm/adapters/graphify.py"
+      ],
+      "baseline_tokens": 3800,
+      "must_include": ["graph-import-fact"]
+    },
+    {
+      "name": "capture_distill",
+      "query": "SessionEnd capture distill transcript neurons",
+      "corpus": [
+        {
+          "id": "capture-distill",
+          "subtype": "pattern",
+          "title": "Capture pipeline",
+          "content": "SessionEnd distills transcripts into neurons via rules or cursor"
+        }
+      ],
+      "baseline_files": [
+        "brainkm/brainkm/adapters/capture.py",
+        "brainkm/brainkm/adapters/distill_rules.py"
+      ],
+      "baseline_tokens": 2600,
+      "must_include": ["capture-distill"]
+    },
+    {
+      "name": "cli_commands",
+      "query": "brainkm CLI install export bench handover",
+      "corpus": [
+        {
+          "id": "cli-bench",
+          "subtype": "fact",
+          "title": "bench CLI",
+          "content": "brainkm bench run token compares pack size vs file-read baseline"
+        }
+      ],
+      "baseline_files": [
+        "brainkm/brainkm/cli.py"
+      ],
+      "baseline_tokens": 5500,
+      "must_include": ["cli-bench"]
+    },
+    {
+      "name": "db_migrate",
+      "query": "SQLite migrate WAL FTS5 schema",
+      "corpus": [
+        {
+          "id": "db-wal",
+          "subtype": "rule",
+          "title": "SQLite WAL",
+          "content": "brain.db uses WAL mode with single-writer queue for MCP"
+        }
+      ],
+      "baseline_files": [
+        "brainkm/brainkm/db/connection.py",
+        "brainkm/brainkm/db/migrate.py"
+      ],
+      "baseline_tokens": 2200,
+      "must_include": ["db-wal"]
+    },
+    {
+      "name": "write_queue",
+      "query": "write queue SQLITE_BUSY retry serialization",
+      "corpus": [
+        {
+          "id": "write-queue-fact",
+          "subtype": "fact",
+          "title": "Write queue",
+          "content": "write_queue serializes MCP writes with busy retry"
+        }
+      ],
+      "baseline_files": [
+        "brainkm/brainkm/services/write_queue.py",
+        "brainkm/brainkm/services/audit.py"
+      ],
+      "baseline_tokens": 1800,
+      "must_include": ["write-queue-fact"]
+    }
+  ],
+  "budget_probe": {
+    "query": "architecture decisions rules errors facts patterns",
+    "caps": [800, 1200, 1500, 2000],
+    "must_include_at_1500": ["probe-decision-critical", "probe-error-1"],
+    "corpus": [
+      {
+        "id": "probe-decision-critical",
+        "subtype": "decision",
+        "title": "Critical architecture decision",
+        "content": "MCP tools must delegate to services layer never skip to SQLite"
+      },
+      {
+        "id": "probe-error-1",
+        "subtype": "error",
+        "title": "WAL checkpoint failure",
+        "content": "PreCompact handover failed when wal_checkpoint returned busy"
+      },
+      {
+        "id": "probe-rule-1",
+        "subtype": "rule",
+        "title": "No secrets in neurons",
+        "content": "Run remember input through redaction adapter before storage"
+      },
+      {
+        "id": "probe-rule-2",
+        "subtype": "rule",
+        "title": "Token cap enforcement",
+        "content": "context_pack and recall truncate greedily by neuron priority"
+      },
+      {
+        "id": "probe-fact-1",
+        "subtype": "fact",
+        "title": "FTS5 BM25 default",
+        "content": "Zero-LLM default uses FTS5 BM25 without local Ollama"
+      },
+      {
+        "id": "probe-fact-2",
+        "subtype": "fact",
+        "title": "Graphify AST",
+        "content": "Code graph from Graphify imports as code nodes and edges"
+      },
+      {
+        "id": "probe-fact-3",
+        "subtype": "fact",
+        "title": "Session snapshots",
+        "content": "session_snapshots table stores frozen SessionStart packs"
+      },
+      {
+        "id": "probe-fact-4",
+        "subtype": "fact",
+        "title": "Write queue",
+        "content": "MCP writes serialize through write_queue with busy retry"
+      },
+      {
+        "id": "probe-fact-5",
+        "subtype": "fact",
+        "title": "Abstention calibration",
+        "content": "Percentile abstention thresholds calibrate from bench fixtures"
+      },
+      {
+        "id": "probe-pattern-1",
+        "subtype": "pattern",
+        "title": "pytest brain_db fixture",
+        "content": "Tests use temp .brain directories with migrate on setup"
+      },
+      {
+        "id": "probe-pattern-2",
+        "subtype": "pattern",
+        "title": "Truncation followup",
+        "content": "Agent calls recall with truncation_followup true for omitted pack IDs"
+      },
+      {
+        "id": "probe-context-1",
+        "subtype": "context",
+        "title": "Long session context",
+        "content": "Extended debugging session on injection budget and compaction hooks"
+      }
+    ]
+  }
+}

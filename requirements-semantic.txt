@@ -1,0 +1,8 @@
+# Optional T1: hybrid semantic search (off by default)
+# Install: pip install -r requirements-semantic.txt
+# Requires core deps first.
+
+-r requirements.txt
+
+onnxruntime>=1.19.0
+sqlite-vec>=0.1.6

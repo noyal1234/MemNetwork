@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "id": "abstention_v1",
+  "description": "Reference corpus and labeled queries for V1 abstention calibration",
+  "corpus": [
+    {
+      "id": "jwt-policy",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "JWT authentication policy",
+      "content": "Use JWT access tokens with 15 minute expiry and refresh rotation"
+    },
+    {
+      "id": "wal-handover",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "PreCompact WAL checkpoint",
+      "content": "Run PRAGMA wal_checkpoint FULL before handover exit 0"
+    },
+    {
+      "id": "graphify-import",
+      "kind": "memory",
+      "subtype": "fact",
+      "content": "Graphify imports graph.json code-only nodes in a single transaction"
+    },
+    {
+      "id": "pytest-fixtures",
+      "kind": "memory",
+      "subtype": "pattern",
+      "title": "pytest brain_db fixture",
+      "content": "Use temp .brain directories in tests with migrate on setup"
+    },
+    {
+      "id": "abstention-default",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Recall abstention default",
+      "content": "Percentile-based abstention returns empty recall on low BM25 confidence"
+    },
+    {
+      "id": "frozen-snapshot",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Frozen injection snapshot",
+      "content": "SessionStart builds frozen snapshot; recall always reads live brain.db"
+    },
+    {
+      "id": "distill-rules",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "Distill rules fallback",
+      "content": "Rules-based distill extracts decisions when cursor or ollama unavailable"
+    },
+    {
+      "id": "temporal-lite",
+      "kind": "memory",
+      "subtype": "fact",
+      "content": "valid_until is derived from audit_log events not dual-written"
+    }
+  ],
+  "queries": [
+    {
+      "query": "JWT access token expiry",
+      "should_recall": true,
+      "expected_node_id": "jwt-policy"
+    },
+    {
+      "query": "WAL checkpoint handover",
+      "should_recall": true,
+      "expected_node_id": "wal-handover"
+    },
+    {
+      "query": "graphify code graph import",
+      "should_recall": true,
+      "expected_node_id": "graphify-import"
+    },
+    {
+      "query": "pytest temp brain_db fixture",
+      "should_recall": true,
+      "expected_node_id": "pytest-fixtures"
+    },
+    {
+      "query": "percentile abstention BM25",
+      "should_recall": true,
+      "expected_node_id": "abstention-default"
+    },
+    {
+      "query": "frozen snapshot live recall",
+      "should_recall": true,
+      "expected_node_id": "frozen-snapshot"
+    },
+    {
+      "query": "quantum banana reactor flux",
+      "should_recall": false
+    },
+    {
+      "query": "kubernetes ingress nginx tls",
+      "should_recall": false
+    },
+    {
+      "query": "weather forecast tomorrow rainfall",
+      "should_recall": false
+    },
+    {
+      "query": "machine learning gpu cluster training",
+      "should_recall": false
+    }
+  ]
+}

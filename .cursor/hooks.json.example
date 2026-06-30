@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "brainkm session-start --stdin",
+        "timeout": 30
+      }
+    ],
+    "sessionEnd": [
+      {
+        "command": "brainkm session-end --stdin",
+        "timeout": 120
+      }
+    ],
+    "preCompact": [
+      {
+        "matcher": "auto",
+        "command": "brainkm handover --stdin",
+        "timeout": 30
+      }
+    ],
+    "preToolUse": [
+      {
+        "matcher": "Write|Edit|Shell",
+        "command": "brainkm pre-tool --stdin",
+        "timeout": 15
+      }
+    ],
+    "postToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "command": "brainkm post-tool --stdin",
+        "timeout": 5
+      }
+    ]
+  }
+}

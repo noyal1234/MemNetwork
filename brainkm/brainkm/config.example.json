@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "project_roots": ["."],
+  "budget": {
+    "total_tokens": 1500,
+    "dynamic_reallocation": true,
+    "session_start": {
+      "pinned_rules": 300,
+      "session_status": 150,
+      "procedure_stubs": 60,
+      "recall_top": 200
+    },
+    "pre_tool": {
+      "procedure_expanded": 250,
+      "graph_neighborhood": 400
+    }
+  },
+  "graph": {
+    "max_bfs_fanout_per_hop": 50,
+    "max_activation_nodes": 500,
+    "min_edge_weight_to_traverse": 0.3
+  },
+  "capture": {
+    "transcripts": true,
+    "plan_files": true,
+    "plan_glob": ".cursor/plans/*.plan.md",
+    "distill_mode": "cursor",
+    "max_auto_neurons_per_session": 50,
+    "max_neurons_per_plan": 20
+  },
+  "ollama": {
+    "base_url": "http://127.0.0.1:11434",
+    "model": "llama3.2:3b",
+    "timeout_seconds": 120
+  },
+  "injection": {
+    "session_start": true,
+    "pre_tool_patterns": ["write", "edit", "run_terminal"],
+    "max_recalls_per_turn": 1,
+    "frozen_snapshot": true
+  },
+  "learning": {
+    "co_activation_threshold": 3,
+    "max_tool_nodes": 20,
+    "auto_capture_confidence": 0.5
+  },
+  "recall": {
+    "abstain_on_low_confidence": true,
+    "abstain_mode": "percentile",
+    "abstain_percentile": 0.25,
+    "min_recall_score": null
+  },
+  "handover": {
+    "precompact_enabled": true,
+    "precompact_distill_timeout_seconds": 5,
+    "export_markdown": true
+  },
+  "graphify": {
+    "enabled": true,
+    "output_dir": "graphify-out",
+    "graph_json": "graphify-out/graph.json",
+    "code_only": true,
+    "extract_binary": "graphify",
+    "extract_extra_args": [],
+    "extract_scope": "project_roots",
+    "extract_timeout_seconds": 300,
+    "sync_on_install": true,
+    "auto_sync": {
+      "enabled": true,
+      "debounce_seconds": 60,
+      "min_interval_seconds": 300,
+      "trigger_on_post_tool": true
+    }
+  },
+  "semantic": false,
+  "git": { "enabled": false }
+}

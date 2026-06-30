@@ -1,0 +1,122 @@
+"""Tests for frozen injection snapshots and live recall."""
+
+import json
+
+from brainkm.db.connection import connect
+from brainkm.models.brain_config import BrainConfig, RecallConfig
+from brainkm.models.snapshot import SnapshotNeuron
+from brainkm.services.memory import create_neuron, remember_neuron
+from brainkm.services.recall import recall_live
+from brainkm.services.snapshot import (
+    build_frozen_snapshot,
+    get_frozen_snapshot,
+    render_injection_pack,
+    select_injection_neurons,
+)
+
+
+def test_render_injection_pack_groups_sections() -> None:
+    pack = render_injection_pack(
+        [
+            SnapshotNeuron("1", "memory", "rule", "Never log secrets", "Redact keys", 10),
+            SnapshotNeuron("2", "memory", "context", "Working on auth", None, 5),
+        ]
+    )
+    assert "Rules & decisions" in pack
+    assert "Context" in pack
+    assert "Never log secrets" in pack
+
+
+def test_frozen_snapshot_excludes_mid_session_remember(brain_db) -> None:
+    conn = connect(brain_db)
+    try:
+        create_neuron(
+            conn,
+            title="Use JWT for API authentication",
+            content="Access tokens expire after 15 minutes.",
+            subtype="decision",
+            node_id="decision-jwt",
+        )
+        conn.commit()
+
+        snapshot = build_frozen_snapshot(conn, "sess-live", BrainConfig())
+        assert "decision-jwt" in snapshot.neuron_ids
+
+        remember_neuron(
+            conn,
+            title="Cache session state in Redis",
+            content="Use Redis for ephemeral session storage during rollout.",
+            subtype="decision",
+        )
+        conn.commit()
+
+        frozen = get_frozen_snapshot(conn, "sess-live")
+        assert frozen is not None
+        assert "decision-jwt" in frozen.neuron_ids
+        assert len(frozen.neuron_ids) == len(snapshot.neuron_ids)
+        assert "Redis" not in frozen.pack_text
+
+        snapshot_again = build_frozen_snapshot(conn, "sess-live", BrainConfig())
+        assert snapshot_again.neuron_ids == snapshot.neuron_ids
+
+        live = recall_live(
+            conn,
+            "Redis session storage",
+            recall=RecallConfig(abstain_on_low_confidence=False),
+        )
+        assert live.source == "live_db"
+        assert any("Redis" in node.title for node in live.nodes)
+    finally:
+        conn.close()
+
+
+def test_select_injection_neurons_respects_pinned_and_rules(brain_db) -> None:
+    conn = connect(brain_db)
+    try:
+        create_neuron(
+            conn,
+            title="Pinned architectural anchor",
+            content="SQLite is the source of truth.",
+            subtype="fact",
+            node_id="pinned-1",
+        )
+        conn.execute("UPDATE nodes SET user_pinned = 1 WHERE id = 'pinned-1'")
+        create_neuron(
+            conn,
+            title="Always run migrations before hooks",
+            content="brainkm migrate on SessionStart.",
+            subtype="rule",
+            node_id="rule-1",
+        )
+        conn.commit()
+
+        selected = select_injection_neurons(conn, BrainConfig())
+        ids = {n.node_id for n in selected}
+        assert "pinned-1" in ids
+        assert "rule-1" in ids
+    finally:
+        conn.close()
+
+
+def test_session_start_hook_builds_snapshot(tmp_path) -> None:
+    from brainkm.services.hooks import run_session_start
+
+    db_path = tmp_path / ".brain" / "brain.db"
+    result = run_session_start(
+        json.dumps({"session_id": "hook-sess"}),
+        project_dir=tmp_path,
+        config=BrainConfig(),
+    )
+    assert result.skipped is False
+    assert result.additional_context is not None
+    assert "frozen snapshot" in result.additional_context
+
+    conn = connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM session_snapshots WHERE session_id = ?",
+            ("hook-sess",),
+        ).fetchone()
+        assert row is not None
+    finally:
+        conn.close()

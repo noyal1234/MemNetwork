@@ -1,0 +1,48 @@
+---
+description: MemNetwork brainkm — project memory, recall, and code graph guidance
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# MemNetwork (brainkm)
+
+This project uses **brainkm** — a local SQLite project brain at `.brain/brain.db`.
+
+## Before reading many files
+
+- Prefer MCP **`context_pack`** (when available) over reading 3+ source files for navigation tasks.
+- Use **`recall`** for architectural decisions, rules, and past pivots — not chat history alone.
+- Use **`remember`** to persist decisions the team should not re-debate.
+
+## What lives in the brain
+
+| Store | Contents |
+|-------|----------|
+| Neurons (`memory`) | Decisions, rules, facts, errors, context |
+| Code graph (`code`) | Graphify AST nodes — files, classes, functions, edges |
+| Session chunks | Raw transcript search index (distilled into neurons) |
+
+## Compaction
+
+Cursor chat compaction is lossy. Architectural truth must be in `brain.db`:
+
+- **PreCompact hook** runs `brainkm handover` before compaction.
+- **SessionEnd hook** captures the transcript into neurons.
+
+## Coexistence with Cursor
+
+- **Cursor Memories** = cross-project user prefs. brainkm = **this project's** decisions.
+- **Cursor Rules** = static policy. brainkm neurons = dynamic learned context.
+- **@codebase** = semantic code index. brainkm graph = structural relationships + neurons.
+
+## Manual fallback (hooks unavailable)
+
+```bash
+brainkm handover path/to/transcript.jsonl   # before compact
+brainkm capture path/to/transcript.jsonl      # after session
+brainkm graph sync                            # refresh code graph (extract + import)
+brainkm graph sync --skip-extract             # import existing graph.json only
+```
+
+Auto-sync runs in the MCP server after Write/Edit (debounced). Disable via `.brain/config.json`:
+`"graphify": { "auto_sync": { "enabled": false } }`.

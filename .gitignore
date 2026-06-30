@@ -1,0 +1,28 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.db
+.brain/
+.brain/brain.db
+.brain/brain.db-wal
+.brain/brain.db-shm
+graphify-out/
+
+# --- Cursor (machine-local / install output) ---
+.cursor/mcp.json
+.cursor/hooks.json
+.cursor/rules/
+
+# --- Python packaging ---
+dist/
+build/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+*.swp
+.idea/

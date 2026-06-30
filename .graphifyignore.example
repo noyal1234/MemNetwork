@@ -1,0 +1,12 @@
+# Copy to .graphifyignore in your project root to keep code-only extract offline.
+docs/
+.cursor/
+*.md
+*.mdc
+.brain/
+graphify-out/
+.venv/
+.pytest_cache/
+**/.egg-info/
+node_modules/
+.git/

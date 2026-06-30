@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "brainkm": {
+      "command": ".venv/bin/brainkm",
+      "args": ["mcp", "--project-dir", "."]
+    }
+  }
+}
