@@ -561,13 +561,39 @@ def review_approve_cmd(
     node_id: str = typer.Argument(...),
     project_dir: Path | None = typer.Option(None, "--project-dir"),
 ) -> None:
+    from brainkm.db.connection import connect
+    from brainkm.db.paths import brain_db_path
     from brainkm.services.review import approve_pending
 
-    if approve_pending(node_id, project_dir=project_dir):
-        typer.echo(f"Approved {node_id}")
-    else:
-        typer.echo(f"No pending item for {node_id}", err=True)
-        raise typer.Exit(code=1)
+    conn = connect(brain_db_path(project_dir))
+    try:
+        if approve_pending(node_id, conn=conn, project_dir=project_dir):
+            typer.echo(f"Approved {node_id}")
+        else:
+            typer.echo(f"No pending item for {node_id}", err=True)
+            raise typer.Exit(code=1)
+    finally:
+        conn.close()
+
+
+@review_app.command("reject")
+def review_reject_cmd(
+    node_id: str = typer.Argument(...),
+    project_dir: Path | None = typer.Option(None, "--project-dir"),
+) -> None:
+    from brainkm.db.connection import connect
+    from brainkm.db.paths import brain_db_path
+    from brainkm.services.review import reject_pending
+
+    conn = connect(brain_db_path(project_dir))
+    try:
+        if reject_pending(node_id, conn=conn, project_dir=project_dir):
+            typer.echo(f"Rejected {node_id}")
+        else:
+            typer.echo(f"No pending item for {node_id}", err=True)
+            raise typer.Exit(code=1)
+    finally:
+        conn.close()
 
 
 @app.command("import")

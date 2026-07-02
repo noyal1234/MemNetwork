@@ -53,6 +53,7 @@ class DistilledNeuron:
     body: str
     tags: list[str] = field(default_factory=list)
     chunk_ids: list[str] = field(default_factory=list)
+    confidence: float = 1.0
 
     def is_atomic(self, *, max_body_chars: int = 600) -> bool:
         if len(self.body) > max_body_chars:

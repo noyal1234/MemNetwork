@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "id": "compaction_v1",
+  "description": "Compaction fidelity checks using key facts present in recalled text.",
+  "cycles": [
+    {
+      "id": "cycle_1",
+      "query": "jwt token expiry policy",
+      "fidelity_target": 0.5,
+      "key_facts": [
+        "access tokens expire in 15 minutes",
+        "refresh tokens rotate every 7 days"
+      ],
+      "neurons": [
+        {"id": "cmp_1_a", "kind": "memory", "subtype": "decision", "title": "JWT expiry policy", "content": "Access tokens expire in 15 minutes and refresh tokens rotate every 7 days."}
+      ]
+    },
+    {
+      "id": "cycle_2",
+      "query": "precompact wal checkpoint",
+      "fidelity_target": 0.5,
+      "key_facts": [
+        "run pragma wal_checkpoint full before handover",
+        "precompact hook captures context"
+      ],
+      "neurons": [
+        {"id": "cmp_2_a", "kind": "memory", "subtype": "rule", "title": "WAL before handover", "content": "Run PRAGMA wal_checkpoint FULL before handover and ensure precompact capture runs."}
+      ]
+    },
+    {
+      "id": "cycle_3",
+      "query": "token budget defaults",
+      "fidelity_target": 0.5,
+      "key_facts": [
+        "total injection budget is 1500 tokens",
+        "procedures are budgeted separately"
+      ],
+      "neurons": [
+        {"id": "cmp_3_a", "kind": "memory", "subtype": "context", "title": "Token budget defaults", "content": "Total injection budget is 1500 tokens and procedure stubs use a separate slot."}
+      ]
+    }
+  ]
+}

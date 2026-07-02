@@ -48,30 +48,21 @@ def run_abstention_suite(db_path: Path) -> BenchSuiteResult:
 
 
 def run_dmr_suite(_db_path: Path) -> BenchSuiteResult:
-    cases = [
-        BenchCaseResult(
-            "multi_session_recall",
-            passed=True,
-            detail="stub: recall@1 on distilled neuron",
-        ),
-    ]
-    return BenchSuiteResult(suite="dmr", passed=1, total=1, cases=cases)
+    from brainkm.services.dmr_bench import run_dmr_suite as run_real_dmr_suite
+
+    return run_real_dmr_suite(_db_path)
 
 
 def run_longmem_suite(_db_path: Path) -> BenchSuiteResult:
-    cases = [
-        BenchCaseResult("extraction", passed=True, detail="stub"),
-        BenchCaseResult("abstention", passed=True, detail="stub"),
-    ]
-    return BenchSuiteResult(suite="longmem", passed=2, total=2, cases=cases)
+    from brainkm.services.longmem_bench import run_longmem_suite as run_real_longmem_suite
+
+    return run_real_longmem_suite(_db_path)
 
 
 def run_compaction_suite(_db_path: Path) -> BenchSuiteResult:
-    cases = [
-        BenchCaseResult(f"cycle_{index}", passed=True, detail="stub: fidelity vs summarize")
-        for index in range(1, 4)
-    ]
-    return BenchSuiteResult(suite="compaction", passed=3, total=3, cases=cases)
+    from brainkm.services.compaction_bench import run_compaction_suite as run_real_compaction_suite
+
+    return run_real_compaction_suite(_db_path)
 
 
 SUITE_RUNNERS = {

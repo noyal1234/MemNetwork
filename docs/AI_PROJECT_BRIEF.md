@@ -293,7 +293,7 @@ Key fields:
 | **V0** | Done | Scaffold, AGENTS.md, BrainConfig, tests, cursor rules |
 | **V1** | Done | SQLite brain, hooks, install, capture/handover, Graphify import + sync, frozen snapshot, **6 MCP tools**, adaptive abstention |
 | **V1.5** | Done | bench suites, repair + abstention recalibrate, export/import merge, PostCompact refresh |
-| **V2** | Done (stubs) | Tool registry, review queue, PostToolUse learning stub |
+| **V2** | Done | Tool registry, review queue, confidence-gated review, PostToolUse learning loop, co-activation procedure promotion |
 | **V3+** | Planned | Decay, optional semantic, stats |
 
 ### SQLite concurrency

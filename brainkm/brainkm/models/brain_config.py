@@ -48,6 +48,7 @@ class LearningConfig(BaseModel):
     co_activation_threshold: int = Field(default=3, ge=1)
     max_tool_nodes: int = Field(default=20, ge=1, le=50)
     auto_capture_confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    session_window_size: int = Field(default=20, ge=5, le=100)
 
 
 class RecallConfig(BaseModel):

@@ -45,4 +45,4 @@ Python **3.11 or 3.12** recommended (`requires-python = ">=3.11"`).
 
 ## Status
 
-**V1** — SQLite brain, MCP tools, hooks, install, Graphify import/sync, capture/handover. See [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md) for roadmap.
+**V1.5 shipped, V2 in progress** — SQLite brain, MCP tools, hooks, install, Graphify import/sync, capture/handover, repair/export/import merge, and post-compact snapshot refresh are complete; V2 learning loop and real bench suites are the current focus. See [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md) for roadmap.

@@ -23,6 +23,7 @@ from brainkm.services.chunks import (
 from brainkm.services.config_loader import load_brain_config
 from brainkm.services.memory import create_neuron, new_ulid
 from brainkm.services.quality import filter_distilled
+from brainkm.services.review import enqueue_for_review
 
 logger = get_logger("services.capture")
 
@@ -78,6 +79,11 @@ def capture_transcript_file(
 ) -> CaptureResult:
     """Full capture pipeline for one transcript file."""
     cfg = config or load_brain_config(project_dir)
+    review_project_dir = (
+        project_dir
+        if project_dir is not None
+        else (db_path.parent.parent if db_path is not None else None)
+    )
     if not cfg.capture.transcripts:
         return CaptureResult(
             session_id=session_id or transcript_path.stem,
@@ -145,12 +151,15 @@ def capture_transcript_file(
                     source=f"capture:{distill_mode}",
                     session_id=parsed.session_id,
                     node_id=new_ulid(),
+                    confidence=item.confidence,
                 )
             except RedactionBlockedError as exc:
                 logger.warning("Skipped distilled neuron blocked by redaction: %s", exc)
                 continue
 
             link_chunk_sources(conn, chunk_ids=item.chunk_ids, neuron_id=record.id)
+            if item.confidence < cfg.learning.auto_capture_confidence:
+                enqueue_for_review(conn, record.id, project_dir=review_project_dir)
             neuron_count += 1
 
         mark_session_ingested(

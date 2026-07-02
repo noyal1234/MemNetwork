@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from brainkm.db.paths import brain_dir
-from brainkm.services.memory import get_node
+from brainkm.services.memory import forget_neuron, get_node
 
 
 @dataclass(frozen=True)
@@ -66,9 +66,32 @@ def list_pending(project_dir: Path | None = None) -> list[ReviewItem]:
     return items
 
 
-def approve_pending(node_id: str, *, project_dir: Path | None = None) -> bool:
+def approve_pending(
+    node_id: str,
+    *,
+    conn: sqlite3.Connection | None = None,
+    project_dir: Path | None = None,
+) -> bool:
     path = pending_dir(project_dir) / f"{node_id}.json"
     if not path.is_file():
         return False
+    if conn is not None:
+        conn.execute("UPDATE nodes SET confidence = 1.0 WHERE id = ?", (node_id,))
+        conn.commit()
+    path.unlink()
+    return True
+
+
+def reject_pending(
+    node_id: str,
+    *,
+    conn: sqlite3.Connection,
+    project_dir: Path | None = None,
+) -> bool:
+    path = pending_dir(project_dir) / f"{node_id}.json"
+    if not path.is_file():
+        return False
+    forget_neuron(conn, node_id, reason="review_rejected")
+    conn.commit()
     path.unlink()
     return True

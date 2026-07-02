@@ -111,6 +111,7 @@ class OllamaDistillAdapter:
                 body=str(item.get("body", "")).strip(),
                 tags=[str(tag) for tag in item.get("tags", []) if tag],
                 chunk_ids=list(chunk_ids),
+                confidence=0.75,
             )
             if neuron.title and neuron.body and neuron.is_atomic():
                 neurons.append(neuron)

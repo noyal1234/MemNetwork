@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "id": "longmem_v1",
+  "description": "LongMemEval-lite fixture for extraction, temporal updates, abstention, graph, and procedures.",
+  "corpus": [
+    {"id": "lm_extract_1", "kind": "memory", "subtype": "fact", "title": "Auth middleware location", "content": "Auth middleware lives in src/auth/middleware.py."},
+    {"id": "lm_extract_2", "kind": "memory", "subtype": "decision", "title": "JWT over sessions", "content": "Project chose JWT access tokens over session cookies for APIs."},
+    {"id": "lm_temporal_new", "kind": "memory", "subtype": "decision", "title": "Current token ttl", "content": "JWT access token TTL is 15 minutes in v2 policy."},
+    {"id": "lm_graph_1", "kind": "code", "subtype": null, "title": "auth_service.py", "content": "AuthService calls TokenSigner and UserRepo."},
+    {"id": "lm_graph_2", "kind": "code", "subtype": null, "title": "token_signer.py", "content": "TokenSigner signs and verifies access tokens."},
+    {"id": "lm_proc_1", "kind": "procedure", "subtype": "tool_chain", "title": "Fix auth path", "content": "1. Recall auth context\n2. Edit middleware\n3. Run tests"},
+    {"id": "lm_abs_1", "kind": "memory", "subtype": "rule", "title": "No secrets in neurons", "content": "Never store API keys or credentials in memory neurons."},
+    {"id": "lm_fact_2", "kind": "memory", "subtype": "fact", "title": "Graph sync cadence", "content": "Graph auto-sync is debounced and import-only on SessionEnd fallback."},
+    {"id": "lm_error_1", "kind": "memory", "subtype": "error", "title": "FTS drift pitfall", "content": "For stale FTS rows, run brainkm repair to rebuild index."},
+    {"id": "lm_context_1", "kind": "memory", "subtype": "context", "title": "Token budget cap", "content": "Total injection budget is 1500 tokens by default."}
+  ],
+  "queries": [
+    {"id": "lm_q1", "ability": "extraction", "query": "auth middleware location src auth middleware py", "expected_node_id": "lm_extract_1", "should_recall": true},
+    {"id": "lm_q2", "ability": "extraction", "query": "why jwt not session cookies", "expected_node_id": "lm_extract_2", "should_recall": true},
+    {"id": "lm_q3", "ability": "temporal_update", "query": "current jwt ttl policy", "expected_node_id": "lm_temporal_new", "should_recall": true},
+    {"id": "lm_q4", "ability": "temporal_update", "query": "latest token ttl minutes", "expected_node_id": "lm_temporal_new", "should_recall": true},
+    {"id": "lm_q5", "ability": "abstention", "query": "capital city of france", "expected_node_id": null, "should_recall": false},
+    {"id": "lm_q6", "ability": "abstention", "query": "favorite pizza toppings", "expected_node_id": null, "should_recall": false},
+    {"id": "lm_q7", "ability": "graph", "query": "token signer verify access tokens", "expected_node_id": "lm_graph_2", "should_recall": true},
+    {"id": "lm_q8", "ability": "graph", "query": "auth service calls token signer", "expected_node_id": "lm_graph_1", "should_recall": true},
+    {"id": "lm_q9", "ability": "procedure", "query": "steps to fix auth path", "expected_node_id": "lm_proc_1", "should_recall": true},
+    {"id": "lm_q10", "ability": "procedure", "query": "tool chain middleware fix", "expected_node_id": "lm_proc_1", "should_recall": true}
+  ]
+}

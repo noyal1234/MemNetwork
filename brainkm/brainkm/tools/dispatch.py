@@ -32,6 +32,7 @@ from brainkm.services.recall import recall_live
 from brainkm.services.recall_limit import get_recall_limit_state
 from brainkm.services.remember_links import find_supersede_candidates, link_code_nodes_by_path
 from brainkm.services.search import traverse
+from brainkm.services.learning import get_learning_window
 from brainkm.services.session_activity import get_session_activity
 from brainkm.services.session_status import get_session_status, set_session_status
 
@@ -134,6 +135,7 @@ def handle_recall(
             nodes.append(neuron)
 
     get_session_activity().track(request.session_id, [node.node_id for node in nodes])
+    get_learning_window().record_neuron_hits(request.session_id, [node.node_id for node in nodes])
 
     return RecallResponse(
         query=result.query,
@@ -150,12 +152,17 @@ def handle_context_pack(
     config: BrainConfig,
     project_dir: Path,
 ) -> ContextPackResponse:
-    return compile_context_pack(
+    result = compile_context_pack(
         conn,
         request.query,
         config=config,
         project_dir=project_dir,
     )
+    get_learning_window().record_neuron_hits(
+        request.session_id,
+        [node.node_id for node in result.neurons],
+    )
+    return result
 
 
 def handle_session_status(

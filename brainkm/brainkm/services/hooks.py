@@ -16,6 +16,7 @@ from brainkm.models.brain_config import BrainConfig
 from brainkm.services.capture import capture_transcript_file
 from brainkm.services.config_loader import load_brain_config
 from brainkm.services.handover import parse_precompact_hook_payload
+from brainkm.services.learning import get_learning_window, process_post_tool
 from brainkm.services.session_activity import flush_use_counts, get_session_activity
 from brainkm.services.snapshot import build_frozen_snapshot, resolve_session_id
 
@@ -291,6 +292,10 @@ def run_pre_tool_use(
         tool_name,
         pack.truncation.tokens_used,
     )
+    get_learning_window().record_neuron_hits(
+        session_id,
+        [node.node_id for node in pack.neurons],
+    )
     return HookRunResult(
         hook="PreToolUse",
         session_id=session_id,
@@ -372,6 +377,22 @@ def run_post_tool_use(
                 session_id,
                 tool_name,
             )
+
+    if tool_name:
+        conn = connect(brain_db_path(project_dir))
+        try:
+            process_post_tool(
+                conn,
+                session_id,
+                tool_name,
+                data,
+                config=cfg,
+            )
+            conn.commit()
+        except Exception as exc:  # pragma: no cover - defensive hook fallback
+            logger.warning("hook=PostToolUse learning_error=%s", exc)
+        finally:
+            conn.close()
 
     return HookRunResult(
         hook="PostToolUse",

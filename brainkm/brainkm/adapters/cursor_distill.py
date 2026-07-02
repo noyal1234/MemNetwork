@@ -33,8 +33,11 @@ class CursorDistillAdapter:
         logger.warning(
             "cursor distill_mode has no standalone LLM bridge in V1; using rules fallback"
         )
-        return self._fallback.distill_rounds(
+        distilled = self._fallback.distill_rounds(
             rounds,
             round_chunk_ids=round_chunk_ids,
             max_total=max_total,
         )
+        for neuron in distilled:
+            neuron.confidence = 0.60
+        return distilled

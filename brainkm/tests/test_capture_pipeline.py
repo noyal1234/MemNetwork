@@ -6,6 +6,7 @@ from pathlib import Path
 from brainkm.db.connection import connect
 from brainkm.models.brain_config import BrainConfig
 from brainkm.services.capture import capture_transcript_file
+from brainkm.services.review import pending_dir, reject_pending
 
 
 def _write_sample_transcript(path: Path) -> None:
@@ -101,3 +102,67 @@ def test_get_distill_adapter_selects_ollama_mode() -> None:
 
     adapter = get_distill_adapter(BrainConfig(capture={"distill_mode": "ollama"}))
     assert isinstance(adapter, OllamaDistillAdapter)
+
+
+def test_low_confidence_neuron_enqueued(brain_db, tmp_path: Path) -> None:
+    transcript = tmp_path / "session-low.jsonl"
+    _write_sample_transcript(transcript)
+    config = BrainConfig(
+        capture={"distill_mode": "rules"},
+        learning={"auto_capture_confidence": 0.60},
+    )
+    result = capture_transcript_file(
+        transcript,
+        config=config,
+        db_path=brain_db,
+        session_id="session-low",
+    )
+    assert result.skipped is False
+    pending = list(pending_dir(tmp_path).glob("*.json"))
+    assert pending
+
+
+def test_high_confidence_not_enqueued(brain_db, tmp_path: Path) -> None:
+    transcript = tmp_path / "session-high.jsonl"
+    _write_sample_transcript(transcript)
+    config = BrainConfig(
+        capture={"distill_mode": "rules"},
+        learning={"auto_capture_confidence": 0.40},
+    )
+    result = capture_transcript_file(
+        transcript,
+        config=config,
+        db_path=brain_db,
+        session_id="session-high",
+    )
+    assert result.skipped is False
+    pending = list(pending_dir(tmp_path).glob("*.json"))
+    assert pending == []
+
+
+def test_review_reject_soft_archives(brain_db, tmp_path: Path) -> None:
+    transcript = tmp_path / "session-reject.jsonl"
+    _write_sample_transcript(transcript)
+    config = BrainConfig(
+        capture={"distill_mode": "rules"},
+        learning={"auto_capture_confidence": 0.60},
+    )
+    capture_transcript_file(
+        transcript,
+        config=config,
+        db_path=brain_db,
+        session_id="session-reject",
+    )
+    conn = connect(brain_db)
+    try:
+        node_row = conn.execute(
+            "SELECT id FROM nodes WHERE valid_until IS NULL ORDER BY created_at DESC LIMIT 1"
+        ).fetchone()
+        assert node_row is not None
+        node_id = node_row["id"]
+        assert reject_pending(node_id, conn=conn, project_dir=tmp_path) is True
+        archived = conn.execute("SELECT valid_until FROM nodes WHERE id = ?", (node_id,)).fetchone()
+        assert archived is not None
+        assert archived["valid_until"] is not None
+    finally:
+        conn.close()

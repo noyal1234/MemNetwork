@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "id": "dmr_v1",
+  "description": "Delayed memory retrieval scenarios (session A writes, session B recalls).",
+  "scenarios": [
+    {
+      "id": "dmr_jwt_policy",
+      "query": "jwt access token expiry",
+      "expected_node_id": "dmr_jwt",
+      "session_a_neurons": [
+        {
+          "id": "dmr_jwt",
+          "kind": "memory",
+          "subtype": "decision",
+          "title": "JWT expiry policy",
+          "content": "Access tokens expire in 15 minutes and refresh tokens rotate every 7 days."
+        }
+      ]
+    },
+    {
+      "id": "dmr_wal_rule",
+      "query": "checkpoint wal before compact",
+      "expected_node_id": "dmr_wal",
+      "session_a_neurons": [
+        {
+          "id": "dmr_wal",
+          "kind": "memory",
+          "subtype": "rule",
+          "title": "PreCompact WAL checkpoint",
+          "content": "Run PRAGMA wal_checkpoint FULL before handover to prevent stale pages."
+        }
+      ]
+    },
+    {
+      "id": "dmr_graph_fact",
+      "query": "graphify import mode code only",
+      "expected_node_id": "dmr_graph",
+      "session_a_neurons": [
+        {
+          "id": "dmr_graph",
+          "kind": "memory",
+          "subtype": "fact",
+          "title": "Graphify import mode",
+          "content": "Graph import runs with code_only true and keeps non-code neurons intact."
+        }
+      ]
+    },
+    {
+      "id": "dmr_pytest_pattern",
+      "query": "pytest fixture brain db temp",
+      "expected_node_id": "dmr_pytest",
+      "session_a_neurons": [
+        {
+          "id": "dmr_pytest",
+          "kind": "memory",
+          "subtype": "pattern",
+          "title": "pytest temp brain fixture",
+          "content": "Use tmp_path/.brain/brain.db with migrate() in setup for isolated tests."
+        }
+      ]
+    },
+    {
+      "id": "dmr_context_setting",
+      "query": "sessionstart injection frozen snapshot",
+      "expected_node_id": "dmr_context",
+      "session_a_neurons": [
+        {
+          "id": "dmr_context",
+          "kind": "memory",
+          "subtype": "context",
+          "title": "SessionStart injection frozen snapshot",
+          "content": "SessionStart injection uses a frozen snapshot and does not mutate when remember runs mid-session."
+        }
+      ]
+    }
+  ]
+}

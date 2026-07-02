@@ -82,6 +82,7 @@ def distill_round(
             body=sentence,
             tags=_tags_from_text(sentence),
             chunk_ids=list(chunk_ids),
+            confidence=0.55,
         )
         if neuron.is_atomic():
             candidates.append(neuron)

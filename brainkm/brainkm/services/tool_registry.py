@@ -53,3 +53,24 @@ def register_tool_node(
         node_id=new_ulid(),
     )
     return ToolNode(node_id=record.id, name=record.title, description=record.content)
+
+
+def register_tool_node_idempotent(
+    conn: sqlite3.Connection,
+    *,
+    name: str,
+    description: str | None = None,
+    max_tools: int = 20,
+) -> ToolNode:
+    row = conn.execute(
+        """
+        SELECT id, title, content
+        FROM nodes
+        WHERE valid_until IS NULL AND kind = 'tool' AND title = ?
+        LIMIT 1
+        """,
+        (name,),
+    ).fetchone()
+    if row is not None:
+        return ToolNode(node_id=row["id"], name=row["title"], description=row["content"])
+    return register_tool_node(conn, name=name, description=description, max_tools=max_tools)
