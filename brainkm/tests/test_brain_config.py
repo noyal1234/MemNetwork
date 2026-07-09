@@ -27,6 +27,12 @@ def test_brain_config_defaults() -> None:
     assert cfg.graphify.auto_sync.enabled is True
     assert cfg.graphify.auto_sync.debounce_seconds == 60.0
     assert cfg.semantic is False
+    assert cfg.ollama.auto_select_model is False
+
+
+def test_brain_config_auto_select_model() -> None:
+    cfg = BrainConfig(ollama={"auto_select_model": True})
+    assert cfg.ollama.auto_select_model is True
 
 
 def test_brain_config_from_example_json() -> None:

@@ -31,6 +31,7 @@
   "ollama": {
     "base_url": "http://127.0.0.1:11434",
     "model": "llama3.2:3b",
+    "auto_select_model": false,
     "timeout_seconds": 120
   },
   "injection": {

@@ -543,6 +543,46 @@ def post_tool_cmd(
 review_app = typer.Typer(help="Review auto-captured neurons (V2)")
 app.add_typer(review_app, name="review")
 
+ollama_app = typer.Typer(help="Ollama hardware advisor and diagnostics")
+app.add_typer(ollama_app, name="ollama")
+
+
+@ollama_app.command("doctor")
+def ollama_doctor_cmd(
+    project_dir: Path | None = typer.Option(
+        None,
+        "--project-dir",
+        help="Target project root (defaults to cwd)",
+    ),
+    apply: bool = typer.Option(
+        False,
+        "--apply",
+        help="Write recommended model into .brain/config.json",
+    ),
+) -> None:
+    """Report hardware profile, recommended Ollama model, and daemon status."""
+    from brainkm.services.config_loader import config_path
+    from brainkm.services.ollama_advisor import (
+        apply_recommended_model,
+        build_doctor_report,
+        format_doctor_report,
+    )
+
+    cfg_path = config_path(project_dir)
+    if not cfg_path.is_file():
+        typer.echo(f"Config not found: {cfg_path}", err=True)
+        raise typer.Exit(code=1)
+
+    report = build_doctor_report(project_dir=project_dir)
+    typer.echo(format_doctor_report(report))
+
+    if apply:
+        updated = apply_recommended_model(
+            project_dir=project_dir,
+            recommendation=report.recommendation,
+        )
+        typer.echo(f"Updated {updated} ollama.model -> {report.recommendation.model}")
+
 
 @review_app.command("list")
 def review_list_cmd(project_dir: Path | None = typer.Option(None, "--project-dir")) -> None:

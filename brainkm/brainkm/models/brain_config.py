@@ -100,6 +100,7 @@ class GraphifyConfig(BaseModel):
 class OllamaConfig(BaseModel):
     base_url: str = "http://127.0.0.1:11434"
     model: str = "llama3.2:3b"
+    auto_select_model: bool = False
     timeout_seconds: int = Field(default=120, ge=5, le=600)
 
 

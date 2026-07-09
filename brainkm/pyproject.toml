@@ -29,6 +29,7 @@ semantic = [
 ]
 ollama = [
     "httpx>=0.27.0",
+    "psutil>=5.9.0",
 ]
 graphify = [
     "graphifyy>=0.8.48",

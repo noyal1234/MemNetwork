@@ -9,6 +9,7 @@ from brainkm.adapters.distill_rules import RulesDistillAdapter
 from brainkm.logging_config import get_logger
 from brainkm.models.brain_config import BrainConfig
 from brainkm.models.distill import DistilledNeuron, TranscriptRound
+from brainkm.services.ollama_advisor import resolve_ollama_model
 
 logger = get_logger("adapters.ollama_distill")
 
@@ -28,6 +29,7 @@ class OllamaDistillAdapter:
     def __init__(self, config: BrainConfig) -> None:
         self._config = config
         self._fallback = RulesDistillAdapter()
+        self._model = resolve_ollama_model(config)
 
     def distill_rounds(
         self,
@@ -79,7 +81,7 @@ class OllamaDistillAdapter:
 
         prompt = DISTILL_PROMPT.format(round_text=round_.combined_text[:8000])
         payload = {
-            "model": self._config.ollama.model,
+            "model": self._model,
             "prompt": prompt,
             "stream": False,
             "format": "json",
