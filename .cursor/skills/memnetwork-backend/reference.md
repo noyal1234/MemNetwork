@@ -11,7 +11,19 @@
 | `rule` | Team or project rule |
 | `error` | Known failure mode / anti-pattern |
 
-## Hook templates (V1 — `brainkm/hooks/cursor/`)
+## Procedure neurons (`kind=procedure`)
+
+| Subtype | Use |
+|---------|-----|
+| `tool_chain` | Learned sequence of tools + recalled neurons that worked together |
+
+Promoted automatically when co-activation edges exceed `learning.co_activation_threshold` and the session used ≥2 external tools. Source: `learning:proc:<hash>`. Included in SessionStart snapshot and `context_pack`.
+
+## Tool nodes (`kind=tool`)
+
+Project-scoped registry of external MCP/editor tools seen via PostToolUse. Capped at `learning.max_tool_nodes` (default 20). Idempotent by tool name.
+
+## Hook templates (`brainkm/hooks/cursor/`)
 
 ### SessionStart
 
@@ -19,7 +31,7 @@ Inject frozen brain pack (pinned + rules + context + procedures).
 
 ### SessionEnd
 
-Run capture pipeline: distill transcript → neurons + session_chunks.
+Run capture pipeline: distill transcript → neurons + session_chunks. Low-confidence auto-captured neurons enqueue for review.
 
 ### PreCompact (`matcher: auto`)
 
@@ -39,11 +51,41 @@ Run capture pipeline: distill transcript → neurons + session_chunks.
 
 ### PreToolUse
 
-Match `write`, `edit`, `run_terminal` → optional `context_pack`.
+Match `write`, `edit`, `run_terminal` (configurable via `injection.pre_tool_patterns`) → compile bounded `context_pack` and return as `additional_context`. Records neuron hits for the learning window.
 
 ### PostToolUse
 
-Match `Write|Edit` → touch `.brain/graph_sync.requested` for debounced MCP background graph sync (no extract in hook).
+On Write/Edit: touch `.brain/graph_sync.requested` for debounced MCP background graph sync (no extract in hook). On every tool use: update co-activation edges, register tool nodes, check procedure promotion.
+
+## Learning loop (V2)
+
+| Signal | Source | Effect |
+|--------|--------|--------|
+| Neuron hits | MCP `recall`, `context_pack`; PreToolUse pack | `record_neuron_hits` → session window |
+| Tool use | PostToolUse hook | `record_tool_use` → tool registry |
+| Co-activation | Pairs of neurons in window | `co_activated` edge weight +1 |
+| Procedure | Edge weight ≥ threshold + ≥2 external tools | New `kind=procedure` neuron |
+
+Config (`learning` in `.brain/config.json`):
+
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `co_activation_threshold` | 3 | Min edge weight before procedure promotion |
+| `max_tool_nodes` | 20 | Cap on `kind=tool` registry |
+| `auto_capture_confidence` | 0.5 | Below this → review queue on capture |
+| `session_window_size` | 20 | Rolling PostToolUse/recall window |
+
+## Review queue (V2)
+
+Auto-captured neurons with `confidence < learning.auto_capture_confidence` land in `.brain/pending/<node_id>.json`.
+
+```bash
+brainkm review list
+brainkm review approve <node_id>
+brainkm review reject <node_id>   # soft-archives via forget
+```
+
+Approve sets `confidence = 1.0` and removes the pending file. Reject calls `forget` with reason `review_rejected`.
 
 ## Graphify sync commands
 
@@ -97,13 +139,22 @@ Local dev of brainkm:
 | Recall results | 300 |
 | **Total** | **1500** |
 
-## bench suites (V1.5)
+## Bench suites
 
 | Suite | Fixtures | Metric |
 |-------|----------|--------|
-| token | 10 queries | tokens saved vs file-read |
-| dmr | 5 multi-session | recall@1 vs summarize baseline |
-| longmem | 10 questions (2 per ability) | accuracy + abstention rate |
+| `token` | 10 queries | tokens saved vs file-read |
+| `dmr` | 5 multi-session | recall@1 vs summarize baseline |
+| `longmem` | 10 questions (2 per ability) | accuracy + abstention rate |
+| `abstention` | calibration fixture | pass rate vs expected recall/abstain |
+| `budget` | pack profiles | token allocation per task type |
+| `compaction` | 3 scenarios | neuron survival across compact cycle |
+
+```bash
+brainkm bench run token
+brainkm bench run dmr
+brainkm bench calibrate
+```
 
 ## Windows notes
 

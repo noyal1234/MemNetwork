@@ -230,7 +230,7 @@ def run_pre_tool_use(
     project_dir: Path | None = None,
     config: BrainConfig | None = None,
 ) -> HookRunResult:
-    """PreToolUse — match configured tools; context_pack injection stub for V1."""
+    """PreToolUse — match configured tools and inject a bounded context_pack when seeded."""
     cfg = config or load_brain_config(project_dir)
     data = _parse_hook_object(raw)
     tool_name = _tool_name_from_payload(data)
@@ -352,7 +352,7 @@ def run_post_tool_use(
     project_dir: Path | None = None,
     config: BrainConfig | None = None,
 ) -> HookRunResult:
-    """PostToolUse — request debounced graph sync after write/edit (flag only)."""
+    """PostToolUse — debounced graph sync flag, co-activation edges, procedure promotion."""
     cfg = config or load_brain_config(project_dir)
     data = _parse_hook_object(raw)
     session_id = _session_id_from_payload(data)

@@ -45,4 +45,4 @@ Python **3.11 or 3.12** recommended (`requires-python = ">=3.11"`).
 
 ## Status
 
-**V1.5 shipped, V2 in progress** — SQLite brain, MCP tools, hooks, install, Graphify import/sync, capture/handover, repair/export/import merge, and post-compact snapshot refresh are complete; V2 learning loop and real bench suites are the current focus. See [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md) for roadmap.
+**V2 shipped** — SQLite brain, MCP tools, hooks, install, Graphify import/sync, capture/handover, repair/export/import merge, post-compact snapshot refresh, learning loop (co-activation + procedure promotion), confidence-gated review queue, and fixture-driven bench suites. **V3+ planned:** decay, optional semantic search, stats. See [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md) for roadmap.

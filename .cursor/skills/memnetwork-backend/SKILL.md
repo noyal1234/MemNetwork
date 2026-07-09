@@ -27,7 +27,7 @@ Guide for implementing features in the **brainkm** Python package.
 | `brainkm/brainkm/models/brain_config.py` | `.brain/config.json` schema |
 | `brainkm/brainkm/models/schemas.py` | MCP tool I/O models |
 | `brainkm/brainkm/tools/` | Thin MCP handlers |
-| `brainkm/brainkm/services/` | memory, search, budget, snapshot |
+| `brainkm/brainkm/services/` | memory, search, budget, snapshot, learning, procedures, review |
 | `brainkm/brainkm/adapters/` | graphify, transcripts, redaction |
 | `brainkm/brainkm/db/` | SQLite, migrations, FTS5 |
 | `brainkm/tests/` | pytest suite |
@@ -68,6 +68,14 @@ Python **3.11 or 3.12** recommended.
 6. **Hooks** — SessionStart/End, PreCompact handover, PreToolUse
 7. **CLI** — install, export, handover, migrate
 
+## V2 (shipped)
+
+- **Learning** — `services/learning.py` (session window, co-activation), wired from PostToolUse + MCP recall/context_pack
+- **Procedures** — `services/procedures.py` (promote tool chains from co-activation)
+- **Review queue** — `services/review.py` + `brainkm review` CLI for low-confidence captures
+- **Tool registry** — `services/tool_registry.py` (cap 20 external tools)
+- **Bench** — fixture-driven `dmr`, `longmem`, `compaction`, `abstention`, `budget` suites
+
 ## Adding an MCP tool
 
 1. Define request/response in `models/schemas.py`
@@ -84,4 +92,4 @@ Python **3.11 or 3.12** recommended.
 
 ## Reference
 
-See [reference.md](reference.md) for hook JSON templates, neuron subtypes, and bench fixtures.
+See [reference.md](reference.md) for hook templates, neuron subtypes, learning/review, and bench suites.

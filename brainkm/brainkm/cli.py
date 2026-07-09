@@ -399,7 +399,7 @@ def pre_tool_cmd(
     project_dir: Path | None = typer.Option(None, "--project-dir"),
     stdin: bool = typer.Option(True, "--stdin", help="Read hook payload JSON from stdin"),
 ) -> None:
-    """PreToolUse hook — match write/edit/shell tools (context_pack stub in V1)."""
+    """PreToolUse hook — inject bounded context_pack for matched write/edit/shell tools."""
     from brainkm.services.hooks import run_pre_tool_use
 
     if not stdin:
@@ -526,7 +526,7 @@ def post_tool_cmd(
     project_dir: Path | None = typer.Option(None, "--project-dir"),
     stdin: bool = typer.Option(True, "--stdin", help="Read hook payload JSON from stdin"),
 ) -> None:
-    """PostToolUse hook — learning loop stub (V2)."""
+    """PostToolUse hook — graph sync request, co-activation learning, procedure promotion."""
     from brainkm.services.hooks import run_post_tool_use
 
     if not stdin:
