@@ -28,22 +28,22 @@ from brainkm.services.ollama_advisor import (
     [
         (
             HardwareProfile(6.0, 4, "darwin", "x86_64", False),
-            "llama3.2:1b",
+            "qwen2.5:1.5b-instruct-q4_K_M",
             "minimal",
         ),
         (
             HardwareProfile(16.0, 6, "darwin", "x86_64", False),
-            "llama3.2:3b",
+            "qwen2.5:3b",
             "small",
         ),
         (
             HardwareProfile(16.0, 8, "darwin", "arm64", True),
             "qwen2.5:3b",
-            "small_gpu",
+            "small",
         ),
         (
             HardwareProfile(24.0, 10, "linux", "x86_64", True),
-            "llama3.2:7b-instruct-q4_K_M",
+            "qwen2.5:7b-instruct-q4_K_M",
             "medium",
         ),
         (
@@ -66,12 +66,20 @@ def test_recommend_model_tiers(
 def test_recommend_model_unknown_ram_defaults_small() -> None:
     profile = HardwareProfile(0.0, 6, "darwin", "x86_64", False)
     rec = recommend_model(profile)
-    assert rec.model == "llama3.2:3b"
+    assert rec.model == "qwen2.5:3b"
     assert rec.tier == "small"
 
 
 def test_probe_ollama_unreachable() -> None:
-    fake_httpx = type("httpx", (), {"get": staticmethod(lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("down")))})
+    fake_httpx = type(
+        "httpx",
+        (),
+        {
+            "get": staticmethod(
+                lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("down"))
+            )
+        },
+    )
     with patch.dict("sys.modules", {"httpx": fake_httpx}):
         status = probe_ollama("http://127.0.0.1:11434")
     assert status.reachable is False
@@ -83,7 +91,7 @@ def test_probe_ollama_lists_models() -> None:
 
         @staticmethod
         def json() -> dict:
-            return {"models": [{"name": "llama3.2:3b"}, {"name": "llama3.2:1b"}]}
+            return {"models": [{"name": "qwen2.5:3b"}, {"name": "qwen2.5:1.5b-instruct-q4_K_M"}]}
 
     class FakeClient:
         @staticmethod
@@ -95,7 +103,7 @@ def test_probe_ollama_lists_models() -> None:
         status = probe_ollama("http://127.0.0.1:11434")
 
     assert status.reachable is True
-    assert status.installed_models == ("llama3.2:3b", "llama3.2:1b")
+    assert status.installed_models == ("qwen2.5:3b", "qwen2.5:1.5b-instruct-q4_K_M")
 
 
 def test_resolve_ollama_model_uses_config_when_auto_select_disabled() -> None:
@@ -108,7 +116,7 @@ def test_resolve_ollama_model_auto_selects_from_hardware() -> None:
     profile = HardwareProfile(16.0, 6, "darwin", "x86_64", False)
 
     with patch("brainkm.services.ollama_advisor.detect_hardware", return_value=profile):
-        assert resolve_ollama_model(cfg) == "llama3.2:3b"
+        assert resolve_ollama_model(cfg) == "qwen2.5:3b"
 
 
 def test_resolve_ollama_model_falls_back_when_ram_unknown() -> None:
@@ -131,7 +139,7 @@ def test_ollama_distill_adapter_uses_resolved_model() -> None:
     with patch("brainkm.services.ollama_advisor.detect_hardware", return_value=profile):
         adapter = OllamaDistillAdapter(cfg)
 
-    assert adapter._model == "llama3.2:3b"
+    assert adapter._model == "qwen2.5:3b"
 
 
 def test_format_doctor_report_mismatch_warning() -> None:
@@ -140,13 +148,13 @@ def test_format_doctor_report_mismatch_warning() -> None:
     report = report.__class__(
         profile=profile,
         recommendation=recommend_model(profile),
-        ollama=OllamaStatus(reachable=True, installed_models=("llama3.2:3b",)),
-        config_model="llama3.2:7b",
+        ollama=OllamaStatus(reachable=True, installed_models=("qwen2.5:3b",)),
+        config_model="qwen2.5:7b-instruct-q4_K_M",
         config_path=Path(".brain/config.json"),
     )
     text = format_doctor_report(report)
     assert "differs" in text
-    assert "llama3.2:3b" in text
+    assert "qwen2.5:3b" in text
 
 
 def test_apply_recommended_model_updates_config(tmp_path: Path) -> None:
@@ -164,20 +172,20 @@ def test_apply_recommended_model_updates_config(tmp_path: Path) -> None:
 
     assert updated == cfg_path
     data = json.loads(cfg_path.read_text(encoding="utf-8"))
-    assert data["ollama"]["model"] == "llama3.2:3b"
+    assert data["ollama"]["model"] == "qwen2.5:3b"
 
 
 def test_ollama_doctor_cli(tmp_path: Path) -> None:
     brain_dir = tmp_path / ".brain"
     brain_dir.mkdir()
     (brain_dir / "config.json").write_text(
-        json.dumps({"ollama": {"model": "llama3.2:3b", "base_url": "http://127.0.0.1:11434"}}),
+        json.dumps({"ollama": {"model": "qwen2.5:3b", "base_url": "http://127.0.0.1:11434"}}),
         encoding="utf-8",
     )
 
     runner = CliRunner()
     profile = HardwareProfile(16.0, 6, "darwin", "x86_64", False)
-    ollama = OllamaStatus(reachable=True, installed_models=("llama3.2:3b",))
+    ollama = OllamaStatus(reachable=True, installed_models=("qwen2.5:3b",))
 
     with (
         patch("brainkm.services.ollama_advisor.detect_hardware", return_value=profile),
@@ -186,7 +194,7 @@ def test_ollama_doctor_cli(tmp_path: Path) -> None:
         result = runner.invoke(app, ["ollama", "doctor", "--project-dir", str(tmp_path)])
 
     assert result.exit_code == 0
-    assert "Recommended model: llama3.2:3b" in result.output
+    assert "Recommended model: qwen2.5:3b" in result.output
     assert "matches recommendation" in result.output
 
 

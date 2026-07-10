@@ -25,6 +25,10 @@ class Settings(BaseSettings):
         default=".brain",
         description="Per-project brain storage directory name",
     )
+    groq_api_key: str | None = Field(
+        default=None,
+        description="Groq API key for cloud distill (env: GROQ_API_KEY)",
+    )
 
 
 @lru_cache

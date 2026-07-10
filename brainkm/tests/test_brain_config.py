@@ -28,6 +28,9 @@ def test_brain_config_defaults() -> None:
     assert cfg.graphify.auto_sync.debounce_seconds == 60.0
     assert cfg.semantic is False
     assert cfg.ollama.auto_select_model is False
+    assert cfg.ollama.model == "qwen2.5:3b"
+    assert cfg.groq.model == "llama-3.3-70b-versatile"
+    assert cfg.groq.base_url == "https://api.groq.com/openai/v1"
 
 
 def test_brain_config_auto_select_model() -> None:
@@ -44,6 +47,8 @@ def test_brain_config_from_example_json() -> None:
     assert cfg.capture.distill_mode == "cursor"
     assert cfg.recall.abstain_mode == "percentile"
     assert cfg.project_roots == ["."]
+    assert cfg.ollama.model == "qwen2.5:3b"
+    assert cfg.groq.model == "llama-3.3-70b-versatile"
 
 
 def test_brain_config_accepts_ollama_distill_mode() -> None:
@@ -51,10 +56,14 @@ def test_brain_config_accepts_ollama_distill_mode() -> None:
     assert cfg.capture.distill_mode == "ollama"
 
 
+def test_brain_config_accepts_groq_distill_mode() -> None:
+    cfg = BrainConfig(capture={"distill_mode": "groq"})
+    assert cfg.capture.distill_mode == "groq"
+
+
 def test_brain_config_rejects_invalid_distill_mode() -> None:
     with pytest.raises(ValueError):
         BrainConfig(capture={"distill_mode": "openai"})
-
 
 def test_brain_config_rejects_empty_project_roots() -> None:
     with pytest.raises(ValueError):

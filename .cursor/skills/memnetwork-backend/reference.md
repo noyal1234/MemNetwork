@@ -102,6 +102,33 @@ Troubleshooting:
 - `graph_stale: true` — run `brainkm graph sync` after refactors or git pull.
 - Empty graph after sync — check `code_only: true` and `.graphifyignore`; import refuses to wipe existing code graph on 0 nodes.
 
+## Distill modes (local vs cloud)
+
+| Mode | Adapter | Setup |
+|------|---------|-------|
+| `rules` | Rule-based (default path) | None |
+| `ollama` | Local Ollama (`qwen2.5:3b` default) | `pip install -e "./brainkm[ollama]"` + `brainkm ollama doctor` |
+| `groq` | Free cloud Groq (`llama-3.3-70b-versatile`) | `pip install -e "./brainkm[cloud]"` + `GROQ_API_KEY` + `brainkm groq doctor` |
+| `cursor` | Cursor-side stub | Hooks only |
+
+Set in `.brain/config.json`:
+
+```json
+{
+  "capture": { "distill_mode": "groq" },
+  "ollama": { "model": "qwen2.5:3b", "auto_select_model": false },
+  "groq": {
+    "base_url": "https://api.groq.com/openai/v1",
+    "model": "llama-3.3-70b-versatile",
+    "timeout_seconds": 60
+  }
+}
+```
+
+API keys live in env / `.env` (`GROQ_API_KEY`), never in config or neurons.
+
+Full CLI surface: [docs/CLI_COMMANDS.md](../../../docs/CLI_COMMANDS.md).
+
 ## MCP server entry (target project)
 
 ```json

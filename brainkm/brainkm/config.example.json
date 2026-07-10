@@ -28,11 +28,16 @@
     "max_auto_neurons_per_session": 50,
     "max_neurons_per_plan": 20
   },
-  "ollama": {
+    "ollama": {
     "base_url": "http://127.0.0.1:11434",
-    "model": "llama3.2:3b",
+    "model": "qwen2.5:3b",
     "auto_select_model": false,
     "timeout_seconds": 120
+  },
+  "groq": {
+    "base_url": "https://api.groq.com/openai/v1",
+    "model": "llama-3.3-70b-versatile",
+    "timeout_seconds": 60
   },
   "injection": {
     "session_start": true,

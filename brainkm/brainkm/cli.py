@@ -546,6 +546,9 @@ app.add_typer(review_app, name="review")
 ollama_app = typer.Typer(help="Ollama hardware advisor and diagnostics")
 app.add_typer(ollama_app, name="ollama")
 
+groq_app = typer.Typer(help="Groq cloud distill diagnostics")
+app.add_typer(groq_app, name="groq")
+
 
 @ollama_app.command("doctor")
 def ollama_doctor_cmd(
@@ -583,6 +586,28 @@ def ollama_doctor_cmd(
         )
         typer.echo(f"Updated {updated} ollama.model -> {report.recommendation.model}")
 
+
+@groq_app.command("doctor")
+def groq_doctor_cmd(
+    project_dir: Path | None = typer.Option(
+        None,
+        "--project-dir",
+        help="Target project root (defaults to cwd)",
+    ),
+) -> None:
+    """Report Groq API key presence, reachability, and configured model."""
+    from brainkm.services.config_loader import config_path
+    from brainkm.services.groq_advisor import build_groq_report, format_groq_report
+
+    cfg_path = config_path(project_dir)
+    if not cfg_path.is_file():
+        typer.echo(f"Config not found: {cfg_path}", err=True)
+        raise typer.Exit(code=1)
+
+    report = build_groq_report(project_dir=project_dir)
+    typer.echo(format_groq_report(report))
+    if not report.api_key_present or not report.status.reachable:
+        raise typer.Exit(code=1)
 
 @review_app.command("list")
 def review_list_cmd(project_dir: Path | None = typer.Option(None, "--project-dir")) -> None:

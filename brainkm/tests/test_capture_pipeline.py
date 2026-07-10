@@ -104,6 +104,14 @@ def test_get_distill_adapter_selects_ollama_mode() -> None:
     assert isinstance(adapter, OllamaDistillAdapter)
 
 
+def test_get_distill_adapter_selects_groq_mode() -> None:
+    from brainkm.adapters.distill import get_distill_adapter
+    from brainkm.adapters.groq_distill import GroqDistillAdapter
+
+    adapter = get_distill_adapter(BrainConfig(capture={"distill_mode": "groq"}))
+    assert isinstance(adapter, GroqDistillAdapter)
+
+
 def test_get_distill_adapter_ollama_mode_accepts_conn(brain_db: Path) -> None:
     from brainkm.adapters.distill import get_distill_adapter
     from brainkm.adapters.ollama_distill import OllamaDistillAdapter
@@ -116,6 +124,22 @@ def test_get_distill_adapter_ollama_mode_accepts_conn(brain_db: Path) -> None:
             conn=conn,
         )
         assert isinstance(adapter, OllamaDistillAdapter)
+    finally:
+        conn.close()
+
+
+def test_get_distill_adapter_groq_mode_accepts_conn(brain_db: Path) -> None:
+    from brainkm.adapters.distill import get_distill_adapter
+    from brainkm.adapters.groq_distill import GroqDistillAdapter
+    from brainkm.db.connection import connect
+
+    conn = connect(brain_db)
+    try:
+        adapter = get_distill_adapter(
+            BrainConfig(capture={"distill_mode": "groq"}),
+            conn=conn,
+        )
+        assert isinstance(adapter, GroqDistillAdapter)
     finally:
         conn.close()
 

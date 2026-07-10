@@ -28,11 +28,13 @@ Guide for implementing features in the **brainkm** Python package.
 | `brainkm/brainkm/models/schemas.py` | MCP tool I/O models |
 | `brainkm/brainkm/tools/` | Thin MCP handlers |
 | `brainkm/brainkm/services/` | memory, search, budget, snapshot, learning, procedures, review |
-| `brainkm/brainkm/adapters/` | graphify, transcripts, redaction |
+| `brainkm/brainkm/adapters/` | graphify, transcripts, redaction, ollama/groq distill |
 | `brainkm/brainkm/db/` | SQLite, migrations, FTS5 |
 | `brainkm/tests/` | pytest suite |
 | `.venv/` | Python venv at repo root |
 | `docs/AI_PROJECT_BRIEF.md` | Product + architecture brief |
+| `docs/CLI_COMMANDS.md` | Full CLI command catalog |
+| `docs/TUI_APP_PLAN.md` | Future `brainkm configure` Textual app design |
 
 ## Architecture (mandatory)
 

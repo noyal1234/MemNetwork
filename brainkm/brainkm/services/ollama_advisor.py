@@ -44,11 +44,11 @@ def recommend_model(profile: HardwareProfile) -> ModelRecommendation:
 
     if ram > 0 and ram < 8:
         return ModelRecommendation(
-            model="llama3.2:1b",
+            model="qwen2.5:1.5b-instruct-q4_K_M",
             tier="minimal",
             rationale=(
-                f"Under 8 GB RAM ({ram} GB detected) — use the smallest model or "
-                "distill_mode: rules for reliability"
+                f"Under 8 GB RAM ({ram} GB detected) — use the smallest Qwen2.5 "
+                "model or distill_mode: rules for reliability"
             ),
             warnings=tuple(warnings),
         )
@@ -66,7 +66,7 @@ def recommend_model(profile: HardwareProfile) -> ModelRecommendation:
 
     if ram > 16 and (profile.has_gpu_accel or profile.cpu_cores >= 8):
         return ModelRecommendation(
-            model="llama3.2:7b-instruct-q4_K_M",
+            model="qwen2.5:7b-instruct-q4_K_M",
             tier="medium",
             rationale=(
                 f"{ram} GB RAM with "
@@ -76,24 +76,18 @@ def recommend_model(profile: HardwareProfile) -> ModelRecommendation:
             warnings=tuple(warnings),
         )
 
-    if profile.has_gpu_accel and ram >= 8:
-        return ModelRecommendation(
-            model="qwen2.5:3b",
-            tier="small_gpu",
-            rationale=(
-                f"{ram} GB RAM with Apple Silicon / CUDA — 3B with better "
-                "instruction following than llama3.2:3b"
-            ),
-            warnings=tuple(warnings),
-        )
-
     ram_label = f"{ram} GB" if ram > 0 else "unknown RAM"
+    gpu_note = (
+        "with Apple Silicon / CUDA"
+        if profile.has_gpu_accel
+        else f", {profile.cpu_cores} cores, no GPU acceleration"
+    )
     return ModelRecommendation(
-        model="llama3.2:3b",
+        model="qwen2.5:3b",
         tier="small",
         rationale=(
-            f"{ram_label}, {profile.cpu_cores} cores, no GPU acceleration — "
-            "3B quantized keeps CPU inference under ~40s/round"
+            f"{ram_label} {gpu_note} — Qwen2.5 3B keeps inference practical "
+            "while following distill instructions well"
         ),
         warnings=tuple(warnings),
     )

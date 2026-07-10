@@ -12,7 +12,8 @@
 
 | Principle | Meaning |
 |-----------|---------|
-| **Zero-LLM default (T0)** | Rule-based distill, FTS5 BM25, Graphify AST — no local Ollama, no cloud vector DB |
+| **Zero-LLM default (T0)** | Rule-based distill, FTS5 BM25, Graphify AST — no local Ollama, no cloud API required |
+| **User-chosen distill** | `capture.distill_mode`: `rules` (default path), `ollama` (local), `groq` (free cloud), or `cursor` |
 | **Compaction-aware** | PreCompact handover + SessionEnd capture so truth survives Cursor chat compaction |
 | **Inspectable** | Every memory is a SQLite row or markdown export — `forget`, `pin`, `merge` |
 | **Bounded tokens** | 1500-token hard cap on injection; structural retrieval over file dumps |
@@ -65,7 +66,7 @@ flowchart LR
 | **MCP** | `mcp` SDK stdio | 6 tools: remember, recall, context_pack, context, traverse, forget |
 | **CLI** | Typer | install, export, bench, repair, handover, review |
 | **Optional T1** | sqlite-vec + ONNX MiniLM | Semantic search when `semantic: true` |
-| **Optional T2** | Cursor model at SessionEnd | `distill_mode: cursor` |
+| **Optional T2** | Cursor / Ollama / Groq at SessionEnd | `distill_mode: cursor \| ollama \| groq` |
 
 ---
 
@@ -255,7 +256,7 @@ flowchart TB
 | Mem0 | Cloud vector + graph | Yes (async extract) | None (external only) | SaaS memory layer |
 | Zep/Graphiti | Neo4j / cloud | Yes per episode | Temporal KG | Enterprise multi-tenant |
 | Claude/Cursor compact | Built into IDE | Yes (summarize) | Lossy in-window | Session survival only |
-| **MemNetwork** | SQLite local | **cursor \| ollama \| rules** at SessionEnd/PreCompact only | **PreCompact + SessionEnd + injection** | Solo dev project brain |
+| **MemNetwork** | SQLite local | **cursor \| ollama \| groq \| rules** at SessionEnd/PreCompact only | **PreCompact + SessionEnd + injection** | Solo dev project brain |
 
 ### 6.5 Research patterns — adopt vs defer
 
@@ -280,10 +281,23 @@ Key fields:
 - `project_roots` — monorepo roots the brain spans
 - `budget.total_tokens` — default 1500
 - `capture.plan_files` — ingest `.cursor/plans/*.plan.md`
+- `capture.distill_mode` — `rules` \| `cursor` \| `ollama` \| `groq` (see local vs cloud note below)
+- `ollama.model` — default `qwen2.5:3b`; optional `auto_select_model` via `brainkm ollama doctor`
+- `groq.model` — default `llama-3.3-70b-versatile`; API key via `GROQ_API_KEY` env / `.env`
 - `injection.frozen_snapshot` — SessionStart pack frozen; mid-session `remember` does not mutate injection
 - `recall.abstain_mode` / `recall.abstain_percentile` — return `[]` on low-confidence matches
 - `handover.precompact_enabled` — PreCompact hook distill
 
+### Local vs cloud distill
+
+| Mode | When to choose | Requirements |
+|------|----------------|--------------|
+| `rules` | Zero-dependency default; offline; no API key | None |
+| `ollama` | Privacy / offline LLM distill on your machine | Ollama daemon + model (`brainkm ollama doctor`) |
+| `groq` | Higher quality / speed without local GPU/CPU load | `GROQ_API_KEY` + network (`brainkm groq doctor`) |
+| `cursor` | V1 stub path using Cursor-side distill | Cursor session hooks |
+
+T0 remains **rules** — cloud and local LLM distill are opt-in. Never put API keys in `.brain/config.json` or neurons.
 ---
 
 ## 8. Implementation status

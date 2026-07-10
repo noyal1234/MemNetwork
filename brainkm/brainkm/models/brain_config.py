@@ -30,7 +30,7 @@ class CaptureConfig(BaseModel):
     transcripts: bool = True
     plan_files: bool = True
     plan_glob: str = ".cursor/plans/*.plan.md"
-    distill_mode: Literal["cursor", "ollama", "rules"] = "cursor"
+    distill_mode: Literal["cursor", "ollama", "groq", "rules"] = "cursor"
     max_auto_neurons_per_session: int = Field(default=50, ge=1, le=500)
     max_neurons_per_plan: int = Field(default=20, ge=1, le=200)
 
@@ -99,9 +99,15 @@ class GraphifyConfig(BaseModel):
 
 class OllamaConfig(BaseModel):
     base_url: str = "http://127.0.0.1:11434"
-    model: str = "llama3.2:3b"
+    model: str = "qwen2.5:3b"
     auto_select_model: bool = False
     timeout_seconds: int = Field(default=120, ge=5, le=600)
+
+
+class GroqConfig(BaseModel):
+    base_url: str = "https://api.groq.com/openai/v1"
+    model: str = "llama-3.3-70b-versatile"
+    timeout_seconds: int = Field(default=60, ge=5, le=300)
 
 
 class GitConfig(BaseModel):
@@ -122,6 +128,7 @@ class BrainConfig(BaseModel):
     graph: GraphConfig = Field(default_factory=GraphConfig)
     graphify: GraphifyConfig = Field(default_factory=GraphifyConfig)
     ollama: OllamaConfig = Field(default_factory=OllamaConfig)
+    groq: GroqConfig = Field(default_factory=GroqConfig)
     semantic: bool = False
     git: GitConfig = Field(default_factory=GitConfig)
 

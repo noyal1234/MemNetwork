@@ -36,6 +36,10 @@ def get_distill_adapter(
         from brainkm.adapters.ollama_distill import OllamaDistillAdapter
 
         return OllamaDistillAdapter(config, conn=conn)
+    if mode == "groq":
+        from brainkm.adapters.groq_distill import GroqDistillAdapter
+
+        return GroqDistillAdapter(config, conn=conn)
     if mode == "cursor":
         from brainkm.adapters.cursor_distill import CursorDistillAdapter
 

@@ -1,4 +1,4 @@
-"""Local Ollama distill adapter."""
+"""Cloud Groq distill adapter (OpenAI-compatible chat completions)."""
 
 from __future__ import annotations
 
@@ -6,30 +6,29 @@ import sqlite3
 
 from brainkm.adapters.distill_prompts import SYSTEM_PROMPT, build_context_block, parse_json_array
 from brainkm.adapters.distill_rules import RulesDistillAdapter
+from brainkm.config import get_settings
 from brainkm.logging_config import get_logger
 from brainkm.models.brain_config import BrainConfig
 from brainkm.models.distill import DistilledNeuron, TranscriptRound
-from brainkm.services.ollama_advisor import resolve_ollama_model
 
-logger = get_logger("adapters.ollama_distill")
-
-# Re-export for tests and callers that imported from this module.
-_build_context_block = build_context_block
+logger = get_logger("adapters.groq_distill")
 
 
-class OllamaDistillAdapter:
-    mode = "ollama"
+class GroqDistillAdapter:
+    mode = "groq"
 
     def __init__(
         self,
         config: BrainConfig,
         *,
         conn: sqlite3.Connection | None = None,
+        api_key: str | None = None,
     ) -> None:
         self._config = config
         self._fallback = RulesDistillAdapter()
-        self._model = resolve_ollama_model(config)
+        self._model = config.groq.model
         self._context_block = build_context_block(conn)
+        self._api_key = api_key if api_key is not None else get_settings().groq_api_key
 
     def distill_rounds(
         self,
@@ -38,8 +37,16 @@ class OllamaDistillAdapter:
         round_chunk_ids: dict[int, list[str]],
         max_total: int,
     ) -> list[DistilledNeuron]:
-        if not self._ollama_available():
-            logger.warning("Ollama unreachable; falling back to rules distill")
+        if not self._api_key:
+            logger.warning("GROQ_API_KEY not set; falling back to rules distill")
+            return self._fallback.distill_rounds(
+                rounds,
+                round_chunk_ids=round_chunk_ids,
+                max_total=max_total,
+            )
+
+        if not self._groq_available():
+            logger.warning("Groq unreachable; falling back to rules distill")
             return self._fallback.distill_rounds(
                 rounds,
                 round_chunk_ids=round_chunk_ids,
@@ -57,16 +64,20 @@ class OllamaDistillAdapter:
                 break
         return neurons[:max_total]
 
-    def _ollama_available(self) -> bool:
+    def _groq_available(self) -> bool:
         try:
             import httpx
         except ImportError:
-            logger.warning("httpx not installed; install brainkm[ollama]")
+            logger.warning("httpx not installed; install brainkm[cloud]")
             return False
 
-        url = f"{self._config.ollama.base_url.rstrip('/')}/api/tags"
+        url = f"{self._config.groq.base_url.rstrip('/')}/models"
         try:
-            response = httpx.get(url, timeout=2.0)
+            response = httpx.get(
+                url,
+                headers={"Authorization": f"Bearer {self._api_key}"},
+                timeout=2.0,
+            )
             return response.status_code == 200
         except Exception:
             return False
@@ -86,21 +97,33 @@ class OllamaDistillAdapter:
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_message},
             ],
-            "stream": False,
-            "format": "json",
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"},
         }
-        url = f"{self._config.ollama.base_url.rstrip('/')}/api/chat"
+        url = f"{self._config.groq.base_url.rstrip('/')}/chat/completions"
         try:
             response = httpx.post(
                 url,
                 json=payload,
-                timeout=self._config.ollama.timeout_seconds,
+                headers={
+                    "Authorization": f"Bearer {self._api_key}",
+                    "Content-Type": "application/json",
+                },
+                timeout=self._config.groq.timeout_seconds,
             )
+            if response.status_code == 429:
+                logger.warning("Groq rate limited (429); falling back to rules distill")
+                from brainkm.adapters import distill_rules
+
+                return distill_rules.distill_round(round_, chunk_ids=chunk_ids)
             response.raise_for_status()
             body = response.json()
-            raw = body.get("message", {}).get("content", "")
+            choices = body.get("choices") or []
+            raw = ""
+            if choices:
+                raw = choices[0].get("message", {}).get("content", "") or ""
         except Exception as exc:
-            logger.warning("Ollama distill failed: %s", exc)
+            logger.warning("Groq distill failed: %s", exc)
             from brainkm.adapters import distill_rules
 
             return distill_rules.distill_round(round_, chunk_ids=chunk_ids)
@@ -116,7 +139,7 @@ class OllamaDistillAdapter:
                 body=str(item.get("body", "")).strip(),
                 tags=[str(tag) for tag in item.get("tags", []) if tag],
                 chunk_ids=list(chunk_ids),
-                confidence=0.75,
+                confidence=0.8,
             )
             if neuron.title and neuron.body and neuron.is_atomic():
                 neurons.append(neuron)
