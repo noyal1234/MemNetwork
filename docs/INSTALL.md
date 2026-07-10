@@ -24,6 +24,24 @@ brainkm version
 
 Restart Cursor or reload MCP servers after `brainkm install --dev`.
 
+### macOS: `ModuleNotFoundError: No module named 'brainkm'`
+
+On macOS, files inside `.venv` can be marked `UF_HIDDEN`. Python 3.12+ ignores hidden editable-install `.pth` files, so the setuptools console script may stop working until the venv is repaired.
+
+Quick fix (no reinstall):
+
+```bash
+bash brainkm/scripts/repair_venv.sh
+```
+
+Full reset:
+
+```bash
+bash brainkm/scripts/setup_dev.sh
+```
+
+`setup_dev.sh` installs a bootstrap launcher at `.venv/bin/brainkm` so the CLI and MCP server keep working even when `.pth` files are hidden.
+
 ### What each step does
 
 | Step | Result |

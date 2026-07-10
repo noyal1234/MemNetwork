@@ -42,6 +42,13 @@ class NeuronRecord:
     session_id: str | None
 
 
+@dataclass(frozen=True)
+class NeuronContext:
+    subtype: str | None
+    title: str
+    tags: list[str]
+
+
 def new_ulid() -> str:
     return str(ulid.new())
 
@@ -296,6 +303,40 @@ def is_active_at(record: NeuronRecord, at: str) -> bool:
     if record.valid_until is not None and record.valid_until <= at:
         return False
     return True
+
+
+def recent_neuron_context(
+    conn: sqlite3.Connection,
+    *,
+    limit: int = 5,
+) -> list[NeuronContext]:
+    """Most recent non-ephemeral memory neurons, for prompt grounding.
+
+    Excludes ``subtype='context'`` (session-status neurons from
+    ``services/session_status.py``) since those are ephemeral working-state,
+    not durable facts, and would add noise rather than grounding.
+    """
+    rows = conn.execute(
+        """
+        SELECT title, subtype, tags
+        FROM nodes
+        WHERE kind = 'memory'
+          AND valid_until IS NULL
+          AND subtype IS NOT NULL
+          AND subtype != 'context'
+        ORDER BY created_at DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+    return [
+        NeuronContext(
+            subtype=row["subtype"],
+            title=row["title"],
+            tags=json.loads(row["tags"]) if row["tags"] else [],
+        )
+        for row in rows
+    ]
 
 
 def list_active_nodes(

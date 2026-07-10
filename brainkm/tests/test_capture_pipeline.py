@@ -104,6 +104,22 @@ def test_get_distill_adapter_selects_ollama_mode() -> None:
     assert isinstance(adapter, OllamaDistillAdapter)
 
 
+def test_get_distill_adapter_ollama_mode_accepts_conn(brain_db: Path) -> None:
+    from brainkm.adapters.distill import get_distill_adapter
+    from brainkm.adapters.ollama_distill import OllamaDistillAdapter
+    from brainkm.db.connection import connect
+
+    conn = connect(brain_db)
+    try:
+        adapter = get_distill_adapter(
+            BrainConfig(capture={"distill_mode": "ollama"}),
+            conn=conn,
+        )
+        assert isinstance(adapter, OllamaDistillAdapter)
+    finally:
+        conn.close()
+
+
 def test_low_confidence_neuron_enqueued(brain_db, tmp_path: Path) -> None:
     transcript = tmp_path / "session-low.jsonl"
     _write_sample_transcript(transcript)

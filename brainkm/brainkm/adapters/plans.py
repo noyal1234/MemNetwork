@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -65,9 +66,10 @@ def distill_plan_file(
     path: Path,
     *,
     config: BrainConfig,
+    conn: sqlite3.Connection | None = None,
 ) -> list[DistilledNeuron]:
     sections = chunk_plan_file(path)
-    adapter = get_distill_adapter(config)
+    adapter = get_distill_adapter(config, conn=conn)
     rounds = plan_rounds(sections)
     distilled, _mode = distill_rounds_with_timeout(
         adapter,

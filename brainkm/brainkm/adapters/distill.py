@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import Protocol
@@ -25,12 +26,16 @@ class DistillAdapter(Protocol):
     ) -> list[DistilledNeuron]: ...
 
 
-def get_distill_adapter(config: BrainConfig) -> DistillAdapter:
+def get_distill_adapter(
+    config: BrainConfig,
+    *,
+    conn: sqlite3.Connection | None = None,
+) -> DistillAdapter:
     mode = config.capture.distill_mode
     if mode == "ollama":
         from brainkm.adapters.ollama_distill import OllamaDistillAdapter
 
-        return OllamaDistillAdapter(config)
+        return OllamaDistillAdapter(config, conn=conn)
     if mode == "cursor":
         from brainkm.adapters.cursor_distill import CursorDistillAdapter
 

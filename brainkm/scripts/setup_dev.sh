@@ -7,6 +7,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BRAINKM_DIR="$(dirname "$SCRIPT_DIR")"
 PROJECT_ROOT="$(dirname "$BRAINKM_DIR")"
 VENV_DIR="${VENV_DIR:-$PROJECT_ROOT/.venv}"
+LAUNCHER_SRC="$SCRIPT_DIR/brainkm_launcher.py"
+BRAINKM_BIN="$VENV_DIR/bin/brainkm"
+
+install_brainkm_launcher() {
+  cp "$LAUNCHER_SRC" "$BRAINKM_BIN"
+  chmod +x "$BRAINKM_BIN"
+}
 
 if [[ ! -d "$VENV_DIR" ]]; then
   echo "Creating virtual environment at $VENV_DIR ..."
@@ -37,7 +44,9 @@ fi
 echo "Installing editable brainkm[dev] from $BRAINKM_DIR ..."
 
 "$PIP" install --upgrade pip setuptools wheel
-"$PIP" install -e "$BRAINKM_DIR[dev,graphify]"
+# compat editable writes a simple path .pth; strict mode uses a finder .pth that
+# macOS may hide inside dot-directories like .venv (Python 3.12+ skips hidden .pth).
+"$PIP" install -e "$BRAINKM_DIR[dev,graphify]" --config-settings editable_mode=compat
 
 SITE_PACKAGES="$("$PYTHON" -c 'import site; print(site.getsitepackages()[0])')"
 
@@ -50,20 +59,16 @@ if [[ "$(uname -s)" == "Darwin" ]] && command -v chflags >/dev/null 2>&1; then
   fi
 fi
 
-# Fallback: non-hidden pth that registers the setuptools editable finder.
-PTH_FILE="$SITE_PACKAGES/brainkm-editable.pth"
-FINDER="$SITE_PACKAGES/__editable___brainkm_0_1_0_finder.py"
-if [[ -f "$FINDER" ]]; then
-  printf '%s\n' "import __editable___brainkm_0_1_0_finder; __editable___brainkm_0_1_0_finder.install()" > "$PTH_FILE"
-  if [[ "$(uname -s)" == "Darwin" ]] && command -v chflags >/dev/null 2>&1; then
-    chflags nohidden "$PTH_FILE" 2>/dev/null || true
-  fi
-fi
+# Older setup wrote a fallback .pth that errors when the finder module is absent.
+rm -f "$SITE_PACKAGES/brainkm-editable.pth"
 
-if ! "$PYTHON" -c "import brainkm.cli" 2>/dev/null; then
-  echo "ERROR: brainkm editable install failed." >&2
-  echo "  On macOS, ensure .venv is not hidden: chflags -R nohidden \"$VENV_DIR\"" >&2
-  echo "  Or recreate: rm -rf \"$VENV_DIR\" && bash \"$SCRIPT_DIR/setup_dev.sh\"" >&2
+# Launcher bootstraps sys.path so brainkm CLI/MCP work even when .pth is hidden.
+install_brainkm_launcher
+
+if ! "$BRAINKM_BIN" version >/dev/null 2>&1; then
+  echo "ERROR: brainkm install failed." >&2
+  echo "  Quick repair: bash \"$SCRIPT_DIR/repair_venv.sh\"" >&2
+  echo "  Full reset: rm -rf \"$VENV_DIR\" && bash \"$SCRIPT_DIR/setup_dev.sh\"" >&2
   exit 1
 fi
 
@@ -75,6 +80,9 @@ echo "Next steps:"
 echo "  brainkm install --dev    # MCP, hooks, brainkm.mdc, .brain/"
 echo "  brainkm graph sync       # optional first code graph"
 echo ""
+echo "macOS note: if brainkm later fails with ModuleNotFoundError, run:"
+echo "  bash \"$SCRIPT_DIR/repair_venv.sh\""
+echo ""
 echo "Verify:"
 echo "  brainkm version"
-"$VENV_DIR/bin/brainkm" version
+"$BRAINKM_BIN" version

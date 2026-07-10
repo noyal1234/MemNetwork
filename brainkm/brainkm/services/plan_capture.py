@@ -26,7 +26,7 @@ def capture_plan_files(
     paths = discover_plan_files(project_dir, config.capture.plan_glob)
     neuron_count = 0
     for path in paths:
-        distilled = distill_plan_file(path, config=config)
+        distilled = distill_plan_file(path, config=config, conn=conn)
         for item in distilled:
             if not passes_quality_gate(item):
                 continue
