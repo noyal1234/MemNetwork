@@ -12,6 +12,7 @@ from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Static
 from textual.worker import Worker, WorkerState
 
+from brainkm.tui.theme import bracket_label, escape_markup
 from brainkm.tui.widgets.rich_log_panel import RichLogPanel
 
 
@@ -28,36 +29,43 @@ class ActionsScreen(Screen):
     def __init__(self, project_dir: Path | None = None) -> None:
         super().__init__()
         self._project_dir = project_dir
+        self._viz_handle: Any = None
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="actions-container"):
             yield Static(
-                "⚡ Actions — run service operations",
+                escape_markup("[ ACTIONS ]"),
                 classes="panel-title",
             )
 
-            # --- Action buttons (two rows of four — avoids grid gutter artifacts) ---
+            # --- Action buttons (horizontal rows — avoids grid gutter artifacts) ---
             with Horizontal(classes="action-buttons-row"):
-                yield Button("Graph Sync", id="btn-graph-sync", variant="primary")
-                yield Button("Graph Status", id="btn-graph-status")
-                yield Button("Ollama Doctor", id="btn-ollama-doctor")
-                yield Button("Groq Doctor", id="btn-groq-doctor")
+                yield Button(
+                    bracket_label("Graph Sync"), id="btn-graph-sync", classes="-primary"
+                )
+                yield Button(bracket_label("Graph Status"), id="btn-graph-status")
+                yield Button(bracket_label("Ollama Doctor"), id="btn-ollama-doctor")
+                yield Button(bracket_label("Groq Doctor"), id="btn-groq-doctor")
 
             with Horizontal(classes="action-buttons-row"):
-                yield Button("Export", id="btn-export")
-                yield Button("Repair", id="btn-repair")
-                yield Button("Bench: token", id="btn-bench-token")
-                yield Button("Bench: abstention", id="btn-bench-abstention")
+                yield Button(bracket_label("Export"), id="btn-export")
+                yield Button(bracket_label("Repair"), id="btn-repair")
+                yield Button(bracket_label("Open Viz"), id="btn-viz-open")
+                yield Button(bracket_label("Viz Demo"), id="btn-viz-demo")
 
             with Horizontal(classes="action-buttons-row"):
-                yield Button("Bench: dmr", id="btn-bench-dmr")
-                yield Button("Bench: longmem", id="btn-bench-longmem")
-                yield Button("Bench: budget", id="btn-bench-budget")
-                yield Button("Bench: compaction", id="btn-bench-compaction")
+                yield Button(bracket_label("Bench: token"), id="btn-bench-token")
+                yield Button(bracket_label("Bench: abstention"), id="btn-bench-abstention")
+                yield Button(bracket_label("Bench: dmr"), id="btn-bench-dmr")
+                yield Button(bracket_label("Bench: longmem"), id="btn-bench-longmem")
+
+            with Horizontal(classes="action-buttons-row"):
+                yield Button(bracket_label("Bench: budget"), id="btn-bench-budget")
+                yield Button(bracket_label("Bench: compaction"), id="btn-bench-compaction")
 
             # --- Log output (primary focus — fills remaining screen height) ---
-            yield RichLogPanel(title="📜 Action Log", id="action-log")
+            yield RichLogPanel(title="[ ACTION LOG ]", id="action-log")
         yield Footer()
 
     @property
@@ -77,6 +85,8 @@ class ActionsScreen(Screen):
             "btn-groq-doctor": self._run_groq_doctor,
             "btn-export": self._run_export,
             "btn-repair": self._run_repair,
+            "btn-viz-open": self._run_viz_open,
+            "btn-viz-demo": self._run_viz_demo,
         }
         if btn_id.startswith("btn-bench-"):
             suite = btn_id.replace("btn-bench-", "")
@@ -214,6 +224,79 @@ class ActionsScreen(Screen):
             "total": result.total,
         }
 
+    def _run_viz_open(self) -> None:
+        self._begin_action("Opening 3D neuron graph visualization…")
+        self._do_viz(demo=False)
+
+    def _run_viz_demo(self) -> None:
+        self._begin_action("Opening viz demo (synthetic neurons)…")
+        self._do_viz(demo=True)
+
+    @work(thread=True, group="action", exit_on_error=False)
+    def _do_viz(self, demo: bool = False) -> dict[str, Any]:
+        import webbrowser
+
+        from brainkm.services.viz import VizServerHandle, start_viz_server
+
+        # Reuse a live server: refresh browser only.
+        existing: VizServerHandle | None = self._viz_handle
+        if (
+            existing is not None
+            and existing.thread.is_alive()
+            and existing.demo == demo
+        ):
+            webbrowser.open(existing.url)
+            return {
+                "action": "viz",
+                "url": existing.url,
+                "node_count": existing.node_count,
+                "edge_count": existing.edge_count,
+                "demo": demo,
+                "reused": True,
+            }
+
+        if existing is not None:
+            try:
+                existing.stop()
+            except Exception:
+                pass
+
+        try:
+            handle = start_viz_server(
+                project_dir=self._project_dir,
+                port=5757,
+                open_browser=True,
+                demo=demo,
+            )
+        except FileNotFoundError as exc:
+            return {"action": "viz", "error": str(exc), "demo": demo, "handle": None}
+        except OSError as exc:
+            return {
+                "action": "viz",
+                "error": f"Could not bind viz port: {exc}",
+                "demo": demo,
+                "handle": None,
+            }
+
+        return {
+            "action": "viz",
+            "url": handle.url,
+            "node_count": handle.node_count,
+            "edge_count": handle.edge_count,
+            "demo": demo,
+            "reused": False,
+            "handle": handle,
+        }
+
+    def on_unmount(self) -> None:
+        handle = self._viz_handle
+        if handle is not None:
+            try:
+                handle.stop()
+            except Exception:
+                pass
+            self._viz_handle = None
+
     # ------------------------------------------------------------------
     # Worker result handler
     # ------------------------------------------------------------------
@@ -227,7 +310,7 @@ class ActionsScreen(Screen):
         elif event.state == WorkerState.ERROR:
             err = event.worker.error
             self.log_panel.log_error(f"Action failed: {err}")
-            self.notify(str(err), severity="error", timeout=8)
+            self.notify(escape_markup(str(err)), severity="error", timeout=8)
 
     def _handle_action_result(self, result: dict[str, Any]) -> None:
         if not isinstance(result, dict):
@@ -286,6 +369,25 @@ class ActionsScreen(Screen):
                 self.log_panel.log_success(f"{suite}: {passed}/{total} passed")
             else:
                 self.log_panel.log_error(f"{suite}: {passed}/{total} passed")
+
+        elif action == "viz":
+            if "handle" in result:
+                self._viz_handle = result.get("handle")
+            if result.get("error"):
+                self.log_panel.log_error(result["error"])
+                self.notify(escape_markup(result["error"]), severity="error", timeout=8)
+                return
+            mode = "demo" if result.get("demo") else "live"
+            reused = " (already running)" if result.get("reused") else ""
+            self.log_panel.log_success(
+                f"Viz {mode}{reused}: {result.get('node_count', 0)} neurons, "
+                f"{result.get('edge_count', 0)} edges → {result.get('url', '?')}"
+            )
+            self.notify(
+                f"Opened {result.get('url', 'viz')} in browser",
+                severity="information",
+                timeout=5,
+            )
 
     # ------------------------------------------------------------------
     # Screen switching

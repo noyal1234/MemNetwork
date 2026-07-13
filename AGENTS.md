@@ -7,6 +7,7 @@ When working in this repository, read **`docs/AI_PROJECT_BRIEF.md`** first for p
 | Area | Path | Stack |
 |------|------|-------|
 | MCP server + CLI | `brainkm/brainkm/` | Python 3.11+, MCP SDK, Typer |
+| Optional TUI | `brainkm/brainkm/tui/` | Textual (`brainkm configure`, `[tui]` extra) |
 | Per-project brain | `.brain/` (target projects) | SQLite FTS5 + graph (V1) |
 | Config schema | `brainkm/brainkm/models/brain_config.py` | Pydantic v2 |
 | Tests | `brainkm/tests/` | pytest, pytest-asyncio |

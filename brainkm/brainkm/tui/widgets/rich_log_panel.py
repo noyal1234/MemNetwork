@@ -8,6 +8,8 @@ from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widgets import RichLog, Static
 
+from brainkm.tui.theme import escape_markup
+
 
 class RichLogPanel(Vertical):
     """A titled panel wrapping a ``RichLog`` for streaming action output."""
@@ -39,7 +41,7 @@ class RichLogPanel(Vertical):
         self._title = title
 
     def compose(self) -> ComposeResult:
-        yield Static(self._title, classes="log-title")
+        yield Static(escape_markup(self._title), classes="log-title")
         yield RichLog(
             highlight=True,
             markup=True,
@@ -58,29 +60,29 @@ class RichLogPanel(Vertical):
 
     def log_info(self, message: str) -> None:
         """Write an informational line with timestamp."""
-        self.rich_log.write(f"[dim]{self._timestamp()}[/] {message}")
+        self.rich_log.write(f"[dim]{self._timestamp()}[/] {escape_markup(message)}")
 
     def log_success(self, message: str) -> None:
         """Write a success line with green checkmark."""
         self.rich_log.write(
-            f"[dim]{self._timestamp()}[/] [bold green]✓[/] {message}"
+            f"[dim]{self._timestamp()}[/] [bold green]✓[/] {escape_markup(message)}"
         )
 
     def log_error(self, message: str) -> None:
         """Write an error line with red cross."""
         self.rich_log.write(
-            f"[dim]{self._timestamp()}[/] [bold red]✗[/] {message}"
+            f"[dim]{self._timestamp()}[/] [bold red]✗[/] {escape_markup(message)}"
         )
 
     def log_warning(self, message: str) -> None:
         """Write a warning line."""
         self.rich_log.write(
-            f"[dim]{self._timestamp()}[/] [bold yellow]●[/] {message}"
+            f"[dim]{self._timestamp()}[/] [bold yellow]●[/] {escape_markup(message)}"
         )
 
     def log_plain(self, message: str) -> None:
         """Write a plain line (no timestamp)."""
-        self.rich_log.write(f"  {message}")
+        self.rich_log.write(f"  {escape_markup(message)}")
 
     def clear(self) -> None:
         """Clear all log output."""

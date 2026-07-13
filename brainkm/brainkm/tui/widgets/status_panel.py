@@ -1,4 +1,4 @@
-"""Reusable status card widget — icon + label + value with colored state."""
+"""Reusable status card widget — ASCII title + key/value rows with status."""
 
 from __future__ import annotations
 
@@ -6,13 +6,15 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Static
 
+from brainkm.tui.theme import escape_markup
+
 
 class StatusPanel(Static):
-    """A bordered card showing key/value rows with a colored status dot.
+    """A bordered card showing key/value rows with a colored status glyph.
 
     Usage::
 
-        panel = StatusPanel(title="Ollama", id="ollama-panel")
+        panel = StatusPanel(title="[ OLLAMA ]", id="ollama-panel")
         panel.set_items([
             ("Status", "reachable", "ok"),
             ("Model", "qwen2.5:3b", "muted"),
@@ -22,6 +24,13 @@ class StatusPanel(Static):
 
     DEFAULT_CSS = """
     StatusPanel {
+        height: auto;
+    }
+
+    /* Textual's Vertical defaults to height:1fr — inside an auto-height
+       ancestor (e.g. a doctor-row) that makes this panel (and its siblings)
+       balloon to fill all remaining space. Force it back to content-height. */
+    StatusPanel > Vertical {
         height: auto;
     }
 
@@ -47,13 +56,22 @@ class StatusPanel(Static):
         id: str | None = None,
         classes: str | None = None,
     ) -> None:
-        super().__init__(id=id, classes=f"status-panel {classes or ''}")
+        super().__init__(id=id, classes=f"status-panel {classes or ''}".strip())
         self._title = title
         self._items: list[tuple[str, str, str]] = []
 
     def compose(self) -> ComposeResult:
-        yield Static(self._title, classes="panel-title")
+        if self._title:
+            yield Static(escape_markup(self._title), classes="panel-title")
         yield Vertical(id=f"{self.id}-body" if self.id else "panel-body")
+
+    def set_title(self, title: str) -> None:
+        """Update the panel title text."""
+        self._title = title
+        try:
+            self.query_one(".panel-title", Static).update(escape_markup(title))
+        except Exception:
+            pass
 
     def set_items(self, items: list[tuple[str, str, str]]) -> None:
         """Set the panel content.
@@ -73,16 +91,19 @@ class StatusPanel(Static):
             return
         body.remove_children()
         for label, value, state in self._items:
-            dot = self._state_dot(state)
+            glyph = self._state_glyph(state)
             row = Horizontal(classes="status-row")
             body.mount(row)
             row.mount(
-                Static(f"  {label}:", classes="status-label"),
-                Static(f"{dot} {value}", classes=f"status-value value--{state}"),
+                Static(f"  {escape_markup(label)}:", classes="status-label"),
+                Static(
+                    f"{glyph} {escape_markup(value)}",
+                    classes=f"status-value value--{state}",
+                ),
             )
 
-    def _state_dot(self, state: str) -> str:
-        return {"ok": "●", "warning": "●", "error": "●", "muted": "○"}.get(state, "○")
+    def _state_glyph(self, state: str) -> str:
+        return {"ok": "●", "warning": "◆", "error": "✗", "muted": "○"}.get(state, "○")
 
     def set_loading(self, message: str = "Loading…") -> None:
         """Show a loading state in the panel body."""
@@ -92,11 +113,11 @@ class StatusPanel(Static):
         except Exception:
             return
         body.remove_children()
-        body.mount(Static(f"  {message}", classes="value--muted"))
+        body.mount(Static(f"  {escape_markup(message)}", classes="value--muted"))
 
 
 class StatusItem(Static):
-    """A single line status indicator: dot + label + value."""
+    """A single line status indicator: glyph + label + value."""
 
     def __init__(
         self,
@@ -106,10 +127,10 @@ class StatusItem(Static):
         *,
         id: str | None = None,
     ) -> None:
-        dot = {"ok": "●", "warning": "●", "error": "●", "muted": "○"}.get(state, "○")
+        glyph = {"ok": "●", "warning": "◆", "error": "✗", "muted": "○"}.get(state, "○")
         css_class = f"value--{state}"
         super().__init__(
-            f"{label}: {dot} {value}",
+            f"{label}: {glyph} {value}",
             id=id,
             classes=css_class,
         )

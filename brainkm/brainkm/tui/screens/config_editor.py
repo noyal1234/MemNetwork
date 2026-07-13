@@ -16,6 +16,7 @@ from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Input, Label, Static
 from textual.worker import Worker
 
+from brainkm.tui.theme import bracket_label, escape_markup
 from brainkm.tui.widgets.config_form import SECTION_FIELDS, ConfigForm
 
 
@@ -41,7 +42,7 @@ class ConfigEditorScreen(Screen):
         yield Header()
         with Vertical(id="config-container"):
             yield Static(
-                "⚙  Config Editor — .brain/config.json",
+                escape_markup("[ CONFIG ]"),
                 classes="panel-title",
             )
             yield Static(
@@ -53,7 +54,7 @@ class ConfigEditorScreen(Screen):
 
             # --- API Key section (separate — writes to .env) ---
             with Vertical(classes="config-section"):
-                yield Static("🔑 Groq API Key", classes="section-title")
+                yield Static(escape_markup("[ GROQ API KEY ]"), classes="section-title")
                 yield Static(
                     "Stored in project .env file, never in config.json or brain.db",
                     classes="field-help",
@@ -72,9 +73,11 @@ class ConfigEditorScreen(Screen):
 
         # --- Bottom buttons ---
         with Horizontal(id="config-buttons"):
-            yield Button("💾 Save", id="btn-save", classes="-primary", disabled=True)
-            yield Button("↩  Discard", id="btn-discard")
-            yield Button("← Dashboard", id="btn-back")
+            yield Button(
+                bracket_label("Save"), id="btn-save", classes="-primary", disabled=True
+            )
+            yield Button(bracket_label("Discard"), id="btn-discard")
+            yield Button(bracket_label("Dashboard"), id="btn-back")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -164,7 +167,7 @@ class ConfigEditorScreen(Screen):
                 status.update("Current key: not set")
                 status.set_classes("api-key-status value--warning")
         except Exception as exc:
-            status.update(f"Current key: unknown ({exc})")
+            status.update(escape_markup(f"Current key: unknown ({exc})"))
             status.set_classes("api-key-status value--muted")
 
     def on_config_form_changed(self, event: ConfigForm.Changed) -> None:
@@ -205,7 +208,7 @@ class ConfigEditorScreen(Screen):
             first_err = exc.errors()[0] if exc.errors() else {}
             loc = " → ".join(str(part) for part in first_err.get("loc", []))
             msg = first_err.get("msg", str(exc))
-            status.update(f"✗ Validation error: {loc}: {msg}")
+            status.update(escape_markup(f"✗ Validation error: {loc}: {msg}"))
             status.set_classes("validation-error")
 
         self._update_save_button()
@@ -243,7 +246,7 @@ class ConfigEditorScreen(Screen):
         try:
             validated = BrainConfig.model_validate(merged)
         except ValidationError as exc:
-            self.notify(f"Cannot save: {exc}", severity="error")
+            self.notify(escape_markup(f"Cannot save: {exc}"), severity="error")
             return
 
         cfg_path = config_path(self._project_dir)
@@ -265,7 +268,7 @@ class ConfigEditorScreen(Screen):
             self._update_save_button()
             self.notify("✓ Config saved", severity="information")
         except Exception as exc:
-            self.notify(f"Save failed: {exc}", severity="error")
+            self.notify(escape_markup(f"Save failed: {exc}"), severity="error")
 
         # Also handle Groq API key → .env
         self._save_api_key()

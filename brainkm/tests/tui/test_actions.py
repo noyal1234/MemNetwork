@@ -20,9 +20,11 @@ from brainkm.tui.widgets.rich_log_panel import RichLogPanel
         "btn-export",
         "btn-repair",
         "btn-bench-token",
+        "btn-viz-demo",
     ],
 )
-async def test_action_button_does_not_crash(tui_project: Path, button_id: str) -> None:
+async def test_action_button_does_not_crash(tui_project: Path, button_id: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("webbrowser.open", lambda *_a, **_k: True)
     app = BrainkmConfigureApp(project_dir=tui_project)
     async with app.run_test(size=(140, 60)) as pilot:
         app.switch_screen("actions")
@@ -30,6 +32,22 @@ async def test_action_button_does_not_crash(tui_project: Path, button_id: str) -
         await pilot.click(f"#{button_id}")
         await pilot.pause(1.5)
         assert app.screen is not None
+
+
+async def test_viz_demo_writes_url_to_log(tui_project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("webbrowser.open", lambda *_a, **_k: True)
+    app = BrainkmConfigureApp(project_dir=tui_project)
+    async with app.run_test(size=(140, 60)) as pilot:
+        app.switch_screen("actions")
+        await pilot.pause(0.3)
+        await pilot.click("#btn-viz-demo")
+        await pilot.pause(2.0)
+        log = app.screen.query_one("#action-log", RichLogPanel)
+        text = " ".join(str(line) for line in log.rich_log.lines)
+        assert "http://127.0.0.1:" in text or "Viz" in text
+        handle = app.screen._viz_handle
+        if handle is not None:
+            handle.stop()
 
 
 async def test_action_button_writes_to_log(tui_project: Path) -> None:

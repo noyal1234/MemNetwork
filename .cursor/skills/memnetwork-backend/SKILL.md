@@ -34,7 +34,7 @@ Guide for implementing features in the **brainkm** Python package.
 | `.venv/` | Python venv at repo root |
 | `docs/AI_PROJECT_BRIEF.md` | Product + architecture brief |
 | `docs/CLI_COMMANDS.md` | Full CLI command catalog |
-| `docs/TUI_APP_PLAN.md` | Future `brainkm configure` Textual app design |
+| `docs/TUI_APP_PLAN.md` | Shipped `brainkm configure` Textual app (design + post-build notes) |
 
 ## Architecture (mandatory)
 
@@ -65,7 +65,7 @@ Python **3.11 or 3.12** recommended.
 1. **DB** — schema, migrations, WAL, FTS5 (`db/`)
 2. **BrainConfig loader** — read `.brain/config.json` on startup
 3. **Services** — memory, search (BM25), budget (tiktoken)
-4. **MCP tools** — remember, recall, context_pack, context, traverse, forget
+4. **MCP tools** — remember, recall, context_pack, session_status, traverse, forget
 5. **Adapters** — transcripts, plans, graphify, redaction
 6. **Hooks** — SessionStart/End, PreCompact handover, PreToolUse
 7. **CLI** — install, export, handover, migrate

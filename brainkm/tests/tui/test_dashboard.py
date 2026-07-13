@@ -1,9 +1,11 @@
-"""Tests for the read-only Dashboard screen."""
+"""Tests for the Dashboard screen (Cyber-Industrial layout)."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
+
+from textual.widgets import Button
 
 from brainkm.db.connection import connect
 from brainkm.tui.app import BrainkmConfigureApp
@@ -55,25 +57,67 @@ async def test_dashboard_loads_brain_status(tui_project: Path) -> None:
         panel = app.screen.query_one("#brain-status", StatusPanel)
         assert panel._items, "brain-status panel should be populated after mount"
         labels = [item[0] for item in panel._items]
-        assert "Distill mode" in labels
-        assert "Neurons" in labels
+        assert "distill_mode" in labels
+        assert "neurons" in labels
 
 
-async def test_dashboard_channel_status_reflects_ollama_and_groq(
-    tui_project: Path,
-) -> None:
-    """Regression test: the Channels panel must actually get populated.
-
-    `_render_channel_status` used to be defined but never called from either
-    the Ollama or Groq status loaders.
-    """
+async def test_dashboard_sidebar_includes_channel_rows(tui_project: Path) -> None:
+    """Channels are folded into #brain-status (no separate #channel-status)."""
     app = BrainkmConfigureApp(project_dir=tui_project)
-    async with app.run_test() as pilot:
+    async with app.run_test(size=(140, 60)) as pilot:
         await pilot.pause(1.0)
-        panel = app.screen.query_one("#channel-status", StatusPanel)
-        assert panel._items, "channel-status panel should be populated"
+        panel = app.screen.query_one("#brain-status", StatusPanel)
+        assert panel._items, "brain-status sidebar should be populated"
         labels = {item[0] for item in panel._items}
-        assert labels == {"Ollama", "Groq"}
+        assert "Ollama" in labels
+        assert "Groq" in labels
+        assert not app.screen.query("#channel-status")
+
+
+async def test_dashboard_action_buttons_exist(tui_project: Path) -> None:
+    app = BrainkmConfigureApp(project_dir=tui_project)
+    async with app.run_test(size=(140, 60)) as pilot:
+        await pilot.pause(0.3)
+        for btn_id in (
+            "btn-ollama-apply",
+            "btn-groq-refresh",
+            "btn-graph-sync",
+            "btn-graph-extract",
+            "btn-graph-status",
+        ):
+            assert app.screen.query_one(f"#{btn_id}", Button) is not None
+
+
+async def test_dashboard_graph_status_button_does_not_crash(tui_project: Path) -> None:
+    app = BrainkmConfigureApp(project_dir=tui_project)
+    async with app.run_test(size=(160, 80)) as pilot:
+        await pilot.pause(0.5)
+        # Invoke handler directly — graph action row may be below fold in small terms
+        app.screen._run_graph_status_action()
+        await pilot.pause(0.8)
+        panel = app.screen.query_one("#graph-panel", StatusPanel)
+        assert panel._items is not None
+
+
+async def test_dashboard_groq_refresh_does_not_crash(tui_project: Path) -> None:
+    app = BrainkmConfigureApp(project_dir=tui_project)
+    async with app.run_test(size=(160, 80)) as pilot:
+        await pilot.pause(0.5)
+        app.screen._run_groq_refresh()
+        await pilot.pause(0.8)
+        assert app.screen is not None
+
+
+async def test_dashboard_graph_sync_and_extract_do_not_crash(tui_project: Path) -> None:
+    """Buttons may fail (no graphify) but must not crash the screen."""
+    app = BrainkmConfigureApp(project_dir=tui_project)
+    async with app.run_test(size=(160, 80)) as pilot:
+        await pilot.pause(0.5)
+        app.screen._run_graph_extract()
+        await pilot.pause(0.8)
+        app.screen._run_graph_sync()
+        await pilot.pause(1.0)
+        assert app.screen is not None
 
 
 async def test_dashboard_review_table_empty_state(tui_project: Path) -> None:

@@ -1,12 +1,12 @@
 # brainkm CLI command catalog
 
-Authoritative human reference for every `brainkm` Typer command. The future `brainkm configure` TUI should **introspect** `brainkm.cli.app` for the live command tree; use this file for category labels and usage notes only.
+Authoritative human reference for every `brainkm` Typer command. The shipped `brainkm configure` TUI **introspects** `brainkm.cli.app` for the live command tree; use this file for category labels and usage notes only.
 
 Install / activate first:
 
 ```bash
 source .venv/bin/activate
-pip install -e "./brainkm[dev]"   # add [ollama], [cloud], [graphify] as needed
+pip install -e "./brainkm[dev]"   # add [ollama], [cloud], [graphify], [tui] as needed
 brainkm --help
 ```
 
@@ -19,6 +19,9 @@ brainkm --help
 | `brainkm version` | Print installed package version | — | `brainkm version` |
 | `brainkm install` | Scaffold `.brain/`, MCP config, Cursor hooks, rule | `--project-dir`, `--dev`, `--force`, `--no-graph` | `brainkm install --dev` |
 | `brainkm migrate` | Apply pending SQLite migrations | `--project-dir` | `brainkm migrate` |
+| `brainkm configure` | Launch Textual config dashboard (wizard / status / forms / actions) | `--project-dir` | `brainkm configure` |
+
+Requires `pip install -e "./brainkm[tui]"`. Without Textual, the command prints the install hint and exits `1`. Design notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
 
 ---
 
@@ -121,4 +124,4 @@ echo '{"session_id":"debug"}' | brainkm session-start --stdin --project-dir .
 ## Related docs
 
 - Product / architecture: [AI_PROJECT_BRIEF.md](AI_PROJECT_BRIEF.md)
-- Future Textual configurator: [TUI_APP_PLAN.md](TUI_APP_PLAN.md)
+- Textual configurator (`brainkm configure`): [TUI_APP_PLAN.md](TUI_APP_PLAN.md)

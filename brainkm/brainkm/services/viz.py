@@ -8,6 +8,7 @@ import threading
 import time
 import uuid
 import webbrowser
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
@@ -302,21 +303,37 @@ class _VizHandler(BaseHTTPRequestHandler):
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def run_viz_server(
-    project_dir: Path | None = None,
-    port: int = 5757,
-    open_browser: bool = True,
-    demo: bool = False,
-) -> None:
-    """Start the brainkm viz HTTP server and optionally open the browser."""
+@dataclass(frozen=True)
+class VizServerHandle:
+    """Background viz HTTP server started for the TUI (or other callers)."""
+
+    url: str
+    port: int
+    node_count: int
+    edge_count: int
+    demo: bool
+    server: HTTPServer
+    thread: threading.Thread
+
+    def stop(self) -> None:
+        """Shut down the background HTTP server."""
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=2.0)
+
+
+def _build_graph(
+    project_dir: Path | None,
+    *,
+    demo: bool,
+) -> dict[str, Any]:
+    """Load graph JSON from brain.db or a seeded in-memory demo DB."""
     import sqlite3 as _sqlite3
 
     from brainkm.db.connection import configure_connection
     from brainkm.db.paths import brain_db_path
 
     if demo:
-        # Use an in-memory database seeded with synthetic demo data.
-        # migrate() always opens its own file connection, so we apply SQL directly.
         from brainkm.db.paths import migrations_dir
 
         conn = _sqlite3.connect(":memory:", check_same_thread=False)
@@ -325,38 +342,60 @@ def run_viz_server(
             conn.executescript(sql_path.read_text(encoding="utf-8"))
         conn.commit()
         _seed_demo(conn)
-        logger.info("viz demo mode: seeded %d nodes, %d edges", len(_DEMO_NODES), len(_DEMO_EDGES))
+        logger.info(
+            "viz demo mode: seeded %d nodes, %d edges",
+            len(_DEMO_NODES),
+            len(_DEMO_EDGES),
+        )
     else:
         db_path = brain_db_path(project_dir)
         if not db_path.exists():
-            import typer
-            typer.echo(
-                f"No brain.db found at {db_path}.\n"
-                "Run 'brainkm install' first, or use --demo to see a demo visualization.",
-                err=True,
+            msg = (
+                f"No brain.db found at {db_path}. "
+                "Run 'brainkm install' first, or use demo mode."
             )
-            raise typer.Exit(code=1)
+            raise FileNotFoundError(msg)
         conn = _sqlite3.connect(str(db_path), check_same_thread=False)
         configure_connection(conn)
 
-    graph = _query_graph(conn)
-    conn.close()
+    try:
+        return _query_graph(conn)
+    finally:
+        conn.close()
 
+
+def _bind_viz_server(port: int) -> tuple[HTTPServer, int]:
+    """Bind 127.0.0.1:port, falling back to an ephemeral port if busy."""
+    try:
+        server = HTTPServer(("127.0.0.1", port), _VizHandler)
+    except OSError:
+        if port == 0:
+            raise
+        server = HTTPServer(("127.0.0.1", 0), _VizHandler)
+    return server, int(server.server_address[1])
+
+
+def start_viz_server(
+    project_dir: Path | None = None,
+    port: int = 5757,
+    open_browser: bool = True,
+    demo: bool = False,
+) -> VizServerHandle:
+    """Start the viz HTTP server in a daemon thread (non-blocking).
+
+    Used by the Textual TUI so the dashboard stays interactive while the
+    3D neuron graph is served in the browser.
+    """
+    graph = _build_graph(project_dir, demo=demo)
     _VizHandler.graph_data = graph
 
     node_count = len(graph["nodes"])
     edge_count = len(graph["edges"])
+    server, bound_port = _bind_viz_server(port)
+    url = f"http://127.0.0.1:{bound_port}"
 
-    server = HTTPServer(("127.0.0.1", port), _VizHandler)
-    url = f"http://127.0.0.1:{port}"
-
-    import typer
-    mode_label = " [DEMO]" if demo else ""
-    typer.echo(
-        f"🧠 MemNetwork Viz{mode_label} — {node_count} neurons, {edge_count} edges\n"
-        f"   Serving at {url}\n"
-        f"   Press Ctrl+C to stop."
-    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True, name="brainkm-viz")
+    thread.start()
 
     if open_browser:
         def _open_after_delay() -> None:
@@ -365,9 +404,49 @@ def run_viz_server(
 
         threading.Thread(target=_open_after_delay, daemon=True).start()
 
+    return VizServerHandle(
+        url=url,
+        port=bound_port,
+        node_count=node_count,
+        edge_count=edge_count,
+        demo=demo,
+        server=server,
+        thread=thread,
+    )
+
+
+def run_viz_server(
+    project_dir: Path | None = None,
+    port: int = 5757,
+    open_browser: bool = True,
+    demo: bool = False,
+) -> None:
+    """Start the brainkm viz HTTP server and block until Ctrl+C (CLI entry)."""
+    import typer
+
     try:
-        server.serve_forever()
+        handle = start_viz_server(
+            project_dir=project_dir,
+            port=port,
+            open_browser=open_browser,
+            demo=demo,
+        )
+    except FileNotFoundError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    mode_label = " [DEMO]" if handle.demo else ""
+    typer.echo(
+        f"🧠 MemNetwork Viz{mode_label} — {handle.node_count} neurons, "
+        f"{handle.edge_count} edges\n"
+        f"   Serving at {handle.url}\n"
+        f"   Press Ctrl+C to stop."
+    )
+
+    try:
+        while handle.thread.is_alive():
+            handle.thread.join(timeout=0.5)
     except KeyboardInterrupt:
         typer.echo("\nViz server stopped.")
     finally:
-        server.server_close()
+        handle.stop()

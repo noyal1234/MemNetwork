@@ -63,8 +63,9 @@ flowchart LR
 | **Memory** | SQLite FTS5 BM25 | Neurons (`kind=memory`) — facts, decisions, rules |
 | **Code graph** | Graphify AST adapter | `code` nodes, import/call edges |
 | **Temporal** | `valid_from` / `valid_until`, `supersedes` | Evolving facts without full GraphRAG |
-| **MCP** | `mcp` SDK stdio | 6 tools: remember, recall, context_pack, context, traverse, forget |
-| **CLI** | Typer | install, export, bench, repair, handover, review |
+| **MCP** | `mcp` SDK stdio | 6 tools: remember, recall, context_pack, session_status, traverse, forget |
+| **CLI** | Typer | install, export, bench, repair, handover, review, configure |
+| **TUI** | Textual (optional `[tui]` extra) | `brainkm configure` — dashboard, config editor, actions, wizard |
 | **Optional T1** | sqlite-vec + ONNX MiniLM | Semantic search when `semantic: true` |
 | **Optional T2** | Cursor / Ollama / Groq at SessionEnd | `distill_mode: cursor \| ollama \| groq` |
 
@@ -77,7 +78,10 @@ MemNetwork/
 ├── .venv/                         # Python venv (gitignored)
 ├── AGENTS.md                      # Agent entry point
 ├── docs/
-│   └── AI_PROJECT_BRIEF.md        # This file
+│   ├── AI_PROJECT_BRIEF.md        # This file
+│   ├── CLI_COMMANDS.md            # Full CLI catalog
+│   ├── INSTALL.md                 # Clone + MCP setup
+│   └── TUI_APP_PLAN.md            # brainkm configure (shipped)
 ├── .cursor/
 │   ├── skills/memnetwork-backend/
 │   └── rules/memnetwork-*.mdc
@@ -91,10 +95,11 @@ MemNetwork/
 │   │   ├── models/
 │   │   │   ├── brain_config.py    # .brain/config.json schema
 │   │   │   └── schemas.py         # MCP tool I/O
-│   │   ├── tools/                 # MCP handlers (V1)
-│   │   ├── services/              # memory, search, budget (V1)
-│   │   ├── adapters/              # graphify, transcripts (V1)
-│   │   └── db/                    # SQLite + migrations (V1)
+│   │   ├── tools/                 # MCP handlers
+│   │   ├── services/              # memory, search, budget, learning, …
+│   │   ├── adapters/              # graphify, transcripts, distill, redaction
+│   │   ├── tui/                   # Textual configure app (optional [tui])
+│   │   └── db/                    # SQLite + migrations
 │   └── tests/
 └── README.md
 ```
@@ -122,7 +127,7 @@ MemNetwork/
 | `traverse` | Explicit graph hop between entities |
 | `forget` | Soft-archive node (`valid_until`) + cascade edges |
 
-CLI-only (not MCP): `install`, `export`, `bench`, `repair`, `handover`, `review`, `migrate`.
+CLI-only (not MCP): `install`, `export`, `bench`, `repair`, `handover`, `review`, `migrate`, `configure`.
 
 ---
 
@@ -308,6 +313,7 @@ T0 remains **rules** — cloud and local LLM distill are opt-in. Never put API k
 | **V1** | Done | SQLite brain, hooks, install, capture/handover, Graphify import + sync, frozen snapshot, **6 MCP tools**, adaptive abstention |
 | **V1.5** | Done | bench suites, repair + abstention recalibrate, export/import merge, PostCompact refresh |
 | **V2** | Done | Tool registry, review queue, confidence-gated review, PostToolUse learning loop, co-activation procedure promotion |
+| **TUI** | Done | `brainkm configure` Textual app (dashboard, config editor, actions, wizard); optional `[tui]` extra — see [TUI_APP_PLAN.md](TUI_APP_PLAN.md) |
 | **V3+** | Planned | Decay, optional semantic, stats |
 
 ### SQLite concurrency
@@ -349,6 +355,15 @@ brainkm graph status                       # confirm graph_available + node coun
 **Boundaries:** Graphify produces AST structure; brainkm imports with `code_only: true` via `adapters/graphify.py`. Does not replace Cursor `@codebase`. Copy `.graphifyignore.example` → `.graphifyignore` to keep extract offline (no docs/LLM pass).
 
 Disable auto-sync: `"graphify": { "auto_sync": { "enabled": false } }`. Skip install sync: `brainkm install --no-graph`.
+
+### Optional Textual dashboard
+
+```bash
+pip install -e "./brainkm[tui]"
+brainkm configure [--project-dir PATH]
+```
+
+Guided setup, live status (Ollama / Groq / graph / review), validated config editing, and in-process action runners. Design + acceptance notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md). Command catalog: [CLI_COMMANDS.md](CLI_COMMANDS.md).
 
 ---
 

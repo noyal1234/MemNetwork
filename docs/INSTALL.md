@@ -24,6 +24,15 @@ brainkm version
 
 Restart Cursor or reload MCP servers after `brainkm install --dev`.
 
+### Optional: Textual configure UI
+
+```bash
+pip install -e "./brainkm[tui]"
+brainkm configure
+```
+
+Opens the dashboard (or first-run wizard if `.brain/` is missing). See [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
+
 ### macOS: `ModuleNotFoundError: No module named 'brainkm'`
 
 On macOS, files inside `.venv` can be marked `UF_HIDDEN`. Python 3.12+ ignores hidden editable-install `.pth` files, so the setuptools console script may stop working until the venv is repaired.

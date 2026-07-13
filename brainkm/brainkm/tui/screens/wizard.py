@@ -21,6 +21,7 @@ from textual.widgets import (
 )
 from textual.worker import Worker, WorkerState
 
+from brainkm.tui.theme import bracket_label, escape_markup
 from brainkm.tui.widgets.rich_log_panel import RichLogPanel
 
 # ---------------------------------------------------------------------------
@@ -59,11 +60,11 @@ class WizardScreen(Screen):
         yield Header()
         with Vertical(id="wizard-container"):
             yield Static(
-                "🧙 First-Run Wizard",
+                escape_markup("[ WIZARD ]"),
                 classes="panel-title",
             )
             yield Static(
-                "[dim]Set up your project brain step by step[/]",
+                "Set up your project brain step by step",
                 classes="value--muted",
             )
 
@@ -71,7 +72,7 @@ class WizardScreen(Screen):
             with Vertical(classes="wizard-step", id=STEP_PROJECT):
                 yield Static("1 ─ Project Directory", classes="step-title")
                 yield Static(
-                    f"Project: [bold]{self._project_dir}[/]",
+                    f"Project: [bold]{escape_markup(str(self._project_dir))}[/]",
                     id="wizard-project-path",
                 )
                 yield Static("", id="wizard-project-status")
@@ -141,14 +142,14 @@ class WizardScreen(Screen):
                 )
 
             # --- Log panel ---
-            yield RichLogPanel(title="📜 Wizard Log", id="wizard-log")
+            yield RichLogPanel(title="[ WIZARD LOG ]", id="wizard-log")
 
         # --- Navigation buttons ---
         with Horizontal(id="wizard-nav"):
-            yield Button("← Back", id="btn-wizard-back", disabled=True)
-            yield Button("Run Step", id="btn-wizard-run", classes="-primary")
-            yield Button("Skip →", id="btn-wizard-skip")
-            yield Button("→ Dashboard", id="btn-wizard-finish", disabled=True)
+            yield Button(bracket_label("Back"), id="btn-wizard-back", disabled=True)
+            yield Button(bracket_label("Run Step"), id="btn-wizard-run", classes="-primary")
+            yield Button(bracket_label("Skip"), id="btn-wizard-skip")
+            yield Button(bracket_label("Dashboard"), id="btn-wizard-finish", disabled=True)
         yield Footer()
 
     @property
@@ -406,12 +407,12 @@ class WizardScreen(Screen):
             if result.get("error"):
                 self.log_panel.log_error(f"Doctor failed: {result['error']}")
                 status = self.query_one("#wizard-doctor-status", Static)
-                status.update(f"[bold red]✗ {result['error']}[/]")
+                status.update(f"[bold red]✗ {escape_markup(str(result['error']))}[/]")
             else:
                 for line in result.get("formatted", "").strip().splitlines():
                     self.log_panel.log_plain(line)
                 status = self.query_one("#wizard-doctor-status", Static)
-                recommended = result.get("recommended", "?")
+                recommended = escape_markup(str(result.get("recommended", "?")))
                 reachable = result.get("reachable", False)
                 state = "[bold green]●[/]" if reachable else "[bold red]●[/]"
                 status.update(
@@ -428,12 +429,12 @@ class WizardScreen(Screen):
             if result.get("error"):
                 self.log_panel.log_error(f"API key verification failed: {result['error']}")
                 status = self.query_one("#wizard-apikey-status", Static)
-                status.update(f"[bold red]✗ {result['error']}[/]")
+                status.update(f"[bold red]✗ {escape_markup(str(result['error']))}[/]")
             else:
                 reachable = result.get("reachable", False)
                 status = self.query_one("#wizard-apikey-status", Static)
                 if reachable:
-                    masked = result.get("masked", "?")
+                    masked = escape_markup(str(result.get("masked", "?")))
                     status.update(f"[bold green]✓ Groq reachable[/] (key: {masked})")
                     self.log_panel.log_success("Groq API key verified and reachable")
                 else:
@@ -445,7 +446,7 @@ class WizardScreen(Screen):
             if result.get("error"):
                 self.log_panel.log_warning(f"Graph sync skipped: {result['error']}")
                 status = self.query_one("#wizard-graph-status", Static)
-                status.update(f"[bold yellow]● Skipped: {result['error']}[/]")
+                status.update(f"[bold yellow]● Skipped: {escape_markup(str(result['error']))}[/]")
             else:
                 node_count = result.get("node_count", 0)
                 self.log_panel.log_success(f"Graph synced: {node_count} code nodes")

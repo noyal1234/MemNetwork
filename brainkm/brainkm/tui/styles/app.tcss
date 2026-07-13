@@ -1,21 +1,26 @@
 /* ──────────────────────────────────────────────────────────────────
    brainkm configure — Textual CSS
+   Cyber-Industrial (DESIGN.md) — violet/obsidian, true red errors
    ────────────────────────────────────────────────────────────────── */
 
 /* === Design tokens (dark theme — default) === */
 
-$primary: #7c3aed;
-$primary-muted: #4c1d95;
-$primary-light: #a78bfa;
-$success: #22c55e;
-$warning: #f59e0b;
+$primary: #d2bbff;
+$primary-container: #7c3aed;
+$primary-muted: #5a00c6;
+$primary-light: #d2bbff;
+$success: #4ae176;
+$warning: #ffb95f;
 $error: #ef4444;
-$surface: #1e1b2e;
-$surface-alt: #2d2640;
-$text: #e2e0ea;
-$text-muted: #8b83a0;
-$border: #3f3663;
-$accent: #c084fc;
+$surface: #15121b;
+$surface-alt: #1d1a24;
+$surface-container: #221e28;
+$surface-high: #2c2833;
+$text: #e8dfee;
+$text-muted: #ccc3d8;
+$outline: #958da1;
+$border: #4a4455;
+$accent: #d2bbff;
 
 /* === Global === */
 
@@ -26,40 +31,76 @@ Screen {
 
 /* === Header === */
 
-#app-header {
-    dock: top;
-    height: 1;
-    background: $primary;
-    color: $text;
+Header {
+    background: $surface;
+    color: $primary;
     text-style: bold;
-    padding: 0 2;
-}
-
-#app-header .project-path {
-    color: $primary-light;
-    text-style: italic;
+    /* height must leave room for content: solid border eats 1 row */
+    height: 2;
+    border-bottom: solid $border;
 }
 
 /* === Footer === */
 
 Footer {
-    background: $primary-muted;
+    background: $surface;
+    color: $outline;
+    /* Same pitfall as compact Buttons: default height:1 + border
+       eats the only row and blanks the keybinding helper line. */
+    height: 2;
+    border-top: solid $border;
+}
+
+FooterKey {
+    background: transparent;
+    color: $outline;
+}
+
+FooterKey > .footer-key--key {
+    color: $primary;
+    text-style: bold;
+}
+
+FooterKey > .footer-key--description {
+    color: $text-muted;
+}
+
+FooterKey:hover {
+    color: $primary;
+    background: $surface-high;
+}
+
+FooterKey.-highlight {
+    background: $success;
+    color: $surface;
+    text-style: bold;
+}
+
+Footer > .footer--highlight {
+    background: $success;
+    color: $surface;
 }
 
 /* === Status panels === */
 
 .status-panel {
-    border: round $border;
-    padding: 1 2;
-    margin: 1 2;
+    border: solid $border;
+    padding: 1 1;
+    margin: 0 0 1 0;
     background: $surface-alt;
     height: auto;
 }
 
+.status-panel.emphasized {
+    border: solid $primary-container;
+    background: $surface-high;
+}
+
 .status-panel .panel-title {
     text-style: bold;
-    color: $accent;
+    color: $primary;
     margin-bottom: 1;
+    height: 1;
 }
 
 .status-panel .value--ok {
@@ -94,48 +135,176 @@ Footer {
     width: 1fr;
 }
 
+.status-panel .panel-actions {
+    layout: horizontal;
+    height: 3;
+    margin-top: 1;
+    align: left middle;
+}
+
+.status-panel .panel-actions Button {
+    margin: 0 1 0 0;
+    min-width: 10;
+    height: 3;
+}
+
 /* === Dashboard layout === */
 
 #dashboard-container {
     layout: vertical;
-    overflow-y: auto;
-    padding: 0 1;
+    height: 1fr;
+    padding: 1 1;
 }
 
-#brain-summary {
+#dashboard-body {
     layout: horizontal;
-    height: auto;
-    margin: 1 1;
+    height: 1fr;
 }
 
-#brain-summary .status-panel {
+#status-sidebar {
+    width: 32;
+    min-width: 28;
+    height: 1fr;
+    padding: 0 1 0 0;
+}
+
+#status-sidebar .status-panel {
+    height: 1fr;
+    margin: 0;
+}
+
+#dashboard-main {
+    layout: vertical;
     width: 1fr;
+    height: 1fr;
+    padding: 0 0 0 1;
 }
 
 #doctor-row {
     layout: horizontal;
     height: auto;
-    margin: 0 1;
+    margin: 0 0 1 0;
 }
 
-#doctor-row .status-panel {
+#doctor-row .doctor-col {
     width: 1fr;
+    height: auto;
+    margin: 0 1 0 0;
+}
+
+#doctor-row .doctor-col:last-child {
+    margin-right: 0;
+}
+
+#doctor-row .doctor-col .status-panel {
+    width: 100%;
+    margin: 0;
+}
+
+#doctor-row .panel-actions {
+    layout: horizontal;
+    height: 1;
+    margin-top: 0;
+    align: left middle;
+}
+
+#doctor-row .panel-actions Button {
+    margin: 0 1 0 0;
+    min-width: 10;
+    height: 1;
+    border: none;
+    padding: 0 1;
+}
+
+#doctor-row .panel-actions Button:hover,
+#doctor-row .panel-actions Button:focus {
+    border: none;
 }
 
 #graph-section {
+    layout: vertical;
     height: auto;
-    margin: 0 1;
+    border: solid $border;
+    background: $surface-alt;
+    padding: 1 1;
+    margin: 0 0 1 0;
+}
+
+#graph-section .section-header {
+    layout: horizontal;
+    height: 1;
+    align: left middle;
+}
+
+#graph-section .section-title {
+    text-style: bold;
+    color: $success;
+    width: 1fr;
+}
+
+#graph-section .graph-actions {
+    layout: horizontal;
+    width: auto;
+    height: 1;
+}
+
+#graph-section .graph-actions Button {
+    margin: 0 0 0 1;
+    min-width: 10;
+    height: 1;
+    border: none;
+    padding: 0 1;
+}
+
+#graph-section .graph-actions Button:hover,
+#graph-section .graph-actions Button:focus {
+    border: none;
+}
+
+#graph-section #graph-panel {
+    border: none;
+    margin: 0;
+    padding: 0;
+    background: transparent;
 }
 
 #review-section {
-    height: auto;
-    margin: 0 1;
+    layout: vertical;
+    height: 1fr;
+    border: solid $border;
+    background: $surface-alt;
+    padding: 0;
+    margin: 0;
+}
+
+#review-section .review-header {
+    layout: horizontal;
+    height: 1;
+    background: $surface-high;
+    padding: 0 1;
+}
+
+#review-section .review-title {
+    text-style: bold;
+    color: $text-muted;
+    width: 1fr;
+}
+
+#review-section .review-hint {
+    color: $warning;
+    text-align: right;
+    width: auto;
+}
+
+#review-section #review-table {
+    height: 1fr;
+    padding: 0 1;
 }
 
 /* === Rich log panel === */
 
 .rich-log-panel {
-    border: round $border;
+    border: solid $border;
     background: $surface-alt;
     margin: 1 0;
     padding: 0 1 1 1;
@@ -145,7 +314,7 @@ Footer {
 
 .rich-log-panel .log-title {
     text-style: bold;
-    color: $accent;
+    color: $primary;
     height: 1;
     padding: 0 0 1 0;
 }
@@ -168,7 +337,7 @@ Footer {
 }
 
 .config-section {
-    border: round $border;
+    border: solid $border;
     background: $surface-alt;
     padding: 1 2;
     margin: 1 0;
@@ -177,7 +346,7 @@ Footer {
 
 .config-section .section-title {
     text-style: bold;
-    color: $accent;
+    color: $primary;
     margin-bottom: 1;
 }
 
@@ -245,6 +414,7 @@ Footer {
     layout: horizontal;
     padding: 0 2;
     background: $surface;
+    border-top: solid $border;
 }
 
 #config-buttons Button {
@@ -286,7 +456,7 @@ Footer {
 }
 
 .wizard-step {
-    border: round $border;
+    border: solid $border;
     background: $surface-alt;
     padding: 2 3;
     margin: 1 0;
@@ -294,7 +464,7 @@ Footer {
 
 .wizard-step .step-title {
     text-style: bold;
-    color: $accent;
+    color: $primary;
     margin-bottom: 1;
 }
 
@@ -309,6 +479,7 @@ Footer {
     layout: horizontal;
     padding: 0 4;
     background: $surface;
+    border-top: solid $border;
 }
 
 #wizard-nav Button {
@@ -316,34 +487,43 @@ Footer {
     min-width: 14;
 }
 
+/* === Shared panel titles (Actions / Config / Wizard) === */
+
+.panel-title {
+    text-style: bold;
+    color: $primary;
+    height: 1;
+    margin-bottom: 1;
+}
+
 /* === Buttons === */
 
 Button {
-    background: $primary-muted;
-    color: $text;
-    border: tall $border;
+    background: $surface-high;
+    color: $primary;
+    border: solid $border;
     min-width: 10;
 }
 
 Button:hover {
-    background: $primary;
+    background: $primary-container;
     color: $text;
-    border: tall $primary-light;
+    border: solid $primary;
 }
 
 Button:focus {
-    border: tall $accent;
+    border: solid $primary;
     text-style: bold;
 }
 
 Button.-primary {
-    background: $primary;
-    color: white;
+    background: $primary-container;
+    color: $text;
     text-style: bold;
 }
 
 Button.-primary:hover {
-    background: $primary-light;
+    background: $primary;
     color: $surface;
 }
 
@@ -359,23 +539,28 @@ Button.-error {
     text-style: bold;
 }
 
+Button:disabled {
+    background: $surface-container;
+    color: $outline;
+    border: solid $border;
+}
+
 /* === DataTable === */
 
 DataTable {
-    margin: 1 0;
-    height: auto;
-    max-height: 15;
+    margin: 0;
+    height: 1fr;
     background: $surface-alt;
 }
 
 DataTable > .datatable--header {
-    background: $primary-muted;
-    color: $accent;
+    background: $surface-high;
+    color: $outline;
     text-style: bold;
 }
 
 DataTable > .datatable--cursor {
-    background: $primary;
+    background: $primary-container;
     color: $text;
 }
 
@@ -384,11 +569,11 @@ DataTable > .datatable--cursor {
 Input {
     background: $surface;
     color: $text;
-    border: tall $border;
+    border: solid $border;
 }
 
 Input:focus {
-    border: tall $primary;
+    border: solid $primary-container;
 }
 
 /* === Select === */
@@ -396,11 +581,11 @@ Input:focus {
 Select {
     background: $surface;
     color: $text;
-    border: tall $border;
+    border: solid $border;
 }
 
 Select:focus {
-    border: tall $primary;
+    border: solid $primary-container;
 }
 
 /* === Switch === */
@@ -420,7 +605,7 @@ TabPane {
 }
 
 Tabs {
-    background: $primary-muted;
+    background: $surface-high;
     dock: top;
 }
 
@@ -432,12 +617,12 @@ Tab {
 Tab.-active {
     color: $text;
     text-style: bold;
-    background: $primary;
+    background: $primary-container;
 }
 
 Tab:hover {
     color: $text;
-    background: $primary;
+    background: $primary-container;
 }
 
 /* === Toast === */
@@ -445,7 +630,7 @@ Tab:hover {
 Toast {
     background: $surface-alt;
     color: $text;
-    border: tall $border;
+    border: solid $border;
 }
 
 /* === Help overlay === */
@@ -456,14 +641,14 @@ Toast {
     height: auto;
     max-height: 80%;
     background: $surface-alt;
-    border: round $accent;
+    border: solid $primary-container;
     padding: 2 3;
     layer: overlay;
 }
 
 #help-overlay .help-title {
     text-style: bold;
-    color: $accent;
+    color: $primary;
     text-align: center;
     margin-bottom: 1;
 }

@@ -10,13 +10,13 @@
 
 ## 1  Motivation
 
-Today a developer must:
+Before the TUI, a developer had to:
 
 1. Hand-edit `.brain/config.json` (and know the Pydantic schema to stay valid).
 2. Run `brainkm ollama doctor`, `brainkm groq doctor`, `brainkm graph status`, `brainkm review list`, … in separate terminal invocations.
 3. Cross-reference [CLI_COMMANDS.md](CLI_COMMANDS.md) to remember which flags exist.
 
-A Textual TUI collapses all of that into one persistent dashboard while preserving the **same service layer** — no CLI subprocess shelling, no schema bypass.
+`brainkm configure` collapses all of that into one persistent dashboard while preserving the **same service layer** — no CLI subprocess shelling, no schema bypass.
 
 ---
 
@@ -30,9 +30,9 @@ pip install -e "./brainkm[tui]"
 brainkm configure [--project-dir PATH]
 ```
 
-### 2.1  New Typer command
+### 2.1  Typer command (shipped)
 
-Add to [`cli.py`](../brainkm/brainkm/cli.py):
+In [`cli.py`](../brainkm/brainkm/cli.py):
 
 ```python
 @app.command("configure")
@@ -53,23 +53,23 @@ def configure_cmd(
     BrainkmConfigureApp(project_dir=project_dir).run()
 ```
 
-### 2.2  New optional dependency group
+### 2.2  Optional dependency group (shipped)
 
-Add to [`pyproject.toml`](../brainkm/pyproject.toml) under `[project.optional-dependencies]`:
+In [`pyproject.toml`](../brainkm/pyproject.toml) under `[project.optional-dependencies]`:
 
 ```toml
 tui = ["textual>=0.60.0"]
 ```
 
-Also extend `package-data` so Textual CSS files ship:
+Package data includes Textual CSS:
 
 ```toml
-"tui/**/*.tcss",
+"tui/styles/*.tcss",
 ```
 
 ### 2.3  Graceful degradation
 
-When `textual` is not importable, the `configure` command MUST print the exact install command and exit `1` — never a raw `ModuleNotFoundError` traceback.
+When `textual` is not importable, the `configure` command prints the exact install command and exits `1` — never a raw `ModuleNotFoundError` traceback.
 
 ---
 
@@ -98,6 +98,7 @@ brainkm configure (CLI)
 | **Bench suites** | [`bench_runner`](../brainkm/brainkm/services/bench_runner.py) | `run_bench_suite()`, `format_suite_result()` |
 | **Export** | [`export`](../brainkm/brainkm/services/export.py) | `export_markdown()` |
 | **Repair** | [`repair`](../brainkm/brainkm/services/repair.py) | `repair_brain()` |
+| **3D Viz** | [`viz`](../brainkm/brainkm/services/viz.py) | `start_viz_server()` → browser (live + `--demo`) |
 | **Install scaffolding** | [`install`](../brainkm/brainkm/services/install.py) | `run_install()` |
 
 ### 3.2  Command-tree introspection
@@ -506,6 +507,10 @@ pytest brainkm/tests/tui/ --snapshot-update
 
 ## 12  Implementation phases & dependency graph
 
+> **Status:** Phases 0–4 are complete. Snapshot tests and light/ANSI theme
+> polish remain deferred (§14.2). The gantt below is retained as historical
+> build order.
+
 ```mermaid
 gantt
     title TUI Implementation Phases
@@ -513,41 +518,41 @@ gantt
     axisFormat %s
 
     section Foundation
-    Package layout + app shell + theme     :p0, 0, 1
-    Textual CSS (app.tcss)                 :p0b, 0, 1
-    pyproject.toml tui extra               :p0c, 0, 1
+    Package layout + app shell + theme     :done, p0, 0, 1
+    Textual CSS (app.tcss)                 :done, p0b, 0, 1
+    pyproject.toml tui extra               :done, p0c, 0, 1
 
     section Phase 1
-    Dashboard screen (read-only)           :p1, after p0, 2
-    StatusPanel widget                     :p1b, after p0, 1
-    Command introspection                  :p1c, after p0, 1
+    Dashboard screen (read-only)           :done, p1, after p0, 2
+    StatusPanel widget                     :done, p1b, after p0, 1
+    Command introspection                  :done, p1c, after p0, 1
 
     section Phase 2
-    ConfigForm widget                      :p2a, after p1, 2
-    Config Editor screen                   :p2b, after p2a, 1
-    .env API key writer                    :p2c, after p2a, 1
+    ConfigForm widget                      :done, p2a, after p1, 2
+    Config Editor screen                   :done, p2b, after p2a, 1
+    .env API key writer                    :done, p2c, after p2a, 1
 
     section Phase 3
-    RichLogPanel widget                    :p3a, after p1, 1
-    ReviewTable widget                     :p3b, after p1, 1
-    Actions screen                         :p3c, after p3a, 2
+    RichLogPanel widget                    :done, p3a, after p1, 1
+    ReviewTable widget                     :done, p3b, after p1, 1
+    Actions screen                         :done, p3c, after p3a, 2
 
     section Phase 4
-    Wizard screen                          :p4, after p2b, 2
+    Wizard screen                          :done, p4, after p2b, 2
 
     section Polish
     Snapshot tests                         :p5a, after p4, 1
-    Keybinding help overlay                :p5b, after p4, 1
+    Keybinding help overlay                :done, p5b, after p4, 1
     ANSI fallback theme                    :p5c, after p4, 1
 ```
 
-**Dependency ordering:**
+**Build order (completed):**
 
-1. **Foundation** (Phase 0): `app.py` shell, `theme.py`, `app.tcss`, `pyproject.toml` change — everything depends on this.
-2. **Phase 1** (Dashboard): `StatusPanel` widget + Dashboard screen. Read-only, simplest to validate.
-3. **Phase 2** (Config Editor): Requires `ConfigForm` widget. Needs `BrainConfig` schema introspection.
-4. **Phase 3** (Actions): Requires `RichLogPanel` + `ReviewTable`. Can be built in parallel with Phase 2.
-5. **Phase 4** (Wizard): Composes widgets from Phase 1–3. Must come last.
+1. **Foundation** (Phase 0): `app.py` shell, `theme.py`, `app.tcss`, `pyproject.toml` change.
+2. **Phase 1** (Dashboard): `StatusPanel` widget + Dashboard screen.
+3. **Phase 2** (Config Editor): `ConfigForm` widget + `BrainConfig` schema introspection.
+4. **Phase 3** (Actions): `RichLogPanel` + `ReviewTable`.
+5. **Phase 4** (Wizard): Composes widgets from Phase 1–3.
 
 ---
 
@@ -618,27 +623,40 @@ what was consciously deferred.
   screen, which was judged higher-value per unit of effort than pixel-level
   regression coverage.
 - **Light theme / ANSI-16 fallback palette** — `theme.py` and `app.tcss`
-  currently ship the dark palette from §5.1 only. Textual's `App.dark`
-  toggle and a light-mode token set are natural follow-ups but weren't
-  exercised by any acceptance criterion beyond the snapshot tests above.
+  currently ship the dark Cyber-Industrial palette from DESIGN.md (with true
+  red `#ef4444` for error/offline). Textual's `App.dark` toggle and a light-mode
+  token set are natural follow-ups but weren't exercised by any acceptance
+  criterion beyond the snapshot tests above.
 - **Executing arbitrary CLI commands from the palette** — commands like
   `mcp`, `migrate`, or the Cursor hooks (`session-start`, `pre-tool`, …) are
   discoverable and documented in the palette but intentionally not
   runnable from it; they either need a real terminal/stdio context or are
   invoked by Cursor itself, not a human.
 
+### 14.2a  Cyber-Industrial restyle (post-ship)
+
+Dashboard layout matches the Design 1 / DESIGN.md Cyber-Industrial mockup:
+
+- Left **STATUS** sidebar merges brain + channel rows (no separate Channels panel).
+- Right stack: Ollama/Groq doctors, Graph Viewer with Sync · Extract · Status,
+  Review Queue filling remaining height.
+- Sharp borders, ASCII panel titles, bracket-style buttons; error/offline uses
+  true red (`#ef4444`). Graph/Ollama Apply actions on the dashboard call the
+  same services as the Actions screen — no service-layer changes.
+
 ### 14.3  Test coverage summary
 
-`brainkm/tests/tui/` (34 tests, all passing with `pytest`):
+`brainkm/tests/tui/` (41 tests collected with `pytest`):
 
 | File | Covers |
 |---|---|
 | `test_app.py` | Screen routing, `project_dir` propagation, wizard-vs-dashboard initial screen, help binding |
-| `test_dashboard.py` | Status panel population, Ollama/Groq channel rendering, review table empty state, refresh |
+| `test_dashboard.py` | Status panel population, Ollama/Groq channel rendering, review table empty state, refresh, approve/reject |
 | `test_config_editor.py` | Dirty-state gating, save-to-disk, Pydantic validation errors, `.env`-only API key writing |
 | `test_actions.py` | Every action button, export-to-project-dir, review approve/reject flows |
 | `test_wizard.py` | Step auto-advance, install scaffolding, distill-mode selection + config write, skip flow |
 | `test_command_palette.py` | CLI introspection correctness (incl. the Click-fork regression), palette open/navigate |
+| `test_logging.py` | TUI log sink / stderr handler isolation; Actions log receives service output |
 
 Two `test_wizard.py` cases (`..._scaffolds_project`, `..._distill_mode_selection_writes_config`)
 require creating a `.cursor/` directory and only pass with unrestricted
