@@ -37,6 +37,9 @@ cloud = [
 graphify = [
     "graphifyy>=0.8.48",
 ]
+tui = [
+    "textual>=0.60.0",
+]
 
 [project.scripts]
 brainkm = "brainkm.cli:app"
@@ -57,6 +60,7 @@ brainkm = [
     "hooks/claude/*.json",
     "config.example.json",
     "bench/fixtures/*.json",
+    "tui/styles/*.tcss",
 ]
 
 [tool.pytest.ini_options]

@@ -11,7 +11,14 @@ LAUNCHER_SRC="$SCRIPT_DIR/brainkm_launcher.py"
 BRAINKM_BIN="$VENV_DIR/bin/brainkm"
 
 install_brainkm_launcher() {
-  cp "$LAUNCHER_SRC" "$BRAINKM_BIN"
+  # Pin shebang to the venv interpreter. A bare `#!/usr/bin/env python3` lets
+  # Cursor/MCP pick system Python (often 3.14) which lacks brainkm deps.
+  local venv_python
+  venv_python="$("$VENV_DIR/bin/python" -c 'import sys; print(sys.executable)')"
+  {
+    echo "#!$venv_python"
+    tail -n +2 "$LAUNCHER_SRC"
+  } >"$BRAINKM_BIN"
   chmod +x "$BRAINKM_BIN"
 }
 

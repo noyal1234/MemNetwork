@@ -33,6 +33,36 @@ def version() -> None:
     typer.echo(__version__)
 
 
+@app.command("configure")
+def configure_cmd(
+    project_dir: Path | None = typer.Option(
+        None,
+        "--project-dir",
+        help="Target project root (defaults to cwd)",
+    ),
+) -> None:
+    """Launch the Textual configuration dashboard."""
+    try:
+        from brainkm.tui.app import BrainkmConfigureApp
+    except ImportError:
+        typer.echo(
+            "Textual is not installed. Run:\n"
+            '  pip install -e "./brainkm[tui]"',
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    # Detach stderr logging *before* Textual takes over the terminal. Waiting
+    # until App.on_mount is too late — Textual may already have replaced
+    # sys.stderr, and migration INFO lines then paint above the UI.
+    from brainkm.logging_config import install_tui_logging, restore_stderr_logging
+
+    install_tui_logging()
+    try:
+        BrainkmConfigureApp(project_dir=project_dir).run()
+    finally:
+        restore_stderr_logging()
+
 
 @app.command("migrate")
 def migrate_cmd(

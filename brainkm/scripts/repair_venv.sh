@@ -25,7 +25,12 @@ fi
 
 LAUNCHER_SRC="$SCRIPT_DIR/brainkm_launcher.py"
 BRAINKM_BIN="$VENV_DIR/bin/brainkm"
-cp "$LAUNCHER_SRC" "$BRAINKM_BIN"
+# Pin shebang to the venv interpreter (Cursor MCP does not activate the venv).
+VENV_PYTHON="$("$VENV_DIR/bin/python" -c 'import sys; print(sys.executable)')"
+{
+  echo "#!$VENV_PYTHON"
+  tail -n +2 "$LAUNCHER_SRC"
+} >"$BRAINKM_BIN"
 chmod +x "$BRAINKM_BIN"
 
 # Stale fallback from older setup_dev runs can error on every Python startup.

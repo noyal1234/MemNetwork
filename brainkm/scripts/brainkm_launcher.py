@@ -5,11 +5,32 @@ macOS marks files inside dot-directories (e.g. .venv) with UF_HIDDEN. Python 3.1
 skips hidden editable-install .pth files, which breaks `from brainkm.cli import app`
 in the setuptools-generated script. This launcher registers the editable source
 before importing the CLI.
+
+When copied into ``.venv/bin/brainkm``, setup/repair rewrite the shebang to the
+venv interpreter. As a fallback, if Cursor (or another host) still launches via
+``/usr/bin/env python3``, re-exec with the sibling ``.venv/bin/python``.
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
+
+
+def _ensure_venv_python() -> None:
+    """Re-exec with sibling venv python if launched via the wrong interpreter."""
+    here = Path(__file__).resolve()
+    sibling = here.parent / ("python.exe" if os.name == "nt" else "python")
+    if not sibling.is_file():
+        return
+    expected = sibling.resolve()
+    try:
+        current = Path(sys.executable).resolve()
+    except OSError:
+        return
+    if current == expected:
+        return
+    os.execv(str(expected), [str(expected), str(here), *sys.argv[1:]])
 
 
 def _bootstrap_editable_source() -> None:
@@ -34,6 +55,7 @@ def _bootstrap_editable_source() -> None:
 
 
 def main() -> None:
+    _ensure_venv_python()
     _bootstrap_editable_source()
     from brainkm.cli import app
 

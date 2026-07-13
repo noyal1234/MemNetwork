@@ -40,7 +40,7 @@ Full reset:
 bash brainkm/scripts/setup_dev.sh
 ```
 
-`setup_dev.sh` installs a bootstrap launcher at `.venv/bin/brainkm` so the CLI and MCP server keep working even when `.pth` files are hidden.
+`setup_dev.sh` installs a bootstrap launcher at `.venv/bin/brainkm` so the CLI and MCP server keep working even when `.pth` files are hidden. The launcher shebang is pinned to `.venv/bin/python` (and re-execs that interpreter if somehow started via system `python3`) so Cursor MCP does not need an activated shell.
 
 ### What each step does
 
