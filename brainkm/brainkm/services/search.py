@@ -72,12 +72,24 @@ class RankedNode:
     kind: str
     subtype: str | None
     title: str
+    path: str | None = None
+    relationship: str | None = None
+    via: str | None = None
 
 
 @dataclass(frozen=True)
 class TraversalResult:
     nodes: list[RankedNode]
     hops_explored: int
+    abstained: bool = False
+
+
+@dataclass
+class _ActivationMeta:
+    activation: float
+    depth: int
+    via: str | None = None
+    relationship: str | None = None
 
 
 def type_multiplier(kind: str, subtype: str | None) -> float:
@@ -86,88 +98,121 @@ def type_multiplier(kind: str, subtype: str | None) -> float:
     return TYPE_MULTIPLIERS.get((kind, None), DEFAULT_MULTIPLIER)
 
 
-def _load_outgoing_edges(
+def _neighbors_for_node(
     conn: sqlite3.Connection,
+    node_id: str,
     *,
     min_weight: float,
-) -> dict[str, list[tuple[str, float, str]]]:
-    rows = conn.execute(
-        """
-        SELECT from_id, to_id, weight, relationship
-        FROM edges
-        WHERE weight >= ?
-        """,
-        (min_weight,),
-    ).fetchall()
-    adjacency: dict[str, list[tuple[str, float, str]]] = {}
-    for from_id, to_id, weight, relationship in rows:
-        adjacency.setdefault(from_id, []).append((to_id, float(weight), relationship))
-    return adjacency
-
-
-def _load_incoming_edges(
-    conn: sqlite3.Connection,
-    *,
-    min_weight: float,
-) -> dict[str, list[tuple[str, float, str]]]:
-    rows = conn.execute(
-        """
-        SELECT to_id, from_id, weight, relationship
-        FROM edges
-        WHERE weight >= ?
-        """,
-        (min_weight,),
-    ).fetchall()
-    adjacency: dict[str, list[tuple[str, float, str]]] = {}
-    for to_id, from_id, weight, relationship in rows:
-        adjacency.setdefault(to_id, []).append((from_id, float(weight), relationship))
-    return adjacency
+    relationship: str | None,
+    direction: Literal["out", "in", "both"],
+) -> list[tuple[str, float, str]]:
+    """Load edges for a single node (indexed lookups)."""
+    neighbors: list[tuple[str, float, str]] = []
+    if direction in ("out", "both"):
+        if relationship:
+            rows = conn.execute(
+                """
+                SELECT to_id, weight, relationship
+                FROM edges
+                WHERE from_id = ? AND weight >= ? AND relationship = ?
+                ORDER BY weight DESC
+                """,
+                (node_id, min_weight, relationship),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT to_id, weight, relationship
+                FROM edges
+                WHERE from_id = ? AND weight >= ?
+                ORDER BY weight DESC
+                """,
+                (node_id, min_weight),
+            ).fetchall()
+        neighbors.extend((row[0], float(row[1]), row[2]) for row in rows)
+    if direction in ("in", "both"):
+        if relationship:
+            rows = conn.execute(
+                """
+                SELECT from_id, weight, relationship
+                FROM edges
+                WHERE to_id = ? AND weight >= ? AND relationship = ?
+                ORDER BY weight DESC
+                """,
+                (node_id, min_weight, relationship),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT from_id, weight, relationship
+                FROM edges
+                WHERE to_id = ? AND weight >= ?
+                ORDER BY weight DESC
+                """,
+                (node_id, min_weight),
+            ).fetchall()
+        neighbors.extend((row[0], float(row[1]), row[2]) for row in rows)
+    return neighbors
 
 
 def bfs_activate(
+    conn: sqlite3.Connection,
     seed_activations: dict[str, float],
-    outgoing: dict[str, list[tuple[str, float, str]]],
-    incoming: dict[str, list[tuple[str, float, str]]],
     *,
     max_hops: int,
     max_fanout_per_hop: int,
     max_activation_nodes: int,
+    min_weight: float,
     direction: Literal["out", "in", "both"] = "both",
-) -> dict[str, float]:
-    """Weighted multi-hop BFS from seeded node activations."""
-    activations = dict(seed_activations)
+    relationship: str | None = None,
+) -> tuple[dict[str, _ActivationMeta], int]:
+    """Weighted multi-hop BFS from seeded node activations using per-node edge queries."""
+    meta: dict[str, _ActivationMeta] = {
+        node_id: _ActivationMeta(activation=act, depth=0)
+        for node_id, act in seed_activations.items()
+    }
     frontier: deque[tuple[str, int]] = deque((node_id, 0) for node_id in seed_activations)
+    max_depth_seen = 0
 
-    while frontier and len(activations) < max_activation_nodes:
+    while frontier and len(meta) < max_activation_nodes:
         node_id, depth = frontier.popleft()
+        max_depth_seen = max(max_depth_seen, depth)
         if depth >= max_hops:
             continue
 
-        neighbors: list[tuple[str, float]] = []
-        if direction in ("out", "both"):
-            neighbors.extend((nid, weight) for nid, weight, _ in outgoing.get(node_id, []))
-        if direction in ("in", "both"):
-            neighbors.extend((nid, weight) for nid, weight, _ in incoming.get(node_id, []))
-
+        neighbors = _neighbors_for_node(
+            conn,
+            node_id,
+            min_weight=min_weight,
+            relationship=relationship,
+            direction=direction,
+        )
         neighbors.sort(key=lambda item: item[1], reverse=True)
-        for neighbor_id, edge_weight in neighbors[:max_fanout_per_hop]:
-            if len(activations) >= max_activation_nodes:
+        for neighbor_id, edge_weight, rel in neighbors[:max_fanout_per_hop]:
+            if len(meta) >= max_activation_nodes and neighbor_id not in meta:
                 break
 
-            parent_activation = activations.get(node_id, 0.0)
+            parent_activation = meta[node_id].activation
             propagated = parent_activation * edge_weight
-            if propagated <= activations.get(neighbor_id, 0.0):
+            existing = meta.get(neighbor_id)
+            if existing is not None and propagated <= existing.activation:
                 continue
 
-            activations[neighbor_id] = propagated
+            meta[neighbor_id] = _ActivationMeta(
+                activation=propagated,
+                depth=depth + 1,
+                via=node_id,
+                relationship=rel,
+            )
             frontier.append((neighbor_id, depth + 1))
+            max_depth_seen = max(max_depth_seen, depth + 1)
 
-    return activations
+    return meta, max_depth_seen
 
 
 def rank_activated_nodes(
     conn: sqlite3.Connection,
-    activations: dict[str, float],
+    activations: dict[str, _ActivationMeta],
 ) -> list[RankedNode]:
     if not activations:
         return []
@@ -175,7 +220,7 @@ def rank_activated_nodes(
     placeholders = ",".join("?" for _ in activations)
     rows = conn.execute(
         f"""
-        SELECT id, kind, subtype, title, confidence
+        SELECT id, kind, subtype, title, confidence, path
         FROM nodes
         WHERE id IN ({placeholders})
           AND (valid_until IS NULL)
@@ -184,18 +229,21 @@ def rank_activated_nodes(
     ).fetchall()
 
     ranked: list[RankedNode] = []
-    for node_id, kind, subtype, title, confidence in rows:
-        activation = activations[node_id]
+    for node_id, kind, subtype, title, confidence, path in rows:
+        info = activations[node_id]
         multiplier = type_multiplier(kind, subtype)
-        score = activation * float(confidence) * multiplier
+        score = info.activation * float(confidence) * multiplier
         ranked.append(
             RankedNode(
                 node_id=node_id,
-                activation=activation,
+                activation=info.activation,
                 score=score,
                 kind=kind,
                 subtype=subtype,
                 title=title,
+                path=path,
+                relationship=info.relationship,
+                via=info.via,
             )
         )
 
@@ -224,26 +272,25 @@ def recall_with_bfs(
         recall_cfg,
         project_dir=project_dir,
     ):
-        return TraversalResult(nodes=[], hops_explored=0)
+        return TraversalResult(nodes=[], hops_explored=0, abstained=True)
 
     if not seeds:
-        return TraversalResult(nodes=[], hops_explored=0)
+        return TraversalResult(nodes=[], hops_explored=0, abstained=False)
 
     # BM25 scores are negative; map to positive seed activations.
     seed_activations = {node_id: max(0.1, abs(score)) for node_id, score in seeds}
 
-    outgoing = _load_outgoing_edges(conn, min_weight=graph_cfg.min_edge_weight_to_traverse)
-    incoming = _load_incoming_edges(conn, min_weight=graph_cfg.min_edge_weight_to_traverse)
-    activations = bfs_activate(
+    activations, hops = bfs_activate(
+        conn,
         seed_activations,
-        outgoing,
-        incoming,
         max_hops=2,
         max_fanout_per_hop=graph_cfg.max_bfs_fanout_per_hop,
         max_activation_nodes=graph_cfg.max_activation_nodes,
+        min_weight=graph_cfg.min_edge_weight_to_traverse,
+        direction="both",
     )
     ranked = rank_activated_nodes(conn, activations)
-    return TraversalResult(nodes=ranked, hops_explored=2)
+    return TraversalResult(nodes=ranked, hops_explored=hops, abstained=False)
 
 
 def resolve_node_ref(conn: sqlite3.Connection, ref: str) -> str | None:
@@ -284,35 +331,23 @@ def traverse(
     if start_id is None:
         return TraversalResult(nodes=[], hops_explored=0)
 
-    outgoing = _load_outgoing_edges(conn, min_weight=cfg.min_edge_weight_to_traverse)
-    incoming = _load_incoming_edges(conn, min_weight=cfg.min_edge_weight_to_traverse)
-
-    if relationship:
-        outgoing = {
-            node_id: [edge for edge in edges if edge[2] == relationship]
-            for node_id, edges in outgoing.items()
-        }
-        incoming = {
-            node_id: [edge for edge in edges if edge[2] == relationship]
-            for node_id, edges in incoming.items()
-        }
-
     seed_activations = {start_id: 1.0}
-    activations = bfs_activate(
+    activations, hops = bfs_activate(
+        conn,
         seed_activations,
-        outgoing,
-        incoming,
         max_hops=max_hops,
         max_fanout_per_hop=cfg.max_bfs_fanout_per_hop,
         max_activation_nodes=cfg.max_activation_nodes,
+        min_weight=cfg.min_edge_weight_to_traverse,
         direction=direction,
+        relationship=relationship,
     )
 
     if to_ref is not None:
         target_id = resolve_node_ref(conn, to_ref)
         if target_id is None or target_id not in activations:
-            return TraversalResult(nodes=[], hops_explored=max_hops)
+            return TraversalResult(nodes=[], hops_explored=hops)
         activations = {target_id: activations[target_id]}
 
     ranked = rank_activated_nodes(conn, activations)
-    return TraversalResult(nodes=ranked, hops_explored=max_hops)
+    return TraversalResult(nodes=ranked, hops_explored=hops)

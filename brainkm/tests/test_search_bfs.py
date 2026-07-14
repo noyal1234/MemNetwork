@@ -83,5 +83,8 @@ def test_traverse_resolves_path_and_relationship(brain_db) -> None:
         )
         assert len(result.nodes) == 1
         assert result.nodes[0].node_id == "file-b"
+        assert result.nodes[0].relationship == "imports"
+        assert result.nodes[0].via == "file-a"
+        assert result.hops_explored >= 1
     finally:
         conn.close()

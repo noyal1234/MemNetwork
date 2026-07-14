@@ -1,4 +1,8 @@
-"""V2 learning loop state and co-activation helpers."""
+"""V2 learning loop state and co-activation helpers.
+
+Persists learning signals to SQLite so Cursor hook subprocesses share state.
+An in-memory window remains for the long-lived MCP server process.
+"""
 
 from __future__ import annotations
 
@@ -16,7 +20,17 @@ from brainkm.services.tool_registry import register_tool_node_idempotent
 logger = get_logger("services.learning")
 
 _INTERNAL_TOOLS = frozenset(
-    {"remember", "recall", "context_pack", "session_status", "traverse", "forget", "__recall__"}
+    {
+        "remember",
+        "recall",
+        "context_pack",
+        "session_status",
+        "traverse",
+        "forget",
+        "brain_stats",
+        "graph_sync",
+        "__recall__",
+    }
 )
 
 
@@ -81,6 +95,121 @@ def get_learning_window() -> SessionLearningWindow:
     return _window
 
 
+def persist_neuron_hits(
+    conn: sqlite3.Connection,
+    session_id: str | None,
+    node_ids: list[str],
+    *,
+    source: str = "recall",
+    cap: int | None = None,
+) -> None:
+    """Write neuron hits to SQLite and the in-memory window (also tracks use_count)."""
+    if not session_id or not node_ids:
+        return
+    from brainkm.services.session_activity import get_session_activity
+
+    window = get_learning_window()
+    if cap is not None:
+        window.set_cap(cap)
+    window.record_neuron_hits(session_id, node_ids)
+    get_session_activity().track(session_id, node_ids)
+    now = utc_now_iso()
+    for node_id in node_ids:
+        conn.execute(
+            """
+            INSERT INTO session_activity (
+              id, session_id, kind, node_id, tool_name, source, created_at
+            ) VALUES (?, ?, 'neuron_hit', ?, '__recall__', ?, ?)
+            """,
+            (new_ulid(), session_id, node_id, source, now),
+        )
+
+
+def persist_tool_use(
+    conn: sqlite3.Connection,
+    session_id: str | None,
+    tool_name: str,
+    payload: dict[str, Any],
+    *,
+    source: str = "post_tool",
+    cap: int | None = None,
+) -> None:
+    """Write a tool-use event to SQLite and the in-memory window."""
+    if not session_id or not tool_name:
+        return
+    window = get_learning_window()
+    if cap is not None:
+        window.set_cap(cap)
+    window.record_tool_use(session_id, tool_name, payload)
+    conn.execute(
+        """
+        INSERT INTO session_activity (
+          id, session_id, kind, node_id, tool_name, source, created_at
+        ) VALUES (?, ?, 'tool_use', NULL, ?, ?, ?)
+        """,
+        (new_ulid(), session_id, tool_name, source, utc_now_iso()),
+    )
+
+
+def load_recent_neuron_ids(
+    conn: sqlite3.Connection,
+    session_id: str | None,
+    *,
+    limit: int = 40,
+) -> list[str]:
+    """Distinct neuron ids for a session, preferring DB (cross-process) then memory."""
+    if not session_id:
+        return []
+    rows = conn.execute(
+        """
+        SELECT node_id
+        FROM session_activity
+        WHERE session_id = ?
+          AND kind = 'neuron_hit'
+          AND node_id IS NOT NULL
+        ORDER BY created_at ASC
+        """,
+        (session_id,),
+    ).fetchall()
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for row in rows:
+        node_id = row[0]
+        if node_id not in seen:
+            seen.add(node_id)
+            ordered.append(node_id)
+    if ordered:
+        return ordered[-limit:]
+    return get_learning_window().recent_neuron_ids(session_id)[-limit:]
+
+
+def load_recent_tool_names(
+    conn: sqlite3.Connection,
+    session_id: str | None,
+    *,
+    limit: int = 40,
+) -> list[str]:
+    """Tool names recorded for a session (DB preferred for hook path)."""
+    if not session_id:
+        return []
+    rows = conn.execute(
+        """
+        SELECT tool_name
+        FROM session_activity
+        WHERE session_id = ?
+          AND kind = 'tool_use'
+          AND tool_name IS NOT NULL
+          AND tool_name != '__recall__'
+        ORDER BY created_at ASC
+        """,
+        (session_id,),
+    ).fetchall()
+    names = [row[0] for row in rows]
+    if names:
+        return names[-limit:]
+    return get_learning_window().recent_tool_names(session_id)[-limit:]
+
+
 def upsert_co_activation(conn: sqlite3.Connection, a: str, b: str) -> None:
     """Create or increment canonical co_activated edge."""
     if not a or not b or a == b:
@@ -115,11 +244,16 @@ def process_post_tool(
     config: BrainConfig,
 ) -> None:
     """Update learning state after a post-tool hook event."""
-    window = get_learning_window()
-    window.set_cap(config.learning.session_window_size)
-    window.record_tool_use(session_id, tool_name, payload)
+    persist_tool_use(
+        conn,
+        session_id,
+        tool_name,
+        payload,
+        source="post_tool",
+        cap=config.learning.session_window_size,
+    )
 
-    neuron_ids = window.recent_neuron_ids(session_id)
+    neuron_ids = load_recent_neuron_ids(conn, session_id, limit=config.learning.session_window_size)
     if len(neuron_ids) >= 2:
         for index, first in enumerate(neuron_ids):
             for second in neuron_ids[index + 1 :]:
@@ -138,4 +272,3 @@ def process_post_tool(
     from brainkm.services.procedures import check_and_promote
 
     check_and_promote(conn, session_id, config=config)
-

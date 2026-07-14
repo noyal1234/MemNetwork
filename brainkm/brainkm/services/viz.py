@@ -46,7 +46,10 @@ _DEMO_NODES: list[dict[str, Any]] = [
     {
         "id": "mem-003", "kind": "memory", "subtype": "rule",
         "title": "1500-token hard cap on injection packs",
-        "content": "Token budget for SessionStart injection is 1500 tokens max. This preserves Cursor prefix cache and keeps agent context minimal. The budget splits: 800 neurons + 500 code + 200 procedures.",
+        "content": (
+            "Token budget for MCP context_pack is 1500 tokens max (configurable). "
+            "Slots reallocate by query type; PreToolUse and SessionStart use smaller sub-budgets."
+        ),
         "tags": "tokens,budget,injection,rule", "use_count": 21, "confidence": 1.0,
         "user_pinned": 1, "valid_from": "2025-01-12T09:00:00", "valid_until": None,
         "ingested_at": "2025-01-12T09:00:00", "session_id": "sess-beta",

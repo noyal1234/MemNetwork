@@ -10,6 +10,7 @@ from pathlib import Path
 from brainkm.models.brain_config import BrainConfig
 from brainkm.models.schemas import ContextPackResponse, NeuronResult
 from brainkm.services.budget import (
+    PACK_FRAMING_OVERHEAD_TOKENS,
     BudgetLine,
     context_pack_slots,
     line_tokens,
@@ -376,6 +377,10 @@ def compile_context_pack(
 ) -> ContextPackResponse:
     """Compile a bounded task pack from live brain.db."""
     effective_slots = slots or context_pack_slots(config, query)
+    if slots is None:
+        hard_cap = max(0, config.budget.total_tokens - PACK_FRAMING_OVERHEAD_TOKENS)
+    else:
+        hard_cap = max(0, sum(effective_slots.values()) - PACK_FRAMING_OVERHEAD_TOKENS)
     graph_ok = graph_available(conn)
 
     neuron_lines: list[BudgetLine] = []
@@ -439,13 +444,27 @@ def compile_context_pack(
         channels,
         effective_slots,
         dynamic_reallocation=config.budget.dynamic_reallocation,
-        hard_cap=config.budget.total_tokens if slots is None else sum(effective_slots.values()),
+        hard_cap=hard_cap,
     )
-    included_ids = set(manifest.included_ids)
+    included_by_id = {line.node_id: line for line in included}
+    included_ids = set(included_by_id)
 
-    neuron_kept = [line for line in neuron_lines if line.node_id in included_ids]
-    graph_kept = [line for line in graph_lines if line.node_id in included_ids]
-    proc_kept = [line for line in proc_lines if line.node_id in included_ids]
+    # Prefer truncated content from the budget pass.
+    neuron_kept = [
+        included_by_id[line.node_id]
+        for line in neuron_lines
+        if line.node_id in included_ids
+    ]
+    graph_kept = [
+        included_by_id[line.node_id]
+        for line in graph_lines
+        if line.node_id in included_ids
+    ]
+    proc_kept = [
+        included_by_id[line.node_id]
+        for line in proc_lines
+        if line.node_id in included_ids
+    ]
     graph_results = [node for node in graph_results if node.node_id in included_ids]
 
     pack_parts = ["# Context pack", "", f"Query: {query}", ""]

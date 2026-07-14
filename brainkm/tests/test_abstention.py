@@ -68,6 +68,16 @@ def test_recall_with_bfs_returns_results_when_confident(brain_db) -> None:
         conn.close()
 
 
+def test_percentile_abstention_falls_back_without_corpus() -> None:
+    recall = RecallConfig(
+        abstain_mode="percentile",
+        abstain_percentile=0.25,
+        min_recall_score=5.0,
+    )
+    assert should_abstain([-0.5], recall, corpus_threshold=None) is True
+    assert should_abstain([-8.0], recall, corpus_threshold=None) is False
+
+
 def test_should_abstain_for_query_with_no_matches(brain_db) -> None:
     conn = connect(brain_db)
     try:

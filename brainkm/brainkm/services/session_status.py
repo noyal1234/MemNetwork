@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 from brainkm.adapters.redaction import require_clean
-from brainkm.services.memory import NeuronRecord, remember_neuron
+from brainkm.services.memory import NeuronRecord, forget_neuron, remember_neuron
 
 
 def _latest_context(conn: sqlite3.Connection, session_id: str | None) -> NeuronRecord | None:
@@ -58,7 +58,8 @@ def set_session_status(
     session_id: str | None = None,
 ) -> NeuronRecord:
     cleaned = require_clean(title, body, source="session_status")
-    return remember_neuron(
+    previous = _latest_context(conn, session_id)
+    record = remember_neuron(
         conn,
         title=cleaned.title,
         content=cleaned.content,
@@ -68,3 +69,10 @@ def set_session_status(
         session_id=session_id,
         source="session_status",
     )
+    if previous is not None and previous.id != record.id:
+        forget_neuron(
+            conn,
+            previous.id,
+            reason="superseded by newer session_status",
+        )
+    return record

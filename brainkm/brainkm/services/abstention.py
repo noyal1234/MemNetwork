@@ -72,7 +72,11 @@ def should_abstain(
         return abs(best) < threshold
 
     if corpus_threshold is None:
-        return False
+        # Fresh / empty corpus: fall back to absolute min_recall_score when set.
+        threshold = recall.min_recall_score
+        if threshold is None:
+            return False
+        return abs(best) < threshold
 
     # Weaker matches sit closer to zero; abstain when best score is above the P-threshold.
     return best > corpus_threshold

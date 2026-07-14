@@ -16,8 +16,8 @@ from brainkm.models.brain_config import BrainConfig
 from brainkm.services.capture import capture_transcript_file
 from brainkm.services.config_loader import load_brain_config
 from brainkm.services.handover import parse_precompact_hook_payload
-from brainkm.services.learning import get_learning_window, process_post_tool
-from brainkm.services.session_activity import flush_use_counts, get_session_activity
+from brainkm.services.learning import persist_neuron_hits, process_post_tool
+from brainkm.services.session_activity import flush_use_counts, record_neuron_activity
 from brainkm.services.snapshot import build_frozen_snapshot, resolve_session_id
 
 logger = get_logger("services.hooks")
@@ -133,7 +133,13 @@ def run_session_start(
             cfg,
             context_hint=context_hint,
         )
-        get_session_activity().track(session_id, list(snapshot.neuron_ids))
+        record_neuron_activity(
+            conn,
+            session_id,
+            list(snapshot.neuron_ids),
+            source="session_start",
+        )
+        conn.commit()
     finally:
         conn.close()
 
@@ -179,11 +185,16 @@ def run_session_end(
         payload.transcript_path.name,
     )
 
+    distill_timeout = max(
+        cfg.handover.precompact_distill_timeout_seconds,
+        min(90, int(cfg.handover.precompact_distill_timeout_seconds * 4) or 20),
+    )
     result = capture_transcript_file(
         payload.transcript_path,
         project_dir=project_dir,
         config=cfg,
         session_id=session_id,
+        distill_timeout_seconds=distill_timeout,
     )
 
     conn = connect(brain_db_path(project_dir))
@@ -270,6 +281,15 @@ def run_pre_tool_use(
         from brainkm.services.context_pack import compile_pre_tool_pack
 
         pack = compile_pre_tool_pack(conn, data, config=cfg, project_dir=project_dir)
+        if pack is not None:
+            persist_neuron_hits(
+                conn,
+                session_id,
+                [node.node_id for node in pack.neurons],
+                source="pre_tool",
+                cap=cfg.learning.session_window_size,
+            )
+            conn.commit()
     finally:
         conn.close()
 
@@ -291,10 +311,6 @@ def run_pre_tool_use(
         session_id,
         tool_name,
         pack.truncation.tokens_used,
-    )
-    get_learning_window().record_neuron_hits(
-        session_id,
-        [node.node_id for node in pack.neurons],
     )
     return HookRunResult(
         hook="PreToolUse",
@@ -327,7 +343,13 @@ def run_post_compact(
             force=True,
             context_hint=context_hint,
         )
-        get_session_activity().track(session_id, list(snapshot.neuron_ids))
+        record_neuron_activity(
+            conn,
+            session_id,
+            list(snapshot.neuron_ids),
+            source="post_compact",
+        )
+        conn.commit()
     finally:
         conn.close()
 

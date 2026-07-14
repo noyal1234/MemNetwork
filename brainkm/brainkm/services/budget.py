@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from brainkm.models.brain_config import BrainConfig
 from brainkm.models.schemas import TruncationManifest
@@ -24,6 +24,9 @@ SUBTYPE_PRIORITY: dict[tuple[str, str | None], int] = {
     ("session", None): 11,
 }
 DEFAULT_PRIORITY = 12
+
+# Reserved for pack headers, query line, graph hints, truncation footer in context_pack.
+PACK_FRAMING_OVERHEAD_TOKENS = 50
 
 
 @dataclass(frozen=True)
@@ -90,10 +93,47 @@ def context_pack_slots(config: BrainConfig, query: str | None = None) -> dict[st
     }
 
 
-def recall_slots(config: BrainConfig) -> int:
-    if config.budget.dynamic_reallocation:
-        return min(400, config.budget.total_tokens // 3)
-    return min(300, config.budget.session_start.recall_top)
+def _fit_line_to_budget(line: BudgetLine, max_tokens: int) -> BudgetLine:
+    """Shrink content so title+content fits within max_tokens (tiktoken)."""
+    if max_tokens <= 0:
+        return replace(line, content="", tokens=0)
+    if line.tokens <= max_tokens:
+        return line
+
+    title_cost = token_count(line.title) + 1  # account for newline separator
+    body_budget = max(0, max_tokens - title_cost)
+    if body_budget <= 0:
+        fitted_tokens = token_count(line.title)
+        if fitted_tokens <= max_tokens:
+            return replace(line, content="", tokens=fitted_tokens)
+        return replace(line, content="", tokens=0)
+
+    content = line.content or ""
+    lo, hi = 0, len(content)
+    best = ""
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        candidate = content[:mid]
+        if token_count(candidate) <= body_budget:
+            best = candidate
+            lo = mid + 1
+        else:
+            hi = mid - 1
+    fitted = best.rstrip()
+    if fitted and fitted != content:
+        fitted = fitted + "…"
+    tokens = token_count(f"{line.title}\n{fitted}" if fitted else line.title)
+    while tokens > max_tokens and fitted:
+        fitted = fitted[:-2].rstrip()
+        if fitted:
+            fitted = fitted + "…"
+        tokens = token_count(f"{line.title}\n{fitted}" if fitted else line.title)
+    if tokens > max_tokens:
+        title_only = token_count(line.title)
+        if title_only <= max_tokens:
+            return replace(line, content="", tokens=title_only)
+        return replace(line, content="", tokens=0)
+    return replace(line, content=fitted, tokens=tokens)
 
 
 def greedy_truncate(
@@ -101,9 +141,18 @@ def greedy_truncate(
     *,
     max_tokens: int,
 ) -> tuple[list[BudgetLine], TruncationManifest]:
-    """Include highest-priority lines until token budget is exhausted."""
+    """Include highest-priority lines until token budget is exhausted.
+
+    Oversized lines are content-truncated to fit rather than exceeding the cap.
+    """
     if not lines:
         return [], TruncationManifest(token_budget=max_tokens, tokens_used=0)
+    if max_tokens <= 0:
+        return [], TruncationManifest(
+            omitted_ids=[line.node_id for line in lines],
+            token_budget=max_tokens,
+            tokens_used=0,
+        )
 
     ordered = sorted(lines, key=lambda item: (item.priority, -item.tokens))
     included: list[BudgetLine] = []
@@ -111,12 +160,23 @@ def greedy_truncate(
     used = 0
 
     for line in ordered:
-        if used + line.tokens <= max_tokens or not included:
-            if used + line.tokens > max_tokens and included:
-                omitted.append(line)
-                continue
+        remaining = max_tokens - used
+        if remaining <= 0:
+            omitted.append(line)
+            continue
+        if line.tokens <= remaining:
             included.append(line)
             used += line.tokens
+            continue
+        # Only the first included item may be content-truncated to enforce the hard cap;
+        # later oversized items are omitted (leftover may reallocate across channels).
+        if not included:
+            fitted = _fit_line_to_budget(line, remaining)
+            if fitted.tokens <= 0:
+                omitted.append(line)
+                continue
+            included.append(fitted)
+            used += fitted.tokens
         else:
             omitted.append(line)
 

@@ -9,7 +9,18 @@ from brainkm.models.brain_config import BrainConfig
 from brainkm.services.memory import create_neuron, new_ulid
 from brainkm.services.search import resolve_node_ref
 
-_INTERNAL_TOOLS = frozenset({"remember", "recall", "context_pack", "session_status", "traverse", "forget"})
+_INTERNAL_TOOLS = frozenset(
+    {
+        "remember",
+        "recall",
+        "context_pack",
+        "session_status",
+        "traverse",
+        "forget",
+        "brain_stats",
+        "graph_sync",
+    }
+)
 
 
 def find_promotable_pairs(conn: sqlite3.Connection, *, threshold: int) -> list[tuple[str, str]]:
@@ -107,9 +118,13 @@ def check_and_promote(
     *,
     config: BrainConfig,
 ) -> list[str]:
-    from brainkm.services.learning import get_learning_window
+    from brainkm.services.learning import load_recent_tool_names
 
-    window = get_learning_window()
+    tool_names = load_recent_tool_names(
+        conn,
+        session_id,
+        limit=config.learning.session_window_size,
+    )
     promoted: list[str] = []
     for first, second in find_promotable_pairs(conn, threshold=config.learning.co_activation_threshold):
         # Skip invalid/archived references quickly.
@@ -118,7 +133,7 @@ def check_and_promote(
         created = upsert_procedure_neuron(
             conn,
             neuron_ids=[first, second],
-            tool_names=window.recent_tool_names(session_id),
+            tool_names=tool_names,
             session_id=session_id,
         )
         if created is not None:

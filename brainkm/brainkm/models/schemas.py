@@ -15,6 +15,15 @@ class NeuronResult(BaseModel):
     content: str | None = None
     score: float | None = None
     activation: float | None = None
+    path: str | None = None
+    relationship: str | None = None
+    via: str | None = None
+
+
+class SessionChunkResult(BaseModel):
+    chunk_id: str
+    excerpt: str
+    score: float | None = None
 
 
 class RememberRequest(BaseModel):
@@ -48,6 +57,7 @@ class RecallResponse(BaseModel):
     nodes: list[NeuronResult]
     abstained: bool = False
     source: str = "live_db"
+    session_chunks: list[SessionChunkResult] = Field(default_factory=list)
 
 
 class ContextPackRequest(BaseModel):
@@ -126,3 +136,40 @@ class ForgetResponse(BaseModel):
     node_id: str
     archived: bool
     valid_until: str | None = None
+
+
+class BrainStatsRequest(BaseModel):
+    session_id: str | None = None
+
+
+class BrainStatsResponse(BaseModel):
+    neurons_by_kind: dict[str, int] = Field(default_factory=dict)
+    neurons_by_subtype: dict[str, int] = Field(default_factory=dict)
+    graph_nodes: int = 0
+    graph_edges: int = 0
+    graph_available: bool = False
+    last_graph_import_at: str | None = None
+    graph_stale: bool | None = None
+    review_queue_size: int = 0
+    abstention_mode: str | None = None
+    abstention_calibrated: bool = False
+
+
+class GraphSyncRequest(BaseModel):
+    force: bool = Field(
+        default=False,
+        description="Run extract+import immediately instead of only queuing a request flag",
+    )
+    skip_extract: bool = Field(
+        default=False,
+        description="Import existing graph.json only (force mode)",
+    )
+
+
+class GraphSyncResponse(BaseModel):
+    requested: bool = False
+    ran: bool = False
+    ok: bool = False
+    message: str | None = None
+    nodes_imported: int | None = None
+    edges_imported: int | None = None

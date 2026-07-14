@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from brainkm.models.brain_config import GraphConfig, RecallConfig
-from brainkm.services.recall_dedup import deduped_session_chunks
+from brainkm.services.recall_dedup import SessionChunkHit, deduped_session_chunks
 from brainkm.services.search import RankedNode, recall_with_bfs
 
 
@@ -17,7 +17,7 @@ class LiveRecallResult:
     nodes: list[RankedNode]
     source: str
     abstained: bool
-    session_chunks: tuple[str, ...] = ()
+    session_chunks: tuple[SessionChunkHit, ...] = ()
 
 
 def recall_live(
@@ -39,13 +39,12 @@ def recall_live(
         fts_limit=fts_limit,
         project_dir=project_dir,
     )
-    recall_cfg = recall or RecallConfig()
     neuron_ids = {ranked.node_id for ranked in traversal.nodes}
     supplemental = deduped_session_chunks(conn, query, neuron_ids)
     return LiveRecallResult(
         query=query,
         nodes=traversal.nodes[:limit],
         source="live_db",
-        abstained=not traversal.nodes and recall_cfg.abstain_on_low_confidence,
-        session_chunks=tuple(chunk.chunk_id for chunk in supplemental),
+        abstained=traversal.abstained,
+        session_chunks=tuple(supplemental),
     )

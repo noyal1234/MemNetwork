@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -29,6 +30,7 @@ logger = get_logger("services.graphify_sync")
 
 REQUEST_FILENAME = "graph_sync.requested"
 LOCK_FILENAME = "graph_sync.lock"
+STALE_LOCK_SECONDS = 30 * 60  # 30 minutes
 POLL_INTERVAL_SECONDS = 5.0
 STOP_JOIN_TIMEOUT_SECONDS = 330.0
 
@@ -96,7 +98,26 @@ def clear_graph_sync_request(project_dir: Path) -> None:
         flag.unlink()
 
 
+def _clear_stale_lock(lock_path: Path, *, max_age_seconds: float = STALE_LOCK_SECONDS) -> bool:
+    """Remove a lock file left behind after a crash; return True if cleared."""
+    if not lock_path.is_file():
+        return False
+    try:
+        age = time.time() - lock_path.stat().st_mtime
+    except OSError:
+        return False
+    if age < max_age_seconds:
+        return False
+    try:
+        lock_path.unlink()
+        logger.warning("removed stale graph_sync.lock age_seconds=%.0f", age)
+        return True
+    except OSError:
+        return False
+
+
 def _try_acquire_lock(lock_path: Path) -> bool:
+    _clear_stale_lock(lock_path)
     try:
         fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         os.close(fd)

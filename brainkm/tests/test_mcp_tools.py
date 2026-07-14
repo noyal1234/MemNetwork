@@ -37,7 +37,6 @@ def test_remember_and_recall(runtime, tmp_path) -> None:
         response = handle_remember(
             conn,
             RememberRequest(title="Auth choice", body="JWT over session cookies for API"),
-            config=BrainConfig(),
         )
         conn.commit()
         assert response.node_id
@@ -93,7 +92,6 @@ def test_forget_soft_archives(runtime, tmp_path) -> None:
         created = handle_remember(
             conn,
             RememberRequest(title="Temp", body="Remove me"),
-            config=BrainConfig(),
         )
         conn.commit()
         archived = handle_forget(conn, ForgetRequest(node_id=created.node_id, reason="test"))

@@ -1,4 +1,4 @@
-"""MCP stdio server entry — 6 tools for Cursor integration."""
+"""MCP stdio server entry — tools for Cursor integration."""
 
 from __future__ import annotations
 
@@ -16,8 +16,10 @@ from brainkm.config import get_settings
 from brainkm.db.migrate import migrate
 from brainkm.logging_config import get_logger
 from brainkm.models.schemas import (
+    BrainStatsRequest,
     ContextPackRequest,
     ForgetRequest,
+    GraphSyncRequest,
     RecallRequest,
     RememberRequest,
     SessionStatusRequest,
@@ -52,6 +54,22 @@ TOOL_DEFINITIONS: list[tuple[str, str, type]] = [
         TraverseRequest,
     ),
     ("forget", "Soft-archive a neuron (sets valid_until via audit_log).", ForgetRequest),
+    (
+        "brain_stats",
+        (
+            "Brain health summary: neuron/graph counts, last graph import, staleness, "
+            "review queue size, abstention calibration. Use before trusting traverse/context_pack."
+        ),
+        BrainStatsRequest,
+    ),
+    (
+        "graph_sync",
+        (
+            "Refresh the code graph (queue or force extract+import). "
+            "Use when brain_stats reports a stale graph or after large refactors."
+        ),
+        GraphSyncRequest,
+    ),
 ]
 
 
