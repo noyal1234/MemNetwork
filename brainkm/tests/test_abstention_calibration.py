@@ -58,7 +58,9 @@ def test_saved_calibration_used_at_recall_time(tmp_path: Path, brain_db) -> None
     try:
         project_dir = brain_db.parent.parent
         threshold = resolve_corpus_threshold(conn, RecallConfig(), project_dir=project_dir)
-        assert threshold == calibration.corpus_bm25_threshold
+        # Uses the least-strict candidate among live/rolling/calibration.
+        assert threshold is not None
+        assert threshold >= calibration.corpus_bm25_threshold
 
         weak = should_abstain_for_query(
             conn,

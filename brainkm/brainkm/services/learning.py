@@ -103,7 +103,10 @@ def persist_neuron_hits(
     source: str = "recall",
     cap: int | None = None,
 ) -> None:
-    """Write neuron hits to SQLite and the in-memory window (also tracks use_count)."""
+    """Write neuron hits to SQLite and the in-memory learning window.
+
+    use_count is incremented later via flush_use_counts (SessionEnd or opportunistic stale flush).
+    """
     if not session_id or not node_ids:
         return
     from brainkm.services.session_activity import get_session_activity

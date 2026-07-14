@@ -23,7 +23,7 @@ from brainkm.services.memory import create_neuron, new_ulid
 
 logger = get_logger("services.handover")
 
-HANDOVER_SUBTYPES = frozenset({"decision", "context", "rule", "error"})
+HANDOVER_SUBTYPES = frozenset({"decision", "context", "rule", "error", "fact"})
 _TITLE_MAX = 120
 
 

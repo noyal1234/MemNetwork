@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import re
 
+from brainkm.adapters.cursor_clean import distillable_round, is_distill_noise
 from brainkm.models.distill import DistilledNeuron, TranscriptRound
 
 DECISION_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\b(?:decided|decision|chose|choose|going with|we'll use)\b", re.I), "decision"),
-    (re.compile(r"\b(?:instead of|rather than|over)\b", re.I), "decision"),
-    (re.compile(r"\b(?:plan|architecture|approach)\b", re.I), "decision"),
+    (re.compile(r"\b(?:instead of|rather than)\b", re.I), "decision"),
 )
 
 RULE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
@@ -18,7 +18,7 @@ RULE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
 )
 
 ERROR_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
-    (re.compile(r"\b(?:pitfall|bug|race condition|failed|error|avoid)\b", re.I), "error"),
+    (re.compile(r"\b(?:pitfall|bug|race condition|failed)\b", re.I), "error"),
 )
 
 SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
@@ -59,11 +59,19 @@ def _strip_role_prefix(sentence: str) -> str:
     return _ROLE_PREFIX.sub("", sentence).strip()
 
 
-def _title_from_sentence(sentence: str, *, max_len: int = 120) -> str:
+def _title_from_sentence(sentence: str, *, max_words: int = 8, max_len: int = 80) -> str:
     cleaned = re.sub(r"\s+", " ", sentence).strip()
-    if len(cleaned) <= max_len:
-        return cleaned
-    return cleaned[: max_len - 3].rstrip() + "..."
+    # Prefer the clause before a dash/colon for tighter titles.
+    for sep in (" — ", " - ", ": "):
+        if sep in cleaned:
+            cleaned = cleaned.split(sep, 1)[0].strip()
+            break
+    words = cleaned.split()
+    if len(words) > max_words:
+        cleaned = " ".join(words[:max_words])
+    if len(cleaned) > max_len:
+        return cleaned[: max_len - 3].rstrip() + "..."
+    return cleaned.rstrip(".,;:")
 
 
 def distill_round(
@@ -72,13 +80,18 @@ def distill_round(
     chunk_ids: list[str],
     max_neurons: int = 3,
 ) -> list[DistilledNeuron]:
-    text = round_.combined_text
+    cleaned = distillable_round(round_)
+    if cleaned is None:
+        return []
+    text = cleaned.combined_text
     sentences = [part.strip() for part in SENTENCE_SPLIT.split(text) if part.strip()]
     candidates: list[DistilledNeuron] = []
 
     for sentence in sentences:
         sentence = _strip_role_prefix(sentence)
         if len(sentence) < 20:
+            continue
+        if is_distill_noise(sentence):
             continue
         if sentence.lower().startswith("[tool_use:"):
             continue
@@ -89,7 +102,7 @@ def distill_round(
         neuron = DistilledNeuron(
             subtype=subtype,
             title=_title_from_sentence(sentence),
-            body=sentence,
+            body=sentence[:400],
             tags=_tags_from_text(sentence),
             chunk_ids=list(chunk_ids),
             confidence=0.55,

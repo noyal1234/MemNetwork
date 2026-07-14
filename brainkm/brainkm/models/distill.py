@@ -55,7 +55,7 @@ class DistilledNeuron:
     chunk_ids: list[str] = field(default_factory=list)
     confidence: float = 1.0
 
-    def is_atomic(self, *, max_body_chars: int = 600) -> bool:
+    def is_atomic(self, *, max_body_chars: int = 400) -> bool:
         if len(self.body) > max_body_chars:
             return False
         summary_markers = ("in summary", "to summarize", "overall,", "in conclusion")

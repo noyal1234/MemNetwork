@@ -31,6 +31,7 @@ def test_context_pack_fts_fallback_when_graph_missing(brain_db) -> None:
             conn,
             "payments retry",
             config=BrainConfig(recall={"abstain_on_low_confidence": False}),
+            include_structured=True,
         )
         assert pack.graph_available is False
         assert "Graph unavailable" in pack.pack_text

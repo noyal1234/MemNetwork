@@ -19,7 +19,7 @@ brainkm install --dev
 brainkm graph sync          # optional: first code graph
 brainkm graph status
 pytest
-brainkm version
+brainkm version   # expect 0.2.0
 ```
 
 Restart Cursor or reload MCP servers after `brainkm install --dev`.
@@ -115,3 +115,12 @@ That project gets its own `.brain/` and `.cursor/` wiring.
 ## Cursor policy rules
 
 `memnetwork-*.mdc` rules live under `.cursor/rules/` on disk and are **not** tracked in git. See [cursor-policy/README.md](../cursor-policy/README.md).
+
+## Maintenance
+
+```bash
+brainkm hygiene --dry-run   # list noisy auto-captured neurons
+brainkm hygiene             # soft-archive them
+```
+
+Use MCP `brain_stats` for usage / abstention / dead-neuron counts. After upgrading brainkm, reload the MCP server so Cursor picks up the new tools and budget behavior.

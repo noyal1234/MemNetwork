@@ -34,6 +34,8 @@ Requires `pip install -e "./brainkm[tui]"`. Without Textual, the command prints 
 
 Distill backend is selected by `capture.distill_mode` in `.brain/config.json`: `rules` \| `cursor` \| `ollama` \| `groq`.
 
+All modes clean Cursor chrome before extract. PreCompact handover allows up to `handover.precompact_distill_timeout_seconds` (default **30s**) before falling back to `rules`.
+
 ---
 
 ## LLM diagnostics
@@ -74,6 +76,16 @@ Multi-IDE opt-in: set `graphify.auto_sync.watch_filesystem: true` in `.brain/con
 
 ---
 
+## Hygiene
+
+| Command | Purpose | Key flags | Example |
+|---------|---------|-----------|---------|
+| `brainkm hygiene` | Soft-archive memory neurons that fail the noise gate (transcript chrome, tool spam, boilerplate) | `--project-dir`, `--dry-run`, `--limit` | `brainkm hygiene --dry-run` |
+
+Safe to re-run; archives via `forget` (reversible with audit log). SessionStart/context packs also skip noisy neurons at injection time.
+
+---
+
 ## Bench
 
 | Command | Purpose | Key flags | Example |
@@ -99,7 +111,7 @@ Multi-IDE opt-in: set `graphify.auto_sync.watch_filesystem: true` in `.brain/con
 | Command | Purpose | Key flags | Example |
 |---------|---------|-----------|---------|
 | `brainkm viz` | Launch 3D neuron graph in the browser | `--project-dir`, `--port`, `--no-open`, `--demo` | `brainkm viz --port 5757` |
-| `brainkm mcp` | Run MCP stdio server (6 tools) | `--project-dir` | `brainkm mcp --project-dir .` |
+| `brainkm mcp` | Run MCP stdio server (8 tools) | `--project-dir` | `brainkm mcp --project-dir .` |
 
 ---
 

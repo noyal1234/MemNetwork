@@ -10,8 +10,11 @@ This project uses **brainkm** — a local SQLite project brain at `.brain/brain.
 
 ## Before reading many files
 
-- Prefer MCP **`context_pack`** (when available) over reading 3+ source files for navigation tasks. Include a **symbol or file path** in the query (or `seed_refs`) so the code neighborhood can be seeded.
-- Prefer MCP **`traverse`** for call/import/flow and blast-radius questions ("what calls X?", "what breaks if I change Y?") before Grep spam or multi-file reads.
+- **Consult** MCP **`context_pack`** first for navigation tasks (include a **symbol or file path**
+  in the query or `seed_refs`), **then verify in source** before editing — packs are hints,
+  never a substitute for reading the code you will change.
+- Prefer MCP **`traverse`** for call/import/flow and blast-radius questions ("what calls X?",
+  "what breaks if I change Y?"), then confirm with targeted reads.
 - Use **`recall`** for architectural decisions, rules, and past pivots — not chat history alone.
 - Use **`remember`** to persist decisions the team should not re-debate.
 
@@ -20,11 +23,13 @@ This project uses **brainkm** — a local SQLite project brain at `.brain/brain.
 | Question type | Use first | Why |
 |---------------|-----------|-----|
 | "Where is symbol X defined?" | Cursor search / Grep / `@codebase` | Semantic/symbol locate |
-| "What calls / imports X?" / "impact of changing Y" | **`traverse`** or **`context_pack`** with symbol/path | AST graph relationships |
+| "What calls / imports X?" / "impact of changing Y" | **`traverse`** or **`context_pack`** with symbol/path, then verify | AST graph relationships |
 | "Why did we choose X?" | **`recall`** | Decisions live in neurons, not the code index |
 | Understand one module (would open 3+ files) | **`context_pack`** then targeted reads | Bounded pack vs file dumps |
 
-Do **not** treat brainkm as a second `@codebase`. Use Cursor to **locate**; use Graphify (`traverse` / `context_pack`) to explain **flow**.
+Do **not** treat brainkm as a second `@codebase`. Use Cursor to **locate**; use Graphify
+(`traverse` / `context_pack`) to explain **flow**. Never skip reading source because a pack
+abstained or looked incomplete — prefer fewer injected tokens over trusting noise.
 
 ## What lives in the brain
 
@@ -54,6 +59,7 @@ brainkm handover path/to/transcript.jsonl   # before compact
 brainkm capture path/to/transcript.jsonl      # after session
 brainkm graph sync                            # refresh code graph (extract + import)
 brainkm graph sync --skip-extract             # import existing graph.json only
+brainkm hygiene                               # soft-archive noisy auto-captured neurons
 ```
 
 Auto-sync runs in the MCP server after Write/Edit (debounced). Disable via `.brain/config.json`:

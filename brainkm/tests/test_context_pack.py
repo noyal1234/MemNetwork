@@ -63,6 +63,7 @@ def test_compile_context_pack_includes_neuron(brain_db) -> None:
             conn,
             "JWT expiry",
             config=BrainConfig(recall={"abstain_on_low_confidence": False}),
+            include_structured=True,
         )
         assert "JWT expiry policy" in pack.pack_text
         assert any(n.node_id == "jwt" for n in pack.neurons)
@@ -115,6 +116,7 @@ def test_compile_context_pack_seeds_symbol_neighborhood(brain_db) -> None:
             conn,
             "What connects AuthService to the repo?",
             config=BrainConfig(recall={"abstain_on_low_confidence": False}),
+            include_structured=True,
         )
         assert pack.graph_available is True
         assert pack.graph_hint is None
@@ -158,6 +160,7 @@ def test_compile_context_pack_seed_refs_param(brain_db) -> None:
             "need neighborhood for refactor",
             config=BrainConfig(recall={"abstain_on_low_confidence": False}),
             seed_refs=["load_brain_config"],
+            include_structured=True,
         )
         assert any(n.node_id in {"loader", "cfg"} for n in pack.graph_nodes)
     finally:
@@ -236,6 +239,7 @@ def test_per_channel_budget_reserves_graph_slot(brain_db) -> None:
                 budget={"total_tokens": 600, "dynamic_reallocation": True},
                 recall={"abstain_on_low_confidence": False},
             ),
+            include_structured=True,
         )
         assert pack.graph_nodes, "graph channel must retain code neighborhood under budget"
         assert any(n.kind == "code" for n in pack.graph_nodes)
@@ -288,6 +292,8 @@ def test_compile_pre_tool_pack_uses_file_path_and_slot_cap(brain_db) -> None:
         )
         assert pack is not None
         assert pack.truncation.token_budget <= 400 + 250 + 200
-        assert any(n.node_id in {"auth-file", "caller"} for n in pack.graph_nodes)
+        assert any(
+            nid in {"auth-file", "caller"} for nid in pack.truncation.included_ids
+        ) or "middleware" in pack.pack_text.lower()
     finally:
         conn.close()

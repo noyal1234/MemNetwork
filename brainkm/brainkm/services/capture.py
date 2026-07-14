@@ -22,7 +22,7 @@ from brainkm.services.chunks import (
 )
 from brainkm.services.config_loader import load_brain_config
 from brainkm.services.memory import create_neuron, new_ulid
-from brainkm.services.quality import filter_distilled
+from brainkm.services.quality import existing_neuron_fingerprints, filter_distilled
 from brainkm.services.review import enqueue_for_review
 
 logger = get_logger("services.capture")
@@ -137,6 +137,7 @@ def capture_transcript_file(
         distilled = filter_distilled(
             distilled,
             max_count=cfg.capture.max_auto_neurons_per_session,
+            seen_fingerprints=existing_neuron_fingerprints(conn),
         )
 
         neuron_count = 0

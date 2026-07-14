@@ -102,7 +102,12 @@ def create_server(runtime: BrainRuntime) -> Server:
         except Exception as exc:
             logger.exception("tool=%s failed", name)
             payload = {"error": str(exc), "tool": name}
-        return [TextContent(type="text", text=json.dumps(payload, indent=2))]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(payload, separators=(",", ":"), ensure_ascii=False),
+            )
+        ]
 
     return server
 

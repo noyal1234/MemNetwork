@@ -28,7 +28,7 @@
     "max_auto_neurons_per_session": 50,
     "max_neurons_per_plan": 20
   },
-    "ollama": {
+  "ollama": {
     "base_url": "http://127.0.0.1:11434",
     "model": "qwen2.5:3b",
     "auto_select_model": false,
@@ -42,7 +42,7 @@
   "injection": {
     "session_start": true,
     "pre_tool_patterns": ["write", "edit", "run_terminal"],
-    "max_recalls_per_turn": 1,
+    "max_recalls_per_turn": 3,
     "frozen_snapshot": true
   },
   "learning": {
@@ -53,12 +53,12 @@
   "recall": {
     "abstain_on_low_confidence": true,
     "abstain_mode": "percentile",
-    "abstain_percentile": 0.25,
+    "abstain_percentile": 0.10,
     "min_recall_score": null
   },
   "handover": {
     "precompact_enabled": true,
-    "precompact_distill_timeout_seconds": 5,
+    "precompact_distill_timeout_seconds": 30,
     "export_markdown": true
   },
   "graphify": {

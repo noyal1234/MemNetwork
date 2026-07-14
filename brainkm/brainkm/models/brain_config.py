@@ -40,7 +40,7 @@ class InjectionConfig(BaseModel):
     pre_tool_patterns: list[str] = Field(
         default_factory=lambda: ["write", "edit", "run_terminal"]
     )
-    max_recalls_per_turn: int = Field(default=1, ge=0, le=5)
+    max_recalls_per_turn: int = Field(default=3, ge=0, le=5)
     frozen_snapshot: bool = True
 
 
@@ -54,7 +54,7 @@ class LearningConfig(BaseModel):
 class RecallConfig(BaseModel):
     abstain_on_low_confidence: bool = True
     abstain_mode: Literal["percentile", "absolute"] = "percentile"
-    abstain_percentile: float = Field(default=0.25, ge=0.0, le=1.0)
+    abstain_percentile: float = Field(default=0.10, ge=0.0, le=1.0)
     min_recall_score: float | None = Field(default=None, ge=0.0, le=100.0)
 
     @model_validator(mode="after")
@@ -67,7 +67,7 @@ class RecallConfig(BaseModel):
 
 class HandoverConfig(BaseModel):
     precompact_enabled: bool = True
-    precompact_distill_timeout_seconds: int = Field(default=5, ge=1, le=60)
+    precompact_distill_timeout_seconds: int = Field(default=30, ge=1, le=120)
     export_markdown: bool = True
 
 

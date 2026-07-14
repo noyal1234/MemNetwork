@@ -16,7 +16,7 @@
 | **User-chosen distill** | `capture.distill_mode`: `rules` (default path), `ollama` (local), `groq` (free cloud), or `cursor` |
 | **Compaction-aware** | PreCompact handover + SessionEnd capture so truth survives Cursor chat compaction |
 | **Inspectable** | Every memory is a SQLite row or markdown export — `forget`, `pin`, `merge` |
-| **Bounded tokens** | 1500-token hard cap on injection; structural retrieval over file dumps |
+| **Bounded tokens** | 1500-token hard cap on agent-facing packs (`pack_text` + compact MCP JSON); structural retrieval over file dumps |
 | **Complement Cursor** | Does not replace @codebase or Cursor Memories — stores **project-specific** decisions |
 
 **Primary jobs:**
@@ -40,7 +40,7 @@ flowchart LR
 
   subgraph brainkm_pkg [brainkm package]
     Server[MCP server]
-    Tools[6 MCP tools]
+    Tools[8 MCP tools]
     Services[services layer]
     Adapters[adapters layer]
   end
@@ -63,8 +63,8 @@ flowchart LR
 | **Memory** | SQLite FTS5 BM25 | Neurons (`kind=memory`) — facts, decisions, rules |
 | **Code graph** | Graphify AST adapter | `code` nodes, import/call edges |
 | **Temporal** | `valid_from` / `valid_until`, `supersedes` | Evolving facts without full GraphRAG |
-| **MCP** | `mcp` SDK stdio | 6 tools: remember, recall, context_pack, session_status, traverse, forget |
-| **CLI** | Typer | install, export, bench, repair, handover, review, configure |
+| **MCP** | `mcp` SDK stdio | 8 tools: remember, recall, context_pack, session_status, traverse, forget, brain_stats, graph_sync |
+| **CLI** | Typer | install, export, bench, repair, handover, review, hygiene, migrate, configure |
 | **TUI** | Textual (optional `[tui]` extra) | `brainkm configure` — dashboard, config editor, actions, wizard |
 | **Optional T1** | sqlite-vec + ONNX MiniLM | Semantic search when `semantic: true` |
 | **Optional T2** | Cursor / Ollama / Groq at SessionEnd | `distill_mode: cursor \| ollama \| groq` |
@@ -116,18 +116,22 @@ MemNetwork/
 
 ---
 
-## 4. MCP tool contract (V1)
+## 4. MCP tool contract (V1 / current)
+
+**Package version:** `0.2.0`
 
 | Tool | Purpose |
 |------|---------|
 | `remember` | Store neuron; auto-link to code nodes by path mentions |
-| `recall` | FTS5 + graph activation; abstain if below `min_recall_score` |
-| `context_pack` | Task-specific compiled pack (graph + neurons + procedures) |
+| `recall` | FTS5 + graph activation; abstain on low confidence (percentile default P10); bodies capped to `budget.total_tokens` |
+| `context_pack` | Task-specific compiled pack (graph + neurons + procedures). Default MCP payload is lean (`pack_text` + truncation IDs); pass `include_structured=true` for full neuron arrays |
 | `session_status` | Read/write session context neuron |
-| `traverse` | Explicit graph hop between entities |
+| `traverse` | Explicit graph hop between entities (path-labeled code nodes) |
 | `forget` | Soft-archive node (`valid_until`) + cascade edges |
+| `brain_stats` | Health summary: neuron/graph counts, MCP usage (7d), abstention rate, dead-neuron count |
+| `graph_sync` | Queue or force Graphify extract+import |
 
-CLI-only (not MCP): `install`, `export`, `bench`, `repair`, `handover`, `review`, `migrate`, `configure`.
+CLI-only (not MCP): `install`, `export`, `bench`, `repair`, `handover`, `review`, `hygiene`, `migrate`, `configure`.
 
 ---
 
@@ -141,7 +145,7 @@ MemNetwork **complements** Cursor — it does not replace built-in indexing, use
 |--------|-------|----------------|--------------|
 | **Cursor Memories** | Cross-project user preferences | "I prefer tabs over spaces", global coding style | **Do not duplicate.** brainkm stores **this project's** decisions, rules, and pivots only |
 | **Cursor Rules** (`.cursor/rules/`) | Static team policy | Always-on conventions, lint rules, architecture mandates | **Complement.** Rules = policy; neurons = dynamic learned context. `brainkm install` scans rules and warns on topic overlap |
-| **@codebase** | Semantic code index (embeddings) | Source files, symbols, natural-language code search | **Complement, not replace.** Use `context_pack` / `traverse` **before** reading >2 files for navigation tasks |
+| **@codebase** | Semantic code index (embeddings) | Source files, symbols, natural-language code search | **Complement, not replace.** Consult `context_pack` / `traverse` first for navigation, **then verify in source** before editing |
 | **Chat compaction** | Lossy in-window summarize (~35% DMR recall) | Compressed chat history inside the window | **Work with it.** PreCompact handover + SessionEnd capture → neurons survive in `brain.db` |
 | **Agent transcripts** | Raw JSONL chat history | Full conversation logs under `agent-transcripts/` | **Distill, don't inject.** Search via `session_fts`; auto-distill to neurons at SessionEnd/PreCompact |
 
@@ -153,7 +157,7 @@ MemNetwork **complements** Cursor — it does not replace built-in indexing, use
 | "Why did we choose JWT over session cookies?" | **`recall`** | Decision lives in chat/plan distill, not in code index |
 | "What connects `AuthService` to `UserRepo`?" | **`traverse`** / `context_pack` | Structural AST graph + neurons |
 | "What failed last time we touched payments?" | **`recall`** (subtype `error`) | Known failure modes are neurons |
-| Read 5+ files to understand one module | **`context_pack`** then targeted reads | Bounded 200–800 token pack vs 3k–15k file dump |
+| Read 5+ files to understand one module | **`context_pack`** then targeted reads | Bounded pack vs multi-file dumps; never skip reading source you will change |
 
 **Do not** wire local LLM into `recall` or `context_pack` to compete with @codebase — that duplicates Cursor's index badly and destroys the token-efficiency story.
 
@@ -173,7 +177,7 @@ Controlled by `injection.frozen_snapshot: true` (default). PostCompact snapshot 
 ### 5.4 What MemNetwork wins on (vs @codebase alone)
 
 - **Decision/pivot memory** — "why X not Y" from chat and plans
-- **Bounded `context_pack`** — verifiable, path-labeled snippets (200–800 tokens vs multi-file reads)
+- **Bounded `context_pack`** — path-labeled snippets under the 1500-token agent-facing cap (vs multi-file reads)
 - **Cross-session chat distill** — survives compaction via PreCompact handover
 - **Procedure learning** (V2) — tool chains that worked for this project
 
@@ -284,14 +288,16 @@ Validated by `BrainConfig` in `brainkm/models/brain_config.py`. Example: `braink
 Key fields:
 
 - `project_roots` — monorepo roots the brain spans
-- `budget.total_tokens` — default 1500
+- `budget.total_tokens` — default 1500 (enforced on `pack_text` and lean MCP payload; structured duplicates are opt-in)
 - `capture.plan_files` — ingest `.cursor/plans/*.plan.md`
 - `capture.distill_mode` — `rules` \| `cursor` \| `ollama` \| `groq` (see local vs cloud note below)
 - `ollama.model` — default `qwen2.5:3b`; optional `auto_select_model` via `brainkm ollama doctor`
 - `groq.model` — default `llama-3.3-70b-versatile`; API key via `GROQ_API_KEY` env / `.env`
 - `injection.frozen_snapshot` — SessionStart pack frozen; mid-session `remember` does not mutate injection
-- `recall.abstain_mode` / `recall.abstain_percentile` — return `[]` on low-confidence matches
+- `injection.max_recalls_per_turn` — default **3** (30s window)
+- `recall.abstain_mode` / `recall.abstain_percentile` — return `[]` on low-confidence matches (default percentile **0.10** / P10; least-strict of live/rolling/calibration thresholds)
 - `handover.precompact_enabled` — PreCompact hook distill
+- `handover.precompact_distill_timeout_seconds` — default **30** (avoids silent fall-through to noisy `rules` during handover)
 
 ### Local vs cloud distill
 
@@ -303,6 +309,9 @@ Key fields:
 | `cursor` | Cursor agent CLI (`agent -p`) when available; else Cursor-aware heuristic distill of cleaned transcripts | Cursor session hooks; optional `agent` CLI |
 
 T0 remains **rules** — cloud and local LLM distill are opt-in. Never put API keys in `.brain/config.json` or neurons.
+
+All distill modes share Cursor chrome cleaning (`clean_cursor_text` / `is_distill_noise`) before extraction. LLM modes return `{"neurons":[...]}`; subtypes are validated in code. Capture fingerprints title+body to skip duplicates; SessionStart/PreTool injection re-runs a noise gate so junk never reaches the agent.
+
 ---
 
 ## 8. Implementation status
@@ -310,11 +319,12 @@ T0 remains **rules** — cloud and local LLM distill are opt-in. Never put API k
 | Phase | Status | Deliverables |
 |-------|--------|--------------|
 | **V0** | Done | Scaffold, AGENTS.md, BrainConfig, tests, cursor rules |
-| **V1** | Done | SQLite brain, hooks, install, capture/handover, Graphify import + sync, frozen snapshot, **6 MCP tools**, adaptive abstention |
+| **V1** | Done | SQLite brain, hooks, install, capture/handover, Graphify import + sync, frozen snapshot, MCP tools, adaptive abstention |
 | **V1.5** | Done | bench suites, repair + abstention recalibrate, export/import merge, PostCompact refresh |
 | **V2** | Done | Tool registry, review queue, confidence-gated review, PostToolUse learning loop, co-activation procedure promotion |
 | **TUI** | Done | `brainkm configure` Textual app (dashboard, config editor, actions, wizard); optional `[tui]` extra — see [TUI_APP_PLAN.md](TUI_APP_PLAN.md) |
-| **V3+** | Planned | Decay, optional semantic, stats |
+| **0.2.0** | Done | End-to-end token cap on agent-facing packs; lean MCP payloads; MCP usage telemetry in `brain_stats`; distill cleaning parity + prompt fix; `brainkm hygiene`; injection-time noise gate; path-labeled code nodes |
+| **V3+** | Planned | Decay, optional semantic search |
 
 ### SQLite concurrency
 

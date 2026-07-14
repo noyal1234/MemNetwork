@@ -756,6 +756,48 @@ def review_reject_cmd(
         conn.close()
 
 
+@app.command("hygiene")
+def hygiene_cmd(
+    project_dir: Path | None = typer.Option(
+        None,
+        "--project-dir",
+        help="Target project root (defaults to cwd)",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Report noisy neurons without soft-archiving them",
+    ),
+    limit: int | None = typer.Option(
+        None,
+        "--limit",
+        help="Max neurons to scan (default: all)",
+    ),
+) -> None:
+    """Soft-archive memory neurons that fail the quality gate (noise/chrome/boilerplate)."""
+    from brainkm.db.connection import connect
+    from brainkm.db.migrate import migrate
+    from brainkm.db.paths import brain_db_path
+    from brainkm.services.hygiene import purge_noisy_neurons
+
+    migrate(project_dir=project_dir, run_integrity_check=False)
+    db = brain_db_path(project_dir)
+    conn = connect(db)
+    try:
+        result = purge_noisy_neurons(conn, dry_run=dry_run, limit=limit)
+    finally:
+        conn.close()
+    action = "would archive" if dry_run else "archived"
+    typer.echo(
+        f"scanned={result.scanned} kept={result.kept} {action}={result.archived}"
+    )
+    if dry_run and result.archived_ids:
+        for node_id in result.archived_ids[:50]:
+            typer.echo(node_id)
+        if len(result.archived_ids) > 50:
+            typer.echo(f"... and {len(result.archived_ids) - 50} more")
+
+
 @app.command("import")
 def import_cmd(
     source: Path = typer.Argument(..., help="JSON neuron export to merge"),
@@ -834,7 +876,7 @@ def mcp_cmd(
         help="Target project root (defaults to cwd)",
     ),
 ) -> None:
-    """Run brainkm MCP stdio server (6 tools: remember, recall, context_pack, session_status, traverse, forget)."""
+    """Run brainkm MCP stdio server (8 tools: remember, recall, context_pack, session_status, traverse, forget, brain_stats, graph_sync)."""
     from brainkm.server import main as run_mcp_server
 
     run_mcp_server(project_dir=project_dir)

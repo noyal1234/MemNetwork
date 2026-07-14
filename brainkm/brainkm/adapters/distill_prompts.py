@@ -6,21 +6,25 @@ import json
 import re
 import sqlite3
 
+VALID_SUBTYPES = frozenset({"decision", "fact", "rule", "error"})
+
 SYSTEM_PROMPT = """You are a memory-extraction assistant for a software project's local knowledge base.
 Extract atomic project memory neurons from a chat round between a developer and a coding assistant.
 
-Return ONLY a JSON array. Each item must have exactly these fields:
-{"subtype":"decision|fact|rule|error","title":"...","body":"...","tags":["..."]}
+Return ONLY a JSON object of the form:
+{"neurons":[{"subtype":"decision|fact|rule|error","title":"...","body":"...","tags":["..."]}]}
 
 Guidelines:
 - One atomic fact per item — do not combine multiple ideas into one item.
 - Do not produce summaries; each body must be independently verifiable.
 - Keep body under 400 characters.
-- Skip greetings, acknowledgements, and small talk — extract nothing if the round has no durable fact.
+- title is a short noun phrase (max ~8 words), never a full sentence, and never starts with I'll / Let me / Confirming / Sure.
+- body must be understandable without the conversation — name the file, symbol, feature, or config it refers to.
+- Skip greetings, acknowledgements, tool-call noise, and small talk — extract nothing if the round has no durable fact.
 - Use "decision" for choices between alternatives, "rule" for conventions/constraints, \
 "error" for bugs/pitfalls, "fact" for everything else.
 - tags should be 2-6 lowercase concept keywords, not filler words.
-- If nothing durable is present, return [].
+- If nothing durable is present, return {"neurons":[]}.
 
 Example input round:
 USER: We decided to use JWT instead of session cookies for API auth.
@@ -28,11 +32,21 @@ USER: We decided to use JWT instead of session cookies for API auth.
 ASSISTANT: Never store API keys in neurons. Access tokens expire after 15 minutes.
 
 Example output:
-[
+{"neurons":[
   {"subtype":"decision","title":"Use JWT for API auth","body":"Chose JWT over session cookies for API authentication.","tags":["jwt","auth","api"]},
   {"subtype":"rule","title":"Never store API keys in neurons","body":"API keys must not be persisted in project memory.","tags":["security","secrets"]}
-]
+]}
 """
+
+
+def normalize_subtype(value: object, *, default: str = "fact") -> str | None:
+    """Return a valid subtype or None when the value cannot be coerced."""
+    if value is None:
+        return default
+    text = str(value).strip().lower()
+    if text in VALID_SUBTYPES:
+        return text
+    return None
 
 
 def build_context_block(conn: sqlite3.Connection | None, *, limit: int = 5) -> str:

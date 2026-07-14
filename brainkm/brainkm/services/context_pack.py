@@ -10,6 +10,7 @@ from pathlib import Path
 from brainkm.models.brain_config import BrainConfig
 from brainkm.models.schemas import ContextPackResponse, NeuronResult
 from brainkm.services.budget import (
+    MCP_JSON_OVERHEAD_TOKENS,
     PACK_FRAMING_OVERHEAD_TOKENS,
     BudgetLine,
     context_pack_slots,
@@ -20,6 +21,8 @@ from brainkm.services.budget import (
     truncate_by_channels,
 )
 from brainkm.services.channel_health import graph_available
+from brainkm.services.memory import token_count
+from brainkm.services.quality import passes_stored_neuron_gate
 from brainkm.services.search import (
     fts_search_nodes,
     recall_with_bfs,
@@ -31,6 +34,9 @@ GRAPH_HINT = (
     "Graph available but no symbol/path resolved from query — "
     "retry with a symbol name or file path, or call traverse directly."
 )
+MAX_QUERY_CHARS = 240
+MAX_PACK_QUERY_TOKENS = 40
+
 
 _PATH_RE = re.compile(r"[\w./\-]+\.(?:py|ts|tsx|js|go|rs)\b")
 _BACKTICK_RE = re.compile(r"`([^`]+)`")
@@ -270,26 +276,115 @@ def _node_row(conn: sqlite3.Connection, node_id: str) -> sqlite3.Row | None:
 
 
 def _to_budget_line(row: sqlite3.Row) -> BudgetLine:
+    content = _display_content(row)
     return BudgetLine(
         node_id=row["id"],
         kind=row["kind"],
         subtype=row["subtype"],
         title=row["title"],
-        content=row["content"] or "",
-        tokens=line_tokens(row["title"], row["content"], row["token_count"]),
+        content=content,
+        tokens=line_tokens(row["title"], content),
         priority=priority_for(row["kind"], row["subtype"]),
     )
 
 
+def _display_content(row: sqlite3.Row) -> str:
+    """Format node content for packs — code nodes include path + location, not AST JSON."""
+    raw = (row["content"] or "").strip()
+    path = ""
+    try:
+        path = (row["path"] or "").strip()
+    except (IndexError, KeyError):
+        path = ""
+    if row["kind"] != "code":
+        return raw
+    # Drop trailing Graphify extra JSON (`L54 | {"_origin": "ast"}`).
+    location = raw.split(" | ", 1)[0].strip() if raw else ""
+    if location.startswith("{"):
+        location = ""
+    parts = [p for p in (path, location) if p]
+    return " — ".join(parts) if parts else raw
+
+
 def _to_neuron_result(row: sqlite3.Row, *, score: float | None = None) -> NeuronResult:
+    path = None
+    try:
+        path = row["path"]
+    except (IndexError, KeyError):
+        path = None
     return NeuronResult(
         node_id=row["id"],
         kind=row["kind"],
         subtype=row["subtype"],
         title=row["title"],
-        content=row["content"],
+        content=_display_content(row),
         score=score,
+        path=path,
     )
+
+
+def _cap_query_for_pack(query: str) -> str:
+    text = query.strip()
+    if len(text) > MAX_QUERY_CHARS:
+        text = text[: MAX_QUERY_CHARS - 1].rstrip() + "…"
+    # Ensure the echoed query itself stays small in tokens.
+    while text and token_count(text) > MAX_PACK_QUERY_TOKENS:
+        text = text[: max(0, len(text) - 20)].rstrip() + "…"
+    return text
+
+
+def _fit_pack_text(
+    *,
+    query_echo: str,
+    pre_sections: list[str],
+    neuron_kept: list[BudgetLine],
+    graph_kept: list[BudgetLine],
+    proc_kept: list[BudgetLine],
+    omitted_ids: list[str],
+    total_tokens: int,
+) -> tuple[str, list[BudgetLine], list[BudgetLine], list[BudgetLine]]:
+    """Assemble pack_text and drop lowest-priority lines until it fits total_tokens."""
+    neurons = list(neuron_kept)
+    graphs = list(graph_kept)
+    procs = list(proc_kept)
+
+    def build(omit_footer: bool = False) -> str:
+        parts = ["# Context pack", "", f"Query: {query_echo}", ""]
+        parts.extend(pre_sections)
+        parts.extend(render_pack_section("Decisions & facts", neurons))
+        parts.extend(render_pack_section("Code neighborhood", graphs))
+        parts.extend(render_pack_section("Procedures", procs))
+        if omitted_ids and not omit_footer:
+            parts.extend(
+                [
+                    "## Truncated",
+                    "",
+                    f"Omitted {len(omitted_ids)} nodes (token cap). "
+                    "Call `recall` with `truncation_followup: true` for omitted IDs.",
+                    "",
+                ]
+            )
+        return "\n".join(parts).rstrip() + "\n"
+
+    pack_text = build()
+    if token_count(pack_text) <= total_tokens:
+        return pack_text, neurons, graphs, procs
+
+    # Drop from the end of lowest-priority channel lists until under budget.
+    pools = [procs, graphs, neurons]
+    while any(pools) and token_count(pack_text) > total_tokens:
+        for pool in pools:
+            if pool:
+                pool.pop()
+                break
+        pack_text = build()
+
+    if token_count(pack_text) > total_tokens:
+        pack_text = build(omit_footer=True)
+    # Hard clip as last resort (should be rare).
+    while token_count(pack_text) > total_tokens and len(pack_text) > 80:
+        pack_text = pack_text[: int(len(pack_text) * 0.9)].rstrip() + "\n…"
+    return pack_text, neurons, graphs, procs
 
 
 def _fts_code_seed_ids(conn: sqlite3.Connection, query: str, *, limit: int = 3) -> list[str]:
@@ -374,6 +469,7 @@ def compile_context_pack(
     project_dir: Path | None = None,
     seed_refs: list[str] | None = None,
     slots: dict[str, int] | None = None,
+    include_structured: bool = False,
 ) -> ContextPackResponse:
     """Compile a bounded task pack from live brain.db."""
     effective_slots = slots or context_pack_slots(config, query)
@@ -382,6 +478,7 @@ def compile_context_pack(
     else:
         hard_cap = max(0, sum(effective_slots.values()) - PACK_FRAMING_OVERHEAD_TOKENS)
     graph_ok = graph_available(conn)
+    query_echo = _cap_query_for_pack(query)
 
     neuron_lines: list[BudgetLine] = []
     recall = recall_with_bfs(
@@ -394,6 +491,8 @@ def compile_context_pack(
     for ranked in recall.nodes:
         row = _node_row(conn, ranked.node_id)
         if row is None or row["kind"] != "memory":
+            continue
+        if not passes_stored_neuron_gate(title=row["title"] or "", content=row["content"]):
             continue
         line = _to_budget_line(row)
         neuron_lines.append(
@@ -425,7 +524,7 @@ def compile_context_pack(
     proc_lines: list[BudgetLine] = []
     proc_rows = conn.execute(
         """
-        SELECT id, kind, subtype, title, content, token_count
+        SELECT id, kind, subtype, title, content, token_count, path
         FROM nodes
         WHERE valid_until IS NULL AND kind = 'procedure'
         ORDER BY use_count DESC, updated_at DESC
@@ -467,40 +566,63 @@ def compile_context_pack(
     ]
     graph_results = [node for node in graph_results if node.node_id in included_ids]
 
-    pack_parts = ["# Context pack", "", f"Query: {query}", ""]
+    pre_sections: list[str] = []
     if not graph_ok:
-        pack_parts.extend(["> Graph unavailable — FTS-only neighborhood.", ""])
+        pre_sections.extend(["> Graph unavailable — FTS-only neighborhood.", ""])
     elif graph_hint:
-        pack_parts.extend([f"> {graph_hint}", ""])
-    pack_parts.extend(render_pack_section("Decisions & facts", neuron_kept))
-    pack_parts.extend(render_pack_section("Code neighborhood", graph_kept))
-    pack_parts.extend(render_pack_section("Procedures", proc_kept))
+        pre_sections.extend([f"> {graph_hint}", ""])
 
-    if manifest.omitted_ids:
-        pack_parts.extend(
-            [
-                "## Truncated",
-                "",
-                f"Omitted {len(manifest.omitted_ids)} nodes (token cap). "
-                "Call `recall` with `truncation_followup: true` for omitted IDs.",
-                "",
-            ]
+    pack_text, neuron_kept, graph_kept, proc_kept = _fit_pack_text(
+        query_echo=query_echo,
+        pre_sections=pre_sections,
+        neuron_kept=neuron_kept,
+        graph_kept=graph_kept,
+        proc_kept=proc_kept,
+        omitted_ids=manifest.omitted_ids,
+        total_tokens=max(
+            100,
+            config.budget.total_tokens
+            - (0 if include_structured else MCP_JSON_OVERHEAD_TOKENS),
+        ),
+    )
+    final_ids = {line.node_id for line in neuron_kept + graph_kept + proc_kept}
+    dropped = [nid for nid in manifest.included_ids if nid not in final_ids]
+    if dropped:
+        manifest = manifest.model_copy(
+            update={
+                "included_ids": [nid for nid in manifest.included_ids if nid in final_ids],
+                "omitted_ids": list(manifest.omitted_ids) + dropped,
+                "tokens_used": token_count(pack_text),
+            }
         )
+    else:
+        manifest = manifest.model_copy(update={"tokens_used": token_count(pack_text)})
 
-    pack_text = "\n".join(pack_parts).rstrip() + "\n"
-    neurons = [
-        NeuronResult(
-            node_id=line.node_id,
-            kind=line.kind,
-            subtype=line.subtype,
-            title=line.title,
-            content=line.content,
+    neurons: list[NeuronResult] = []
+    if include_structured:
+        neurons = [
+            NeuronResult(
+                node_id=line.node_id,
+                kind=line.kind,
+                subtype=line.subtype,
+                title=line.title,
+                content=line.content,
+            )
+            for line in neuron_kept
+        ]
+        graph_results = [node for node in graph_results if node.node_id in final_ids]
+    else:
+        graph_results = []
+        # Keep truncation id lists short so the MCP JSON envelope stays budgeted.
+        manifest = manifest.model_copy(
+            update={
+                "included_ids": list(manifest.included_ids)[:25],
+                "omitted_ids": list(manifest.omitted_ids)[:15],
+            }
         )
-        for line in neuron_kept
-    ]
 
     return ContextPackResponse(
-        query=query,
+        query=query_echo,
         pack_text=pack_text,
         neurons=neurons,
         graph_nodes=graph_results,

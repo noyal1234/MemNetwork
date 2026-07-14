@@ -17,9 +17,10 @@ def test_brain_config_defaults() -> None:
     assert cfg.budget.session_start.pinned_rules == 300
     assert cfg.capture.distill_mode == "cursor"
     assert cfg.recall.abstain_mode == "percentile"
-    assert cfg.recall.abstain_percentile == 0.25
+    assert cfg.recall.abstain_percentile == 0.10
     assert cfg.recall.min_recall_score is None
-    assert cfg.handover.precompact_distill_timeout_seconds == 5
+    assert cfg.handover.precompact_distill_timeout_seconds == 30
+    assert cfg.injection.max_recalls_per_turn == 3
     assert cfg.graph.max_bfs_fanout_per_hop == 50
     assert cfg.graphify.code_only is True
     assert cfg.graphify.graph_json == "graphify-out/graph.json"

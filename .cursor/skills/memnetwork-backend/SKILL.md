@@ -65,10 +65,10 @@ Python **3.11 or 3.12** recommended.
 1. **DB** — schema, migrations, WAL, FTS5 (`db/`)
 2. **BrainConfig loader** — read `.brain/config.json` on startup
 3. **Services** — memory, search (BM25), budget (tiktoken)
-4. **MCP tools** — remember, recall, context_pack, session_status, traverse, forget
+4. **MCP tools** — remember, recall, context_pack, session_status, traverse, forget, brain_stats, graph_sync
 5. **Adapters** — transcripts, plans, graphify, redaction
 6. **Hooks** — SessionStart/End, PreCompact handover, PreToolUse
-7. **CLI** — install, export, handover, migrate
+7. **CLI** — install, export, handover, migrate, hygiene
 
 ## V2 (shipped)
 
@@ -77,6 +77,13 @@ Python **3.11 or 3.12** recommended.
 - **Review queue** — `services/review.py` + `brainkm review` CLI for low-confidence captures
 - **Tool registry** — `services/tool_registry.py` (cap 20 external tools)
 - **Bench** — fixture-driven `dmr`, `longmem`, `compaction`, `abstention`, `budget` suites
+
+## 0.2.0 (shipped)
+
+- End-to-end token budget on agent-facing MCP payloads; lean `context_pack` by default
+- MCP usage telemetry + dead-neuron / abstention stats in `brain_stats`
+- Distill cleaning parity across cursor/ollama/groq/rules; capture dedup; `brainkm hygiene`
+- Path-labeled code nodes; quieter abstention defaults (P10, max 3 recalls/turn)
 
 ## Adding an MCP tool
 

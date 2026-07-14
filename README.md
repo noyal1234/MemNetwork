@@ -50,4 +50,4 @@ Python **3.11 or 3.12** recommended (`requires-python = ">=3.11"`).
 
 ## Status
 
-**V2 shipped** — SQLite brain, MCP tools, hooks, install, Graphify import/sync, capture/handover, repair/export/import merge, post-compact snapshot refresh, learning loop (co-activation + procedure promotion), confidence-gated review queue, fixture-driven bench suites, and the optional `brainkm configure` Textual TUI (`pip install -e "./brainkm[tui]"`). **V3+ planned:** decay, optional semantic search, stats. See [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md) for roadmap.
+**brainkm 0.2.0** — SQLite brain, 8 MCP tools, hooks, install, Graphify import/sync, capture/handover, repair/export/import merge, post-compact snapshot refresh, learning loop (co-activation + procedure promotion), confidence-gated review queue, neuron hygiene, end-to-end token budgeting with lean MCP payloads, MCP usage telemetry, fixture-driven bench suites, and the optional `brainkm configure` Textual TUI (`pip install -e "./brainkm[tui]"`). **V3+ planned:** decay, optional semantic search. See [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md) for roadmap.

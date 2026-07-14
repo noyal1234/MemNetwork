@@ -16,9 +16,10 @@ When working in this repository, read **`docs/AI_PROJECT_BRIEF.md`** first for p
 
 - **Layers:** MCP tool → service → adapter → SQLite. Never skip layers.
 - **Config:** `get_settings()` for env; `BrainConfig` for `.brain/config.json`. No `os.environ` in app code.
-- **Tokens:** Hard 1500-token cap on injection packs (server-enforced in V1).
+- **Tokens:** Hard 1500-token cap on agent-facing packs (`pack_text` + compact MCP JSON; `include_structured` is opt-in).
 - **Security:** Never store secrets in neurons; use `adapters/redaction.py` (V1).
 - **Compaction:** Architectural truth lives in `brain.db`, not the chat window — PreCompact handover before Cursor compacts.
+- **Hygiene:** Prefer `brainkm hygiene` (or injection noise gate) over injecting junk; packs are hints — always verify in source.
 
 ## Local development
 

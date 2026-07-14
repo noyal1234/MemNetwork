@@ -99,12 +99,22 @@ def _insert_code_graph(conn: sqlite3.Connection, graph: ParsedGraphifyGraph) -> 
 
     for node in graph.nodes:
         subtype = infer_code_subtype(node.label, node.graph_id)
-        body_parts = []
+        body_parts: list[str] = []
+        if node.source_file:
+            body_parts.append(node.source_file)
         if node.source_location:
             body_parts.append(node.source_location)
-        if node.extra:
-            body_parts.append(json.dumps(node.extra, sort_keys=True))
-        content = " | ".join(body_parts) if body_parts else None
+        # Prefer a short signature over dumping the entire Graphify extra blob.
+        signature = None
+        if isinstance(node.extra, dict):
+            for key in ("signature", "qualname", "name"):
+                value = node.extra.get(key)
+                if isinstance(value, str) and value.strip():
+                    signature = value.strip()
+                    break
+        if signature and signature not in body_parts:
+            body_parts.append(signature)
+        content = " — ".join(body_parts) if body_parts else None
         title = node.label
         tokens = token_count(f"{title}\n{content or ''}")
 

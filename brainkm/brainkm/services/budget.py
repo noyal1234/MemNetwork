@@ -27,6 +27,8 @@ DEFAULT_PRIORITY = 12
 
 # Reserved for pack headers, query line, graph hints, truncation footer in context_pack.
 PACK_FRAMING_OVERHEAD_TOKENS = 50
+# Reserved so compact JSON MCP envelope (keys + truncation id lists) stays within total_tokens.
+MCP_JSON_OVERHEAD_TOKENS = 200
 
 
 @dataclass(frozen=True)

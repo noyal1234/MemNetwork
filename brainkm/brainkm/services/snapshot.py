@@ -11,6 +11,7 @@ from brainkm.models.snapshot import InjectionSnapshot, SnapshotNeuron
 from brainkm.services.audit import utc_now_iso
 from brainkm.services.channel_health import graph_available, graph_counts
 from brainkm.services.memory import new_ulid, token_count
+from brainkm.services.quality import passes_stored_neuron_gate
 
 logger = get_logger("services.snapshot")
 
@@ -57,6 +58,11 @@ def select_injection_neurons(
         used = 0
         for row in rows:
             if row.node_id in seen:
+                continue
+            if row.kind == "memory" and not passes_stored_neuron_gate(
+                title=row.title,
+                content=row.content,
+            ):
                 continue
             cost = row.token_count or token_count(f"{row.title}\n{row.content or ''}")
             if used + cost > token_budget and selected:
@@ -152,8 +158,8 @@ def _graph_status_line(conn: sqlite3.Connection) -> str | None:
     node_count, edge_count = graph_counts(conn)
     return (
         f"Code graph: {node_count} nodes / {edge_count} edges. "
-        "For call/import/flow questions use traverse or context_pack with a symbol "
-        "before reading 3+ files."
+        "For call/import/flow questions consult traverse or context_pack with a symbol, "
+        "then verify in source before editing."
     )
 
 

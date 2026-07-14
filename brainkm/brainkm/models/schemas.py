@@ -75,6 +75,13 @@ class ContextPackRequest(BaseModel):
         description="Optional symbol names or file paths to seed the code-graph neighborhood",
         max_length=5,
     )
+    include_structured: bool = Field(
+        default=False,
+        description=(
+            "When true, include full neurons/graph_nodes arrays (duplicates pack_text). "
+            "Default false to keep MCP payload within the token budget."
+        ),
+    )
 
 
 class TruncationManifest(BaseModel):
@@ -153,6 +160,19 @@ class BrainStatsResponse(BaseModel):
     review_queue_size: int = 0
     abstention_mode: str | None = None
     abstention_calibrated: bool = False
+    mcp_calls_by_tool: dict[str, int] = Field(
+        default_factory=dict,
+        description="MCP tool invocation counts in the last 7 days",
+    )
+    mcp_calls_30d: int = 0
+    abstention_rate_7d: float | None = Field(
+        default=None,
+        description="Fraction of MCP recalls that abstained in the last 7 days",
+    )
+    dead_neuron_count: int = Field(
+        default=0,
+        description="Active memory neurons with use_count=0 and no pending hits",
+    )
 
 
 class GraphSyncRequest(BaseModel):

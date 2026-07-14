@@ -217,15 +217,21 @@ def evaluate_live_token_case(
         config=config,
         project_dir=project_dir,
     )
-    pack_tokens = pack.truncation.tokens_used
+    from brainkm.services.memory import token_count
+
+    pack_tokens = token_count(pack.pack_text)
+    payload_tokens = token_count(
+        json.dumps(pack.model_dump(), separators=(",", ":"), ensure_ascii=False)
+    )
     reduction = 1.0 - (pack_tokens / baseline) if baseline > 0 else 0.0
     cap = config.budget.total_tokens
-    memory_count = len(pack.neurons)
-    code_count = len(pack.graph_nodes)
-    passed = pack_tokens <= cap
+    memory_count = len(pack.truncation.included_ids)
+    code_count = 0
+    passed = pack_tokens <= cap and payload_tokens <= cap
     detail = (
-        f"pack={pack_tokens}/{cap} baseline={baseline} reduction={reduction:.0%} "
-        f"memory={memory_count} code={code_count} omitted={len(pack.truncation.omitted_ids)}"
+        f"pack={pack_tokens}/{cap} payload={payload_tokens}/{cap} baseline={baseline} "
+        f"reduction={reduction:.0%} included={memory_count} "
+        f"omitted={len(pack.truncation.omitted_ids)}"
     )
     return BenchCaseResult(name=case.name, passed=passed, detail=detail)
 
@@ -264,7 +270,10 @@ def probe_context_pack(
             config=config,
             project_dir=project_dir,
         )
-        pack_tokens = pack.truncation.tokens_used
+        pack_tokens = token_count(pack.pack_text)
+        payload_tokens = token_count(
+            json.dumps(pack.model_dump(), separators=(",", ":"), ensure_ascii=False)
+        )
         cap = config.budget.total_tokens
         baseline: int | None = None
         reduction: float | None = None
@@ -273,8 +282,8 @@ def probe_context_pack(
             reduction = 1.0 - (pack_tokens / baseline) if baseline > 0 else 0.0
         parts = [
             f"pack={pack_tokens}/{cap}",
-            f"memory={len(pack.neurons)}",
-            f"code={len(pack.graph_nodes)}",
+            f"payload={payload_tokens}/{cap}",
+            f"included={len(pack.truncation.included_ids)}",
             f"omitted={len(pack.truncation.omitted_ids)}",
             f"fts_hits={len(fts_hits)}",
         ]
@@ -291,7 +300,11 @@ def probe_context_pack(
         if pack_tokens == 0 and fts_hits:
             parts.append(f"reason={'abstention' if abstained else 'no_candidates_after_recall'}")
             parts.append(f"top_fts={fts_hits[0][0]}")
-        passed = pack_tokens <= cap and not (pack_tokens == 0 and fts_hits)
+        passed = (
+            pack_tokens <= cap
+            and payload_tokens <= cap
+            and not (pack_tokens == 0 and fts_hits)
+        )
         return BenchCaseResult(
             name=query[:48],
             passed=passed,

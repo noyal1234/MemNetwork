@@ -35,11 +35,16 @@ from brainkm.services.brain_stats import collect_brain_stats
 from brainkm.services.config_loader import load_brain_config
 from brainkm.services.context_pack import compile_context_pack
 from brainkm.services.learning import persist_neuron_hits
-from brainkm.services.memory import forget_neuron, remember_neuron
+from brainkm.services.memory import forget_neuron, remember_neuron, token_count
 from brainkm.services.recall import recall_live
 from brainkm.services.recall_limit import get_recall_limit_state
 from brainkm.services.remember_links import find_supersede_candidates, link_code_nodes_by_path
 from brainkm.services.search import RankedNode, traverse
+from brainkm.services.session_activity import (
+    flush_stale_session_hits,
+    prune_old_tool_use,
+    record_mcp_tool_use,
+)
 from brainkm.services.session_status import get_session_status, set_session_status
 
 
@@ -76,6 +81,50 @@ def _ranked_to_neuron(conn: sqlite3.Connection, ranked: RankedNode) -> NeuronRes
     )
 
 
+def _trim_neurons_to_budget(
+    nodes: list[NeuronResult],
+    *,
+    budget: int,
+) -> list[NeuronResult]:
+    """Keep full neuron bodies until the token budget is exhausted; truncate last if needed."""
+    if budget <= 0 or not nodes:
+        return []
+    kept: list[NeuronResult] = []
+    used = 0
+    for node in nodes:
+        body = node.content or ""
+        cost = token_count(f"{node.title}\n{body}")
+        if used + cost <= budget:
+            kept.append(node)
+            used += cost
+            continue
+        remaining = budget - used
+        if remaining < 20:
+            break
+        # Binary-search truncate content to fit remaining budget.
+        lo, hi = 0, len(body)
+        best = ""
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            candidate = body[:mid]
+            if mid < len(body):
+                candidate = candidate.rstrip() + "…"
+            c = token_count(f"{node.title}\n{candidate}")
+            if c <= remaining:
+                best = candidate
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        kept.append(node.model_copy(update={"content": best or None}))
+        break
+    return kept
+
+
+def _maintenance(conn: sqlite3.Connection) -> None:
+    flush_stale_session_hits(conn)
+    prune_old_tool_use(conn)
+
+
 def handle_remember(conn: sqlite3.Connection, request: RememberRequest) -> RememberResponse:
     record = remember_neuron(
         conn,
@@ -99,6 +148,8 @@ def handle_remember(conn: sqlite3.Connection, request: RememberRequest) -> Remem
         content=record.content or "",
         exclude_id=record.id,
     )
+    record_mcp_tool_use(conn, request.session_id, "remember", result_count=1)
+    _maintenance(conn)
     conn.commit()
     return RememberResponse(
         node_id=record.id,
@@ -121,6 +172,15 @@ def handle_recall(
         config,
         truncation_followup=request.truncation_followup,
     ):
+        record_mcp_tool_use(
+            conn,
+            request.session_id,
+            "recall",
+            abstained=True,
+            result_count=0,
+        )
+        _maintenance(conn)
+        conn.commit()
         return RecallResponse(query=request.query, nodes=[], abstained=True, source="rate_limited")
 
     effective_limit = request.limit
@@ -138,6 +198,9 @@ def handle_recall(
         if neuron is not None:
             nodes.append(neuron)
 
+    # Cap returned neuron bodies to the configured total token budget.
+    nodes = _trim_neurons_to_budget(nodes, budget=config.budget.total_tokens)
+
     hit_ids = [node.node_id for node in nodes]
     persist_neuron_hits(
         conn,
@@ -146,6 +209,14 @@ def handle_recall(
         source="recall",
         cap=config.learning.session_window_size,
     )
+    record_mcp_tool_use(
+        conn,
+        request.session_id,
+        "recall",
+        abstained=result.abstained,
+        result_count=len(nodes),
+    )
+    _maintenance(conn)
     conn.commit()
 
     chunks = [
@@ -179,14 +250,35 @@ def handle_context_pack(
         config=config,
         project_dir=project_dir,
         seed_refs=request.seed_refs or None,
+        include_structured=request.include_structured,
     )
+    hit_ids = list(result.truncation.included_ids)
+    if hit_ids:
+        placeholders = ",".join("?" * len(hit_ids))
+        rows = conn.execute(
+            f"""
+            SELECT id FROM nodes
+            WHERE id IN ({placeholders})
+              AND kind = 'memory'
+              AND valid_until IS NULL
+            """,
+            hit_ids,
+        ).fetchall()
+        hit_ids = [row[0] for row in rows]
     persist_neuron_hits(
         conn,
         request.session_id,
-        [node.node_id for node in result.neurons],
+        hit_ids,
         source="context_pack",
         cap=config.learning.session_window_size,
     )
+    record_mcp_tool_use(
+        conn,
+        request.session_id,
+        "context_pack",
+        result_count=len(result.truncation.included_ids),
+    )
+    _maintenance(conn)
     conn.commit()
     return result
 
@@ -202,6 +294,8 @@ def handle_session_status(
             body=request.body,
             session_id=request.session_id,
         )
+        record_mcp_tool_use(conn, request.session_id, "session_status", result_count=1)
+        _maintenance(conn)
         conn.commit()
         return SessionStatusResponse(
             node_id=record.id,
@@ -211,6 +305,14 @@ def handle_session_status(
         )
 
     record = get_session_status(conn, session_id=request.session_id)
+    record_mcp_tool_use(
+        conn,
+        request.session_id,
+        "session_status",
+        result_count=1 if record else 0,
+    )
+    _maintenance(conn)
+    conn.commit()
     if record is None:
         return SessionStatusResponse()
     return SessionStatusResponse(
@@ -236,6 +338,10 @@ def handle_traverse(conn: sqlite3.Connection, request: TraverseRequest, *, confi
         neuron = _ranked_to_neuron(conn, ranked)
         if neuron is not None:
             nodes.append(neuron)
+    nodes = _trim_neurons_to_budget(nodes, budget=config.budget.total_tokens)
+    record_mcp_tool_use(conn, None, "traverse", result_count=len(nodes))
+    _maintenance(conn)
+    conn.commit()
     return TraverseResponse(
         from_ref=request.from_ref,
         nodes=nodes,
@@ -245,6 +351,8 @@ def handle_traverse(conn: sqlite3.Connection, request: TraverseRequest, *, confi
 
 def handle_forget(conn: sqlite3.Connection, request: ForgetRequest) -> ForgetResponse:
     archived = forget_neuron(conn, request.node_id, reason=request.reason)
+    record_mcp_tool_use(conn, None, "forget", result_count=1 if archived.valid_until else 0)
+    _maintenance(conn)
     conn.commit()
     return ForgetResponse(
         node_id=archived.id,
@@ -261,6 +369,9 @@ def handle_brain_stats(
     project_dir: Path,
 ) -> BrainStatsResponse:
     _ = request  # reserved for future session-scoped stats
+    record_mcp_tool_use(conn, request.session_id, "brain_stats", result_count=1)
+    _maintenance(conn)
+    conn.commit()
     return collect_brain_stats(conn, config=config, project_dir=project_dir)
 
 
@@ -374,12 +485,14 @@ async def dispatch_tool(name: str, arguments: dict[str, Any], runtime: BrainRunt
 
     if name == "graph_sync":
         request = GraphSyncRequest.model_validate(arguments or {})
-        result = await asyncio.to_thread(
-            handle_graph_sync,
-            runtime.project_dir,
-            request,
-            config=config,
-        )
+        # Log via a short DB write even though sync itself may not use the main handler.
+        def _log_and_sync(conn: sqlite3.Connection) -> GraphSyncResponse:
+            record_mcp_tool_use(conn, None, "graph_sync", result_count=1 if request.force else 0)
+            _maintenance(conn)
+            conn.commit()
+            return handle_graph_sync(runtime.project_dir, request, config=config)
+
+        result = await asyncio.to_thread(_write_op, runtime, _log_and_sync)
         return result.model_dump()
 
     msg = f"unknown tool: {name}"

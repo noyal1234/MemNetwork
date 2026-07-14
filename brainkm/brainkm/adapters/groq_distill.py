@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import sqlite3
 
-from brainkm.adapters.distill_prompts import SYSTEM_PROMPT, build_context_block, parse_json_array
+from brainkm.adapters.cursor_clean import distillable_round, is_distill_noise
+from brainkm.adapters.distill_prompts import (
+    SYSTEM_PROMPT,
+    build_context_block,
+    normalize_subtype,
+    parse_json_array,
+)
 from brainkm.adapters.distill_rules import RulesDistillAdapter
 from brainkm.config import get_settings
 from brainkm.logging_config import get_logger
@@ -90,7 +96,10 @@ class GroqDistillAdapter:
     ) -> list[DistilledNeuron]:
         import httpx
 
-        user_message = f"{self._context_block}Round:\n{round_.combined_text[:8000]}"
+        cleaned = distillable_round(round_)
+        if cleaned is None:
+            return []
+        user_message = f"{self._context_block}Round:\n{cleaned.combined_text[:8000]}"
         payload = {
             "model": self._model,
             "messages": [
@@ -133,10 +142,17 @@ class GroqDistillAdapter:
         for item in parsed:
             if not isinstance(item, dict):
                 continue
+            subtype = normalize_subtype(item.get("subtype", "fact"))
+            if subtype is None:
+                continue
+            title = str(item.get("title", "")).strip()
+            body_text = str(item.get("body", "")).strip()
+            if is_distill_noise(title) or is_distill_noise(body_text):
+                continue
             neuron = DistilledNeuron(
-                subtype=str(item.get("subtype", "fact")),
-                title=str(item.get("title", "")).strip(),
-                body=str(item.get("body", "")).strip(),
+                subtype=subtype,
+                title=title,
+                body=body_text,
                 tags=[str(tag) for tag in item.get("tags", []) if tag],
                 chunk_ids=list(chunk_ids),
                 confidence=0.8,

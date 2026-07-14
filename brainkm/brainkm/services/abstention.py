@@ -88,7 +88,12 @@ def resolve_corpus_threshold(
     *,
     project_dir: Path | None = None,
 ) -> float | None:
-    """Return the BM25 corpus threshold for percentile abstention."""
+    """Return the BM25 corpus threshold for percentile abstention.
+
+    Prefer the *least strict* (highest / closest-to-zero) among live corpus,
+    rolling, and calibration thresholds so a polluted rolling window cannot
+    block all recalls.
+    """
     if not recall.abstain_on_low_confidence or recall.abstain_mode != "percentile":
         return None
 
@@ -97,14 +102,22 @@ def resolve_corpus_threshold(
         rolling_percentile_threshold,
     )
 
-    calibration = load_calibration(project_dir)
+    candidates: list[float] = []
+    live = corpus_bm25_percentile(conn, recall.abstain_percentile)
+    if live is not None:
+        candidates.append(live)
+
     rolling = rolling_percentile_threshold(project_dir, recall.abstain_percentile)
     if rolling is not None:
-        return rolling
-    if calibration and calibration.corpus_bm25_threshold is not None:
-        return calibration.corpus_bm25_threshold
+        candidates.append(rolling)
 
-    return corpus_bm25_percentile(conn, recall.abstain_percentile)
+    calibration = load_calibration(project_dir)
+    if calibration and calibration.corpus_bm25_threshold is not None:
+        candidates.append(float(calibration.corpus_bm25_threshold))
+
+    if not candidates:
+        return None
+    return max(candidates)
 
 
 def record_query_score(
@@ -132,6 +145,18 @@ def should_abstain_for_query(
     project_dir: Path | None = None,
 ) -> bool:
     """Evaluate abstention for a query, using bench calibration when present."""
+    from brainkm.logging_config import get_logger
+
     record_query_score(seed_scores, project_dir=project_dir)
     corpus_threshold = resolve_corpus_threshold(conn, recall, project_dir=project_dir)
-    return should_abstain(seed_scores, recall, corpus_threshold=corpus_threshold)
+    abstain = should_abstain(seed_scores, recall, corpus_threshold=corpus_threshold)
+    best = best_bm25_score(seed_scores)
+    get_logger("services.abstention").debug(
+        "abstain=%s best=%s threshold=%s mode=%s percentile=%s",
+        abstain,
+        best,
+        corpus_threshold,
+        recall.abstain_mode,
+        recall.abstain_percentile,
+    )
+    return abstain
