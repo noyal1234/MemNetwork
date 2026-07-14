@@ -118,7 +118,7 @@ MemNetwork/
 
 ## 4. MCP tool contract (V1 / current)
 
-**Package version:** `0.2.0`
+**Package version:** `0.3.0`
 
 | Tool | Purpose |
 |------|---------|
@@ -128,7 +128,7 @@ MemNetwork/
 | `session_status` | Read/write session context neuron |
 | `traverse` | Explicit graph hop between entities (path-labeled code nodes) |
 | `forget` | Soft-archive node (`valid_until`) + cascade edges |
-| `brain_stats` | Health summary: neuron/graph counts, MCP usage (7d), abstention rate, dead-neuron count |
+| `brain_stats` | Health summary: neuron/graph counts, MCP usage (7d), abstention rate, dead-neuron count; optional `session_id` adds per-session MCP/hit/snapshot/distill fields |
 | `graph_sync` | Queue or force Graphify extract+import |
 
 CLI-only (not MCP): `install`, `export`, `bench`, `repair`, `handover`, `review`, `hygiene`, `migrate`, `configure`.
@@ -324,6 +324,7 @@ All distill modes share Cursor chrome cleaning (`clean_cursor_text` / `is_distil
 | **V2** | Done | Tool registry, review queue, confidence-gated review, PostToolUse learning loop, co-activation procedure promotion |
 | **TUI** | Done | `brainkm configure` Textual app (dashboard, config editor, actions, wizard); optional `[tui]` extra — see [TUI_APP_PLAN.md](TUI_APP_PLAN.md) |
 | **0.2.0** | Done | End-to-end token cap on agent-facing packs; lean MCP payloads; MCP usage telemetry in `brain_stats`; distill cleaning parity + prompt fix; `brainkm hygiene`; injection-time noise gate; path-labeled code nodes |
+| **0.3.0** | Done | Redaction on all neuron write paths; SessionStart/snapshot total_tokens clamp; read-tool commits via WriteQueue; session-scoped `brain_stats`; TUI SVG snapshots + ANSI-16 fallback; version discipline |
 | **V3+** | Planned | Decay, optional semantic search |
 
 ### SQLite concurrency

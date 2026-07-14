@@ -24,10 +24,39 @@ def test_mask_api_key() -> None:
     assert mask_api_key("gsk_abcdefghijklmnop") == "gsk_...mnop"
 
 
-def test_probe_groq_missing_key() -> None:
-    status = probe_groq("https://api.groq.com/openai/v1", None)
+def test_probe_groq_rate_limited() -> None:
+    class FakeResponse:
+        status_code = 429
+        headers = {"retry-after": "7"}
+        text = '{"error":{"message":"Rate limit reached","code":"rate_limit_exceeded"}}'
+
+        def json(self) -> dict:
+            return {
+                "error": {
+                    "message": "Rate limit reached for model",
+                    "code": "rate_limit_exceeded",
+                }
+            }
+
+    fake_httpx = type(
+        "httpx",
+        (),
+        {"post": staticmethod(lambda *a, **k: FakeResponse())},
+    )
+    with patch.dict("sys.modules", {"httpx": fake_httpx}):
+        status = probe_groq("https://api.groq.com/openai/v1", "gsk_test")
     assert status.reachable is False
-    assert status.error == "GROQ_API_KEY not set"
+    assert status.rate_limited is True
+    assert "429" in (status.error or "")
+    assert "retry-after 7s" in (status.error or "")
+
+
+def test_is_rate_limit_error() -> None:
+    from brainkm.services.groq_advisor import is_rate_limit_error
+
+    assert is_rate_limit_error("rate limited (429)") is True
+    assert is_rate_limit_error("unauthorized") is False
+    assert is_rate_limit_error(None) is False
 
 
 def test_probe_groq_unreachable() -> None:
@@ -35,7 +64,7 @@ def test_probe_groq_unreachable() -> None:
         "httpx",
         (),
         {
-            "get": staticmethod(
+            "post": staticmethod(
                 lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("down"))
             )
         },
@@ -45,25 +74,68 @@ def test_probe_groq_unreachable() -> None:
     assert status.reachable is False
 
 
-def test_probe_groq_lists_models() -> None:
+def test_probe_groq_chat_ok() -> None:
     class FakeResponse:
         status_code = 200
+        text = ""
 
         @staticmethod
         def json() -> dict:
-            return {"data": [{"id": "llama-3.3-70b-versatile"}, {"id": "llama-3.1-8b-instant"}]}
+            return {"choices": [{"message": {"content": "ok"}}]}
+
+    posts: list[dict] = []
 
     class FakeClient:
         @staticmethod
-        def get(url: str, headers: dict | None = None, timeout: float = 0) -> FakeResponse:
+        def post(
+            url: str,
+            *,
+            json: dict | None = None,
+            headers: dict | None = None,
+            timeout: float = 0,
+        ) -> FakeResponse:
+            posts.append({"url": url, "json": json})
             return FakeResponse()
 
-    fake_httpx = type("httpx", (), {"get": FakeClient.get})
+    fake_httpx = type("httpx", (), {"post": FakeClient.post})
     with patch.dict("sys.modules", {"httpx": fake_httpx}):
-        status = probe_groq("https://api.groq.com/openai/v1", "gsk_test")
+        status = probe_groq(
+            "https://api.groq.com/openai/v1",
+            "gsk_test",
+            model="llama-3.3-70b-versatile",
+        )
 
     assert status.reachable is True
-    assert status.models == ("llama-3.3-70b-versatile", "llama-3.1-8b-instant")
+    assert status.models == ("llama-3.3-70b-versatile",)
+    assert posts and posts[0]["url"].endswith("/chat/completions")
+    assert posts[0]["json"]["model"] == "llama-3.3-70b-versatile"
+    assert posts[0]["json"]["max_tokens"] == 1
+
+
+def test_probe_groq_models_list_403_not_used() -> None:
+    """Regression: GET /models 403 must not make the probe fail when chat works."""
+
+    class FakeResponse:
+        status_code = 200
+        text = ""
+
+        @staticmethod
+        def json() -> dict:
+            return {"choices": [{"message": {"content": "x"}}]}
+
+    class FakeClient:
+        @staticmethod
+        def get(*args, **kwargs):  # pragma: no cover - must not be called
+            raise AssertionError("probe must not use GET /models")
+
+        @staticmethod
+        def post(*args, **kwargs) -> FakeResponse:
+            return FakeResponse()
+
+    fake_httpx = type("httpx", (), {"get": FakeClient.get, "post": FakeClient.post})
+    with patch.dict("sys.modules", {"httpx": fake_httpx}):
+        status = probe_groq("https://api.groq.com/openai/v1", "gsk_test")
+    assert status.reachable is True
 
 
 def test_format_groq_report_missing_key() -> None:

@@ -21,7 +21,7 @@ from brainkm.services.chunks import (
     persist_message_chunks,
 )
 from brainkm.services.config_loader import load_brain_config
-from brainkm.services.memory import create_neuron, new_ulid
+from brainkm.services.memory import new_ulid, remember_neuron
 from brainkm.services.quality import existing_neuron_fingerprints, filter_distilled
 from brainkm.services.review import enqueue_for_review
 
@@ -147,7 +147,7 @@ def capture_transcript_file(
             if not item.is_atomic():
                 continue
             try:
-                record = create_neuron(
+                record = remember_neuron(
                     conn,
                     title=item.title,
                     content=item.body,

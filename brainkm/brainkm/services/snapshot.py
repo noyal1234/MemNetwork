@@ -214,6 +214,25 @@ def render_injection_pack(
     return "\n".join(lines).rstrip() + "\n"
 
 
+def clamp_injection_pack(
+    neurons: list[SnapshotNeuron],
+    *,
+    graph_status: str | None,
+    total_tokens: int,
+) -> tuple[list[SnapshotNeuron], str]:
+    """Drop lowest-priority (trailing) neurons until pack_text fits total_tokens."""
+    kept = list(neurons)
+    pack_text = render_injection_pack(kept, graph_status=graph_status)
+    while kept and token_count(pack_text) > total_tokens:
+        kept.pop()
+        pack_text = render_injection_pack(kept, graph_status=graph_status)
+    if token_count(pack_text) > total_tokens:
+        # Hard clip empty/header-only edge case (graph status alone oversized).
+        while token_count(pack_text) > total_tokens and len(pack_text) > 80:
+            pack_text = pack_text[: int(len(pack_text) * 0.9)].rstrip() + "\n…"
+    return kept, pack_text
+
+
 def get_frozen_snapshot(
     conn: sqlite3.Connection,
     session_id: str,
@@ -275,7 +294,11 @@ def build_frozen_snapshot(
 
     if not config.injection.frozen_snapshot:
         neurons = select_injection_neurons(conn, config, context_hint=context_hint)
-        pack_text = render_injection_pack(neurons, graph_status=graph_status)
+        neurons, pack_text = clamp_injection_pack(
+            neurons,
+            graph_status=graph_status,
+            total_tokens=config.budget.total_tokens,
+        )
         now = utc_now_iso()
         return InjectionSnapshot(
             session_id=session_id,
@@ -296,7 +319,11 @@ def build_frozen_snapshot(
         return existing
 
     neurons = select_injection_neurons(conn, config, context_hint=context_hint)
-    pack_text = render_injection_pack(neurons, graph_status=graph_status)
+    neurons, pack_text = clamp_injection_pack(
+        neurons,
+        graph_status=graph_status,
+        total_tokens=config.budget.total_tokens,
+    )
     now = utc_now_iso()
     snapshot = InjectionSnapshot(
         session_id=session_id,

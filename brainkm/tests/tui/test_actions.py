@@ -26,13 +26,59 @@ from brainkm.tui.widgets.rich_log_panel import RichLogPanel
 )
 async def test_action_button_does_not_crash(tui_project: Path, button_id: str, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("webbrowser.open", lambda *_a, **_k: True)
+    monkeypatch.setattr(
+        "brainkm.services.graphify_sync.sync_graph",
+        lambda **_kwargs: type(
+            "R",
+            (),
+            {
+                "status": "skipped",
+                "message": "mocked",
+                "import_result": None,
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        "brainkm.services.bench_runner.run_bench_suite",
+        lambda suite, db_path: type(
+            "B",
+            (),
+            {"suite": suite, "passed": 1, "total": 1, "cases": []},
+        )(),
+    )
+    monkeypatch.setattr(
+        "brainkm.services.repair.repair_brain",
+        lambda **_kwargs: type(
+            "Rep",
+            (),
+            {"fts_rows_rebuilt": 0, "integrity_ok": True, "secrets_archived": 0},
+        )(),
+    )
+    monkeypatch.setattr(
+        "brainkm.services.viz.start_viz_server",
+        lambda **_kwargs: type(
+            "H",
+            (),
+            {
+                "url": "http://127.0.0.1:5757/",
+                "port": 5757,
+                "thread": type("T", (), {"is_alive": lambda self: True})(),
+                "stop": lambda self: None,
+            },
+        )(),
+    )
+
     app = BrainkmConfigureApp(project_dir=tui_project)
     async with app.run_test(size=(140, 60)) as pilot:
         app.switch_screen("actions")
         await pilot.pause(0.3)
         await pilot.click(f"#{button_id}")
-        await pilot.pause(1.5)
+        await pilot.pause(0.5)
         assert app.screen is not None
+        handle = getattr(app.screen, "_viz_handle", None)
+        if handle is not None:
+            handle.stop()
+            app.screen._viz_handle = None
 
 
 async def test_viz_demo_writes_url_to_log(tui_project: Path, monkeypatch: pytest.MonkeyPatch) -> None:

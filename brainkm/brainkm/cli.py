@@ -1,4 +1,4 @@
-"""brainkm CLI entry point (scaffold)."""
+"""brainkm CLI — install, capture/handover, graph sync, Cursor hooks, bench/review/hygiene, MCP server."""
 
 import json
 from pathlib import Path
@@ -802,12 +802,8 @@ def hygiene_cmd(
 def import_cmd(
     source: Path = typer.Argument(..., help="JSON neuron export to merge"),
     project_dir: Path | None = typer.Option(None, "--project-dir"),
-    merge: bool = typer.Option(True, "--merge/--replace", help="Merge with confidence policy"),
 ) -> None:
-    """Import neurons from JSON export (--merge: higher confidence wins)."""
-    if not merge:
-        typer.echo("--replace not implemented; use --merge", err=True)
-        raise typer.Exit(code=1)
+    """Import neurons from JSON export (merge-only: higher confidence wins)."""
     from brainkm.services.import_merge import import_json_merge
 
     result = import_json_merge(source, project_dir=project_dir)
@@ -833,11 +829,15 @@ def export_cmd(
 def repair_cmd(
     project_dir: Path | None = typer.Option(None, "--project-dir"),
 ) -> None:
-    """Rebuild FTS5 index and run integrity check."""
+    """Rebuild FTS5 index, re-scan for leaked secrets, and run integrity check."""
     from brainkm.services.repair import repair_brain
 
     result = repair_brain(project_dir=project_dir)
-    typer.echo(f"Rebuilt FTS5 ({result.fts_rows_rebuilt} rows), integrity_ok={result.integrity_ok}")
+    typer.echo(
+        f"Rebuilt FTS5 ({result.fts_rows_rebuilt} rows), "
+        f"secrets_archived={result.secrets_archived}, "
+        f"integrity_ok={result.integrity_ok}"
+    )
     if not result.integrity_ok:
         raise typer.Exit(code=1)
 

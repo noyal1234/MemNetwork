@@ -243,14 +243,13 @@ def probe_context_pack(
     baseline_files: list[str] | None = None,
 ) -> BenchCaseResult:
     """Measure a single context_pack against the project's live brain.db."""
-    import os
-
+    from brainkm.config import set_skip_rolling_scores
     from brainkm.db.migrate import migrate
     from brainkm.services.abstention import best_bm25_score, should_abstain_for_query
     from brainkm.services.config_loader import load_brain_config
     from brainkm.services.search import fts_search_nodes
 
-    os.environ["BRAINKM_SKIP_ROLLING_SCORES"] = "1"
+    set_skip_rolling_scores(True)
     project_dir = db_path.parent.parent
     config = load_brain_config(project_dir)
     migrate(db_path=db_path, run_integrity_check=False)
@@ -312,7 +311,7 @@ def probe_context_pack(
         )
     finally:
         conn.close()
-        os.environ.pop("BRAINKM_SKIP_ROLLING_SCORES", None)
+        set_skip_rolling_scores(False)
 
 
 def run_token_suite(db_path: Path, *, live: bool = False) -> BenchSuiteResult:
@@ -321,12 +320,11 @@ def run_token_suite(db_path: Path, *, live: bool = False) -> BenchSuiteResult:
     project_dir = db_path.parent.parent
 
     if live:
-        import os
-
+        from brainkm.config import set_skip_rolling_scores
         from brainkm.db.migrate import migrate
         from brainkm.services.config_loader import load_brain_config
 
-        os.environ["BRAINKM_SKIP_ROLLING_SCORES"] = "1"
+        set_skip_rolling_scores(True)
         config = load_brain_config(project_dir)
         migrate(db_path=db_path, run_integrity_check=False)
         conn = connect_for_bench(db_path)
@@ -343,7 +341,7 @@ def run_token_suite(db_path: Path, *, live: bool = False) -> BenchSuiteResult:
                 )
         finally:
             conn.close()
-            os.environ.pop("BRAINKM_SKIP_ROLLING_SCORES", None)
+            set_skip_rolling_scores(False)
         passed = sum(1 for case in cases if case.passed)
         return BenchSuiteResult(suite="token-live", passed=passed, total=len(cases), cases=cases)
 

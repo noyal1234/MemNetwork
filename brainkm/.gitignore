@@ -4,3 +4,4 @@ graphify-out/
 .pytest_cache/
 .ruff_cache/
 __pycache__/
+snapshot_report.html

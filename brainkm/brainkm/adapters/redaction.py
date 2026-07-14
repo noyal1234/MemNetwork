@@ -126,7 +126,12 @@ INJECTION_BLOCK_RULES: tuple[_PatternRule, ...] = (
     _PatternRule(
         "injection",
         "role_hijack_act_as",
-        re.compile(r"\bact\s+as\b", re.IGNORECASE),
+        # Require an agent/assistant framing to avoid false positives like
+        # "act as middleware" in technical prose.
+        re.compile(
+            r"\bact\s+as\s+(?:an?\s+)?(?:ai|assistant|chatbot|system)\b",
+            re.IGNORECASE,
+        ),
         ScanAction.BLOCK,
     ),
     _PatternRule(
@@ -192,11 +197,10 @@ def sanitize_for_storage(
 ) -> SanitizeResult:
     """Scan and sanitize neuron title/body before INSERT.
 
-    Secrets are always enforced. Injection blocks may be overridden when
-    ``source == \"user_explicit\"`` (manual remember about prompt design, etc.).
+    Secrets and prompt-injection patterns are always enforced (no source override).
     """
     del mode  # remember and capture share rules in V1
-    allow_injection_override = source == "user_explicit"
+    del source  # reserved for audit context; not used as an override
     combined = f"{title}\n{content}"
     findings: list[RedactionFinding] = []
     warnings: list[str] = []
@@ -215,7 +219,7 @@ def sanitize_for_storage(
         )
 
     injection_blocks = _find_block_matches(combined, INJECTION_BLOCK_RULES)
-    if injection_blocks and not allow_injection_override:
+    if injection_blocks:
         reason = "Prompt injection pattern detected; memory not stored"
         logger.warning("%s (%d finding(s))", reason, len(injection_blocks))
         return SanitizeResult(
@@ -226,13 +230,6 @@ def sanitize_for_storage(
             findings=injection_blocks,
             warnings=warnings,
         )
-
-    if injection_blocks and allow_injection_override:
-        labels = ", ".join(f.label for f in injection_blocks)
-        msg = f"Injection patterns allowed for user_explicit source: {labels}"
-        warnings.append(msg)
-        logger.info(msg)
-        findings.extend(injection_blocks)
 
     cleaned_title, title_secret_strips = _apply_strip_rules(title, SECRET_STRIP_RULES)
     cleaned_content, content_secret_strips = _apply_strip_rules(content, SECRET_STRIP_RULES)

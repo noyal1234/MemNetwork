@@ -173,6 +173,28 @@ class BrainStatsResponse(BaseModel):
         default=0,
         description="Active memory neurons with use_count=0 and no pending hits",
     )
+    # Optional session-scoped fields (populated when request.session_id is set)
+    session_id: str | None = None
+    session_mcp_calls_by_tool: dict[str, int] = Field(
+        default_factory=dict,
+        description="MCP tool counts for the requested session_id",
+    )
+    session_neuron_hits: int = Field(
+        default=0,
+        description="Neuron hit events recorded for the requested session",
+    )
+    session_injection_tokens: int | None = Field(
+        default=None,
+        description="Frozen SessionStart pack token_count for the session, if any",
+    )
+    session_distill_mode: str | None = Field(
+        default=None,
+        description="Distill mode recorded in ingested_sessions for the session",
+    )
+    session_neuron_count: int | None = Field(
+        default=None,
+        description="Neurons distilled for the session (ingested_sessions.neuron_count)",
+    )
 
 
 class GraphSyncRequest(BaseModel):

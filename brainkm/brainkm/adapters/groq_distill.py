@@ -71,22 +71,17 @@ class GroqDistillAdapter:
         return neurons[:max_total]
 
     def _groq_available(self) -> bool:
-        try:
-            import httpx
-        except ImportError:
-            logger.warning("httpx not installed; install brainkm[cloud]")
-            return False
+        """True when chat/completions works — same path distill uses."""
+        from brainkm.services.groq_advisor import probe_groq
 
-        url = f"{self._config.groq.base_url.rstrip('/')}/models"
-        try:
-            response = httpx.get(
-                url,
-                headers={"Authorization": f"Bearer {self._api_key}"},
-                timeout=2.0,
-            )
-            return response.status_code == 200
-        except Exception:
-            return False
+        status = probe_groq(
+            self._config.groq.base_url,
+            self._api_key,
+            model=self._model,
+        )
+        if not status.reachable and status.error:
+            logger.warning("Groq preflight failed: %s", status.error)
+        return status.reachable
 
     def _distill_round(
         self,

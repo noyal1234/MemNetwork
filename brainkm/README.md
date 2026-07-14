@@ -2,7 +2,7 @@
 
 Local project brain for Cursor — MCP server backed by SQLite FTS5 and a weighted knowledge graph.
 
-**Version:** `0.2.0`
+**Version:** `0.3.0`
 
 ## Requirements
 

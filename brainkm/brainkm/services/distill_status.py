@@ -71,18 +71,20 @@ def build_distill_status(
     active_mode = "cursor"
     ollama_base = "http://127.0.0.1:11434"
     groq_base = "https://api.groq.com/openai/v1"
+    groq_model: str | None = None
     if cfg_path.is_file():
         try:
             cfg = load_brain_config(project_dir)
             active_mode = cfg.capture.distill_mode
             ollama_base = cfg.ollama.base_url
             groq_base = cfg.groq.base_url
+            groq_model = cfg.groq.model
         except Exception as exc:
             logger.debug("distill_status: config load failed: %s", exc)
 
     cursor = probe_cursor_agent()
     ollama = probe_ollama(ollama_base)
-    groq = probe_groq(groq_base, get_settings().groq_api_key)
+    groq = probe_groq(groq_base, get_settings().groq_api_key, model=groq_model)
 
     statuses: list[DistillModeStatus] = [
         DistillModeStatus(

@@ -14,6 +14,7 @@ from brainkm.tui.screens.actions import ActionsScreen
 from brainkm.tui.screens.config_editor import ConfigEditorScreen
 from brainkm.tui.screens.dashboard import DashboardScreen
 from brainkm.tui.screens.wizard import WizardScreen
+from brainkm.tui.theme import ansi16_css_overrides, use_ansi16_palette
 from brainkm.tui.widgets.command_palette import BrainkmCommandProvider
 
 _CSS_PATH = Path(__file__).resolve().parent / "styles" / "app.tcss"
@@ -71,6 +72,10 @@ class BrainkmConfigureApp(App):
         # Re-bind the sink now that the App instance exists. Console handlers
         # were already stripped in ``configure_cmd`` before App.run().
         install_tui_logging(sink=self._forward_service_log)
+
+        if use_ansi16_palette():
+            self.stylesheet.add_source(ansi16_css_overrides(), read_from=("ansi16.tcss", ""))
+            self.refresh_css()
 
         project = self._project_dir or Path.cwd()
         brain_dir = project / ".brain"

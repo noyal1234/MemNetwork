@@ -171,7 +171,7 @@ def test_context_pack_via_dispatch(runtime, tmp_path) -> None:
         )
         assert "Context pack" in result.pack_text
         assert result.truncation.token_budget > 0
-        assert token_count(result.pack_text) <= BrainConfig().budget.total_tokens + 50
+        assert token_count(result.pack_text) <= BrainConfig().budget.total_tokens
     finally:
         conn.close()
 

@@ -29,3 +29,16 @@ def test_compaction_suite_not_stub(tmp_path) -> None:
     assert result.total >= 3
     assert not all("stub" in case.detail for case in result.cases)
     assert result.pass_rate >= 0.6
+
+
+def test_fixture_benches_are_rerunnable_against_live_db_path(tmp_path) -> None:
+    """TUI passes the project brain path; suites must not UNIQUE-collide on re-run."""
+    db_path = tmp_path / ".brain" / "brain.db"
+    db_path.parent.mkdir(parents=True)
+    db_path.touch()
+    for suite in (run_dmr_suite, run_longmem_suite, run_compaction_suite):
+        first = suite(db_path)
+        second = suite(db_path)
+        assert first.total > 0
+        assert second.total == first.total
+        assert second.pass_rate >= 0.6

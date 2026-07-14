@@ -5,8 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from brainkm.bench.results import BenchCaseResult, BenchSuiteResult
-from brainkm.db.connection import connect
-from brainkm.db.migrate import migrate
 from brainkm.models.brain_config import RecallConfig
 from brainkm.services.abstention_calibrate import calibrate_abstention, load_package_fixture
 from brainkm.services.recall import recall_live
@@ -14,10 +12,20 @@ from brainkm.services.token_bench import format_token_summary, run_budget_suite,
 
 
 def run_abstention_suite(db_path: Path) -> BenchSuiteResult:
-    migrate(db_path=db_path, run_integrity_check=False)
-    fixture = load_package_fixture()
+    """Calibrate + score abstention on an isolated fixture corpus.
+
+    Calibration artifacts are written into the *project* next to ``db_path``
+    (``.brain/abstention_calibration.json``), but fixture neurons are never
+    inserted into the live project brain — that polluted FTS scores and made
+    percentile search fail on real corpora.
+    """
+    from brainkm.config import set_skip_rolling_scores
+    from brainkm.services.bench_db import cleanup_ephemeral_project, ephemeral_project_brain
+
     project_dir = db_path.parent.parent
-    conn = connect(db_path)
+    fixture = load_package_fixture()
+    set_skip_rolling_scores(True)
+    conn, _ephemeral_db, ephemeral_project = ephemeral_project_brain()
     try:
         calibration = calibrate_abstention(conn, RecallConfig(), fixture, seed_corpus=True)
         conn.commit()
@@ -25,6 +33,7 @@ def run_abstention_suite(db_path: Path) -> BenchSuiteResult:
 
         save_calibration(calibration, project_dir)
         cases: list[BenchCaseResult] = []
+        # Score fixture queries on the same isolated corpus used for calibration.
         for item in fixture.queries:
             result = recall_live(
                 conn,
@@ -42,7 +51,8 @@ def run_abstention_suite(db_path: Path) -> BenchSuiteResult:
                 )
             )
     finally:
-        conn.close()
+        cleanup_ephemeral_project(ephemeral_project, conn)
+        set_skip_rolling_scores(False)
     passed = sum(1 for case in cases if case.passed)
     return BenchSuiteResult(suite="abstention", passed=passed, total=len(cases), cases=cases)
 

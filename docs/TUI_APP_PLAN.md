@@ -616,17 +616,13 @@ what was consciously deferred.
 
 ### 14.2  Deliberately deferred (not shipped this pass)
 
-- **Snapshot tests** (`pytest-textual-snapshot`) — adds a new test
-  dependency and SVG-baseline fixtures to maintain; the existing Pilot-based
-  functional tests (34 tests across `brainkm/tests/tui/`) already assert DOM
-  state, dirty tracking, validation, and file-write correctness for every
-  screen, which was judged higher-value per unit of effort than pixel-level
-  regression coverage.
-- **Light theme / ANSI-16 fallback palette** — `theme.py` and `app.tcss`
-  currently ship the dark Cyber-Industrial palette from DESIGN.md (with true
-  red `#ef4444` for error/offline). Textual's `App.dark` toggle and a light-mode
-  token set are natural follow-ups but weren't exercised by any acceptance
-  criterion beyond the snapshot tests above.
+- **Light theme** — dark Cyber-Industrial remains the only shipped palette;
+  `App.dark` / light tokens are still a follow-up (out of scope for 0.3.0).
+- ~~**Snapshot tests** (`pytest-textual-snapshot`)~~ — **shipped in 0.3.0**
+  (`tests/tui/test_snapshots.py` + SVG baselines; use
+  `BRAINKM_TUI_FIXED_TIME` for clock stability).
+- ~~**ANSI-16 fallback palette**~~ — **shipped in 0.3.0**
+  (`theme.use_ansi16_palette()` / `BRAINKM_TUI_ANSI16=1`).
 - **Executing arbitrary CLI commands from the palette** — commands like
   `mcp`, `migrate`, or the Cursor hooks (`session-start`, `pre-tool`, …) are
   discoverable and documented in the palette but intentionally not

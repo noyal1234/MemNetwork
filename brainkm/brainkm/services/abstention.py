@@ -126,9 +126,9 @@ def record_query_score(
     project_dir: Path | None = None,
 ) -> None:
     """Append best BM25 score to rolling window for V1.5 abstention drift tracking."""
-    import os
+    from brainkm.config import get_settings
 
-    if os.environ.get("BRAINKM_SKIP_ROLLING_SCORES") == "1":
+    if get_settings().brainkm_skip_rolling_scores:
         return
     from brainkm.services.abstention_calibrate import record_rolling_score
 

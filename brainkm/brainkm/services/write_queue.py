@@ -40,6 +40,8 @@ class WriteQueue:
 
     async def run(self, fn: Callable[..., T], /, *args: Any, **kwargs: Any) -> T:
         """Enqueue a blocking callable and await its result."""
+        if self._worker_task is None:
+            await self.start()
         loop = asyncio.get_running_loop()
         future: asyncio.Future[T] = loop.create_future()
         await self._queue.put((fn, args, kwargs, future))

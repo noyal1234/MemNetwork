@@ -9,6 +9,7 @@ description: >-
 # MemNetwork Backend Development
 
 Guide for implementing features in the **brainkm** Python package.
+Current version: **0.3.0** (keep in lockstep with `pyproject.toml` and `__version__` — see the release checklist in `AGENTS.md`). Feature history lives in the Implementation status table of `docs/AI_PROJECT_BRIEF.md`; do not re-derive it here.
 
 ## When to use this skill
 
@@ -23,16 +24,18 @@ Guide for implementing features in the **brainkm** Python package.
 | Path | Purpose |
 |------|---------|
 | `brainkm/brainkm/cli.py` | Typer CLI entry |
+| `brainkm/brainkm/server.py` | MCP stdio server; `TOOL_DEFINITIONS` registry (name, description, request model) |
+| `brainkm/brainkm/tools/dispatch.py` | All MCP handlers (`handle_<tool>`) + `dispatch_tool` router |
 | `brainkm/brainkm/config.py` | `get_settings()` env config |
 | `brainkm/brainkm/models/brain_config.py` | `.brain/config.json` schema |
 | `brainkm/brainkm/models/schemas.py` | MCP tool I/O models |
-| `brainkm/brainkm/tools/` | Thin MCP handlers |
-| `brainkm/brainkm/services/` | memory, search, budget, snapshot, learning, procedures, review |
-| `brainkm/brainkm/adapters/` | graphify, transcripts, redaction, ollama/groq distill |
-| `brainkm/brainkm/db/` | SQLite, migrations, FTS5 |
-| `brainkm/tests/` | pytest suite |
+| `brainkm/brainkm/services/` | Business logic — memory, recall, search, budget, snapshot, learning, procedures, review, write_queue, mcp_results, … |
+| `brainkm/brainkm/adapters/` | graphify, transcripts, redaction, distill (rules/cursor/ollama/groq) |
+| `brainkm/brainkm/hooks/cursor/` | Installed hook + rule templates (`hooks.json`, `brainkm.mdc`) |
+| `brainkm/brainkm/db/` | SQLite connection (WAL), migrations, FTS5 |
+| `brainkm/tests/` | pytest suite (`tests/tui/` holds Textual snapshot tests) |
 | `.venv/` | Python venv at repo root |
-| `docs/AI_PROJECT_BRIEF.md` | Product + architecture brief |
+| `docs/AI_PROJECT_BRIEF.md` | Product + architecture brief, implementation status |
 | `docs/CLI_COMMANDS.md` | Full CLI command catalog |
 | `docs/TUI_APP_PLAN.md` | Shipped `brainkm configure` Textual app (design + post-build notes) |
 
@@ -42,8 +45,9 @@ Guide for implementing features in the **brainkm** Python package.
 MCP Tool → Service → Adapter → SQLite
 ```
 
-- Tools stay thin — no SQL or file I/O directly.
-- Services own business logic and token budget enforcement.
+- Handlers stay thin — no SQL or file I/O directly; delegate to `services/` (SQL helpers live in `services/mcp_results.py`).
+- Every DB-touching MCP handler runs through the single-writer `WriteQueue` (`_run_write` in `dispatch.py`) — never open ad-hoc write connections from a handler.
+- Services own business logic and token budget enforcement (1500-token cap on agent-facing packs).
 - Adapters wrap Graphify, transcript JSONL, plan files, redaction.
 - Settings via `get_settings()` — never `os.environ` in app code.
 
@@ -60,42 +64,25 @@ brainkm version
 
 Python **3.11 or 3.12** recommended.
 
-## V1 implementation order
-
-1. **DB** — schema, migrations, WAL, FTS5 (`db/`)
-2. **BrainConfig loader** — read `.brain/config.json` on startup
-3. **Services** — memory, search (BM25), budget (tiktoken)
-4. **MCP tools** — remember, recall, context_pack, session_status, traverse, forget, brain_stats, graph_sync
-5. **Adapters** — transcripts, plans, graphify, redaction
-6. **Hooks** — SessionStart/End, PreCompact handover, PreToolUse
-7. **CLI** — install, export, handover, migrate, hygiene
-
-## V2 (shipped)
-
-- **Learning** — `services/learning.py` (session window, co-activation), wired from PostToolUse + MCP recall/context_pack
-- **Procedures** — `services/procedures.py` (promote tool chains from co-activation)
-- **Review queue** — `services/review.py` + `brainkm review` CLI for low-confidence captures
-- **Tool registry** — `services/tool_registry.py` (cap 20 external tools)
-- **Bench** — fixture-driven `dmr`, `longmem`, `compaction`, `abstention`, `budget` suites
-
-## 0.2.0 (shipped)
-
-- End-to-end token budget on agent-facing MCP payloads; lean `context_pack` by default
-- MCP usage telemetry + dead-neuron / abstention stats in `brain_stats`
-- Distill cleaning parity across cursor/ollama/groq/rules; capture dedup; `brainkm hygiene`
-- Path-labeled code nodes; quieter abstention defaults (P10, max 3 recalls/turn)
-
 ## Adding an MCP tool
 
-1. Define request/response in `models/schemas.py`
-2. Implement service method in `services/`
-3. Add thin handler in `tools/<name>.py`
-4. Register in `server.py` (V1)
-5. Add pytest in `tests/`
+1. Define request/response models in `models/schemas.py`
+2. Implement the logic as a service function in `services/` (testable without MCP transport)
+3. Add `handle_<name>(conn, request, ...)` in `tools/dispatch.py` and route it in `dispatch_tool` via `_run_write` (WriteQueue)
+4. Register `(name, description, RequestModel)` in `TOOL_DEFINITIONS` in `server.py`
+5. Add tests in `tests/` (see `test_mcp_tools.py` for handler-level patterns)
+6. Update the tool tables in `docs/AI_PROJECT_BRIEF.md` §4 and `.cursor/rules/memnetwork-mcp-tools.mdc`
+
+## Invariants (do not regress)
+
+- **Token budget** — `budget.total_tokens` (default 1500) enforced end-to-end on agent-facing MCP payloads and the SessionStart snapshot; lean `context_pack` by default (`include_structured` opt-in)
+- **Redaction** — every neuron write path (MCP `remember`, capture, handover, plan ingest, import, supersede) funnels through `remember_neuron`, which redacts and injection-scans
+- **Abstention** — `recall` returns `[]` on low confidence (percentile default P10); max 3 recalls/turn
+- **Soft delete only** — `forget` sets `valid_until`; hard delete is a `brainkm repair` admin path
 
 ## Security
 
-- Run all `remember` and capture input through `adapters/redaction.py` (V1)
+- Never bypass `remember_neuron` when writing neurons — it is the redaction/injection-scan chokepoint (`adapters/redaction.py`)
 - Never log neuron bodies at INFO — use DEBUG with redaction
 - See `.cursor/rules/memnetwork-security.mdc`
 

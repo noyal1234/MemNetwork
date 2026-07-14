@@ -41,6 +41,10 @@ class DashboardScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Header()
         with VerticalScroll(id="dashboard-container"):
+            yield Static(
+                "",
+                id="rate-limit-banner",
+            )
             with Horizontal(id="dashboard-body"):
                 with Vertical(id="status-sidebar"):
                     yield StatusPanel(title="[ STATUS ]", id="brain-status")
@@ -180,19 +184,19 @@ class DashboardScreen(Screen):
         )
         distill_color = str(brain.get("distill_color") or "muted")
         items: list[tuple[str, str, str]] = [
-            ("distill_mode", distill_value, distill_color),
+            ("distill", distill_value, distill_color),
             (
                 "neurons",
                 f"{brain.get('neuron_count', 0)} active",
                 "ok" if brain.get("neuron_count", 0) else "muted",
             ),
             (
-                "code nodes",
+                "code",
                 str(brain.get("code_node_count", 0)),
                 "ok" if brain.get("code_node_count", 0) else "muted",
             ),
             (
-                "pending review",
+                "review",
                 f"{self._pending_review_count} items",
                 "warning" if self._pending_review_count else "ok",
             ),
@@ -210,13 +214,35 @@ class DashboardScreen(Screen):
                     )
                 )
         if groq:
-            items.append(
-                (
-                    "Groq",
-                    "connected" if groq.get("reachable") else "unreachable",
-                    "ok" if groq.get("reachable") else "error",
-                )
+            rate_limited = bool(groq.get("rate_limited")) or (
+                "429" in str(groq.get("error") or "")
             )
+            if rate_limited:
+                items.append(("Groq", "RATE LIMITED", "error"))
+            else:
+                items.append(
+                    (
+                        "Groq",
+                        "connected" if groq.get("reachable") else "unreachable",
+                        "ok" if groq.get("reachable") else "error",
+                    )
+                )
+
+        # Exactly one accent model row: the active distill backend's model.
+        distill_mode = str(brain.get("distill_mode") or "")
+        if distill_mode == "groq":
+            groq_model = str((groq or {}).get("config_model") or "").strip()
+            if groq_model and groq_model not in {"?", "not set"}:
+                items.append(("model", groq_model, "accent"))
+        elif distill_mode == "ollama":
+            ollama_model = str(
+                (ollama or {}).get("config_model")
+                or (ollama or {}).get("recommended")
+                or ""
+            ).strip()
+            if ollama_model and ollama_model not in {"?", "not set"}:
+                items.append(("model", ollama_model, "accent"))
+
         if graph and not graph.get("error"):
             stale = graph.get("graph_stale", False)
             items.append(
@@ -268,6 +294,8 @@ class DashboardScreen(Screen):
 
         reachable = data.get("reachable", False)
         match = data.get("match", False)
+        recommended = str(data.get("recommended") or "?")
+        config_model = str(data.get("config_model") or "?")
         items = [
             (
                 "Status",
@@ -277,10 +305,14 @@ class DashboardScreen(Screen):
             ("RAM", data.get("ram", "?"), "muted"),
             ("GPU", data.get("gpu", "?"), "muted"),
             ("Tier", data.get("tier", "?"), "muted"),
-            ("Recommended", data.get("recommended", "?"), "muted"),
+            ("Recommend", recommended, "accent"),
+            ("Config", config_model, "accent"),
+            (
+                "Match",
+                "yes" if match else "no",
+                "ok" if match else "warning",
+            ),
         ]
-        config_model = data.get("config_model", "?")
-        items.append(("Config", config_model, "ok" if match else "warning"))
         panel.set_items(items)
         apply_btn.disabled = bool(match or not reachable or data.get("error"))
 
@@ -292,19 +324,24 @@ class DashboardScreen(Screen):
             from brainkm.services.groq_advisor import build_groq_report
 
             report = build_groq_report(project_dir=self._project_dir)
+            model = report.config_model or (
+                report.status.models[0] if report.status.models else None
+            )
             return {
                 "api_key_present": report.api_key_present,
                 "api_key_masked": report.api_key_masked or "not set",
                 "reachable": report.status.reachable,
-                "config_model": report.config_model or "not set",
+                "config_model": model or "not set",
                 "error": report.status.error,
+                "rate_limited": report.status.rate_limited,
             }
         except Exception as exc:
-            return {"reachable": False, "error": str(exc)}
+            return {"reachable": False, "error": str(exc), "rate_limited": False}
 
     def _render_groq_status(self, data: dict[str, Any]) -> None:
         self._last_groq_data = data
         self._render_brain_status()
+        self._update_rate_limit_banner(data)
         panel = self.query_one("#groq-panel", StatusPanel)
         if data.get("error") and not data.get("api_key_present", True):
             panel.set_items([
@@ -312,20 +349,57 @@ class DashboardScreen(Screen):
                 ("Detail", str(data.get("error", ""))[:60], "muted"),
             ])
             return
+
         reachable = data.get("reachable", False)
-        panel.set_items([
+        rate_limited = bool(data.get("rate_limited"))
+        model = str(data.get("config_model") or "not set").strip() or "not set"
+        items: list[tuple[str, str, str]] = [
             (
                 "Key",
                 data.get("api_key_masked", "?"),
                 "ok" if data.get("api_key_present") else "error",
             ),
-            (
-                "Status",
-                "reachable" if reachable else "unreachable",
-                "ok" if reachable else "error",
-            ),
-            ("Model", data.get("config_model", "?"), "muted"),
-        ])
+        ]
+        if rate_limited:
+            items.append(("Status", "RATE LIMITED", "error"))
+            detail = str(data.get("error") or "HTTP 429")[:72]
+            items.append(("Detail", detail, "error"))
+        else:
+            items.append(
+                (
+                    "Status",
+                    "reachable" if reachable else "unreachable",
+                    "ok" if reachable else "error",
+                )
+            )
+            if data.get("error") and not reachable:
+                items.append(("Detail", str(data["error"])[:72], "muted"))
+        items.append(("Model", model, "accent"))
+        panel.set_items(items)
+        if rate_limited:
+            self.notify(
+                escape_markup("Groq rate limit hit (HTTP 429) — distill may fall back"),
+                severity="error",
+                timeout=6,
+            )
+
+    def _update_rate_limit_banner(self, data: dict[str, Any]) -> None:
+        try:
+            banner = self.query_one("#rate-limit-banner", Static)
+        except Exception:
+            return
+        rate_limited = bool(data.get("rate_limited"))
+        if rate_limited:
+            detail = str(data.get("error") or "HTTP 429 Too Many Requests")
+            banner.update(
+                escape_markup(
+                    f"⚠ GROQ RATE LIMIT — {detail}. Wait for retry-after; distill falls back to rules."
+                )
+            )
+            banner.add_class("visible")
+        else:
+            banner.update("")
+            banner.remove_class("visible")
 
     # --- Graph ---
 

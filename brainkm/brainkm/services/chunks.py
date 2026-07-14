@@ -5,9 +5,13 @@ from __future__ import annotations
 import sqlite3
 
 from brainkm.adapters.capture import CaptureChunk, prepare_capture_chunk
+from brainkm.adapters.redaction import RedactionBlockedError
+from brainkm.logging_config import get_logger
 from brainkm.models.distill import ParsedTranscript, StoredChunk
 from brainkm.services.audit import append_event, utc_now_iso
 from brainkm.services.memory import new_ulid
+
+logger = get_logger("services.chunks")
 
 
 def persist_message_chunks(
@@ -16,18 +20,30 @@ def persist_message_chunks(
     *,
     ts: str | None = None,
 ) -> list[StoredChunk]:
-    """Persist one session_chunks row per transcript message after redaction."""
+    """Persist one session_chunks row per transcript message after redaction.
+
+    Blocked messages are skipped (logged) so one secret does not abort the session.
+    """
     timestamp = ts or utc_now_iso()
     stored: list[StoredChunk] = []
 
     for message in transcript.messages:
-        prepared = prepare_capture_chunk(
-            CaptureChunk(
-                content=message.text,
-                role=message.role,
-                session_id=transcript.session_id,
+        try:
+            prepared = prepare_capture_chunk(
+                CaptureChunk(
+                    content=message.text,
+                    role=message.role,
+                    session_id=transcript.session_id,
+                )
             )
-        )
+        except RedactionBlockedError as exc:
+            logger.warning(
+                "Skipped session chunk blocked by redaction session=%s role=%s: %s",
+                transcript.session_id,
+                message.role,
+                exc,
+            )
+            continue
         chunk_id = new_ulid()
         conn.execute(
             """
@@ -49,6 +65,7 @@ def persist_message_chunks(
                 role=message.role,
                 content=prepared.chunk.content,
                 ts=timestamp,
+                line_no=message.line_no,
             )
         )
     return stored
@@ -58,11 +75,11 @@ def map_round_chunk_ids(
     transcript: ParsedTranscript,
     stored_chunks: list[StoredChunk],
 ) -> dict[int, list[str]]:
-    """Map round index to chunk IDs (stored chunks align with transcript messages)."""
+    """Map round index to chunk IDs via message line_no (skips blocked messages)."""
     message_line_to_id = {
-        message.line_no: stored_chunks[idx].id
-        for idx, message in enumerate(transcript.messages)
-        if idx < len(stored_chunks)
+        chunk.line_no: chunk.id
+        for chunk in stored_chunks
+        if chunk.line_no is not None
     }
 
     round_map: dict[int, list[str]] = {}

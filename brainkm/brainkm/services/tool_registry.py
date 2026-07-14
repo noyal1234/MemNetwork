@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 
-from brainkm.services.memory import create_neuron, new_ulid
+from brainkm.services.memory import new_ulid, remember_neuron
 
 
 @dataclass(frozen=True)
@@ -44,13 +44,14 @@ def register_tool_node(
         msg = f"tool node cap reached ({max_tools})"
         raise ValueError(msg)
 
-    record = create_neuron(
+    record = remember_neuron(
         conn,
         title=name,
         content=description,
         kind="tool",
         subtype=None,
         node_id=new_ulid(),
+        source="tool_registry",
     )
     return ToolNode(node_id=record.id, name=record.title, description=record.content)
 

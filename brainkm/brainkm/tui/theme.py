@@ -1,16 +1,24 @@
 """Color palette and theme tokens for the brainkm TUI.
 
-Cyber-Industrial (DESIGN.md) — violet/obsidian surfaces with true red for
-error/offline states (not Material soft-error pink).
+Cyber-Industrial dark palette — violet/obsidian surfaces with true red for
+error/offline states. When the terminal reports only 16 colors, ANSI-safe
+named colors are applied at runtime via Textual CSS variable overrides.
+
+Status value colors (StatusPanel ``value--*``):
+  success / ok   — healthy, connected, match, fresh
+  error          — unreachable, fail, Groq rate limit
+  warning        — stale, mismatch, pending review
+  accent #FFB000 — LLM model identifiers
+  muted          — secondary facts (RAM, GPU, tier)
 """
 
 from __future__ import annotations
 
+import os
+
 # ---------------------------------------------------------------------------
-# Design tokens
+# Design tokens (truecolor / 256-color dark theme)
 # ---------------------------------------------------------------------------
-# Used by app.tcss via Textual CSS variables and by Python code that needs
-# programmatic access to colors (e.g. Rich markup in RichLog).
 
 DARK = {
     "primary": "#d2bbff",
@@ -18,7 +26,9 @@ DARK = {
     "primary_muted": "#5a00c6",
     "success": "#4ae176",
     "warning": "#ffb95f",
-    "error": "#ef4444",  # true red for offline/error (not #ffb4ab)
+    # Amber highlight for model IDs / important identity labels (user-picked).
+    "accent": "#FFB000",
+    "error": "#ef4444",
     "surface": "#15121b",
     "surface_alt": "#1d1a24",
     "surface_container": "#221e28",
@@ -29,31 +39,76 @@ DARK = {
     "border": "#4a4455",
 }
 
-LIGHT = {
-    "primary": "#6d28d9",
-    "primary_container": "#7c3aed",
-    "primary_muted": "#ede9fe",
-    "success": "#16a34a",
-    "warning": "#d97706",
-    "error": "#dc2626",
-    "surface": "#faf5ff",
-    "surface_alt": "#f3e8ff",
-    "surface_container": "#ede9fe",
-    "surface_high": "#e9e4f5",
-    "text": "#1e1b2e",
-    "text_muted": "#6b7280",
-    "outline": "#958da1",
-    "border": "#d8b4fe",
+# ANSI-16 / limited-color fallback — named colors Textual maps to palette slots.
+ANSI16 = {
+    "primary": "magenta",
+    "primary_container": "magenta",
+    "primary_muted": "blue",
+    "success": "green",
+    "warning": "yellow",
+    "accent": "yellow",
+    "error": "red",
+    "surface": "black",
+    "surface_alt": "black",
+    "surface_container": "black",
+    "surface_high": "black",
+    "text": "white",
+    "text_muted": "white",
+    "outline": "white",
+    "border": "white",
 }
 
-# ---------------------------------------------------------------------------
-# Status symbols — use both color + glyph for color-blind accessibility
-# ---------------------------------------------------------------------------
 
-STATUS_OK = ("●", "success")
-STATUS_WARN = ("◆", "warning")
-STATUS_ERR = ("✗", "error")
-STATUS_UNKNOWN = ("○", "text_muted")
+def detect_color_depth() -> int:
+    """Best-effort terminal color depth: 24 (truecolor), 8 (256), or 4 (ANSI-16)."""
+    colorterm = (os.environ.get("COLORTERM") or "").lower()
+    if "truecolor" in colorterm or "24bit" in colorterm:
+        return 24
+    term = (os.environ.get("TERM") or "").lower()
+    if "256color" in term or "256" in term:
+        return 8
+    if term in {"dumb", ""}:
+        return 4
+    # Modern macOS/iTerm default to xterm-256color; assume 16 when unknown and narrow.
+    if os.environ.get("BRAINKM_TUI_ANSI16") == "1":
+        return 4
+    return 8
+
+
+def use_ansi16_palette() -> bool:
+    """Return True when the TUI should switch to the ANSI-16 token set."""
+    return detect_color_depth() <= 4
+
+
+def active_tokens() -> dict[str, str]:
+    """Return the color tokens for the current terminal capability."""
+    return ANSI16 if use_ansi16_palette() else DARK
+
+
+def ansi16_css_overrides() -> str:
+    """Textual CSS that remaps design tokens to ANSI-16 named colors."""
+    lines = ["/* ANSI-16 fallback tokens */"]
+    mapping = [
+        ("primary", "primary"),
+        ("primary-container", "primary_container"),
+        ("primary-muted", "primary_muted"),
+        ("primary-light", "primary"),
+        ("success", "success"),
+        ("warning", "warning"),
+        ("accent", "accent"),
+        ("error", "error"),
+        ("surface", "surface"),
+        ("surface-alt", "surface_alt"),
+        ("surface-container", "surface_container"),
+        ("surface-high", "surface_high"),
+        ("text", "text"),
+        ("text-muted", "text_muted"),
+        ("outline", "outline"),
+        ("border", "border"),
+    ]
+    for css_name, key in mapping:
+        lines.append(f"${css_name}: {ANSI16[key]};")
+    return "\n".join(lines) + "\n"
 
 
 def escape_markup(text: str) -> str:
@@ -78,15 +133,7 @@ def bracket_label(text: str) -> str:
     return escape_markup(f"[ {text} ]")
 
 
-def status_markup(ok: bool | None, label: str) -> str:
-    """Return Rich markup for a colored status indicator + label.
-
-    Args:
-        ok: True=green, False=red, None=grey.
-        label: Text to display after the dot.
-    """
-    if ok is True:
-        return f"[bold green]● {label}[/]"
-    if ok is False:
-        return f"[bold red]✗ {label}[/]"
-    return f"[dim]○ {label}[/]"
+def border_color_pair() -> tuple[str, str]:
+    """Return (active, inactive) border colors for wizard step highlight."""
+    tokens = active_tokens()
+    return tokens["primary_container"], tokens["border"]

@@ -184,3 +184,25 @@ async def test_all_config_sections_sized_in_compact_terminal(tui_project: Path) 
         scroll = screen.query_one("#config-container")
         # Content taller than the viewport ⇒ VerticalScroll can reveal Ollama+.
         assert forms_container.virtual_size.height > scroll.size.height
+
+
+async def test_save_row_visible_above_footer_in_short_terminal(
+    tui_project: Path,
+) -> None:
+    """Regression: dock:bottom Save fought Footer and vanished on short screens."""
+    from textual.widgets import Footer
+
+    app = BrainkmConfigureApp(project_dir=tui_project)
+    async with app.run_test(size=(100, 24)) as pilot:
+        app.switch_screen("config")
+        await pilot.pause(0.8)
+        screen = app.screen
+        buttons = screen.query_one("#config-buttons")
+        save = screen.query_one("#btn-save", Button)
+        footer = screen.query_one(Footer)
+        assert save.size.height >= 1
+        assert buttons.size.height >= 3
+        assert buttons.region.y >= 0
+        # Button bar fully on-screen and ends at/above the Footer.
+        assert buttons.region.y + buttons.region.height <= screen.size.height
+        assert buttons.region.y + buttons.region.height <= footer.region.y

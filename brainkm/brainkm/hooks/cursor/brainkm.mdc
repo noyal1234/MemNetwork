@@ -31,6 +31,10 @@ Do **not** treat brainkm as a second `@codebase`. Use Cursor to **locate**; use 
 (`traverse` / `context_pack`) to explain **flow**. Never skip reading source because a pack
 abstained or looked incomplete — prefer fewer injected tokens over trusting noise.
 
+If `traverse` / `context_pack` results look empty or wrong, check **`brain_stats`** first —
+a stale or missing code graph is the usual cause; refresh with **`graph_sync`** (or
+`brainkm graph sync`) instead of distrusting the whole brain.
+
 ## What lives in the brain
 
 | Store | Contents |

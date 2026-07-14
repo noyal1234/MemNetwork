@@ -5,10 +5,11 @@ import json
 from brainkm.db.connection import connect
 from brainkm.models.brain_config import BrainConfig, RecallConfig
 from brainkm.models.snapshot import SnapshotNeuron
-from brainkm.services.memory import create_neuron, remember_neuron
+from brainkm.services.memory import create_neuron, remember_neuron, token_count
 from brainkm.services.recall import recall_live
 from brainkm.services.snapshot import (
     build_frozen_snapshot,
+    clamp_injection_pack,
     get_frozen_snapshot,
     render_injection_pack,
     select_injection_neurons,
@@ -144,6 +145,52 @@ def test_select_injection_neurons_respects_pinned_and_rules(brain_db) -> None:
         assert "rule-1" in ids
     finally:
         conn.close()
+
+
+def test_frozen_snapshot_respects_total_token_cap(brain_db) -> None:
+    conn = connect(brain_db)
+    try:
+        for i in range(40):
+            create_neuron(
+                conn,
+                title=f"Pinned architectural decision {i}",
+                content=(
+                    "Prefer SQLite FTS5 for project memory and keep injection packs "
+                    "bounded under the configured token budget. Verify in source. "
+                )
+                * 6,
+                subtype="decision",
+                node_id=f"dec-{i}",
+            )
+            conn.execute(
+                "UPDATE nodes SET user_pinned = 1 WHERE id = ?",
+                (f"dec-{i}",),
+            )
+        conn.commit()
+
+        config = BrainConfig(budget={"total_tokens": 400})
+        snapshot = build_frozen_snapshot(conn, "sess-budget", config)
+        assert snapshot.token_count <= 400
+        assert token_count(snapshot.pack_text) <= 400
+    finally:
+        conn.close()
+
+
+def test_clamp_injection_pack_drops_overflow() -> None:
+    neurons = [
+        SnapshotNeuron(
+            f"n{i}",
+            "memory",
+            "decision",
+            f"Decision {i}",
+            "Body text about architecture choices that should be truncated. " * 20,
+            80,
+        )
+        for i in range(20)
+    ]
+    kept, pack = clamp_injection_pack(neurons, graph_status=None, total_tokens=200)
+    assert token_count(pack) <= 200
+    assert len(kept) < len(neurons)
 
 
 def test_session_start_hook_builds_snapshot(tmp_path) -> None:

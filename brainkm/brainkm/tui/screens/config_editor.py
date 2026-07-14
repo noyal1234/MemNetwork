@@ -40,44 +40,56 @@ class ConfigEditorScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        with VerticalScroll(id="config-container"):
-            yield Static(
-                escape_markup("[ CONFIG ]"),
-                classes="panel-title",
-            )
-            yield Static(
-                "Edit settings below. Changes are validated live via BrainConfig.",
-                classes="field-help",
-            )
-            # Placeholder — forms are mounted dynamically on_mount
-            yield Vertical(id="config-forms")
-
-            # --- API Key section (separate — writes to .env) ---
-            with Vertical(classes="config-section"):
-                yield Static(escape_markup("[ GROQ API KEY ]"), classes="section-title")
+        # Layout column (not dock): scroll (1fr) + Save row above Footer.
+        # dock:bottom on #config-buttons fights Footer and clips Save on short terminals.
+        with Vertical(id="config-layout"):
+            with VerticalScroll(id="config-container"):
                 yield Static(
-                    "Stored in project .env file, never in config.json or brain.db",
+                    escape_markup("[ CONFIG ]"),
+                    classes="panel-title",
+                )
+                yield Static(
+                    "Edit settings below. Changes are validated live via BrainConfig.",
                     classes="field-help",
                 )
-                yield Static("Loading…", id="groq-api-key-status", classes="api-key-status")
-                with Horizontal(classes="config-field-row"):
-                    yield Label("New key:", classes="field-label")
-                    yield Input(
-                        placeholder="gsk_… (leave blank to keep current)",
-                        password=True,
-                        id="field-groq-api-key",
+                # Placeholder — forms are mounted dynamically on_mount
+                yield Vertical(id="config-forms")
+
+                # --- API Key section (separate — writes to .env) ---
+                with Vertical(classes="config-section"):
+                    yield Static(
+                        escape_markup("[ GROQ API KEY ]"),
+                        classes="section-title",
                     )
+                    yield Static(
+                        "Stored in project .env file, never in config.json or brain.db",
+                        classes="field-help",
+                    )
+                    yield Static(
+                        "Loading…",
+                        id="groq-api-key-status",
+                        classes="api-key-status",
+                    )
+                    with Horizontal(classes="config-field-row"):
+                        yield Label("New key:", classes="field-label")
+                        yield Input(
+                            placeholder="gsk_… (leave blank to keep current)",
+                            password=True,
+                            id="field-groq-api-key",
+                        )
 
-            # --- Validation status ---
-            yield Static("", id="validation-status")
+                # --- Validation status ---
+                yield Static("", id="validation-status")
 
-        # --- Bottom buttons ---
-        with Horizontal(id="config-buttons"):
-            yield Button(
-                bracket_label("Save"), id="btn-save", classes="-primary", disabled=True
-            )
-            yield Button(bracket_label("Discard"), id="btn-discard")
-            yield Button(bracket_label("Dashboard"), id="btn-back")
+            with Horizontal(id="config-buttons"):
+                yield Button(
+                    bracket_label("Save"),
+                    id="btn-save",
+                    classes="-primary",
+                    disabled=True,
+                )
+                yield Button(bracket_label("Discard"), id="btn-discard")
+                yield Button(bracket_label("Dashboard"), id="btn-back")
         yield Footer()
 
     def on_mount(self) -> None:

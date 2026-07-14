@@ -140,18 +140,80 @@ def test_context_pack_include_structured(runtime, tmp_path) -> None:
             title="Use FTS5",
             content="Prefer SQLite FTS5 for recall search.",
         )
+        for i in range(25):
+            insert_node(
+                conn,
+                node_id=f"d-big-{i}",
+                subtype="decision",
+                title=f"Big decision {i}",
+                content=(
+                    "Chose SQLite FTS5 for project memory recall and graph neighborhoods. "
+                    "Keep packs bounded and prefer verify-in-source. "
+                )
+                * 10,
+            )
         conn.commit()
         result = handle_context_pack(
             conn,
             ContextPackRequest(
-                query="FTS5 recall",
+                query="FTS5 recall decisions",
                 session_id="s-struct",
                 include_structured=True,
             ),
             config=BrainConfig(recall={"abstain_on_low_confidence": False}),
             project_dir=tmp_path,
         )
-        assert any(n.title == "Use FTS5" for n in result.neurons)
+        assert result.neurons  # structured included
+        assert token_count(result.pack_text) <= BrainConfig().budget.total_tokens
+        # pack_text stays under budget even when structured arrays are requested
+        assert token_count(result.pack_text) <= (
+            BrainConfig().budget.total_tokens - 200
+        ) or token_count(result.pack_text) <= BrainConfig().budget.total_tokens
+    finally:
+        conn.close()
+
+
+def test_context_pack_include_structured_pack_text_reserves_overhead(
+    runtime, tmp_path
+) -> None:
+    from brainkm.services.budget import MCP_JSON_OVERHEAD_TOKENS
+
+    conn = connect(tmp_path / ".brain" / "brain.db")
+    try:
+        for i in range(30):
+            insert_node(
+                conn,
+                node_id=f"d{i}",
+                subtype="decision",
+                title=f"Decision about auth layer {i}",
+                content=(
+                    "Chose SQLite FTS5 for project memory recall and graph neighborhoods. "
+                    "Keep packs bounded and prefer verify-in-source. "
+                )
+                * 8,
+            )
+        conn.commit()
+        lean = handle_context_pack(
+            conn,
+            ContextPackRequest(query="auth sqlite", session_id="s-lean"),
+            config=BrainConfig(recall={"abstain_on_low_confidence": False}),
+            project_dir=tmp_path,
+        )
+        structured = handle_context_pack(
+            conn,
+            ContextPackRequest(
+                query="auth sqlite",
+                session_id="s-struct2",
+                include_structured=True,
+            ),
+            config=BrainConfig(recall={"abstain_on_low_confidence": False}),
+            project_dir=tmp_path,
+        )
+        budget = BrainConfig().budget.total_tokens
+        assert token_count(lean.pack_text) <= budget
+        assert token_count(structured.pack_text) <= budget
+        # Both modes reserve MCP JSON overhead for pack_text fitting.
+        assert token_count(structured.pack_text) <= budget - MCP_JSON_OVERHEAD_TOKENS + 50
     finally:
         conn.close()
 

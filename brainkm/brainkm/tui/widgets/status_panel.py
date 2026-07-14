@@ -1,4 +1,12 @@
-"""Reusable status card widget — ASCII title + key/value rows with status."""
+"""Reusable status card widget — ASCII title + key/value rows with status.
+
+Color meaning for ``state`` (CSS ``value--*``):
+  ok      green  — healthy / connected / fresh
+  error   red    — failure / unreachable / rate limit
+  warning amber  — attention (stale, mismatch, pending work)
+  accent  #FFB000 — model IDs (LLM identity)
+  muted   gray   — informational / secondary
+"""
 
 from __future__ import annotations
 
@@ -7,6 +15,9 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Static
 
 from brainkm.tui.theme import escape_markup
+
+# States whose values are model IDs — always render with accent styling if passed
+# through as "accent". Callers should use state="accent" for model strings.
 
 
 class StatusPanel(Static):
@@ -17,7 +28,7 @@ class StatusPanel(Static):
         panel = StatusPanel(title="[ OLLAMA ]", id="ollama-panel")
         panel.set_items([
             ("Status", "reachable", "ok"),
-            ("Model", "qwen2.5:3b", "muted"),
+            ("Model", "qwen2.5:3b", "accent"),
             ("Tier", "standard", "muted"),
         ])
     """
@@ -27,25 +38,37 @@ class StatusPanel(Static):
         height: auto;
     }
 
-    /* Textual's Vertical defaults to height:1fr — inside an auto-height
-       ancestor (e.g. a doctor-row) that makes this panel (and its siblings)
-       balloon to fill all remaining space. Force it back to content-height. */
     StatusPanel > Vertical {
         height: auto;
+        width: 100%;
     }
 
     StatusPanel .status-row {
         height: 1;
-        margin: 0 0 0 0;
+        width: 100%;
+        layout: horizontal;
     }
 
     StatusPanel .status-label {
-        width: 18;
+        width: 12;
         color: $text-muted;
+        text-wrap: nowrap;
+        overflow-x: hidden;
+        text-overflow: ellipsis;
+        padding: 0 1 0 0;
+    }
+
+    StatusPanel .status-glyph {
+        width: 2;
+        text-align: left;
     }
 
     StatusPanel .status-value {
         width: 1fr;
+        height: 1;
+        text-wrap: nowrap;
+        overflow-x: hidden;
+        text-overflow: ellipsis;
     }
     """
 
@@ -78,9 +101,9 @@ class StatusPanel(Static):
 
         Args:
             items: List of (label, value, state) tuples.
-                   state is one of: "ok", "warning", "error", "muted".
+                   state is one of: "ok", "warning", "error", "muted", "accent".
         """
-        self._items = items
+        self._items = [(label, str(value or ""), state) for label, value, state in items]
         self._render_items()
 
     def _render_items(self) -> None:
@@ -92,45 +115,33 @@ class StatusPanel(Static):
         body.remove_children()
         for label, value, state in self._items:
             glyph = self._state_glyph(state)
+            # Three columns so glyphs and values share a vertical baseline.
+            # markup=False on values: Rich silently drops unknown [...] tags.
             row = Horizontal(classes="status-row")
             body.mount(row)
             row.mount(
-                Static(f"  {escape_markup(label)}:", classes="status-label"),
+                Static(f"{escape_markup(label)}:", classes="status-label"),
                 Static(
-                    f"{glyph} {escape_markup(value)}",
+                    glyph,
+                    classes=f"status-glyph value--{state}",
+                    markup=False,
+                ),
+                Static(
+                    value if value else "—",
                     classes=f"status-value value--{state}",
+                    markup=False,
                 ),
             )
 
     def _state_glyph(self, state: str) -> str:
-        return {"ok": "●", "warning": "◆", "error": "✗", "muted": "○"}.get(state, "○")
+        return {
+            "ok": "●",
+            "warning": "◆",
+            "error": "✗",
+            "muted": "○",
+            "accent": "◆",
+        }.get(state, "○")
 
     def set_loading(self, message: str = "Loading…") -> None:
         """Show a loading state in the panel body."""
-        body_id = f"#{self.id}-body" if self.id else "#panel-body"
-        try:
-            body = self.query_one(body_id)
-        except Exception:
-            return
-        body.remove_children()
-        body.mount(Static(f"  {escape_markup(message)}", classes="value--muted"))
-
-
-class StatusItem(Static):
-    """A single line status indicator: glyph + label + value."""
-
-    def __init__(
-        self,
-        label: str,
-        value: str = "",
-        state: str = "muted",
-        *,
-        id: str | None = None,
-    ) -> None:
-        glyph = {"ok": "●", "warning": "◆", "error": "✗", "muted": "○"}.get(state, "○")
-        css_class = f"value--{state}"
-        super().__init__(
-            f"{label}: {glyph} {value}",
-            id=id,
-            classes=css_class,
-        )
+        self.set_items([("Status", message, "muted")])

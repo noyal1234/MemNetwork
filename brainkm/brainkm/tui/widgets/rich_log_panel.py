@@ -56,6 +56,12 @@ class RichLogPanel(Vertical):
         return self.query_one(log_id, RichLog)
 
     def _timestamp(self) -> str:
+        import os
+
+        # Snapshot tests set this so SVG baselines aren't clock-flake sensitive.
+        fixed = os.environ.get("BRAINKM_TUI_FIXED_TIME")
+        if fixed:
+            return fixed
         return datetime.now().strftime("%H:%M:%S")  # noqa: DTZ005
 
     def log_info(self, message: str) -> None:

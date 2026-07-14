@@ -22,7 +22,7 @@ from textual.widgets import (
 from textual.worker import Worker, WorkerState
 
 from brainkm.services.distill_status import DISTILL_MODE_LABELS, PRIMARY_DISTILL_MODES
-from brainkm.tui.theme import bracket_label, escape_markup
+from brainkm.tui.theme import border_color_pair, bracket_label, escape_markup
 from brainkm.tui.widgets.rich_log_panel import RichLogPanel
 
 # ---------------------------------------------------------------------------
@@ -222,11 +222,13 @@ class WizardScreen(Screen):
             if i == self._current_step:
                 step.display = True
                 step.styles.opacity = 1.0
-                step.styles.border = ("solid", "#7c3aed")
+                active, _inactive = border_color_pair()
+                step.styles.border = ("solid", active)
             else:
                 step.display = False
                 step.styles.opacity = 1.0
-                step.styles.border = ("solid", "#4a4455")
+                _active, inactive = border_color_pair()
+                step.styles.border = ("solid", inactive)
 
         # Update nav buttons
         back_btn = self.query_one("#btn-wizard-back", Button)

@@ -70,24 +70,58 @@ async def test_dashboard_loads_brain_status(tui_project: Path) -> None:
         panel = app.screen.query_one("#brain-status", StatusPanel)
         assert panel._items, "brain-status panel should be populated after mount"
         labels = [item[0] for item in panel._items]
-        assert "distill_mode" in labels
+        assert "distill" in labels
         assert "neurons" in labels
-        distill_row = next(item for item in panel._items if item[0] == "distill_mode")
+        distill_row = next(item for item in panel._items if item[0] == "distill")
         # Readiness-aware display: mode + detail in parentheses
         assert "(" in distill_row[1], f"expected readiness suffix, got {distill_row[1]!r}"
 
 
-async def test_dashboard_sidebar_includes_channel_rows(tui_project: Path) -> None:
-    """Channels are folded into #brain-status (no separate #channel-status)."""
+async def test_dashboard_groq_panel_shows_model_and_rate_limit(
+    tui_project: Path,
+) -> None:
+    """Groq doctor must show the config model (accent) and surface 429 in red."""
     app = BrainkmConfigureApp(project_dir=tui_project)
     async with app.run_test(size=(140, 60)) as pilot:
-        await pilot.pause(1.0)
-        panel = app.screen.query_one("#brain-status", StatusPanel)
-        assert panel._items, "brain-status sidebar should be populated"
-        labels = {item[0] for item in panel._items}
-        assert "Ollama" in labels
-        assert "Groq" in labels
-        assert not app.screen.query("#channel-status")
+        await pilot.pause(0.3)
+        app.screen._render_groq_status(
+            {
+                "api_key_present": True,
+                "api_key_masked": "gsk_...test",
+                "reachable": True,
+                "config_model": "llama-3.3-70b-versatile",
+                "error": None,
+                "rate_limited": False,
+            }
+        )
+        await pilot.pause(0.2)
+
+        panel = app.screen.query_one("#groq-panel", StatusPanel)
+        model_row = next(item for item in panel._items if item[0] == "Model")
+        assert model_row[1] == "llama-3.3-70b-versatile"
+        assert model_row[2] == "accent"
+
+        app.screen._render_groq_status(
+            {
+                "api_key_present": True,
+                "api_key_masked": "gsk_...test",
+                "reachable": False,
+                "config_model": "llama-3.3-70b-versatile",
+                "error": "rate limited (429); retry-after 3s",
+                "rate_limited": True,
+            }
+        )
+        await pilot.pause(0.2)
+
+        assert any(item[1] == "RATE LIMITED" and item[2] == "error" for item in panel._items)
+        model_row = next(item for item in panel._items if item[0] == "Model")
+        assert model_row[1] == "llama-3.3-70b-versatile"
+        banner = app.screen.query_one("#rate-limit-banner")
+        assert "visible" in banner.classes
+        sidebar = app.screen.query_one("#brain-status", StatusPanel)
+        assert any(
+            item[0] == "Groq" and "RATE LIMITED" in item[1] for item in sidebar._items
+        )
 
 
 async def test_dashboard_action_buttons_exist(tui_project: Path) -> None:

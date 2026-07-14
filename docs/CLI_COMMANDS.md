@@ -101,7 +101,7 @@ Safe to re-run; archives via `forget` (reversible with audit log). SessionStart/
 | Command | Purpose | Key flags | Example |
 |---------|---------|-----------|---------|
 | `brainkm export` | Export neurons to markdown under `.brain/exports/` | `--project-dir`, `--full`, `--output` | `brainkm export` |
-| `brainkm import` | Merge neurons from JSON export | `--project-dir`, `--merge/--replace` | `brainkm import export.json --merge` |
+| `brainkm import` | Merge neurons from JSON export | `--project-dir` | `brainkm import export.json` |
 | `brainkm repair` | Rebuild FTS5 + integrity check | `--project-dir` | `brainkm repair` |
 
 ---

@@ -222,7 +222,7 @@ def supersede_neuron(
         if title is None:
             msg = "title required when creating replacement neuron"
             raise ValueError(msg)
-        new_record = create_neuron(
+        new_record = remember_neuron(
             conn,
             title=title,
             content=content,
@@ -230,6 +230,7 @@ def supersede_neuron(
             subtype=subtype,
             session_id=session_id,
             valid_from=effective_at,
+            source="mcp_supersede",
         )
         new_id = new_record.id
 

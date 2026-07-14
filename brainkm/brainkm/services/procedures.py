@@ -6,7 +6,7 @@ import hashlib
 import sqlite3
 
 from brainkm.models.brain_config import BrainConfig
-from brainkm.services.memory import create_neuron, new_ulid
+from brainkm.services.memory import new_ulid, remember_neuron
 from brainkm.services.search import resolve_node_ref
 
 _INTERNAL_TOOLS = frozenset(
@@ -90,7 +90,7 @@ def upsert_procedure_neuron(
     title = f"{' + '.join(list(dict.fromkeys(external_tools))[:2])}: {top_title}"[:160]
     steps = [f"{index + 1}. {line}" for index, line in enumerate(titles[:5])]
     body = "\n".join(steps) if steps else "1. Reuse previously successful tool chain."
-    record = create_neuron(
+    record = remember_neuron(
         conn,
         title=title,
         content=body,

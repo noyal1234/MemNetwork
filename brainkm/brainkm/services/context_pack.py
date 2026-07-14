@@ -581,8 +581,7 @@ def compile_context_pack(
         omitted_ids=manifest.omitted_ids,
         total_tokens=max(
             100,
-            config.budget.total_tokens
-            - (0 if include_structured else MCP_JSON_OVERHEAD_TOKENS),
+            config.budget.total_tokens - MCP_JSON_OVERHEAD_TOKENS,
         ),
     )
     final_ids = {line.node_id for line in neuron_kept + graph_kept + proc_kept}

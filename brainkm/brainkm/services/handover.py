@@ -19,7 +19,7 @@ from brainkm.models.handover import HandoverResult, PreCompactHookPayload
 from brainkm.services.capture import capture_transcript_file
 from brainkm.services.chunks import link_chunk_sources
 from brainkm.services.config_loader import load_brain_config
-from brainkm.services.memory import create_neuron, new_ulid
+from brainkm.services.memory import new_ulid, remember_neuron
 
 logger = get_logger("services.handover")
 
@@ -146,7 +146,7 @@ def _maybe_add_context_neuron(
         return 0
 
     try:
-        record = create_neuron(
+        record = remember_neuron(
             conn,
             title=context.title,
             content=context.body,

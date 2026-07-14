@@ -45,3 +45,13 @@ Full clone setup: [docs/INSTALL.md](docs/INSTALL.md).
 | `.cursor/rules/` | No | Policy rules + `brainkm.mdc` (local only) |
 
 Cursor rules in target projects are installed by `brainkm install` (V1).
+
+## Release checklist (version bump)
+
+When shipping a release, keep these in lockstep:
+
+1. `brainkm/pyproject.toml` → `version`
+2. `brainkm/brainkm/__init__.py` → `__version__`
+3. Docs status tables / expect strings: `docs/AI_PROJECT_BRIEF.md`, `docs/INSTALL.md`, `README.md`, `brainkm/README.md`, `.cursor/skills/memnetwork-backend/SKILL.md`
+4. `pytest tests/test_version.py` (asserts pyproject == `__version__`)
+5. Prefer adding a brief row to the Implementation status table in `AI_PROJECT_BRIEF.md`

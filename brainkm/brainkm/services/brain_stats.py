@@ -19,6 +19,7 @@ def collect_brain_stats(
     *,
     config: BrainConfig,
     project_dir: Path | None = None,
+    session_id: str | None = None,
 ) -> BrainStatsResponse:
     """Aggregate counts and graph freshness for agent/operator inspection."""
     kind_rows = conn.execute(
@@ -81,6 +82,10 @@ def collect_brain_stats(
     mcp_7d, mcp_30d, abstention_rate = _mcp_usage_stats(conn)
     dead_count = _dead_neuron_count(conn)
 
+    session_fields: dict = {}
+    if session_id:
+        session_fields = _session_scoped_stats(conn, session_id)
+
     return BrainStatsResponse(
         neurons_by_kind={str(row[0]): int(row[1]) for row in kind_rows},
         neurons_by_subtype={str(row[0]) or "(none)": int(row[1]) for row in subtype_rows},
@@ -96,7 +101,79 @@ def collect_brain_stats(
         mcp_calls_30d=mcp_30d,
         abstention_rate_7d=abstention_rate,
         dead_neuron_count=dead_count,
+        **session_fields,
     )
+
+
+def _session_scoped_stats(conn: sqlite3.Connection, session_id: str) -> dict:
+    """Per-session telemetry for brain_stats when session_id is provided."""
+    calls_by_tool: dict[str, int] = {}
+    neuron_hits = 0
+    try:
+        rows = conn.execute(
+            """
+            SELECT tool_name, source, COUNT(*) AS n
+            FROM session_activity
+            WHERE kind = 'tool_use'
+              AND session_id = ?
+              AND source IN ('mcp', 'mcp_abstained')
+            GROUP BY tool_name, source
+            """,
+            (session_id,),
+        ).fetchall()
+        for tool_name, _source, n in rows:
+            base = _base_tool_name(tool_name)
+            calls_by_tool[base] = calls_by_tool.get(base, 0) + int(n)
+
+        hit_row = conn.execute(
+            """
+            SELECT COUNT(*) FROM session_activity
+            WHERE kind = 'neuron_hit' AND session_id = ?
+            """,
+            (session_id,),
+        ).fetchone()
+        neuron_hits = int(hit_row[0]) if hit_row else 0
+    except sqlite3.OperationalError:
+        pass
+
+    injection_tokens: int | None = None
+    try:
+        snap = conn.execute(
+            """
+            SELECT token_count FROM session_snapshots
+            WHERE session_id = ?
+            """,
+            (session_id,),
+        ).fetchone()
+        if snap is not None:
+            injection_tokens = int(snap[0] or 0)
+    except sqlite3.OperationalError:
+        pass
+
+    distill_mode: str | None = None
+    neuron_count: int | None = None
+    try:
+        ingested = conn.execute(
+            """
+            SELECT distill_mode, neuron_count FROM ingested_sessions
+            WHERE session_id = ?
+            """,
+            (session_id,),
+        ).fetchone()
+        if ingested is not None:
+            distill_mode = str(ingested[0]) if ingested[0] is not None else None
+            neuron_count = int(ingested[1]) if ingested[1] is not None else None
+    except sqlite3.OperationalError:
+        pass
+
+    return {
+        "session_id": session_id,
+        "session_mcp_calls_by_tool": calls_by_tool,
+        "session_neuron_hits": neuron_hits,
+        "session_injection_tokens": injection_tokens,
+        "session_distill_mode": distill_mode,
+        "session_neuron_count": neuron_count,
+    }
 
 
 def _cutoff_iso(days: int) -> str:

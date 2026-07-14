@@ -44,6 +44,7 @@ class StoredChunk:
     role: str | None
     content: str
     ts: str
+    line_no: int | None = None
 
 
 @dataclass

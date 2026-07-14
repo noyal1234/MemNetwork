@@ -102,13 +102,17 @@ def test_adapter_includes_context_in_chat_payload(brain_db: Path) -> None:
             )
 
         assert neurons == []
-        assert len(captured) == 1
-        payload = captured[0]["json"]
+        # Preflight chat probe + distill chat completion.
+        distill_calls = [
+            c for c in captured if (c.get("json") or {}).get("response_format")
+        ]
+        assert len(distill_calls) == 1
+        payload = distill_calls[0]["json"]
         assert payload["messages"][0] == {"role": "system", "content": SYSTEM_PROMPT}
         assert "Use JWT for API auth" in payload["messages"][1]["content"]
         assert payload["response_format"] == {"type": "json_object"}
-        assert captured[0]["headers"]["Authorization"] == "Bearer gsk_test_key"
-        assert captured[0]["url"].endswith("/chat/completions")
+        assert distill_calls[0]["headers"]["Authorization"] == "Bearer gsk_test_key"
+        assert distill_calls[0]["url"].endswith("/chat/completions")
     finally:
         conn.close()
 
@@ -152,7 +156,8 @@ def test_adapter_parses_openai_style_response() -> None:
 def test_adapter_falls_back_when_unreachable() -> None:
     cfg = BrainConfig(capture={"distill_mode": "groq"})
     adapter = GroqDistillAdapter(cfg, conn=None, api_key="gsk_test_key")
-    fake_httpx = _fake_httpx_module(get_response=_FakeResponse(status_code=500))
+    # Preflight is now chat/completions — a 500 on POST forces rules fallback.
+    fake_httpx = _fake_httpx_module(post_response=_FakeResponse(status_code=500))
     round_ = _make_round(
         "USER: We decided to use JWT instead of session cookies for API auth."
     )
