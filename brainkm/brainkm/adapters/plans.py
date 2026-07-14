@@ -69,12 +69,20 @@ def distill_plan_file(
     conn: sqlite3.Connection | None = None,
 ) -> list[DistilledNeuron]:
     sections = chunk_plan_file(path)
-    adapter = get_distill_adapter(config, conn=conn)
+    adapter = get_distill_adapter(
+        config,
+        conn=conn,
+        project_dir=path.parent,
+        session_id=None,
+    )
     rounds = plan_rounds(sections)
+    round_chunk_ids = {round_.round_index: [f"plan:{path.name}:{round_.round_index}"] for round_ in rounds}
     distilled, _mode = distill_rounds_with_timeout(
         adapter,
         rounds,
+        round_chunk_ids=round_chunk_ids,
         max_total=config.capture.max_neurons_per_plan,
+        timeout_seconds=None,
         config=config,
     )
     return distilled

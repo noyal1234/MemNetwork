@@ -62,7 +62,8 @@ def _fake_httpx_module(*, get_response=None, post_response=None, post_capture: l
 
 def test_adapter_falls_back_without_api_key() -> None:
     cfg = BrainConfig(capture={"distill_mode": "groq"})
-    adapter = GroqDistillAdapter(cfg, conn=None, api_key=None)
+    # Empty string (not None) so env/.env GROQ_API_KEY cannot bypass the fallback path.
+    adapter = GroqDistillAdapter(cfg, conn=None, api_key="")
     round_ = _make_round(
         "USER: We decided to use JWT instead of session cookies for API auth."
     )

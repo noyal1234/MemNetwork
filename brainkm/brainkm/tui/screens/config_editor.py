@@ -11,7 +11,7 @@ from typing import Any
 from pydantic import ValidationError
 from textual import work
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Input, Label, Static
 from textual.worker import Worker
@@ -40,7 +40,7 @@ class ConfigEditorScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        with Vertical(id="config-container"):
+        with VerticalScroll(id="config-container"):
             yield Static(
                 escape_markup("[ CONFIG ]"),
                 classes="panel-title",
@@ -118,6 +118,18 @@ class ConfigEditorScreen(Screen):
                 exclusive=True,
                 exit_on_error=False,
             )
+        elif worker.group == "distill-status":
+            self._apply_distill_status(worker.result)
+
+    def _apply_distill_status(self, result: dict[str, Any]) -> None:
+        try:
+            line = self.query_one("#distill-status-line", Static)
+        except Exception:
+            return
+        if result.get("error"):
+            line.update(escape_markup(f"Distill readiness: unknown ({result['error']})"))
+            return
+        line.update(escape_markup(result.get("line", "Distill readiness: unknown")))
 
     async def _apply_loaded_config(self, result: dict) -> None:
         if result.get("error"):
@@ -131,7 +143,7 @@ class ConfigEditorScreen(Screen):
         forms_container = self.query_one("#config-forms", Vertical)
         await forms_container.remove_children()
 
-        forms: list[ConfigForm] = []
+        forms: list[Any] = []
         for section_name in SECTION_FIELDS:
             section_data = self._config_dict.get(section_name, {})
             if isinstance(section_data, dict):
@@ -140,6 +152,14 @@ class ConfigEditorScreen(Screen):
                         section_name,
                         section_data,
                         id=f"form-{section_name}",
+                    )
+                )
+            if section_name == "capture":
+                forms.append(
+                    Static(
+                        "Distill readiness: loading…",
+                        id="distill-status-line",
+                        classes="field-help",
                     )
                 )
 
@@ -152,6 +172,7 @@ class ConfigEditorScreen(Screen):
         status.update("")
         self._update_save_button()
         self._update_api_key_status()
+        self._load_distill_status()
 
     def _update_api_key_status(self) -> None:
         """Show the currently configured (masked) Groq API key."""
@@ -175,6 +196,25 @@ class ConfigEditorScreen(Screen):
         self._config_dict[event.section] = event.data
         self._dirty = True
         self._validate_config()
+        if event.section == "capture":
+            self._load_distill_status()
+
+    def _load_distill_status(self) -> None:
+        """Refresh the capture-section distill readiness line."""
+        self._do_load_distill_status()
+
+    @work(thread=True, group="distill-status", exclusive=True, exit_on_error=False)
+    def _do_load_distill_status(self) -> dict[str, Any]:
+        from brainkm.services.distill_status import (
+            build_distill_status,
+            format_distill_status_line,
+        )
+
+        try:
+            statuses = build_distill_status(project_dir=self._project_dir)
+            return {"line": f"Distill readiness: {format_distill_status_line(statuses)}"}
+        except Exception as exc:
+            return {"error": str(exc)}
 
     def on_input_changed(self, event: Input.Changed) -> None:
         """Track edits to the Groq API key input, which lives outside any

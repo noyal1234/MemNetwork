@@ -51,8 +51,20 @@ class RecallResponse(BaseModel):
 
 
 class ContextPackRequest(BaseModel):
-    query: str = Field(..., min_length=1)
+    query: str = Field(
+        ...,
+        min_length=1,
+        description=(
+            "Task query. Include a symbol name or file path so the code neighborhood "
+            "can be seeded from the AST graph (or pass seed_refs)."
+        ),
+    )
     session_id: str | None = None
+    seed_refs: list[str] = Field(
+        default_factory=list,
+        description="Optional symbol names or file paths to seed the code-graph neighborhood",
+        max_length=5,
+    )
 
 
 class TruncationManifest(BaseModel):
@@ -69,6 +81,7 @@ class ContextPackResponse(BaseModel):
     graph_nodes: list[NeuronResult] = Field(default_factory=list)
     truncation: TruncationManifest
     graph_available: bool = True
+    graph_hint: str | None = None
 
 
 class SessionStatusRequest(BaseModel):
@@ -85,7 +98,13 @@ class SessionStatusResponse(BaseModel):
 
 
 class TraverseRequest(BaseModel):
-    from_ref: str = Field(..., description="Node ID, file path, or symbol name")
+    from_ref: str = Field(
+        ...,
+        description=(
+            "Node ID, file path, or symbol name. Use before editing shared code "
+            "to see callers/importers (call/import/flow questions)."
+        ),
+    )
     to_ref: str | None = Field(None, description="Target; omit for 1-hop neighborhood")
     max_hops: int = Field(default=1, ge=1, le=2)
     relationship: str | None = Field(None, description="Filter: imports|calls|supersedes|...")

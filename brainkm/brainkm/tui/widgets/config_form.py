@@ -19,7 +19,12 @@ SECTION_FIELDS: dict[str, list[dict[str, Any]]] = {
             "key": "distill_mode",
             "label": "Distill Mode",
             "type": "select",
-            "options": ["rules", "cursor", "ollama", "groq"],
+            "options": [
+                ("cursor — heuristic, rule-based (default, no setup)", "cursor"),
+                ("rules — pure pattern-match, offline", "rules"),
+                ("ollama — local LLM (needs Ollama daemon)", "ollama"),
+                ("groq — cloud LLM (needs GROQ_API_KEY)", "groq"),
+            ],
             "help": "How to extract neurons from transcripts",
         },
         {
@@ -193,6 +198,18 @@ SECTION_FIELDS: dict[str, list[dict[str, Any]]] = {
             "max": 1800,
             "help": "Timeout for graphify extract subprocess",
         },
+        {
+            "key": "auto_sync.enabled",
+            "label": "Auto Sync",
+            "type": "bool",
+            "help": "Background sync via MCP scheduler (PostToolUse flag)",
+        },
+        {
+            "key": "auto_sync.watch_filesystem",
+            "label": "Watch Filesystem",
+            "type": "bool",
+            "help": "Opt-in: watch source files for multi-IDE edits (restart MCP after change)",
+        },
     ],
 }
 
@@ -230,8 +247,9 @@ class ConfigForm(Static):
 
         for field in self._fields:
             key = field["key"]
-            current = self._values.get(key, "")
-            field_id = f"field-{self._section}-{key}"
+            current = self._get_nested(key)
+            # Nested keys use "__" in widget IDs (dots are invalid / ambiguous).
+            field_id = f"field-{self._section}-{key.replace('.', '__')}"
 
             with Vertical(classes="config-field"):
                 with Horizontal(classes="config-field-row"):
@@ -240,7 +258,7 @@ class ConfigForm(Static):
                     if field["type"] == "bool":
                         yield Switch(value=bool(current), id=field_id)
                     elif field["type"] == "select":
-                        options = [(opt, opt) for opt in field["options"]]
+                        options = self._select_options(field["options"])
                         yield Select(
                             options,
                             value=str(current),
@@ -249,13 +267,13 @@ class ConfigForm(Static):
                         )
                     elif field["type"] in ("int", "float"):
                         yield Input(
-                            value=str(current),
+                            value=str(current if current is not None else ""),
                             id=field_id,
                             type="number",
                         )
                     else:
                         yield Input(
-                            value=str(current),
+                            value=str(current if current is not None else ""),
                             id=field_id,
                             type="text",
                         )
@@ -277,7 +295,8 @@ class ConfigForm(Static):
         prefix = f"field-{self._section}-"
         if not field_id.startswith(prefix):
             return
-        key = field_id[len(prefix):]
+        # Restore dotted keys from "__"-encoded widget ids.
+        key = field_id[len(prefix):].replace("__", ".")
 
         field_def = next((f for f in self._fields if f["key"] == key), None)
         if field_def is None:
@@ -288,14 +307,40 @@ class ConfigForm(Static):
         except (ValueError, TypeError):
             return  # Ignore invalid input until user fixes it
 
-        if value == self._values.get(key):
+        if value == self._get_nested(key):
             # Select/Switch/Input widgets fire a Changed event when they are
             # first mounted with their initial value (a Textual quirk) —
             # that is not a real user edit, so don't mark the form dirty.
             return
 
-        self._values[key] = value
+        self._set_nested(key, value)
         self.post_message(self.Changed(self._section, dict(self._values)))
+
+    def _get_nested(self, key: str) -> Any:
+        """Read a flat or one-level dotted key from the section dict."""
+        if "." not in key:
+            return self._values.get(key, "")
+        parent, child = key.split(".", 1)
+        nested = self._values.get(parent)
+        if not isinstance(nested, dict):
+            return ""
+        return nested.get(child, "")
+
+    def _set_nested(self, key: str, value: Any) -> None:
+        """Write a flat or one-level dotted key without wiping siblings."""
+        if "." not in key:
+            self._values[key] = value
+            return
+        parent, child = key.split(".", 1)
+        nested = self._values.get(parent)
+        if not isinstance(nested, dict):
+            nested = {}
+            self._values[parent] = nested
+        else:
+            # Copy so we do not mutate a shared raw-config reference unexpectedly.
+            nested = dict(nested)
+            self._values[parent] = nested
+        nested[child] = value
 
     def _coerce(self, raw: Any, field_def: dict) -> Any:
         ftype = field_def["type"]
@@ -310,3 +355,14 @@ class ConfigForm(Static):
     def get_values(self) -> dict[str, Any]:
         """Return the current field values."""
         return dict(self._values)
+
+    @staticmethod
+    def _select_options(raw_options: list[Any]) -> list[tuple[str, str]]:
+        """Normalize select options as (label, value) pairs."""
+        options: list[tuple[str, str]] = []
+        for opt in raw_options:
+            if isinstance(opt, (list, tuple)) and len(opt) == 2:
+                options.append((str(opt[0]), str(opt[1])))
+            else:
+                options.append((str(opt), str(opt)))
+        return options

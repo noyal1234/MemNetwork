@@ -397,6 +397,7 @@ def build_graph_status(
         "last_import_at": last_import_at,
         "code_node_count": code_node_count,
         "auto_sync_enabled": cfg.graphify.auto_sync.enabled,
+        "watch_filesystem_enabled": cfg.graphify.auto_sync.watch_filesystem,
         "sync_request_pending": pending_request,
     }
 
@@ -412,6 +413,7 @@ class GraphSyncScheduler:
         self._debounce_timer: threading.Timer | None = None
         self._debounce_lock = threading.Lock()
         self._sync_in_progress = threading.Event()
+        self._fs_watch: object | None = None
 
     def start(self) -> None:
         if self._thread is not None and self._thread.is_alive():
@@ -423,11 +425,13 @@ class GraphSyncScheduler:
             daemon=True,
         )
         self._thread.start()
+        self._maybe_start_filesystem_watch()
         self._maybe_schedule_startup_sync()
         logger.info("GraphSyncScheduler started project_dir=%s", self.project_dir)
 
     def stop(self, *, timeout: float = STOP_JOIN_TIMEOUT_SECONDS) -> None:
         self._stop.set()
+        self._stop_filesystem_watch()
         with self._debounce_lock:
             if self._debounce_timer is not None:
                 self._debounce_timer.cancel()
@@ -436,6 +440,29 @@ class GraphSyncScheduler:
             self._thread.join(timeout=timeout)
             self._thread = None
         logger.info("GraphSyncScheduler stopped project_dir=%s", self.project_dir)
+
+    def _maybe_start_filesystem_watch(self) -> None:
+        auto = self.config.graphify.auto_sync
+        if (
+            not self.config.graphify.enabled
+            or not auto.enabled
+            or not auto.watch_filesystem
+        ):
+            return
+        from brainkm.services.graphify_watch import GraphifyFilesystemWatch
+
+        watch = GraphifyFilesystemWatch(self.project_dir, config=self.config)
+        watch.start()
+        self._fs_watch = watch
+
+    def _stop_filesystem_watch(self) -> None:
+        watch = self._fs_watch
+        self._fs_watch = None
+        if watch is None:
+            return
+        stop = getattr(watch, "stop", None)
+        if callable(stop):
+            stop(timeout=5.0)
 
     def _maybe_schedule_startup_sync(self) -> None:
         flag = _request_flag_path(self.project_dir)

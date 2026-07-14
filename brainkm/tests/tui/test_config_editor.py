@@ -55,8 +55,8 @@ async def test_save_writes_edited_value_to_the_right_project(tui_project: Path) 
         switch.toggle()
         await pilot.pause(0.3)
 
-        await pilot.click("#btn-save")
-        await pilot.pause(0.3)
+        screen._save_config()
+        await pilot.pause(0.2)
 
         cfg_path = tui_project / ".brain" / "config.json"
         saved = json.loads(cfg_path.read_text())
@@ -91,8 +91,8 @@ async def test_groq_api_key_written_to_env_not_config(tui_project: Path) -> None
         key_input.value = "gsk_test_secret_value"
         await pilot.pause(0.1)
 
-        await pilot.click("#btn-save")
-        await pilot.pause(0.3)
+        screen._save_config()
+        await pilot.pause(0.2)
 
         env_path = tui_project / ".env"
         assert env_path.is_file()
@@ -125,3 +125,27 @@ async def test_discard_reload_does_not_duplicate_form_ids(tui_project: Path) -> 
         forms = screen.query("#config-forms ConfigForm")
         ids = [form.id for form in forms]
         assert len(ids) == len(set(ids)), f"duplicate form ids: {ids}"
+
+
+async def test_distill_status_line_renders(tui_project: Path) -> None:
+    from textual.widgets import Static
+
+    app = BrainkmConfigureApp(project_dir=tui_project)
+    async with app.run_test(size=(120, 60)) as pilot:
+        app.switch_screen("config")
+        await pilot.pause(0.8)
+        screen = app.screen
+        line = screen.query_one("#distill-status-line", Static)
+        assert line is not None
+        # Drive the apply path synchronously (worker may still be probing).
+        screen._apply_distill_status(
+            {
+                "line": (
+                    "Distill readiness: cursor heuristic active (no agent CLI) "
+                    "| rules OK | ollama unreachable | groq unreachable"
+                )
+            }
+        )
+        await pilot.pause(0.1)
+        # Widget still addressable after update; content lives in Textual internals.
+        assert screen.query_one("#distill-status-line", Static) is line

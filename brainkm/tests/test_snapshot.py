@@ -27,6 +27,54 @@ def test_render_injection_pack_groups_sections() -> None:
     assert "Never log secrets" in pack
 
 
+def test_render_injection_pack_includes_graph_status() -> None:
+    pack = render_injection_pack(
+        [SnapshotNeuron("1", "memory", "rule", "Rule", "Body", 5)],
+        graph_status=(
+            "Code graph: 12 nodes / 34 edges. "
+            "For call/import/flow questions use traverse or context_pack with a symbol "
+            "before reading 3+ files."
+        ),
+    )
+    assert "Code graph: 12 nodes / 34 edges" in pack
+    assert "traverse" in pack
+
+
+def test_frozen_snapshot_advertises_graph_when_imported(brain_db) -> None:
+    from tests.conftest import insert_node
+
+    conn = connect(brain_db)
+    try:
+        conn.execute(
+            """
+            INSERT INTO graph_import_runs (id, started_at, completed_at, status, node_count, edge_count)
+            VALUES ('run1', '2026-01-01T00:00:00Z', '2026-01-01T00:00:01Z', 'completed', 1, 0)
+            """
+        )
+        insert_node(
+            conn,
+            node_id="code1",
+            kind="code",
+            subtype="file",
+            title="a.py",
+            path="a.py",
+        )
+        create_neuron(
+            conn,
+            title="Use JWT for API authentication",
+            content="Access tokens expire after 15 minutes.",
+            subtype="decision",
+            node_id="decision-jwt",
+        )
+        conn.commit()
+
+        snapshot = build_frozen_snapshot(conn, "sess-graph", BrainConfig())
+        assert "Code graph:" in snapshot.pack_text
+        assert "traverse" in snapshot.pack_text
+    finally:
+        conn.close()
+
+
 def test_frozen_snapshot_excludes_mid_session_remember(brain_db) -> None:
     conn = connect(brain_db)
     try:

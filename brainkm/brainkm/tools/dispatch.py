@@ -157,6 +157,7 @@ def handle_context_pack(
         request.query,
         config=config,
         project_dir=project_dir,
+        seed_refs=request.seed_refs or None,
     )
     get_learning_window().record_neuron_hits(
         request.session_id,

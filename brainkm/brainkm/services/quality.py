@@ -13,6 +13,13 @@ BOILERPLATE = re.compile(
     r"^(thanks|thank you|ok|okay|sure|done|yes|no|hello|hi)\.?$",
     re.IGNORECASE,
 )
+TRANSCRIPT_CHROME = re.compile(
+    r"(?is)(?:^|\n)\s*(?:user|assistant|system)\s*:|"
+    r"<user_query>|"
+    r"</user_query>|"
+    r"<timestamp>|"
+    r"\[tool_use:",
+)
 
 
 def passes_quality_gate(item: DistilledNeuron) -> bool:
@@ -23,6 +30,8 @@ def passes_quality_gate(item: DistilledNeuron) -> bool:
     if len(body) < MIN_BODY_LEN:
         return False
     if BOILERPLATE.match(title):
+        return False
+    if TRANSCRIPT_CHROME.search(title) or TRANSCRIPT_CHROME.search(body):
         return False
     if not item.is_atomic():
         return False

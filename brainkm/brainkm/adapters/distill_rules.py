@@ -52,6 +52,13 @@ def _classify_sentence(sentence: str) -> str:
     return "fact"
 
 
+_ROLE_PREFIX = re.compile(r"^(?:USER|ASSISTANT|SYSTEM|TOOL)\s*:\s*", re.IGNORECASE)
+
+
+def _strip_role_prefix(sentence: str) -> str:
+    return _ROLE_PREFIX.sub("", sentence).strip()
+
+
 def _title_from_sentence(sentence: str, *, max_len: int = 120) -> str:
     cleaned = re.sub(r"\s+", " ", sentence).strip()
     if len(cleaned) <= max_len:
@@ -70,7 +77,10 @@ def distill_round(
     candidates: list[DistilledNeuron] = []
 
     for sentence in sentences:
+        sentence = _strip_role_prefix(sentence)
         if len(sentence) < 20:
+            continue
+        if sentence.lower().startswith("[tool_use:"):
             continue
         subtype = _classify_sentence(sentence)
         if subtype == "fact" and len(sentence) < 40:

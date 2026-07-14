@@ -26,6 +26,7 @@ def test_brain_config_defaults() -> None:
     assert cfg.graphify.sync_on_install is True
     assert cfg.graphify.auto_sync.enabled is True
     assert cfg.graphify.auto_sync.debounce_seconds == 60.0
+    assert cfg.graphify.auto_sync.watch_filesystem is False
     assert cfg.semantic is False
     assert cfg.ollama.auto_select_model is False
     assert cfg.ollama.model == "qwen2.5:3b"

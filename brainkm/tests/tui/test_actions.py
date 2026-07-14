@@ -17,6 +17,7 @@ from brainkm.tui.widgets.rich_log_panel import RichLogPanel
         "btn-graph-status",
         "btn-ollama-doctor",
         "btn-groq-doctor",
+        "btn-cursor-doctor",
         "btn-export",
         "btn-repair",
         "btn-bench-token",

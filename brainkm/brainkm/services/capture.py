@@ -120,7 +120,12 @@ def capture_transcript_file(
         stored_chunks = persist_message_chunks(conn, parsed)
         round_chunk_ids = map_round_chunk_ids(parsed, stored_chunks)
 
-        adapter = get_distill_adapter(cfg, conn=conn)
+        adapter = get_distill_adapter(
+            cfg,
+            conn=conn,
+            project_dir=review_project_dir,
+            session_id=parsed.session_id,
+        )
         distilled, distill_mode = distill_rounds_with_timeout(
             adapter,
             parsed.rounds,

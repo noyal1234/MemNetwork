@@ -109,7 +109,7 @@ Troubleshooting:
 | `rules` | Rule-based (default path) | None |
 | `ollama` | Local Ollama (`qwen2.5:3b` default) | `pip install -e "./brainkm[ollama]"` + `brainkm ollama doctor` |
 | `groq` | Free cloud Groq (`llama-3.3-70b-versatile`) | `pip install -e "./brainkm[cloud]"` + `GROQ_API_KEY` + `brainkm groq doctor` |
-| `cursor` | Cursor-side stub | Hooks only |
+| `cursor` | Cursor agent CLI when installed; else Cursor-aware heuristic distill (strips `<user_query>` / tool_use chrome). Optional pre-distilled JSON at `.brain/pending/cursor-distill/<session_id>.json` | `agent` / `cursor-agent` on PATH (optional) |
 
 Set in `.brain/config.json`:
 

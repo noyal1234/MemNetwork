@@ -47,6 +47,7 @@ class ActionsScreen(Screen):
                 yield Button(bracket_label("Graph Status"), id="btn-graph-status")
                 yield Button(bracket_label("Ollama Doctor"), id="btn-ollama-doctor")
                 yield Button(bracket_label("Groq Doctor"), id="btn-groq-doctor")
+                yield Button(bracket_label("Cursor Doctor"), id="btn-cursor-doctor")
 
             with Horizontal(classes="action-buttons-row"):
                 yield Button(bracket_label("Export"), id="btn-export")
@@ -83,6 +84,7 @@ class ActionsScreen(Screen):
             "btn-graph-status": self._run_graph_status,
             "btn-ollama-doctor": self._run_ollama_doctor,
             "btn-groq-doctor": self._run_groq_doctor,
+            "btn-cursor-doctor": self._run_cursor_doctor,
             "btn-export": self._run_export,
             "btn-repair": self._run_repair,
             "btn-viz-open": self._run_viz_open,
@@ -170,6 +172,23 @@ class ActionsScreen(Screen):
         return {
             "action": "groq_doctor",
             "formatted": format_groq_report(report),
+        }
+
+    def _run_cursor_doctor(self) -> None:
+        self._begin_action("Running Cursor doctor…")
+        self._do_cursor_doctor()
+
+    @work(thread=True, group="action", exit_on_error=False)
+    def _do_cursor_doctor(self) -> dict[str, Any]:
+        from brainkm.services.cursor_advisor import (
+            build_cursor_doctor_report,
+            format_cursor_report,
+        )
+
+        report = build_cursor_doctor_report(project_dir=self._project_dir)
+        return {
+            "action": "cursor_doctor",
+            "formatted": format_cursor_report(report),
         }
 
     def _run_export(self) -> None:
@@ -333,11 +352,12 @@ class ActionsScreen(Screen):
 
         elif action == "graph_status":
             for key in ("graphify_found", "graph_json_exists", "graph_stale",
-                        "graph_available", "code_node_count", "auto_sync_enabled"):
+                        "graph_available", "code_node_count", "auto_sync_enabled",
+                        "watch_filesystem_enabled"):
                 if key in result:
                     self.log_panel.log_plain(f"{key}: {result[key]}")
 
-        elif action in ("ollama_doctor", "groq_doctor"):
+        elif action in ("ollama_doctor", "groq_doctor", "cursor_doctor"):
             formatted = result.get("formatted", "")
             for line in formatted.strip().splitlines():
                 self.log_panel.log_plain(line)

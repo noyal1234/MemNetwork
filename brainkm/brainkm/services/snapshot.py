@@ -9,6 +9,7 @@ from brainkm.logging_config import get_logger
 from brainkm.models.brain_config import BrainConfig
 from brainkm.models.snapshot import InjectionSnapshot, SnapshotNeuron
 from brainkm.services.audit import utc_now_iso
+from brainkm.services.channel_health import graph_available, graph_counts
 from brainkm.services.memory import new_ulid, token_count
 
 logger = get_logger("services.snapshot")
@@ -145,9 +146,32 @@ def select_injection_neurons(
     return selected
 
 
-def render_injection_pack(neurons: list[SnapshotNeuron]) -> str:
+def _graph_status_line(conn: sqlite3.Connection) -> str | None:
+    if not graph_available(conn):
+        return None
+    node_count, edge_count = graph_counts(conn)
+    return (
+        f"Code graph: {node_count} nodes / {edge_count} edges. "
+        "For call/import/flow questions use traverse or context_pack with a symbol "
+        "before reading 3+ files."
+    )
+
+
+def render_injection_pack(
+    neurons: list[SnapshotNeuron],
+    *,
+    graph_status: str | None = None,
+) -> str:
     if not neurons:
-        return "# MemNetwork brain (frozen snapshot)\n\nNo pinned rules or context neurons yet.\n"
+        lines = [
+            "# MemNetwork brain (frozen snapshot)",
+            "",
+            "No pinned rules or context neurons yet.",
+            "",
+        ]
+        if graph_status:
+            lines.extend([graph_status, ""])
+        return "\n".join(lines)
 
     sections: dict[str, list[SnapshotNeuron]] = {
         "Pinned": [],
@@ -166,6 +190,8 @@ def render_injection_pack(neurons: list[SnapshotNeuron]) -> str:
             sections["Pinned"].append(neuron)
 
     lines = ["# MemNetwork brain (frozen snapshot)", ""]
+    if graph_status:
+        lines.extend([graph_status, ""])
     for heading, items in sections.items():
         if not items:
             continue
@@ -239,9 +265,11 @@ def build_frozen_snapshot(
     context_hint: str | None = None,
 ) -> InjectionSnapshot:
     """Build or return the frozen injection snapshot for a session."""
+    graph_status = _graph_status_line(conn)
+
     if not config.injection.frozen_snapshot:
         neurons = select_injection_neurons(conn, config, context_hint=context_hint)
-        pack_text = render_injection_pack(neurons)
+        pack_text = render_injection_pack(neurons, graph_status=graph_status)
         now = utc_now_iso()
         return InjectionSnapshot(
             session_id=session_id,
@@ -262,7 +290,7 @@ def build_frozen_snapshot(
         return existing
 
     neurons = select_injection_neurons(conn, config, context_hint=context_hint)
-    pack_text = render_injection_pack(neurons)
+    pack_text = render_injection_pack(neurons, graph_status=graph_status)
     now = utc_now_iso()
     snapshot = InjectionSnapshot(
         session_id=session_id,

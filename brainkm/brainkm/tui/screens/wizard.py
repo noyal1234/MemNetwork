@@ -54,7 +54,7 @@ class WizardScreen(Screen):
         super().__init__()
         self._project_dir = project_dir or Path.cwd()
         self._current_step = 0
-        self._distill_mode = "rules"
+        self._distill_mode = "cursor"
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -103,10 +103,24 @@ class WizardScreen(Screen):
                     classes="step-description",
                 )
                 with RadioSet(id="wizard-distill-radio"):
-                    yield RadioButton("rules — Zero-dependency default; offline", value=True)
-                    yield RadioButton("ollama — Local LLM on your machine")
-                    yield RadioButton("groq — Free cloud API (needs API key)")
-                    yield RadioButton("cursor — Cursor-side distill (V1 stub)")
+                    yield RadioButton(
+                        "cursor — heuristic, rule-based (default, recommended)",
+                        value=True,
+                        id="radio-distill-cursor",
+                    )
+                    yield RadioButton(
+                        "rules — pure pattern-match, offline",
+                        id="radio-distill-rules",
+                    )
+                    yield RadioButton(
+                        "ollama — local LLM (needs Ollama daemon)",
+                        id="radio-distill-ollama",
+                    )
+                    yield RadioButton(
+                        "groq — cloud LLM (needs GROQ_API_KEY)",
+                        id="radio-distill-groq",
+                    )
+                yield Static("", id="wizard-distill-status")
 
             # --- Step 5: API key ---
             with Vertical(classes="wizard-step", id=STEP_APIKEY):
@@ -144,12 +158,14 @@ class WizardScreen(Screen):
             # --- Log panel ---
             yield RichLogPanel(title="[ WIZARD LOG ]", id="wizard-log")
 
-        # --- Navigation buttons ---
-        with Horizontal(id="wizard-nav"):
-            yield Button(bracket_label("Back"), id="btn-wizard-back", disabled=True)
-            yield Button(bracket_label("Run Step"), id="btn-wizard-run", classes="-primary")
-            yield Button(bracket_label("Skip"), id="btn-wizard-skip")
-            yield Button(bracket_label("Dashboard"), id="btn-wizard-finish", disabled=True)
+            # --- Navigation buttons (inside container so Footer doesn't cover them) ---
+            with Horizontal(id="wizard-nav"):
+                yield Button(bracket_label("Back"), id="btn-wizard-back", disabled=True)
+                yield Button(bracket_label("Run Step"), id="btn-wizard-run", classes="-primary")
+                yield Button(bracket_label("Skip"), id="btn-wizard-skip")
+                yield Button(
+                    bracket_label("Dashboard"), id="btn-wizard-finish", disabled=True
+                )
         yield Footer()
 
     @property
@@ -159,25 +175,27 @@ class WizardScreen(Screen):
     def on_mount(self) -> None:
         self._update_step_visibility()
         self._check_project()
+        self._annotate_distill_radios()
 
     # ------------------------------------------------------------------
     # Step management
     # ------------------------------------------------------------------
 
     def _update_step_visibility(self) -> None:
-        """Highlight the current step, dim completed ones."""
+        """Show only the active step; hide the rest."""
         for i, step_id in enumerate(STEPS):
             try:
                 step = self.query_one(f"#{step_id}")
             except Exception:
                 continue
-            if i < self._current_step:
-                step.styles.opacity = 0.5
-            elif i == self._current_step:
+            if i == self._current_step:
+                step.display = True
                 step.styles.opacity = 1.0
-                step.styles.border = ("round", "violet")
+                step.styles.border = ("solid", "#7c3aed")
             else:
-                step.styles.opacity = 0.4
+                step.display = False
+                step.styles.opacity = 1.0
+                step.styles.border = ("solid", "#4a4455")
 
         # Update nav buttons
         back_btn = self.query_one("#btn-wizard-back", Button)
@@ -280,15 +298,36 @@ class WizardScreen(Screen):
         except Exception as exc:
             return {"step": STEP_DOCTOR, "error": str(exc)}
 
+    def _annotate_distill_radios(self) -> None:
+        """Probe backends and annotate distill radio labels with readiness."""
+        self._do_annotate_distill_radios()
+
+    @work(thread=True, group="wizard-annotate", exclusive=True, exit_on_error=False)
+    def _do_annotate_distill_radios(self) -> dict[str, Any]:
+        from brainkm.services.distill_status import (
+            build_distill_status,
+            format_distill_status_line,
+        )
+
+        try:
+            statuses = build_distill_status(project_dir=self._project_dir)
+            return {
+                "step": "annotate-distill",
+                "by_mode": {s.mode: {"ready": s.ready, "detail": s.detail} for s in statuses},
+                "line": format_distill_status_line(statuses),
+            }
+        except Exception as exc:
+            return {"step": "annotate-distill", "error": str(exc)}
+
     def _apply_distill_mode(self) -> None:
         """Step 4: Read radio selection and write to config."""
-        mode_map = {0: "rules", 1: "ollama", 2: "groq", 3: "cursor"}
+        mode_map = {0: "cursor", 1: "rules", 2: "ollama", 3: "groq"}
         try:
             radio_set = self.query_one("#wizard-distill-radio", RadioSet)
             idx = radio_set.pressed_index
-            self._distill_mode = mode_map.get(idx, "rules")
+            self._distill_mode = mode_map.get(idx, "cursor")
         except Exception:
-            self._distill_mode = "rules"
+            self._distill_mode = "cursor"
 
         self.log_panel.log_info(f"Selected distill mode: {self._distill_mode}")
         self._do_apply_distill()
@@ -382,12 +421,59 @@ class WizardScreen(Screen):
     # ------------------------------------------------------------------
 
     def _on_worker_state_changed(self, event: Worker.StateChanged) -> None:
-        if event.worker.group != "wizard":
+        if event.state == WorkerState.ERROR:
+            if event.worker.group == "wizard":
+                self.log_panel.log_error(f"Step failed: {event.worker.error}")
             return
-        if event.state == WorkerState.SUCCESS:
+        if event.state != WorkerState.SUCCESS:
+            return
+        if event.worker.group == "wizard-annotate":
+            self._handle_annotate_result(event.worker.result)
+            return
+        if event.worker.group == "wizard":
             self._handle_wizard_result(event.worker.result)
-        elif event.state == WorkerState.ERROR:
-            self.log_panel.log_error(f"Step failed: {event.worker.error}")
+
+    def _handle_annotate_result(self, result: dict[str, Any]) -> None:
+        if result.get("error"):
+            try:
+                status = self.query_one("#wizard-distill-status", Static)
+                status.update(
+                    f"[dim]Readiness probe failed: {escape_markup(str(result['error']))}[/]"
+                )
+            except Exception:
+                pass
+            return
+
+        base_labels = {
+            "cursor": "cursor — heuristic, rule-based (default, recommended)",
+            "rules": "rules — pure pattern-match, offline",
+            "ollama": "ollama — local LLM (needs Ollama daemon)",
+            "groq": "groq — cloud LLM (needs GROQ_API_KEY)",
+        }
+        by_mode = result.get("by_mode") or {}
+        for mode, base in base_labels.items():
+            try:
+                button = self.query_one(f"#radio-distill-{mode}", RadioButton)
+            except Exception:
+                continue
+            info = by_mode.get(mode) or {}
+            detail = str(info.get("detail", ""))
+            ready = bool(info.get("ready", False))
+            if mode in ("cursor", "rules"):
+                suffix = f" — {detail}" if detail else ""
+            elif ready:
+                suffix = " — ready"
+            else:
+                suffix = f" — {detail}" if detail else " — unreachable"
+            button.label = f"{base}{suffix}"
+
+        try:
+            status = self.query_one("#wizard-distill-status", Static)
+            status.update(
+                f"[dim]{escape_markup(result.get('line', ''))}[/]"
+            )
+        except Exception:
+            pass
 
     def _handle_wizard_result(self, result: dict[str, Any]) -> None:
         step = result.get("step", "")

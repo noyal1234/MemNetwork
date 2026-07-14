@@ -154,29 +154,34 @@ Footer > .footer--highlight {
     layout: vertical;
     height: 1fr;
     padding: 1 1;
+    overflow-y: auto;
 }
 
 #dashboard-body {
     layout: horizontal;
-    height: 1fr;
+    height: auto;
+    min-height: 100%;
 }
 
 #status-sidebar {
     width: 32;
     min-width: 28;
-    height: 1fr;
+    height: auto;
+    min-height: 100%;
     padding: 0 1 0 0;
 }
 
 #status-sidebar .status-panel {
-    height: 1fr;
+    height: auto;
+    min-height: 100%;
     margin: 0;
 }
 
 #dashboard-main {
     layout: vertical;
     width: 1fr;
-    height: 1fr;
+    height: auto;
+    min-height: 100%;
     padding: 0 0 0 1;
 }
 
@@ -270,7 +275,8 @@ Footer > .footer--highlight {
 
 #review-section {
     layout: vertical;
-    height: 1fr;
+    height: auto;
+    min-height: 12;
     border: solid $border;
     background: $surface-alt;
     padding: 0;
@@ -297,7 +303,8 @@ Footer > .footer--highlight {
 }
 
 #review-section #review-table {
-    height: 1fr;
+    height: auto;
+    min-height: 8;
     padding: 0 1;
 }
 
@@ -451,40 +458,60 @@ Footer > .footer--highlight {
 
 #wizard-container {
     layout: vertical;
-    padding: 2 4;
+    height: 1fr;
+    padding: 1 2;
     overflow-y: auto;
 }
 
 .wizard-step {
+    /* Keep padding small: border + large padding can leave 0 content rows
+       (same pitfall as Header/Footer height:1 + border). */
+    height: auto;
     border: solid $border;
     background: $surface-alt;
-    padding: 2 3;
-    margin: 1 0;
+    padding: 1 2;
+    margin: 0 0 1 0;
 }
 
 .wizard-step .step-title {
     text-style: bold;
     color: $primary;
-    margin-bottom: 1;
+    height: 1;
+    margin-bottom: 0;
 }
 
 .wizard-step .step-description {
     color: $text-muted;
-    margin-bottom: 1;
+    height: auto;
+    margin-bottom: 0;
+}
+
+#wizard-container #wizard-log {
+    /* Don't let the log steal the whole viewport from the steps. */
+    height: 10;
+    min-height: 8;
+    max-height: 12;
 }
 
 #wizard-nav {
-    dock: bottom;
     height: 3;
     layout: horizontal;
-    padding: 0 4;
-    background: $surface;
-    border-top: solid $border;
+    padding: 1 0 0 0;
+    align: left middle;
 }
 
 #wizard-nav Button {
     margin: 0 1;
     min-width: 14;
+    /* Border eats the label row when height is 1 — match dashboard compact buttons. */
+    height: 1;
+    border: none;
+    padding: 0 1;
+}
+
+#wizard-nav Button:hover,
+#wizard-nav Button:focus {
+    border: none;
 }
 
 /* === Shared panel titles (Actions / Config / Wizard) === */

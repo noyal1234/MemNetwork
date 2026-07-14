@@ -320,6 +320,7 @@ def graph_status_cmd(
     if status["last_import_at"]:
         typer.echo(f"last_import_at: {status['last_import_at']}")
     typer.echo(f"auto_sync_enabled: {status['auto_sync_enabled']}")
+    typer.echo(f"watch_filesystem_enabled: {status['watch_filesystem_enabled']}")
     typer.echo(f"sync_request_pending: {status['sync_request_pending']}")
 
 
@@ -579,6 +580,9 @@ app.add_typer(ollama_app, name="ollama")
 groq_app = typer.Typer(help="Groq cloud distill diagnostics")
 app.add_typer(groq_app, name="groq")
 
+cursor_app = typer.Typer(help="Cursor agent CLI distill diagnostics")
+app.add_typer(cursor_app, name="cursor")
+
 
 @ollama_app.command("doctor")
 def ollama_doctor_cmd(
@@ -638,6 +642,31 @@ def groq_doctor_cmd(
     typer.echo(format_groq_report(report))
     if not report.api_key_present or not report.status.reachable:
         raise typer.Exit(code=1)
+
+
+@cursor_app.command("doctor")
+def cursor_doctor_cmd(
+    project_dir: Path | None = typer.Option(
+        None,
+        "--project-dir",
+        help="Target project root (defaults to cwd)",
+    ),
+) -> None:
+    """Report Cursor agent CLI presence and distill_mode readiness."""
+    from brainkm.services.config_loader import config_path
+    from brainkm.services.cursor_advisor import (
+        build_cursor_doctor_report,
+        format_cursor_report,
+    )
+
+    cfg_path = config_path(project_dir)
+    if not cfg_path.is_file():
+        typer.echo(f"Config not found: {cfg_path}", err=True)
+        raise typer.Exit(code=1)
+
+    report = build_cursor_doctor_report(project_dir=project_dir)
+    typer.echo(format_cursor_report(report))
+
 
 @review_app.command("list")
 def review_list_cmd(project_dir: Path | None = typer.Option(None, "--project-dir")) -> None:

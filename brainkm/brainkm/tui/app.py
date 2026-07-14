@@ -29,7 +29,7 @@ class BrainkmConfigureApp(App):
         - wizard: first-run guided setup (Phase 4)
     """
 
-    TITLE = "brainkm configure"
+    TITLE = "BrainKm"
     CSS_PATH = _CSS_PATH if _CSS_PATH.is_file() else None
 
     BINDINGS = [

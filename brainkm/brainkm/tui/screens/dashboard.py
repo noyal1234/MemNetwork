@@ -7,7 +7,7 @@ from typing import Any
 
 from textual import work
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Static
 from textual.worker import Worker, WorkerState
@@ -40,7 +40,7 @@ class DashboardScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        with Vertical(id="dashboard-container"):
+        with VerticalScroll(id="dashboard-container"):
             with Horizontal(id="dashboard-body"):
                 with Vertical(id="status-sidebar"):
                     yield StatusPanel(title="[ STATUS ]", id="brain-status")
@@ -126,11 +126,21 @@ class DashboardScreen(Screen):
         result: dict[str, Any] = {}
         try:
             from brainkm.services.config_loader import load_brain_config
+            from brainkm.services.distill_status import (
+                active_distill_display,
+                build_distill_status,
+            )
 
             cfg = load_brain_config(self._project_dir)
             result["distill_mode"] = cfg.capture.distill_mode
+            statuses = build_distill_status(project_dir=self._project_dir)
+            _mode, display, color = active_distill_display(statuses)
+            result["distill_display"] = display
+            result["distill_color"] = color
         except Exception:
             result["distill_mode"] = "unknown"
+            result["distill_display"] = "unknown"
+            result["distill_color"] = "muted"
 
         try:
             db_path = brain_db_path(self._project_dir)
@@ -165,8 +175,12 @@ class DashboardScreen(Screen):
         graph = self._last_graph_data
 
         panel = self.query_one("#brain-status", StatusPanel)
+        distill_value = str(
+            brain.get("distill_display") or brain.get("distill_mode", "?")
+        )
+        distill_color = str(brain.get("distill_color") or "muted")
         items: list[tuple[str, str, str]] = [
-            ("distill_mode", str(brain.get("distill_mode", "?")), "muted"),
+            ("distill_mode", distill_value, distill_color),
             (
                 "neurons",
                 f"{brain.get('neuron_count', 0)} active",
@@ -348,6 +362,11 @@ class DashboardScreen(Screen):
             ("Nodes", str(node_count), "ok" if node_count > 0 else "muted"),
             ("Stale", str(stale).lower(), "warning" if stale else "ok"),
             ("Auto-sync", str(data.get("auto_sync_enabled", False)), "muted"),
+            (
+                "Watch FS",
+                str(data.get("watch_filesystem_enabled", False)),
+                "muted",
+            ),
             ("Last import", str(data.get("last_import_status", "none")), "muted"),
         ])
 

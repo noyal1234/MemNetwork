@@ -58,7 +58,9 @@ Notes:
 | `brainkm graph import` | Import `graph.json` into `brain.db` | `--project-dir`, `--include-docs` | `brainkm graph import` |
 | `brainkm graph sync` | Extract (optional) + import | `--project-dir`, `--skip-extract`, `--force-extract` | `brainkm graph sync` |
 | `brainkm graph extract` | Run Graphify extract only | `--project-dir`, `--force` | `brainkm graph extract` |
-| `brainkm graph status` | Binary, staleness, node counts | `--project-dir` | `brainkm graph status` |
+| `brainkm graph status` | Binary, staleness, node counts, `auto_sync_enabled`, `watch_filesystem_enabled` | `--project-dir` | `brainkm graph status` |
+
+Multi-IDE opt-in: set `graphify.auto_sync.watch_filesystem: true` in `.brain/config.json` and restart the brainkm MCP server. Filesystem events request the same sync pipeline as PostToolUse (60s debounce / 5m min interval).
 
 ---
 

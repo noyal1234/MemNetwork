@@ -10,9 +10,21 @@ This project uses **brainkm** — a local SQLite project brain at `.brain/brain.
 
 ## Before reading many files
 
-- Prefer MCP **`context_pack`** (when available) over reading 3+ source files for navigation tasks.
+- Prefer MCP **`context_pack`** (when available) over reading 3+ source files for navigation tasks. Include a **symbol or file path** in the query (or `seed_refs`) so the code neighborhood can be seeded.
+- Prefer MCP **`traverse`** for call/import/flow and blast-radius questions ("what calls X?", "what breaks if I change Y?") before Grep spam or multi-file reads.
 - Use **`recall`** for architectural decisions, rules, and past pivots — not chat history alone.
 - Use **`remember`** to persist decisions the team should not re-debate.
+
+## Tool routing (locate vs flow vs decisions)
+
+| Question type | Use first | Why |
+|---------------|-----------|-----|
+| "Where is symbol X defined?" | Cursor search / Grep / `@codebase` | Semantic/symbol locate |
+| "What calls / imports X?" / "impact of changing Y" | **`traverse`** or **`context_pack`** with symbol/path | AST graph relationships |
+| "Why did we choose X?" | **`recall`** | Decisions live in neurons, not the code index |
+| Understand one module (would open 3+ files) | **`context_pack`** then targeted reads | Bounded pack vs file dumps |
+
+Do **not** treat brainkm as a second `@codebase`. Use Cursor to **locate**; use Graphify (`traverse` / `context_pack`) to explain **flow**.
 
 ## What lives in the brain
 

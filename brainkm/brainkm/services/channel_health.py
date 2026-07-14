@@ -26,3 +26,15 @@ def latest_graph_import_status(conn: sqlite3.Connection) -> str | None:
         """
     ).fetchone()
     return str(row[0]) if row else None
+
+
+def graph_counts(conn: sqlite3.Connection) -> tuple[int, int]:
+    """Return (code_node_count, edge_count) for SessionStart advertising."""
+    nodes = conn.execute(
+        """
+        SELECT COUNT(*) FROM nodes
+        WHERE kind = 'code' AND valid_until IS NULL
+        """
+    ).fetchone()[0]
+    edges = conn.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
+    return int(nodes), int(edges)

@@ -300,7 +300,7 @@ Key fields:
 | `rules` | Zero-dependency default; offline; no API key | None |
 | `ollama` | Privacy / offline LLM distill on your machine | Ollama daemon + model (`brainkm ollama doctor`) |
 | `groq` | Higher quality / speed without local GPU/CPU load | `GROQ_API_KEY` + network (`brainkm groq doctor`) |
-| `cursor` | V1 stub path using Cursor-side distill | Cursor session hooks |
+| `cursor` | Cursor agent CLI (`agent -p`) when available; else Cursor-aware heuristic distill of cleaned transcripts | Cursor session hooks; optional `agent` CLI |
 
 T0 remains **rules** — cloud and local LLM distill are opt-in. Never put API keys in `.brain/config.json` or neurons.
 ---
@@ -351,6 +351,8 @@ brainkm graph status                       # confirm graph_available + node coun
 | `brainkm graph status` | Binary found?, staleness, last import |
 
 **Auto-sync (default on):** PostToolUse Write/Edit touches `.brain/graph_sync.requested`; the long-lived MCP server debounces background extract+import (60s debounce, 5m min interval). SessionEnd runs **import-only** fallback when `graph.json` is newer than last import.
+
+**Multi-IDE filesystem watch (opt-in):** set `"graphify": { "auto_sync": { "watch_filesystem": true } }`, then **restart the MCP server**. While MCP is running, source-file changes from any editor (or `git checkout`) request the same sync flag — hard-ignores `.git` / `.brain` / `graphify-out` / `.venv` / etc., honors `.graphifyignore`, and only reacts to common source extensions. Restart MCP after toggling the flag (config is read at scheduler start).
 
 **Boundaries:** Graphify produces AST structure; brainkm imports with `code_only: true` via `adapters/graphify.py`. Does not replace Cursor `@codebase`. Copy `.graphifyignore.example` → `.graphifyignore` to keep extract offline (no docs/LLM pass).
 

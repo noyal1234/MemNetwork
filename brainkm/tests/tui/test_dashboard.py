@@ -11,6 +11,19 @@ from brainkm.db.connection import connect
 from brainkm.tui.app import BrainkmConfigureApp
 from brainkm.tui.widgets.review_table import ReviewTable
 from brainkm.tui.widgets.status_panel import StatusPanel
+from textual.containers import VerticalScroll
+
+
+async def test_dashboard_brands_via_header_and_scrolls(tui_project: Path) -> None:
+    """Brand lives in the Header; dashboard body scrolls instead of clipping."""
+    app = BrainkmConfigureApp(project_dir=tui_project)
+    async with app.run_test(size=(140, 40)) as pilot:
+        await pilot.pause(0.3)
+        assert app.title == "BrainKm"
+        assert not app.screen.query("#brand-banner")
+        assert isinstance(
+            app.screen.query_one("#dashboard-container"), VerticalScroll
+        )
 
 
 def _seed_pending_review_item(
@@ -59,6 +72,9 @@ async def test_dashboard_loads_brain_status(tui_project: Path) -> None:
         labels = [item[0] for item in panel._items]
         assert "distill_mode" in labels
         assert "neurons" in labels
+        distill_row = next(item for item in panel._items if item[0] == "distill_mode")
+        # Readiness-aware display: mode + detail in parentheses
+        assert "(" in distill_row[1], f"expected readiness suffix, got {distill_row[1]!r}"
 
 
 async def test_dashboard_sidebar_includes_channel_rows(tui_project: Path) -> None:

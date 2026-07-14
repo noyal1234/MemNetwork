@@ -35,11 +35,22 @@ TOOL_DEFINITIONS: list[tuple[str, str, type]] = [
     ("recall", "FTS5 + 2-hop graph recall from live brain.db. Abstains on low confidence.", RecallRequest),
     (
         "context_pack",
-        "Compile a bounded task pack (neurons + code neighborhood + procedures).",
+        (
+            "Compile a bounded task pack (neurons + code neighborhood + procedures). "
+            "Include a symbol or file path in the query (or seed_refs) so the AST graph "
+            "neighborhood can be seeded. Prefer before reading 3+ source files."
+        ),
         ContextPackRequest,
     ),
     ("session_status", "Read or write the current session context neuron.", SessionStatusRequest),
-    ("traverse", "Explicit 1–2 hop graph traversal between entities.", TraverseRequest),
+    (
+        "traverse",
+        (
+            "Explicit 1–2 hop AST graph traversal (calls/imports/defines). "
+            "Use before editing shared code to see callers/importers and flow impact."
+        ),
+        TraverseRequest,
+    ),
     ("forget", "Soft-archive a neuron (sets valid_until via audit_log).", ForgetRequest),
 ]
 

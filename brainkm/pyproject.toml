@@ -61,6 +61,7 @@ brainkm = [
     "config.example.json",
     "bench/fixtures/*.json",
     "tui/styles/*.tcss",
+    "tui/assets/*",
 ]
 
 [tool.pytest.ini_options]

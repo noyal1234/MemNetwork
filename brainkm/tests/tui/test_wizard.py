@@ -46,12 +46,15 @@ async def test_wizard_distill_mode_selection_writes_config(tmp_path: Path) -> No
 
         screen = app.screen
         assert screen._current_step == 3  # distill mode step
+        assert screen._distill_mode == "cursor"  # default
 
         from textual.widgets import RadioSet
 
         radio_set = screen.query_one("#wizard-distill-radio", RadioSet)
         radio_set.focus()
-        radio_set.action_next_button()  # move highlight from "rules" to "ollama"
+        # Order: cursor (0), rules (1), ollama (2) — two next presses land on ollama
+        radio_set.action_next_button()
+        radio_set.action_next_button()
         radio_set.action_toggle_button()
         await pilot.pause(0.1)
 

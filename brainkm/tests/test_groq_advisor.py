@@ -67,7 +67,8 @@ def test_probe_groq_lists_models() -> None:
 
 
 def test_format_groq_report_missing_key() -> None:
-    report = build_groq_report(api_key=None)
+    # Pass empty string (not None) so env/.env GROQ_API_KEY cannot leak into the report.
+    report = build_groq_report(api_key="")
     text = format_groq_report(report)
     assert "API key: missing" in text
     assert "Free tier" in text

@@ -75,7 +75,8 @@
       "enabled": true,
       "debounce_seconds": 60,
       "min_interval_seconds": 300,
-      "trigger_on_post_tool": true
+      "trigger_on_post_tool": true,
+      "watch_filesystem": false
     }
   },
   "semantic": false,

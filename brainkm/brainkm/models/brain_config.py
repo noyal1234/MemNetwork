@@ -82,6 +82,7 @@ class GraphifyAutoSyncConfig(BaseModel):
     debounce_seconds: float = Field(default=60.0, ge=1.0, le=600.0)
     min_interval_seconds: float = Field(default=300.0, ge=10.0, le=3600.0)
     trigger_on_post_tool: bool = True
+    watch_filesystem: bool = False
 
 
 class GraphifyConfig(BaseModel):
