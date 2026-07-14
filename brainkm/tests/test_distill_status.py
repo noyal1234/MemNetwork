@@ -113,9 +113,31 @@ def test_format_distill_status_line() -> None:
     ]
     line = format_distill_status_line(statuses)
     assert "cursor" in line
-    assert "rules OK" in line
+    # Inactive rules is omitted so the summary is not a peer-looking duplicate.
+    assert "rules" not in line
     assert "ollama unreachable" in line
     assert "GROQ_API_KEY" in line or "groq" in line
+
+
+def test_format_distill_status_line_includes_active_rules() -> None:
+    statuses = [
+        DistillModeStatus(
+            mode="cursor",
+            ready=True,
+            detail="heuristic active (no agent CLI)",
+            is_default=True,
+            is_active=False,
+        ),
+        DistillModeStatus(
+            mode="rules",
+            ready=True,
+            detail="pattern-match offline",
+            is_default=False,
+            is_active=True,
+        ),
+    ]
+    line = format_distill_status_line(statuses)
+    assert "rules OK" in line
 
 
 def test_active_distill_display() -> None:

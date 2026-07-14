@@ -14,8 +14,37 @@ from brainkm.services.ollama_advisor import probe_ollama
 
 logger = get_logger("services.distill_status")
 
-# Display order matches TUI config picker preference (default first).
+# Backend / doctor order (rules remains a real mode + timeout fallback).
 DISTILL_MODES = ("cursor", "rules", "ollama", "groq")
+
+# Primary TUI pickers: rules is intentionally omitted — it overlaps conceptually
+# with cursor heuristics and is an advanced/offline fallback, not a peer choice.
+PRIMARY_DISTILL_MODES = ("cursor", "ollama", "groq")
+
+# User-facing labels: cursor must not say "rule-based" (that collides with rules).
+DISTILL_MODE_LABELS: dict[str, str] = {
+    "cursor": (
+        "cursor — Cursor transcripts (default; free heuristic, "
+        "optional Agent CLI for LLM quality)"
+    ),
+    "rules": "rules — advanced raw pattern fallback (no Cursor cleanup)",
+    "ollama": "ollama — local LLM (needs Ollama daemon)",
+    "groq": "groq — cloud LLM (needs GROQ_API_KEY)",
+}
+
+
+def distill_mode_select_options(
+    *,
+    include_rules: bool = False,
+    current: str | None = None,
+) -> list[tuple[str, str]]:
+    """(label, value) pairs for Config/Wizard pickers."""
+    modes: list[str] = list(PRIMARY_DISTILL_MODES)
+    if include_rules or current == "rules":
+        # Keep advanced mode visible only when already selected in config.
+        if "rules" not in modes:
+            modes.insert(1, "rules")
+    return [(DISTILL_MODE_LABELS[m], m) for m in modes]
 
 
 @dataclass(frozen=True)
@@ -97,9 +126,15 @@ def build_distill_status(
 
 
 def format_distill_status_line(statuses: list[DistillModeStatus]) -> str:
-    """Compact one-line summary for Config Editor / Dashboard."""
+    """Compact one-line summary for Config Editor / Dashboard.
+
+    Omits inactive ``rules`` so readiness does not look like a third peer
+    beside cursor (rules is an advanced fallback, not a primary distill choice).
+    """
     parts: list[str] = []
     for item in statuses:
+        if item.mode == "rules" and not item.is_active:
+            continue
         mark = "OK" if item.ready else "unreachable"
         if item.mode in ("cursor", "rules") and item.ready:
             mark = "OK"

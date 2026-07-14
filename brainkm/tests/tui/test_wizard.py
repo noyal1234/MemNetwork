@@ -4,9 +4,17 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 from brainkm.tui.app import BrainkmConfigureApp
-from brainkm.tui.screens.wizard import STEP_DISTILL, STEP_INSTALL, STEP_PROJECT
+from brainkm.tui.screens.wizard import (
+    STEP_APIKEY,
+    STEP_CURSOR_CLI,
+    STEP_DISTILL,
+    STEP_INSTALL,
+    STEP_PROJECT,
+    STEPS,
+)
 
 
 async def test_wizard_is_initial_screen_for_fresh_project(tmp_path: Path) -> None:
@@ -52,8 +60,7 @@ async def test_wizard_distill_mode_selection_writes_config(tmp_path: Path) -> No
 
         radio_set = screen.query_one("#wizard-distill-radio", RadioSet)
         radio_set.focus()
-        # Order: cursor (0), rules (1), ollama (2) — two next presses land on ollama
-        radio_set.action_next_button()
+        # Order: cursor (0), ollama (1), groq (2) — one next press lands on ollama
         radio_set.action_next_button()
         radio_set.action_toggle_button()
         await pilot.pause(0.1)
@@ -64,7 +71,72 @@ async def test_wizard_distill_mode_selection_writes_config(tmp_path: Path) -> No
         cfg_path = tmp_path / ".brain" / "config.json"
         saved = json.loads(cfg_path.read_text())
         assert saved["capture"]["distill_mode"] == "ollama"
-        assert screen._current_step == 4
+        # Agent CLI is skipped for non-cursor modes → land on API key
+        assert screen._current_step == 5
+        assert STEPS[screen._current_step] == STEP_APIKEY
+
+
+async def test_wizard_cursor_cli_skip_advances(tmp_path: Path) -> None:
+    app = BrainkmConfigureApp(project_dir=tmp_path)
+    async with app.run_test(size=(140, 70)) as pilot:
+        await pilot.pause(0.3)
+        # install, doctor, distill (default cursor)
+        for _ in range(3):
+            await pilot.click("#btn-wizard-run")
+            await pilot.pause(1.5)
+
+        screen = app.screen
+        assert STEPS[screen._current_step] == STEP_CURSOR_CLI
+
+        await pilot.click("#btn-wizard-skip")
+        await pilot.pause(0.2)
+        assert screen._current_step == 5  # API key
+
+
+async def test_wizard_cursor_cli_run_with_mocked_install(tmp_path: Path) -> None:
+    from brainkm.services.cursor_advisor import CursorInstallResult, CursorStatus
+
+    app = BrainkmConfigureApp(project_dir=tmp_path)
+    async with app.run_test(size=(140, 70)) as pilot:
+        await pilot.pause(0.3)
+        for _ in range(3):
+            await pilot.click("#btn-wizard-run")
+            await pilot.pause(1.5)
+
+        screen = app.screen
+        assert STEPS[screen._current_step] == STEP_CURSOR_CLI
+
+        with (
+            patch(
+                "brainkm.services.cursor_advisor.probe_cursor_agent",
+                side_effect=[
+                    CursorStatus(found=False),
+                    CursorStatus(
+                        found=True,
+                        bin_path="/tmp/fake-agent",
+                        bin_name="agent",
+                    ),
+                    CursorStatus(
+                        found=True,
+                        bin_path="/tmp/fake-agent",
+                        bin_name="agent",
+                    ),
+                ],
+            ),
+            patch(
+                "brainkm.services.cursor_advisor.install_cursor_agent_cli",
+                return_value=CursorInstallResult(
+                    ok=True,
+                    found=True,
+                    bin_path="/tmp/fake-agent",
+                    stdout_tail="ok",
+                ),
+            ),
+        ):
+            await pilot.click("#btn-wizard-run")
+            await pilot.pause(1.5)
+
+        assert screen._current_step == 5  # advanced past cursor CLI
 
 
 async def test_wizard_skip_advances_without_running(tmp_path: Path) -> None:
@@ -79,9 +151,9 @@ async def test_wizard_skip_advances_without_running(tmp_path: Path) -> None:
 
 
 def test_wizard_step_ids_are_unique() -> None:
-    from brainkm.tui.screens.wizard import STEPS
-
     assert len(STEPS) == len(set(STEPS))
     assert STEP_PROJECT in STEPS
     assert STEP_INSTALL in STEPS
     assert STEP_DISTILL in STEPS
+    assert STEP_CURSOR_CLI in STEPS
+    assert STEPS.index(STEP_CURSOR_CLI) == STEPS.index(STEP_DISTILL) + 1

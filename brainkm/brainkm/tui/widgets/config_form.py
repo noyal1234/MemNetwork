@@ -9,6 +9,8 @@ from textual.containers import Horizontal, Vertical
 from textual.message import Message
 from textual.widgets import Input, Label, Select, Static, Switch
 
+from brainkm.services.distill_status import distill_mode_select_options
+
 # ---------------------------------------------------------------------------
 # Field descriptors for each BrainConfig section
 # ---------------------------------------------------------------------------
@@ -19,13 +21,13 @@ SECTION_FIELDS: dict[str, list[dict[str, Any]]] = {
             "key": "distill_mode",
             "label": "Distill Mode",
             "type": "select",
-            "options": [
-                ("cursor — heuristic, rule-based (default, no setup)", "cursor"),
-                ("rules — pure pattern-match, offline", "rules"),
-                ("ollama — local LLM (needs Ollama daemon)", "ollama"),
-                ("groq — cloud LLM (needs GROQ_API_KEY)", "groq"),
-            ],
-            "help": "How to extract neurons from transcripts",
+            # Primary modes only; ``rules`` appears only if already active in config.
+            "options": distill_mode_select_options(),
+            "help": (
+                "How to extract neurons from transcripts. "
+                "Cursor mode includes a free heuristic; Agent CLI only upgrades it. "
+                "Ollama/Groq are separate LLM backends."
+            ),
         },
         {
             "key": "max_auto_neurons_per_session",
@@ -214,11 +216,15 @@ SECTION_FIELDS: dict[str, list[dict[str, Any]]] = {
 }
 
 
-class ConfigForm(Static):
+class ConfigForm(Vertical):
     """A form section for one BrainConfig sub-model.
 
     Reads current values from a config dict and renders editable fields.
     Emits ``ConfigForm.Changed`` with the updated section dict on any edit.
+
+    Extends ``Vertical`` (not ``Static``) so height sizes to composed fields;
+    otherwise later sections (Ollama, budget, …) sit clipped inside
+    ``#config-forms`` and never become scrollable.
     """
 
     class Changed(Message):
@@ -259,6 +265,10 @@ class ConfigForm(Static):
                         yield Switch(value=bool(current), id=field_id)
                     elif field["type"] == "select":
                         options = self._select_options(field["options"])
+                        if key == "distill_mode":
+                            options = distill_mode_select_options(
+                                current=str(current) if current else None,
+                            )
                         yield Select(
                             options,
                             value=str(current),

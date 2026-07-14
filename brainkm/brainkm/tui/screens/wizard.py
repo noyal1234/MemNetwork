@@ -21,6 +21,7 @@ from textual.widgets import (
 )
 from textual.worker import Worker, WorkerState
 
+from brainkm.services.distill_status import DISTILL_MODE_LABELS, PRIMARY_DISTILL_MODES
 from brainkm.tui.theme import bracket_label, escape_markup
 from brainkm.tui.widgets.rich_log_panel import RichLogPanel
 
@@ -31,18 +32,28 @@ STEP_PROJECT = "step-project"
 STEP_INSTALL = "step-install"
 STEP_DOCTOR = "step-doctor"
 STEP_DISTILL = "step-distill"
+STEP_CURSOR_CLI = "step-cursor-cli"
 STEP_APIKEY = "step-apikey"
 STEP_GRAPH = "step-graph"
 STEP_DONE = "step-done"
 
-STEPS = [STEP_PROJECT, STEP_INSTALL, STEP_DOCTOR, STEP_DISTILL, STEP_APIKEY, STEP_GRAPH, STEP_DONE]
+STEPS = [
+    STEP_PROJECT,
+    STEP_INSTALL,
+    STEP_DOCTOR,
+    STEP_DISTILL,
+    STEP_CURSOR_CLI,
+    STEP_APIKEY,
+    STEP_GRAPH,
+    STEP_DONE,
+]
 
 
 class WizardScreen(Screen):
     """Phase 4 — guided first-run wizard.
 
     Walks through: project dir → install → hardware doctor → distill mode
-    → API key → graph sync → done.
+    → Cursor agent CLI (optional) → API key → graph sync → done.
     """
 
     BINDINGS = [
@@ -99,32 +110,52 @@ class WizardScreen(Screen):
             with Vertical(classes="wizard-step", id=STEP_DISTILL):
                 yield Static("4 ─ Distill Mode", classes="step-title")
                 yield Static(
-                    "How should brainkm extract neurons from transcripts?",
+                    "How should brainkm extract neurons from transcripts?\n"
+                    "Pick one backend. Cursor Agent CLI (next step) is only an "
+                    "optional upgrade for cursor mode — not a separate mode.",
                     classes="step-description",
                 )
                 with RadioSet(id="wizard-distill-radio"):
                     yield RadioButton(
-                        "cursor — heuristic, rule-based (default, recommended)",
+                        DISTILL_MODE_LABELS["cursor"],
                         value=True,
                         id="radio-distill-cursor",
                     )
                     yield RadioButton(
-                        "rules — pure pattern-match, offline",
-                        id="radio-distill-rules",
-                    )
-                    yield RadioButton(
-                        "ollama — local LLM (needs Ollama daemon)",
+                        DISTILL_MODE_LABELS["ollama"],
                         id="radio-distill-ollama",
                     )
                     yield RadioButton(
-                        "groq — cloud LLM (needs GROQ_API_KEY)",
+                        DISTILL_MODE_LABELS["groq"],
                         id="radio-distill-groq",
                     )
                 yield Static("", id="wizard-distill-status")
 
-            # --- Step 5: API key ---
+            # --- Step 5: Optional Cursor Agent CLI upgrade (not a distill mode) ---
+            with Vertical(classes="wizard-step", id=STEP_CURSOR_CLI):
+                yield Static(
+                    "5 ─ Upgrade Cursor Distill (Agent CLI, Optional)",
+                    classes="step-title",
+                )
+                yield Static(
+                    "Not a separate distill mode. Only upgrades cursor mode: "
+                    "heuristic Cursor distill already works without this. "
+                    "Install the agent CLI for optional LLM-quality extraction.",
+                    id="wizard-cursor-cli-description",
+                    classes="step-description",
+                )
+                yield Static(
+                    "1. Install: curl https://cursor.com/install -fsS | bash\n"
+                    "2. PATH: ensure ~/.local/bin is on PATH\n"
+                    "3. Verify: which agent  ·  brainkm cursor doctor",
+                    id="wizard-cursor-cli-checklist",
+                    classes="step-description",
+                )
+                yield Static("", id="wizard-cursor-cli-status")
+
+            # --- Step 6: API key ---
             with Vertical(classes="wizard-step", id=STEP_APIKEY):
-                yield Static("5 ─ API Key (Optional)", classes="step-title")
+                yield Static("6 ─ API Key (Optional)", classes="step-title")
                 yield Static(
                     "If you chose 'groq', paste your GROQ_API_KEY below.",
                     classes="step-description",
@@ -138,16 +169,16 @@ class WizardScreen(Screen):
                     )
                 yield Static("", id="wizard-apikey-status")
 
-            # --- Step 6: Graph sync ---
+            # --- Step 7: Graph sync ---
             with Vertical(classes="wizard-step", id=STEP_GRAPH):
-                yield Static("6 ─ Graph Sync (Optional)", classes="step-title")
+                yield Static("7 ─ Graph Sync (Optional)", classes="step-title")
                 yield Static(
                     "Run Graphify AST extraction and import into brain.db.",
                     classes="step-description",
                 )
                 yield Static("", id="wizard-graph-status")
 
-            # --- Step 7: Done ---
+            # --- Step 8: Done ---
             with Vertical(classes="wizard-step", id=STEP_DONE):
                 yield Static("✓ Setup Complete!", classes="step-title")
                 yield Static(
@@ -216,9 +247,24 @@ class WizardScreen(Screen):
         elif btn_id == "btn-wizard-run":
             self._run_current_step()
         elif btn_id == "btn-wizard-skip":
-            self._advance()
+            self._skip_current_step()
         elif btn_id == "btn-wizard-finish":
             self.action_switch_dashboard()
+
+    def _skip_current_step(self) -> None:
+        step = STEPS[self._current_step]
+        if step == STEP_CURSOR_CLI:
+            self.log_panel.log_info(
+                "Skipped Cursor agent CLI — heuristic distill remains available"
+            )
+            try:
+                status = self.query_one("#wizard-cursor-cli-status", Static)
+                status.update(
+                    "[dim]● Skipped — heuristic Cursor distill still works[/]"
+                )
+            except Exception:
+                pass
+        self._advance()
 
     def _advance(self) -> None:
         if self._current_step < len(STEPS) - 1:
@@ -237,6 +283,7 @@ class WizardScreen(Screen):
             STEP_INSTALL: self._run_install,
             STEP_DOCTOR: self._run_doctor,
             STEP_DISTILL: self._apply_distill_mode,
+            STEP_CURSOR_CLI: self._run_cursor_cli,
             STEP_APIKEY: self._apply_api_key,
             STEP_GRAPH: self._run_graph_sync,
         }
@@ -321,7 +368,8 @@ class WizardScreen(Screen):
 
     def _apply_distill_mode(self) -> None:
         """Step 4: Read radio selection and write to config."""
-        mode_map = {0: "cursor", 1: "rules", 2: "ollama", 3: "groq"}
+        # Primary picker only: cursor / ollama / groq (rules is advanced, not listed).
+        mode_map = {i: mode for i, mode in enumerate(PRIMARY_DISTILL_MODES)}
         try:
             radio_set = self.query_one("#wizard-distill-radio", RadioSet)
             idx = radio_set.pressed_index
@@ -331,6 +379,64 @@ class WizardScreen(Screen):
 
         self.log_panel.log_info(f"Selected distill mode: {self._distill_mode}")
         self._do_apply_distill()
+
+    def _run_cursor_cli(self) -> None:
+        """Step 5: Optional Agent CLI upgrade for cursor mode only."""
+        try:
+            desc = self.query_one("#wizard-cursor-cli-description", Static)
+            if self._distill_mode == "cursor":
+                desc.update(
+                    "Not a separate distill mode. Only upgrades cursor mode: "
+                    "heuristic Cursor distill already works without this. "
+                    "Install the agent CLI for optional LLM-quality extraction."
+                )
+            else:
+                desc.update(
+                    "Skipped for non-cursor modes — Agent CLI only upgrades "
+                    f"distill_mode=cursor (current: {self._distill_mode})."
+                )
+        except Exception:
+            pass
+        if self._distill_mode != "cursor":
+            self.log_panel.log_info(
+                "Skipping Agent CLI — only relevant when distill mode is cursor"
+            )
+            self._advance()
+            return
+        self.log_panel.log_info("Checking Cursor agent CLI…")
+        self._do_cursor_cli()
+
+    @work(thread=True, group="wizard", exit_on_error=False)
+    def _do_cursor_cli(self) -> dict[str, Any]:
+        from brainkm.services.cursor_advisor import (
+            build_cursor_doctor_report,
+            ensure_cursor_agent_path,
+            format_cursor_report,
+            install_cursor_agent_cli,
+            probe_cursor_agent,
+        )
+
+        try:
+            ensure_cursor_agent_path()
+            status = probe_cursor_agent()
+            installed = False
+            install_error: str | None = None
+            if not status.found:
+                install_result = install_cursor_agent_cli()
+                installed = True
+                install_error = install_result.error
+                status = probe_cursor_agent()
+            report = build_cursor_doctor_report(project_dir=self._project_dir)
+            return {
+                "step": STEP_CURSOR_CLI,
+                "found": status.found,
+                "bin_path": status.bin_path,
+                "installed": installed,
+                "install_error": install_error,
+                "formatted": format_cursor_report(report),
+            }
+        except Exception as exc:
+            return {"step": STEP_CURSOR_CLI, "error": str(exc)}
 
     @work(thread=True, group="wizard", exit_on_error=False)
     def _do_apply_distill(self) -> dict[str, Any]:
@@ -445,10 +551,7 @@ class WizardScreen(Screen):
             return
 
         base_labels = {
-            "cursor": "cursor — heuristic, rule-based (default, recommended)",
-            "rules": "rules — pure pattern-match, offline",
-            "ollama": "ollama — local LLM (needs Ollama daemon)",
-            "groq": "groq — cloud LLM (needs GROQ_API_KEY)",
+            mode: DISTILL_MODE_LABELS[mode] for mode in PRIMARY_DISTILL_MODES
         }
         by_mode = result.get("by_mode") or {}
         for mode, base in base_labels.items():
@@ -459,7 +562,7 @@ class WizardScreen(Screen):
             info = by_mode.get(mode) or {}
             detail = str(info.get("detail", ""))
             ready = bool(info.get("ready", False))
-            if mode in ("cursor", "rules"):
+            if mode == "cursor":
                 suffix = f" — {detail}" if detail else ""
             elif ready:
                 suffix = " — ready"
@@ -509,6 +612,41 @@ class WizardScreen(Screen):
 
         elif step == STEP_DISTILL:
             self.log_panel.log_success(f"Distill mode set to: {result.get('mode', '?')}")
+            self._advance()
+            # Agent CLI is only an upgrade for cursor — skip the step otherwise.
+            if (
+                self._distill_mode != "cursor"
+                and self._current_step < len(STEPS)
+                and STEPS[self._current_step] == STEP_CURSOR_CLI
+            ):
+                self.log_panel.log_info(
+                    "Skipping Agent CLI step — only upgrades cursor mode"
+                )
+                self._advance()
+
+        elif step == STEP_CURSOR_CLI:
+            if result.get("error"):
+                self.log_panel.log_warning(f"Cursor agent CLI step: {result['error']}")
+                status = self.query_one("#wizard-cursor-cli-status", Static)
+                status.update(
+                    f"[bold yellow]● {escape_markup(str(result['error']))}[/] "
+                    "— heuristic distill still works"
+                )
+            else:
+                if result.get("installed"):
+                    self.log_panel.log_info("Ran official Cursor agent install script")
+                for line in result.get("formatted", "").strip().splitlines():
+                    self.log_panel.log_plain(line)
+                status = self.query_one("#wizard-cursor-cli-status", Static)
+                if result.get("found"):
+                    path = escape_markup(str(result.get("bin_path", "?")))
+                    status.update(f"[bold green]✓ Agent CLI ready[/] ({path})")
+                else:
+                    err = result.get("install_error") or "not found after install"
+                    status.update(
+                        f"[bold yellow]● Agent CLI unavailable[/] "
+                        f"({escape_markup(str(err))}) — heuristic distill still works"
+                    )
             self._advance()
 
         elif step == STEP_APIKEY:

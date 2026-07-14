@@ -668,6 +668,42 @@ def cursor_doctor_cmd(
     typer.echo(format_cursor_report(report))
 
 
+@cursor_app.command("install")
+def cursor_install_cmd(
+    project_dir: Path | None = typer.Option(
+        None,
+        "--project-dir",
+        help="Target project root (defaults to cwd)",
+    ),
+) -> None:
+    """Install the Cursor agent CLI (official curl | bash), then re-run doctor."""
+    from brainkm.services.cursor_advisor import (
+        build_cursor_doctor_report,
+        format_cursor_report,
+        install_cursor_agent_cli,
+    )
+
+    typer.echo("Installing Cursor agent CLI (curl https://cursor.com/install | bash)…")
+    result = install_cursor_agent_cli()
+    if result.stdout_tail and result.stdout_tail != "already installed":
+        typer.echo(result.stdout_tail)
+    if result.error:
+        typer.echo(f"Install issue: {result.error}", err=True)
+    if result.found:
+        typer.echo(f"Agent found: {result.bin_path}")
+    else:
+        typer.echo(
+            "Agent not found after install — heuristic distill still works. "
+            "Add ~/.local/bin to PATH and retry.",
+            err=True,
+        )
+
+    report = build_cursor_doctor_report(project_dir=project_dir)
+    typer.echo(format_cursor_report(report))
+    if not result.found:
+        raise typer.Exit(code=1)
+
+
 @review_app.command("list")
 def review_list_cmd(project_dir: Path | None = typer.Option(None, "--project-dir")) -> None:
     from brainkm.services.review import list_pending

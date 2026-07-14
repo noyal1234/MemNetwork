@@ -8,6 +8,7 @@ from pathlib import Path
 from textual.widgets import Button, Input, Switch
 
 from brainkm.tui.app import BrainkmConfigureApp
+from brainkm.tui.widgets.config_form import SECTION_FIELDS, ConfigForm
 
 
 async def test_loading_config_does_not_mark_it_dirty(tui_project: Path) -> None:
@@ -142,10 +143,44 @@ async def test_distill_status_line_renders(tui_project: Path) -> None:
             {
                 "line": (
                     "Distill readiness: cursor heuristic active (no agent CLI) "
-                    "| rules OK | ollama unreachable | groq unreachable"
+                    "| ollama unreachable | groq unreachable"
                 )
             }
         )
         await pilot.pause(0.1)
         # Widget still addressable after update; content lives in Textual internals.
         assert screen.query_one("#distill-status-line", Static) is line
+
+
+async def test_all_config_sections_sized_in_compact_terminal(tui_project: Path) -> None:
+    """Regression: at ~120x30, #config-forms must grow with content so Ollama
+    and later sections are scrollable — not clipped inside a 1fr Vertical.
+    """
+    app = BrainkmConfigureApp(project_dir=tui_project)
+    async with app.run_test(size=(120, 30)) as pilot:
+        app.switch_screen("config")
+        # Config forms mount after an async load worker; wait until sized.
+        capture = None
+        for _ in range(40):
+            await pilot.pause(0.1)
+            try:
+                capture = app.screen.query_one("#form-capture", ConfigForm)
+            except Exception:
+                continue
+            if capture.size.height >= 5:
+                break
+        assert capture is not None and capture.size.height >= 5
+
+        screen = app.screen
+        forms = list(screen.query(ConfigForm))
+        assert len(forms) == len(SECTION_FIELDS)
+
+        ollama = screen.query_one("#form-ollama", ConfigForm)
+        # Ollama must be stacked below Capture with real field height.
+        assert ollama.size.height >= 5
+        assert ollama.region.y > capture.region.y
+
+        forms_container = screen.query_one("#config-forms")
+        scroll = screen.query_one("#config-container")
+        # Content taller than the viewport ⇒ VerticalScroll can reveal Ollama+.
+        assert forms_container.virtual_size.height > scroll.size.height

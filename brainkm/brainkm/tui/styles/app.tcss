@@ -343,12 +343,22 @@ Footer > .footer--highlight {
     height: 1fr;
 }
 
+/* Must be content-sized: the default Vertical height (1fr) fills the
+   viewport and clips later sections (Ollama, Groq, Budget, …) so they
+   never enter the scrollable content height. */
+#config-forms {
+    layout: vertical;
+    height: auto;
+    width: 100%;
+}
+
 .config-section {
     border: solid $border;
     background: $surface-alt;
     padding: 1 2;
     margin: 1 0;
     height: auto;
+    width: 100%;
 }
 
 .config-section .section-title {

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import sqlite3
@@ -38,6 +39,12 @@ def resolve_cursor_agent_bin() -> str | None:
         path = shutil.which(name)
         if path:
             return path
+    # Official installer places symlinks here even when not yet on shell PATH.
+    local = Path.home() / ".local" / "bin"
+    for name in ("agent", "cursor-agent"):
+        candidate = local / name
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
     return None
 
 

@@ -1,7 +1,10 @@
-"""Cursor agent CLI diagnostics for distill readiness."""
+"""Cursor agent CLI diagnostics and optional install for distill readiness."""
 
 from __future__ import annotations
 
+import os
+import shutil
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -15,6 +18,9 @@ HEURISTIC_HINT = (
     "cursor mode always works offline via Cursor-aware heuristic distill; "
     "install the Cursor agent CLI (agent / cursor-agent) for optional LLM-quality extraction"
 )
+
+CURSOR_INSTALL_COMMAND = "curl -fsS https://cursor.com/install | bash"
+DEFAULT_INSTALL_TIMEOUT_SECONDS = 300
 
 
 @dataclass(frozen=True)
@@ -32,8 +38,42 @@ class CursorDoctorReport:
     heuristic_hint: str = HEURISTIC_HINT
 
 
+@dataclass(frozen=True)
+class CursorInstallResult:
+    ok: bool
+    found: bool
+    bin_path: str | None = None
+    stdout_tail: str = ""
+    error: str | None = None
+
+
+def local_bin_dir() -> Path:
+    return Path.home() / ".local" / "bin"
+
+
+def ensure_cursor_agent_path() -> bool:
+    """Prepend ~/.local/bin to PATH for this process if present and missing.
+
+    Returns True when the directory is now on PATH (already was, or just added).
+    """
+    local = local_bin_dir()
+    if not local.is_dir():
+        return False
+
+    local_str = str(local)
+    current = os.environ.get("PATH", "")
+    parts = current.split(os.pathsep) if current else []
+    if local_str in parts:
+        return True
+
+    os.environ["PATH"] = local_str + (os.pathsep + current if current else "")
+    logger.debug("Prepended %s to PATH for Cursor agent discovery", local_str)
+    return True
+
+
 def probe_cursor_agent() -> CursorStatus:
-    """Locate the Cursor agent CLI on PATH (agent or cursor-agent)."""
+    """Locate the Cursor agent CLI on PATH or under ~/.local/bin."""
+    ensure_cursor_agent_path()
     path = resolve_cursor_agent_bin()
     if not path:
         return CursorStatus(found=False)
@@ -82,3 +122,84 @@ def format_cursor_report(report: CursorDoctorReport) -> str:
         'To use Cursor distill: set capture.distill_mode to "cursor" in .brain/config.json'
     )
     return "\n".join(lines)
+
+
+def install_cursor_agent_cli(
+    *,
+    timeout_seconds: int = DEFAULT_INSTALL_TIMEOUT_SECONDS,
+) -> CursorInstallResult:
+    """Run the official Cursor agent install script, then re-probe.
+
+    User-initiated only (CLI / Wizard Run Step). Never call on mount.
+    """
+    if not shutil.which("curl"):
+        return CursorInstallResult(
+            ok=False,
+            found=False,
+            error="curl not found on PATH — install curl or run the installer manually",
+        )
+    if not shutil.which("bash"):
+        return CursorInstallResult(
+            ok=False,
+            found=False,
+            error="bash not found on PATH — required for the official installer",
+        )
+
+    # Already present — no network install needed.
+    existing = probe_cursor_agent()
+    if existing.found:
+        return CursorInstallResult(
+            ok=True,
+            found=True,
+            bin_path=existing.bin_path,
+            stdout_tail="already installed",
+        )
+
+    logger.info("Installing Cursor agent CLI via official install script")
+    try:
+        completed = subprocess.run(
+            CURSOR_INSTALL_COMMAND,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return CursorInstallResult(
+            ok=False,
+            found=False,
+            error=f"install timed out after {timeout_seconds}s",
+        )
+    except OSError as exc:
+        return CursorInstallResult(ok=False, found=False, error=str(exc))
+
+    combined = "\n".join(
+        part for part in (completed.stdout or "", completed.stderr or "") if part
+    ).strip()
+    tail = combined[-1500:] if combined else ""
+
+    ensure_cursor_agent_path()
+    status = probe_cursor_agent()
+    if status.found:
+        return CursorInstallResult(
+            ok=True,
+            found=True,
+            bin_path=status.bin_path,
+            stdout_tail=tail,
+        )
+
+    error = f"install exited {completed.returncode}"
+    if completed.returncode != 0 and tail:
+        error = f"{error}: {tail[-300:]}"
+    elif not status.found:
+        error = (
+            f"{error}; agent not found after install "
+            "(add ~/.local/bin to your shell PATH and retry)"
+        )
+    return CursorInstallResult(
+        ok=False,
+        found=False,
+        stdout_tail=tail,
+        error=error,
+    )
