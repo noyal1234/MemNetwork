@@ -1,53 +1,54 @@
-# MemNetwork
+# MemNetwork (brainkm)
 
-Local project brain for Cursor — **brainkm** MCP server (SQLite FTS5 + weighted knowledge graph).
+**Faster, smarter project memory for coding agents** — a local SQLite brain that cuts token usage and feeds high-quality context to Cursor, Claude Code, or any MCP client.
+
+| Dial | What brainkm does |
+|------|-------------------|
+| **Tokens** | Bounded `context_pack` (default ≤1500) with summary-first gists + adaptive intent budgets |
+| **Quality** | Hybrid FTS + vector RRF, weighted PPR graph activation, conflict/supersede, usage feedback |
+| **Speed** | Local retrieval latency targets (p95 ≤150ms recall without reranker) |
+| **Reach** | `brainkm install --client …` / TUI wizard Agent Client step + optional HTTP MCP |
 
 ## Docs
 
 - [AGENTS.md](AGENTS.md) — agent entry point
-- [docs/INSTALL.md](docs/INSTALL.md) — clone, setup, and MCP install on another machine
-- [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md) — architecture, MCP contract, roadmap
-- [docs/CLI_COMMANDS.md](docs/CLI_COMMANDS.md) — full CLI catalog
-- [docs/TUI_APP_PLAN.md](docs/TUI_APP_PLAN.md) — `brainkm configure` Textual dashboard (shipped)
+- [docs/INSTALL.md](docs/INSTALL.md) — clone + local editable setup
+- [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md) — architecture + roadmap
+- [docs/BENCHMARKS.md](docs/BENCHMARKS.md) — bench targets
+- [docs/SECURITY.md](docs/SECURITY.md) — inbound/outbound redaction posture
+- [docs/CLI_COMMANDS.md](docs/CLI_COMMANDS.md) — CLI catalog
+- [docs/TUI_APP_PLAN.md](docs/TUI_APP_PLAN.md) — `brainkm configure` TUI
 
-## Quick start
+## Quick start (local / private repo)
 
 ```bash
 bash brainkm/scripts/setup_dev.sh
 source .venv/bin/activate
-brainkm install --dev
-pytest
+brainkm install --dev --client cursor
+# or: pip install -e "./brainkm[tui]" && brainkm configure  # wizard Agent Client picker
 brainkm version
-brainkm graph status
-# optional: Textual config UI
-pip install -e "./brainkm[tui]"
-brainkm configure
 ```
 
-See [docs/INSTALL.md](docs/INSTALL.md) for the full clone-to-MCP flow.
+MCP config is written for the selected client (`cursor` / `claude` / `generic`). Use `--dev` while the repo is private.
 
-Python **3.11 or 3.12** recommended (`requires-python = ">=3.11"`).
+Optional semantic hybrid retrieval: `pip install -e "./brainkm[semantic]"` then set `"semantic": {"enabled": true}` in `.brain/config.json`.
 
-## Layout
+### Deferred until public + stable
 
-| Path | Purpose |
-|------|---------|
-| `brainkm/` | Python package (MCP server + CLI + optional TUI) |
-| `.cursor/rules/` | Cursor policy rules + `brainkm.mdc` (gitignored, local only) |
-| `cursor-policy/` | Notes on Cursor policy layout (see README) |
-| `.cursor/skills/memnetwork-backend/` | Cursor skill for backend work |
-| `docs/AI_PROJECT_BRIEF.md` | Product + technical brief |
+PyPI / `uvx brainkm install`, MCP Registry listing, Cursor one-click deeplink, and a trusted-publishing release workflow are **intentionally deferred** while this repository stays private. Revisit after a stable cut is ready to open-source.
 
-## Requirements
+## vs Cursor Memories / @codebase / Mem0
 
-| File | Purpose |
-|------|---------|
-| [brainkm/pyproject.toml](brainkm/pyproject.toml) | Source of truth (editable install, extras) |
-| [requirements.txt](requirements.txt) | Core runtime (pip -r) |
-| [requirements-dev.txt](requirements-dev.txt) | Dev + test |
-| [requirements-graphify.txt](requirements-graphify.txt) | Optional Graphify AST extract |
-| [requirements-semantic.txt](requirements-semantic.txt) | Optional T1 embeddings |
+| Job | Prefer |
+|-----|--------|
+| Cross-project user prefs | Cursor Memories |
+| "Where is symbol X?" | @codebase / Grep |
+| "Why did we choose X?" | **brainkm `recall`** |
+| "What calls X?" | **brainkm `traverse` / `context_pack`** |
+| Hosted multi-tenant memory | Mem0 / Zep — not the goal here |
+
+brainkm is **local-first**, **zero-LLM-default** (`rules` distill), and complementary to Cursor — not a second codebase index.
 
 ## Status
 
-**brainkm 0.3.0** — SQLite brain, 8 MCP tools, hooks, install, Graphify import/sync, capture/handover, repair/export/import merge, post-compact snapshot refresh, learning loop (co-activation + procedure promotion), confidence-gated review queue, neuron hygiene, end-to-end token budgeting with lean MCP payloads, MCP usage telemetry, fixture-driven bench suites, and the optional `brainkm configure` Textual TUI (`pip install -e "./brainkm[tui]"`). **0.3.0** also wires redaction through capture/handover, clamps SessionStart packs, and adds TUI SVG snapshots + ANSI-16 fallback. **V3+ planned:** decay, optional semantic search. See [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md) for roadmap.
+**brainkm 0.3.1** — 8 MCP tools + resources, hybrid retrieval (RRF + PPR), intent routing, compression/dedup/summary-first packs, feedback ranking, decay/consolidate, multi-client install (`--client` CLI + TUI wizard Agent Client step), optional HTTP transport, latency bench, team neuron layer, import `--replace`. See [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md) and [docs/BENCHMARKS.md](docs/BENCHMARKS.md).

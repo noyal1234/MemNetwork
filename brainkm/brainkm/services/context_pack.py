@@ -357,10 +357,11 @@ def _fit_pack_text(
         if omitted_ids and not omit_footer:
             parts.extend(
                 [
-                    "## Truncated",
+                    "## Truncated / expand",
                     "",
                     f"Omitted {len(omitted_ids)} nodes (token cap). "
-                    "Call `recall` with `truncation_followup: true` for omitted IDs.",
+                    "Expand a listed id via `recall` with `truncation_followup: true` "
+                    "(summary-first packs use gists — expand before re-reading source).",
                     "",
                 ]
             )
@@ -470,11 +471,21 @@ def compile_context_pack(
     seed_refs: list[str] | None = None,
     slots: dict[str, int] | None = None,
     include_structured: bool = False,
+    summary_first: bool | None = None,
 ) -> ContextPackResponse:
     """Compile a bounded task pack from live brain.db."""
+    from brainkm.adapters.redaction import sanitize_for_storage
+    from brainkm.services.budget import adaptive_token_budget
+    from brainkm.services.compress import dedup_budget_lines, mmr_diversify
+    from brainkm.services.feedback import record_injected
+
+    use_summary = (
+        config.compression.summary_first if summary_first is None else summary_first
+    )
     effective_slots = slots or context_pack_slots(config, query)
+    budget_cap = adaptive_token_budget(config, query)
     if slots is None:
-        hard_cap = max(0, config.budget.total_tokens - PACK_FRAMING_OVERHEAD_TOKENS)
+        hard_cap = max(0, budget_cap - PACK_FRAMING_OVERHEAD_TOKENS)
     else:
         hard_cap = max(0, sum(effective_slots.values()) - PACK_FRAMING_OVERHEAD_TOKENS)
     graph_ok = graph_available(conn)
@@ -486,6 +497,7 @@ def compile_context_pack(
         query,
         graph=config.graph,
         recall=config.recall,
+        semantic=config.semantic_config(),
         project_dir=project_dir,
     )
     for ranked in recall.nodes:
@@ -494,18 +506,43 @@ def compile_context_pack(
             continue
         if not passes_stored_neuron_gate(title=row["title"] or "", content=row["content"]):
             continue
+        # Outbound injection gate — same redaction rules as capture.
+        try:
+            sanitize_for_storage(
+                row["title"] or "",
+                row["content"] or "",
+                source="injection",
+                mode="capture",
+            )
+        except Exception:  # noqa: BLE001
+            continue
         line = _to_budget_line(row)
+        content = line.content
+        if use_summary and content:
+            first_line = content.strip().split("\n", 1)[0]
+            if len(first_line) > 160:
+                first_line = first_line[:157] + "…"
+            content = first_line
         neuron_lines.append(
             BudgetLine(
                 node_id=line.node_id,
                 kind=line.kind,
                 subtype=line.subtype,
                 title=line.title,
-                content=line.content,
-                tokens=line.tokens,
+                content=content,
+                tokens=line_tokens(line.title, content),
                 priority=min(line.priority, 4),
             )
         )
+
+    if config.compression.pack_dedup:
+        neuron_lines = dedup_budget_lines(
+            neuron_lines,
+            use_embeddings=config.semantic_enabled(),
+        )
+    if config.compression.pack_diversity:
+        neuron_lines = mmr_diversify(neuron_lines)
+
 
     graph_lines: list[BudgetLine] = []
     graph_results: list[NeuronResult] = []
@@ -581,10 +618,14 @@ def compile_context_pack(
         omitted_ids=manifest.omitted_ids,
         total_tokens=max(
             100,
-            config.budget.total_tokens - MCP_JSON_OVERHEAD_TOKENS,
+            budget_cap - MCP_JSON_OVERHEAD_TOKENS,
         ),
     )
     final_ids = {line.node_id for line in neuron_kept + graph_kept + proc_kept}
+    try:
+        record_injected(conn, [line.node_id for line in neuron_kept])
+    except Exception:  # noqa: BLE001
+        pass
     dropped = [nid for nid in manifest.included_ids if nid not in final_ids]
     if dropped:
         manifest = manifest.model_copy(

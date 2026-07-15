@@ -22,6 +22,8 @@ def purge_noisy_neurons(
     *,
     dry_run: bool = False,
     limit: int | None = None,
+    decay: bool = False,
+    unused_days: int = 90,
 ) -> HygieneResult:
     """Re-run the quality gate over active memory neurons and soft-archive failures."""
     sql = """
@@ -46,6 +48,19 @@ def purge_noisy_neurons(
                 row["id"],
                 reason="hygiene: failed quality gate (noise/chrome/boilerplate)",
             )
+    if decay:
+        from brainkm.services.consolidate import decay_unused_neurons
+
+        decay_result = decay_unused_neurons(
+            conn,
+            unused_days=unused_days,
+            dry_run=dry_run,
+            limit=limit,
+        )
+        for node_id in decay_result.archived_ids:
+            if node_id not in archived_ids:
+                archived_ids.append(node_id)
+                kept = max(0, kept - 1)
     if not dry_run and archived_ids:
         conn.commit()
     return HygieneResult(

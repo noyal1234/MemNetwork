@@ -145,3 +145,30 @@ def import_json_merge(
     finally:
         conn.close()
     return result
+
+
+def import_json_replace(
+    path: Path,
+    *,
+    project_dir: Path | None = None,
+) -> ImportMergeResult:
+    """Replace active memory neurons with the export (soft-archive existing first)."""
+    from brainkm.services.memory import forget_neuron
+
+    migrate(project_dir=project_dir, run_integrity_check=False)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    records = payload if isinstance(payload, list) else payload.get("neurons", [])
+    parsed = _parse_export_records(records if isinstance(records, list) else [])
+
+    conn = connect(brain_db_path(project_dir))
+    try:
+        existing = conn.execute(
+            "SELECT id FROM nodes WHERE kind = 'memory' AND valid_until IS NULL"
+        ).fetchall()
+        for (node_id,) in existing:
+            forget_neuron(conn, node_id, reason="import_replace")
+        result = import_neurons_merge(conn, parsed)
+        conn.commit()
+    finally:
+        conn.close()
+    return result

@@ -18,7 +18,20 @@ def test_build_mcp_config_dev_uses_local_binary() -> None:
     assert str(server["command"]).endswith("brainkm")
 
 
-def test_build_mcp_config_prod_uses_uvx() -> None:
+def test_build_mcp_config_prod_prefers_path_brainkm(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "brainkm.services.install.shutil.which",
+        lambda name: "/opt/bin/brainkm" if name == "brainkm" else None,
+    )
+    payload = build_mcp_config(dev=False)
+    server = payload["mcpServers"]["brainkm"]
+    assert server["command"] == "/opt/bin/brainkm"
+    assert server["args"] == ["mcp", "--project-dir", "."]
+
+
+def test_build_mcp_config_prod_falls_back_to_uvx_when_not_on_path(monkeypatch) -> None:
+    """uvx placeholder remains for a future public PyPI release (currently deferred)."""
+    monkeypatch.setattr("brainkm.services.install.shutil.which", lambda _name: None)
     payload = build_mcp_config(dev=False)
     server = payload["mcpServers"]["brainkm"]
     assert server["command"] == "uvx"

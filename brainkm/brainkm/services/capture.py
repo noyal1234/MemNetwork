@@ -175,6 +175,22 @@ def capture_transcript_file(
             distill_mode=distill_mode,
             neuron_count=neuron_count,
         )
+        if cfg.capture.auto_hygiene and neuron_count > 0:
+            from brainkm.services.hygiene import purge_noisy_neurons
+
+            purge_noisy_neurons(conn, dry_run=False, limit=100)
+        if cfg.git.enabled and cfg.git.link_on_capture and neuron_count > 0:
+            from brainkm.services.team import stamp_git_on_recent
+
+            stamp_git_on_recent(
+                conn,
+                project_dir=review_project_dir,
+                session_id=parsed.session_id,
+            )
+        if cfg.decay.consolidate_on_session_end and neuron_count > 0:
+            from brainkm.services.consolidate import consolidate_neurons
+
+            consolidate_neurons(conn, dry_run=False, limit=50)
         conn.commit()
 
         logger.info(

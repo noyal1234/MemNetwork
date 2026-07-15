@@ -426,28 +426,34 @@ Each action is a button that spawns a Textual `Worker`. Output is captured line-
 
 ### Phase 4 — First-run wizard
 
-**Purpose:** Guided alternative to manually running `brainkm install` + doctor commands. Activated automatically when `.brain/` does not exist, or via the `w` keybinding.
+**Purpose:** Guided alternative to manually running `brainkm install --client …` + doctor commands. Activated automatically when `.brain/` does not exist, or via the `w` keybinding.
 
-**Steps (sequential screens):**
+**Steps (sequential screens) — as of 0.3.1:**
 
 ```mermaid
 flowchart LR
-    A["1. Confirm project dir"] --> B["2. Install scaffolding"]
-    B --> C["3. Hardware doctor"]
-    C --> D["4. Distill mode"]
-    D --> E["5. API key (optional)"]
-    E --> F["6. Graph sync (optional)"]
-    F --> G["✓ Done — switch to Dashboard"]
+    A["1. Project dir"] --> B["2. Agent client"]
+    B --> C["3. Install scaffolding"]
+    C --> D["4. Hardware doctor"]
+    D --> E["5. Distill mode"]
+    E --> F["6. Cursor Agent CLI optional"]
+    F --> G["7. API key optional"]
+    G --> H["8. Graph sync optional"]
+    H --> I["9. Viz WebLLM optional"]
+    I --> J["Done"]
 ```
 
 | Step | What happens | Service call |
 |------|-------------|-------------|
-| **1. Project dir** | Confirm `--project-dir` or `cwd`. Show warning if `.brain/` already exists (offer to skip to Dashboard). | — |
-| **2. Install** | Run `run_install(project_dir, dev=True)` and display files written/skipped. | `install.run_install()` |
-| **3. Hardware doctor** | Display `DoctorReport`: RAM, GPU, recommended model, Ollama reachability. Offer `[Apply]` to write recommended model. | `ollama_advisor.build_doctor_report()`, `apply_recommended_model()` |
-| **4. Distill mode** | Radio select: `rules` (default) / `ollama` / `groq` / `cursor`. Explain each with a one-line rationale. Write selection to config. | `config_loader.load_brain_config()`, `BrainConfig` |
-| **5. API key** | If `groq` selected: password input → write `GROQ_API_KEY=…` to `.env`. Run `build_groq_report()` to verify. If `ollama`: verify daemon reachable. If `rules`: skip. | `groq_advisor.build_groq_report()` |
-| **6. Graph sync** | Optional. Run `sync_graph()` and stream output. Show skip button for projects without Graphify. | `graphify_sync.sync_graph()` |
+| **1. Project dir** | Confirm `--project-dir` or `cwd`. Warn if `.brain/` already exists. Auto-advances. | — |
+| **2. Agent client** | Radio: `cursor` / `claude` / `generic`. Chooses hooks / MCP / `CLAUDE.md` / `AGENTS.md` layout. | `client_adapters.get_client_adapter()` |
+| **3. Install** | Run `run_install(project_dir, dev=True, client=…)` and list files written/skipped. | `install.run_install(..., client=)` |
+| **4. Hardware doctor** | Ollama/hardware recommendation. | `ollama_advisor.build_doctor_report()` |
+| **5. Distill mode** | Radio: `cursor` / `ollama` / `groq` / `mcp` (rules is advanced fallback). | config write |
+| **6. Cursor Agent CLI** | Only when **client=cursor** and **distill=cursor**; otherwise auto-skipped. | `cursor_advisor` |
+| **7. API key** | Optional `GROQ_API_KEY` → `.env` when using groq. | `groq_advisor` |
+| **8. Graph sync** | Optional Graphify extract+import. | `graphify_sync.sync_graph()` |
+| **9. Viz WebLLM** | Optional local model prefetch for `brainkm viz`. | `webllm_prefetch` |
 
 ---
 
@@ -650,7 +656,7 @@ Dashboard layout matches the Design 1 / DESIGN.md Cyber-Industrial mockup:
 | `test_dashboard.py` | Status panel population, Ollama/Groq channel rendering, review table empty state, refresh, approve/reject |
 | `test_config_editor.py` | Dirty-state gating, save-to-disk, Pydantic validation errors, `.env`-only API key writing |
 | `test_actions.py` | Every action button, export-to-project-dir, review approve/reject flows |
-| `test_wizard.py` | Step auto-advance, install scaffolding, distill-mode selection + config write, skip flow |
+| `test_wizard.py` | Agent client pick, install scaffolding (cursor/claude), distill-mode write, Cursor CLI skip/gate, skip flow |
 | `test_command_palette.py` | CLI introspection correctness (incl. the Click-fork regression), palette open/navigate |
 | `test_logging.py` | TUI log sink / stderr handler isolation; Actions log receives service output |
 

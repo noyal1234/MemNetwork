@@ -28,7 +28,10 @@ def test_brain_config_defaults() -> None:
     assert cfg.graphify.auto_sync.enabled is True
     assert cfg.graphify.auto_sync.debounce_seconds == 60.0
     assert cfg.graphify.auto_sync.watch_filesystem is False
-    assert cfg.semantic is False
+    assert cfg.semantic_enabled() is False
+    assert cfg.semantic_config().enabled is False
+    assert cfg.compression.summary_first is True
+    assert cfg.recall.activation == "ppr"
     assert cfg.ollama.auto_select_model is False
     assert cfg.ollama.model == "qwen2.5:3b"
     assert cfg.groq.model == "llama-3.3-70b-versatile"

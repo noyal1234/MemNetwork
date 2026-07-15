@@ -6,7 +6,7 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
-from brainkm.models.brain_config import GraphConfig, RecallConfig
+from brainkm.models.brain_config import BrainConfig, GraphConfig, RecallConfig, SemanticConfig
 from brainkm.services.recall_dedup import SessionChunkHit, deduped_session_chunks
 from brainkm.services.search import RankedNode, recall_with_bfs
 
@@ -18,6 +18,7 @@ class LiveRecallResult:
     source: str
     abstained: bool
     session_chunks: tuple[SessionChunkHit, ...] = ()
+    intent: str | None = None
 
 
 def recall_live(
@@ -27,15 +28,22 @@ def recall_live(
     limit: int = 5,
     graph: GraphConfig | None = None,
     recall: RecallConfig | None = None,
+    semantic: SemanticConfig | None = None,
+    config: BrainConfig | None = None,
     fts_limit: int = 20,
     project_dir: Path | None = None,
 ) -> LiveRecallResult:
     """Query live brain.db — includes neurons written mid-session via remember."""
+    if config is not None:
+        graph = graph or config.graph
+        recall = recall or config.recall
+        semantic = semantic or config.semantic_config()
     traversal = recall_with_bfs(
         conn,
         query,
         graph=graph,
         recall=recall,
+        semantic=semantic,
         fts_limit=fts_limit,
         project_dir=project_dir,
     )
@@ -47,4 +55,5 @@ def recall_live(
         source="live_db",
         abstained=traversal.abstained,
         session_chunks=tuple(supplemental),
+        intent=traversal.intent,
     )

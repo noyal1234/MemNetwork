@@ -9,6 +9,7 @@ from unittest.mock import patch
 from brainkm.tui.app import BrainkmConfigureApp
 from brainkm.tui.screens.wizard import (
     STEP_APIKEY,
+    STEP_CLIENT,
     STEP_CURSOR_CLI,
     STEP_DISTILL,
     STEP_INSTALL,
@@ -19,49 +20,81 @@ from brainkm.tui.screens.wizard import (
 
 
 async def test_wizard_is_initial_screen_for_fresh_project(tmp_path: Path) -> None:
-    """`_check_project` (step 0) is purely informational and auto-advances
-    on mount, so a fresh wizard lands on step 1 (install) almost
-    immediately."""
+    """`_check_project` (step 0) auto-advances on mount → land on agent client."""
     app = BrainkmConfigureApp(project_dir=tmp_path)
     async with app.run_test(size=(140, 70)) as pilot:
         await pilot.pause(0.3)
         screen = app.screen
-        assert screen._current_step == 1
+        assert screen._current_step == STEPS.index(STEP_CLIENT)
+        assert STEPS[screen._current_step] == STEP_CLIENT
 
 
-async def test_wizard_install_step_scaffolds_project(tmp_path: Path) -> None:
+async def test_wizard_client_then_install_scaffolds_project(tmp_path: Path) -> None:
     app = BrainkmConfigureApp(project_dir=tmp_path)
     async with app.run_test(size=(140, 70)) as pilot:
         await pilot.pause(0.3)
-        assert app.screen._current_step == 1  # auto-advanced past step 0
+        assert STEPS[app.screen._current_step] == STEP_CLIENT
+
+        await pilot.click("#btn-wizard-run")  # confirm default cursor client
+        await pilot.pause(0.3)
+        assert STEPS[app.screen._current_step] == STEP_INSTALL
+        assert app.screen._client == "cursor"
 
         await pilot.click("#btn-wizard-run")  # runs install
         await pilot.pause(2.0)
 
         screen = app.screen
-        assert screen._current_step == 2
+        assert STEPS[screen._current_step] == "step-doctor"
         assert (tmp_path / ".brain").is_dir()
+        assert (tmp_path / ".cursor" / "hooks.json").is_file()
+
+
+async def test_wizard_claude_client_install(tmp_path: Path) -> None:
+    app = BrainkmConfigureApp(project_dir=tmp_path)
+    async with app.run_test(size=(140, 70)) as pilot:
+        await pilot.pause(0.3)
+        screen = app.screen
+        assert STEPS[screen._current_step] == STEP_CLIENT
+
+        from textual.widgets import RadioSet
+
+        radio_set = screen.query_one("#wizard-client-radio", RadioSet)
+        radio_set.focus()
+        radio_set.action_next_button()  # cursor -> claude
+        radio_set.action_toggle_button()
+        await pilot.pause(0.1)
+
+        await pilot.click("#btn-wizard-run")
+        await pilot.pause(0.3)
+        assert screen._client == "claude"
+        assert STEPS[screen._current_step] == STEP_INSTALL
+
+        await pilot.click("#btn-wizard-run")
+        await pilot.pause(2.0)
+
+        assert (tmp_path / ".brain").is_dir()
+        assert (tmp_path / ".claude" / "hooks.json").is_file()
+        assert (tmp_path / "CLAUDE.md").is_file()
 
 
 async def test_wizard_distill_mode_selection_writes_config(tmp_path: Path) -> None:
     app = BrainkmConfigureApp(project_dir=tmp_path)
     async with app.run_test(size=(140, 70)) as pilot:
         await pilot.pause(0.3)
-        assert app.screen._current_step == 1
-
-        for _ in range(2):  # install -> doctor
+        # client -> install -> doctor
+        for _ in range(3):
             await pilot.click("#btn-wizard-run")
             await pilot.pause(1.5)
 
         screen = app.screen
-        assert screen._current_step == 3  # distill mode step
-        assert screen._distill_mode == "cursor"  # default
+        assert STEPS[screen._current_step] == STEP_DISTILL
+        assert screen._distill_mode == "cursor"
 
         from textual.widgets import RadioSet
 
         radio_set = screen.query_one("#wizard-distill-radio", RadioSet)
         radio_set.focus()
-        # Order: cursor (0), ollama (1), groq (2) — one next press lands on ollama
+        # Order follows PRIMARY_DISTILL_MODES: cursor, ollama, groq, mcp
         radio_set.action_next_button()
         radio_set.action_toggle_button()
         await pilot.pause(0.1)
@@ -72,8 +105,7 @@ async def test_wizard_distill_mode_selection_writes_config(tmp_path: Path) -> No
         cfg_path = tmp_path / ".brain" / "config.json"
         saved = json.loads(cfg_path.read_text())
         assert saved["capture"]["distill_mode"] == "ollama"
-        # Agent CLI is skipped for non-cursor modes → land on API key
-        assert screen._current_step == 5
+        # Agent CLI is skipped for non-cursor distill → land on API key
         assert STEPS[screen._current_step] == STEP_APIKEY
 
 
@@ -81,8 +113,8 @@ async def test_wizard_cursor_cli_skip_advances(tmp_path: Path) -> None:
     app = BrainkmConfigureApp(project_dir=tmp_path)
     async with app.run_test(size=(140, 70)) as pilot:
         await pilot.pause(0.3)
-        # install, doctor, distill (default cursor)
-        for _ in range(3):
+        # client, install, doctor, distill (default cursor)
+        for _ in range(4):
             await pilot.click("#btn-wizard-run")
             await pilot.pause(1.5)
 
@@ -91,7 +123,7 @@ async def test_wizard_cursor_cli_skip_advances(tmp_path: Path) -> None:
 
         await pilot.click("#btn-wizard-skip")
         await pilot.pause(0.2)
-        assert screen._current_step == 5  # API key
+        assert STEPS[screen._current_step] == STEP_APIKEY
 
 
 async def test_wizard_cursor_cli_run_with_mocked_install(tmp_path: Path) -> None:
@@ -100,7 +132,7 @@ async def test_wizard_cursor_cli_run_with_mocked_install(tmp_path: Path) -> None
     app = BrainkmConfigureApp(project_dir=tmp_path)
     async with app.run_test(size=(140, 70)) as pilot:
         await pilot.pause(0.3)
-        for _ in range(3):
+        for _ in range(4):
             await pilot.click("#btn-wizard-run")
             await pilot.pause(1.5)
 
@@ -137,27 +169,30 @@ async def test_wizard_cursor_cli_run_with_mocked_install(tmp_path: Path) -> None
             await pilot.click("#btn-wizard-run")
             await pilot.pause(1.5)
 
-        assert screen._current_step == 5  # advanced past cursor CLI
+        assert STEPS[screen._current_step] == STEP_APIKEY
 
 
 async def test_wizard_skip_advances_without_running(tmp_path: Path) -> None:
     app = BrainkmConfigureApp(project_dir=tmp_path)
     async with app.run_test(size=(140, 70)) as pilot:
         await pilot.pause(0.3)
-        assert app.screen._current_step == 1
+        assert STEPS[app.screen._current_step] == STEP_CLIENT
 
         await pilot.click("#btn-wizard-skip")
         await pilot.pause(0.2)
-        assert app.screen._current_step == 2
+        assert STEPS[app.screen._current_step] == STEP_INSTALL
 
 
 def test_wizard_step_ids_are_unique() -> None:
     assert len(STEPS) == len(set(STEPS))
     assert STEP_PROJECT in STEPS
+    assert STEP_CLIENT in STEPS
     assert STEP_INSTALL in STEPS
     assert STEP_DISTILL in STEPS
     assert STEP_CURSOR_CLI in STEPS
     assert STEP_VIZ_LLM in STEPS
+    assert STEPS.index(STEP_CLIENT) == STEPS.index(STEP_PROJECT) + 1
+    assert STEPS.index(STEP_INSTALL) == STEPS.index(STEP_CLIENT) + 1
     assert STEPS.index(STEP_CURSOR_CLI) == STEPS.index(STEP_DISTILL) + 1
     assert STEPS[-2] == STEP_VIZ_LLM
     assert STEPS[-1] == "step-done"

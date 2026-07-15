@@ -55,10 +55,19 @@ def resolve_project_dir(project_dir: Path | None) -> Path:
 
 
 def resolve_brainkm_command(*, dev: bool) -> tuple[str, list[str]]:
-    """Return MCP (command, args) for mcp.json."""
+    """Return MCP (command, args) for mcp.json.
+
+    Dev/private: absolute venv ``brainkm``. Until PyPI publish (deferred while the
+    repo is private), production installs prefer a PATH ``brainkm``; ``uvx`` is only
+    a placeholder for the future public zero-clone path.
+    """
     if dev:
         brainkm_bin = Path(sys.executable).resolve().parent / "brainkm"
         return str(brainkm_bin), ["mcp", "--project-dir", "."]
+    found = shutil.which("brainkm")
+    if found:
+        return found, ["mcp", "--project-dir", "."]
+    # Deferred: requires public PyPI package. Prefer ``brainkm install --dev`` today.
     return "uvx", ["brainkm@latest", "mcp", "--project-dir", "."]
 
 
@@ -302,11 +311,15 @@ def run_install(
     force: bool = False,
     config: BrainConfig | None = None,
     no_graph: bool = False,
+    client: str = "cursor",
 ) -> InstallResult:
     """Install brainkm into a target project."""
+    from brainkm.services.client_adapters import get_client_adapter
+
     root = resolve_project_dir(project_dir)
     cfg = config or BrainConfig()
     result = InstallResult(project_dir=root)
+    adapter = get_client_adapter(client)
 
     cursor_dir = root / ".cursor"
     mcp_path = cursor_dir / "mcp.json"
@@ -317,32 +330,87 @@ def run_install(
     mcp_payload = build_mcp_config(dev=dev)
     hooks_payload = build_hooks_config(brainkm_bin, config=cfg)
 
-    if mcp_path.is_file():
-        existing_mcp = json.loads(mcp_path.read_text(encoding="utf-8"))
-        merged_mcp = _deep_merge_dict(existing_mcp, mcp_payload)
-        _write_json(mcp_path, merged_mcp)
-        result.files_written.append(mcp_path)
-    else:
-        _write_json(mcp_path, mcp_payload)
-        result.files_written.append(mcp_path)
+    cursor_dir.mkdir(parents=True, exist_ok=True)
+    (cursor_dir / "rules").mkdir(parents=True, exist_ok=True)
 
-    if hooks_path.is_file():
-        existing_hooks = json.loads(hooks_path.read_text(encoding="utf-8"))
-        merged_hooks = merge_hooks_json(existing_hooks, hooks_payload)
-        _write_json(hooks_path, merged_hooks)
-        result.files_written.append(hooks_path)
-    else:
-        _write_json(hooks_path, hooks_payload)
-        result.files_written.append(hooks_path)
+    # Always write MCP for Cursor-shaped clients; generic keeps MCP optional under .brain.
+    if adapter.kind in ("cursor", "claude"):
+        if mcp_path.is_file():
+            existing_mcp = json.loads(mcp_path.read_text(encoding="utf-8"))
+            merged_mcp = _deep_merge_dict(existing_mcp, mcp_payload)
+            _write_json(mcp_path, merged_mcp)
+            result.files_written.append(mcp_path)
+        else:
+            _write_json(mcp_path, mcp_payload)
+            result.files_written.append(mcp_path)
 
-    if rule_path.is_file() and not force:
-        result.files_skipped.append(rule_path)
-    else:
-        _write_text(rule_path, _load_package_rule_template())
-        result.files_written.append(rule_path)
+    if adapter.kind == "cursor":
+        if hooks_path.is_file():
+            existing_hooks = json.loads(hooks_path.read_text(encoding="utf-8"))
+            merged_hooks = merge_hooks_json(existing_hooks, hooks_payload)
+            _write_json(hooks_path, merged_hooks)
+            result.files_written.append(hooks_path)
+        else:
+            _write_json(hooks_path, hooks_payload)
+            result.files_written.append(hooks_path)
+
+        if rule_path.is_file() and not force:
+            result.files_skipped.append(rule_path)
+        else:
+            _write_text(rule_path, _load_package_rule_template())
+            result.files_written.append(rule_path)
+
+    if adapter.kind == "claude":
+        claude_dir = root / ".claude"
+        claude_dir.mkdir(parents=True, exist_ok=True)
+        claude_hooks_src = resources.files("brainkm.hooks.claude") / "hooks.json"
+        claude_hooks_dst = claude_dir / "hooks.json"
+        # Rewrite command paths for this install.
+        raw_hooks = json.loads(claude_hooks_src.read_text(encoding="utf-8"))
+        # Prefer built payload shaped like Cursor with Claude events allowed.
+        claude_hooks = build_hooks_config(brainkm_bin, config=cfg)
+        # Restore postCompact for Claude.
+        if "postCompact" not in claude_hooks:
+            claude_hooks["postCompact"] = [
+                {
+                    "command": f"{brainkm_bin} post-compact --project-dir .",
+                }
+            ]
+        _write_json(claude_hooks_dst, claude_hooks)
+        result.files_written.append(claude_hooks_dst)
+        agents_path = root / "CLAUDE.md"
+        if agents_path.is_file() and not force:
+            # Append snippet once.
+            existing = agents_path.read_text(encoding="utf-8")
+            if "brainkm — project memory routing" not in existing:
+                _write_text(agents_path, existing.rstrip() + "\n\n" + adapter.agents_snippet())
+                result.files_written.append(agents_path)
+            else:
+                result.files_skipped.append(agents_path)
+        else:
+            _write_text(agents_path, adapter.agents_snippet())
+            result.files_written.append(agents_path)
+        _ = raw_hooks
+
+    # Generic and all clients get AGENTS.md routing snippet.
+    agents_md = root / "AGENTS.md"
+    snippet = adapter.agents_snippet()
+    if adapter.kind == "generic" or not agents_md.is_file():
+        if agents_md.is_file() and not force:
+            existing = agents_md.read_text(encoding="utf-8")
+            if "brainkm — project memory routing" not in existing:
+                _write_text(agents_md, existing.rstrip() + "\n\n" + snippet)
+                result.files_written.append(agents_md)
+            else:
+                result.files_skipped.append(agents_md)
+        elif adapter.kind == "generic" or force or not agents_md.is_file():
+            if not agents_md.is_file():
+                _write_text(agents_md, snippet)
+                result.files_written.append(agents_md)
 
     brain_root = brain_dir(root)
     brain_root.mkdir(parents=True, exist_ok=True)
+    (brain_root / "team").mkdir(parents=True, exist_ok=True)
     example_src = example_config_path()
     example_dst = brain_root / "config.example.json"
     _write_text(example_dst, example_src.read_text(encoding="utf-8"))
@@ -360,6 +428,16 @@ def run_install(
             result.files_written.append(root / ".gitignore")
 
     migrate(project_dir=root, run_integrity_check=True)
+
+    if cfg.team.auto_import_on_install:
+        try:
+            from brainkm.services.team import import_team_neurons
+
+            imported = import_team_neurons(root, config=cfg)
+            if imported:
+                logger.info("Imported %d team neurons during install", imported)
+        except Exception as exc:
+            result.warnings.append(f"team import skipped: {exc}")
 
     try:
         from brainkm.services.abstention_calibrate import calibrate_reference
@@ -423,5 +501,5 @@ def run_install(
             "use --dev for local installs or ensure brainkm is on PATH."
         )
 
-    logger.info("install complete project_dir=%s dev=%s", root, dev)
+    logger.info("install complete project_dir=%s dev=%s client=%s", root, dev, client)
     return result

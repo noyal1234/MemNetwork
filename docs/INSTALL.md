@@ -19,10 +19,12 @@ brainkm install --dev
 brainkm graph sync          # optional: first code graph
 brainkm graph status
 pytest
-brainkm version   # expect 0.3.0
+brainkm version   # expect 0.3.1
 ```
 
 Restart Cursor or reload MCP servers after `brainkm install --dev`.
+
+> **Private repo note:** PyPI / `uvx brainkm install`, MCP Registry, and Cursor deeplinks are deferred until this project is public and stable. Use `brainkm install --dev` from a local clone for now.
 
 ### Optional: Textual configure UI
 

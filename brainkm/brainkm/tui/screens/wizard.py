@@ -29,6 +29,7 @@ from brainkm.tui.widgets.rich_log_panel import RichLogPanel
 # Wizard step IDs
 # ---------------------------------------------------------------------------
 STEP_PROJECT = "step-project"
+STEP_CLIENT = "step-client"
 STEP_INSTALL = "step-install"
 STEP_DOCTOR = "step-doctor"
 STEP_DISTILL = "step-distill"
@@ -40,6 +41,7 @@ STEP_DONE = "step-done"
 
 STEPS = [
     STEP_PROJECT,
+    STEP_CLIENT,
     STEP_INSTALL,
     STEP_DOCTOR,
     STEP_DISTILL,
@@ -50,13 +52,33 @@ STEPS = [
     STEP_DONE,
 ]
 
+CLIENT_LABELS: dict[str, str] = {
+    "cursor": "cursor — Cursor IDE (MCP + hooks + rules)",
+    "claude": "claude — Claude Code (MCP + .claude hooks + CLAUDE.md)",
+    "generic": "generic — any MCP client (AGENTS.md + manual capture/handover)",
+}
+
+INSTALL_DESCRIPTIONS: dict[str, str] = {
+    "cursor": (
+        "Creates .brain/, config.json, Cursor MCP config, hooks, and brainkm.mdc rule."
+    ),
+    "claude": (
+        "Creates .brain/, config.json, Cursor-shaped MCP entry, .claude/hooks.json, "
+        "and CLAUDE.md routing snippet."
+    ),
+    "generic": (
+        "Creates .brain/, config.json, and an AGENTS.md tool-routing snippet "
+        "(no IDE hooks — use brainkm capture / handover manually)."
+    ),
+}
+
 
 class WizardScreen(Screen):
-    """Phase 4 — guided first-run wizard.
+    """First-run wizard.
 
-    Walks through: project dir → install → hardware doctor → distill mode
-    → Cursor agent CLI (optional) → API key → graph sync → viz WebLLM
-    prefetch (optional) → done.
+    Walks through: project dir → agent client → install → hardware doctor →
+    distill mode → Cursor agent CLI (optional, cursor client + cursor distill) →
+    API key → graph sync → viz WebLLM prefetch (optional) → done.
     """
 
     BINDINGS = [
@@ -69,6 +91,7 @@ class WizardScreen(Screen):
         self._project_dir = project_dir or Path.cwd()
         self._current_step = 0
         self._distill_mode = "cursor"
+        self._client = "cursor"
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -91,59 +114,76 @@ class WizardScreen(Screen):
                 )
                 yield Static("", id="wizard-project-status")
 
-            # --- Step 2: Install scaffolding ---
-            with Vertical(classes="wizard-step", id=STEP_INSTALL):
-                yield Static("2 ─ Install Scaffolding", classes="step-title")
+            # --- Step 2: Agent client ---
+            with Vertical(classes="wizard-step", id=STEP_CLIENT):
+                yield Static("2 ─ Agent Client", classes="step-title")
                 yield Static(
-                    "Creates .brain/ directory, config.json, MCP config, and Cursor hooks.",
+                    "Which coding agent will use this project brain?\n"
+                    "This chooses hooks / MCP / AGENTS.md scaffolding on install.",
+                    classes="step-description",
+                )
+                with RadioSet(id="wizard-client-radio"):
+                    yield RadioButton(
+                        CLIENT_LABELS["cursor"],
+                        value=True,
+                        id="radio-client-cursor",
+                    )
+                    yield RadioButton(
+                        CLIENT_LABELS["claude"],
+                        id="radio-client-claude",
+                    )
+                    yield RadioButton(
+                        CLIENT_LABELS["generic"],
+                        id="radio-client-generic",
+                    )
+                yield Static("", id="wizard-client-status")
+
+            # --- Step 3: Install scaffolding ---
+            with Vertical(classes="wizard-step", id=STEP_INSTALL):
+                yield Static("3 ─ Install Scaffolding", classes="step-title")
+                yield Static(
+                    INSTALL_DESCRIPTIONS["cursor"],
+                    id="wizard-install-description",
                     classes="step-description",
                 )
                 yield Static("", id="wizard-install-status")
 
-            # --- Step 3: Hardware doctor ---
+            # --- Step 4: Hardware doctor ---
             with Vertical(classes="wizard-step", id=STEP_DOCTOR):
-                yield Static("3 ─ Hardware Doctor", classes="step-title")
+                yield Static("4 ─ Hardware Doctor", classes="step-title")
                 yield Static(
                     "Detect hardware capabilities and recommend an Ollama model.",
                     classes="step-description",
                 )
                 yield Static("", id="wizard-doctor-status")
 
-            # --- Step 4: Distill mode ---
+            # --- Step 5: Distill mode ---
             with Vertical(classes="wizard-step", id=STEP_DISTILL):
-                yield Static("4 ─ Distill Mode", classes="step-title")
+                yield Static("5 ─ Distill Mode", classes="step-title")
                 yield Static(
                     "How should brainkm extract neurons from transcripts?\n"
-                    "Pick one backend. Cursor Agent CLI (next step) is only an "
-                    "optional upgrade for cursor mode — not a separate mode.",
+                    "Pick one backend. Cursor Agent CLI (next step) only upgrades "
+                    "cursor distill when the agent client is Cursor.",
                     classes="step-description",
                 )
                 with RadioSet(id="wizard-distill-radio"):
-                    yield RadioButton(
-                        DISTILL_MODE_LABELS["cursor"],
-                        value=True,
-                        id="radio-distill-cursor",
-                    )
-                    yield RadioButton(
-                        DISTILL_MODE_LABELS["ollama"],
-                        id="radio-distill-ollama",
-                    )
-                    yield RadioButton(
-                        DISTILL_MODE_LABELS["groq"],
-                        id="radio-distill-groq",
-                    )
+                    for i, mode in enumerate(PRIMARY_DISTILL_MODES):
+                        yield RadioButton(
+                            DISTILL_MODE_LABELS[mode],
+                            value=(i == 0),
+                            id=f"radio-distill-{mode}",
+                        )
                 yield Static("", id="wizard-distill-status")
 
-            # --- Step 5: Optional Cursor Agent CLI upgrade (not a distill mode) ---
+            # --- Step 6: Optional Cursor Agent CLI upgrade ---
             with Vertical(classes="wizard-step", id=STEP_CURSOR_CLI):
                 yield Static(
-                    "5 ─ Upgrade Cursor Distill (Agent CLI, Optional)",
+                    "6 ─ Upgrade Cursor Distill (Agent CLI, Optional)",
                     classes="step-title",
                 )
                 yield Static(
-                    "Not a separate distill mode. Only upgrades cursor mode: "
-                    "heuristic Cursor distill already works without this. "
-                    "Install the agent CLI for optional LLM-quality extraction.",
+                    "Not a separate distill mode. Only upgrades cursor mode when "
+                    "agent client is Cursor. Heuristic Cursor distill works without this.",
                     id="wizard-cursor-cli-description",
                     classes="step-description",
                 )
@@ -156,9 +196,9 @@ class WizardScreen(Screen):
                 )
                 yield Static("", id="wizard-cursor-cli-status")
 
-            # --- Step 6: API key ---
+            # --- Step 7: API key ---
             with Vertical(classes="wizard-step", id=STEP_APIKEY):
-                yield Static("6 ─ API Key (Optional)", classes="step-title")
+                yield Static("7 ─ API Key (Optional)", classes="step-title")
                 yield Static(
                     "If you chose 'groq', paste your GROQ_API_KEY below.",
                     classes="step-description",
@@ -172,18 +212,18 @@ class WizardScreen(Screen):
                     )
                 yield Static("", id="wizard-apikey-status")
 
-            # --- Step 7: Graph sync ---
+            # --- Step 8: Graph sync ---
             with Vertical(classes="wizard-step", id=STEP_GRAPH):
-                yield Static("7 ─ Graph Sync (Optional)", classes="step-title")
+                yield Static("8 ─ Graph Sync (Optional)", classes="step-title")
                 yield Static(
                     "Run Graphify AST extraction and import into brain.db.",
                     classes="step-description",
                 )
                 yield Static("", id="wizard-graph-status")
 
-            # --- Step 8: Viz WebLLM prefetch ---
+            # --- Step 9: Viz WebLLM prefetch ---
             with Vertical(classes="wizard-step", id=STEP_VIZ_LLM):
-                yield Static("8 ─ Viz Chat Model (Optional)", classes="step-title")
+                yield Static("9 ─ Viz Chat Model (Optional)", classes="step-title")
                 yield Static(
                     "Prefetch an on-device WebLLM model for `brainkm viz` Ask-your-brain.\n"
                     "Weights go to ~/.cache/brainkm/webllm/ (once). The browser still needs\n"
@@ -206,19 +246,20 @@ class WizardScreen(Screen):
                     )
                 yield Static("", id="wizard-viz-llm-status")
 
-            # --- Step 9: Done ---
+            # --- Step 10: Done ---
             with Vertical(classes="wizard-step", id=STEP_DONE):
                 yield Static("✓ Setup Complete!", classes="step-title")
                 yield Static(
                     "Your project brain is ready. Switch to the Dashboard to see the status.\n"
                     "Open viz with: brainkm viz  ·  Ask chat uses your prefetched model if cached.",
+                    id="wizard-done-description",
                     classes="step-description",
                 )
 
             # --- Log panel ---
             yield RichLogPanel(title="[ WIZARD LOG ]", id="wizard-log")
 
-            # --- Navigation buttons (inside container so Footer doesn't cover them) ---
+            # --- Navigation buttons ---
             with Horizontal(id="wizard-nav"):
                 yield Button(bracket_label("Back"), id="btn-wizard-back", disabled=True)
                 yield Button(bracket_label("Run Step"), id="btn-wizard-run", classes="-primary")
@@ -320,6 +361,7 @@ class WizardScreen(Screen):
         step = STEPS[self._current_step]
         runners = {
             STEP_PROJECT: self._check_project,
+            STEP_CLIENT: self._apply_client,
             STEP_INSTALL: self._run_install,
             STEP_DOCTOR: self._run_doctor,
             STEP_DISTILL: self._apply_distill_mode,
@@ -350,17 +392,50 @@ class WizardScreen(Screen):
             self.log_panel.log_info(f"Project directory: {self._project_dir}")
         self._advance()
 
+    def _apply_client(self) -> None:
+        """Step 2: Persist agent-client choice for install."""
+        mode_map = {0: "cursor", 1: "claude", 2: "generic"}
+        try:
+            radio_set = self.query_one("#wizard-client-radio", RadioSet)
+            self._client = mode_map.get(radio_set.pressed_index, "cursor")
+        except Exception:
+            self._client = "cursor"
+
+        try:
+            status = self.query_one("#wizard-client-status", Static)
+            status.update(
+                f"[bold green]● Client: {self._client}[/]"
+            )
+            desc = self.query_one("#wizard-install-description", Static)
+            desc.update(INSTALL_DESCRIPTIONS.get(self._client, INSTALL_DESCRIPTIONS["cursor"]))
+        except Exception:
+            pass
+        self.log_panel.log_info(f"Selected agent client: {self._client}")
+        self._advance()
+
     def _run_install(self) -> None:
-        self.log_panel.log_info("Running brainkm install…")
+        self.log_panel.log_info(
+            f"Running brainkm install --dev --client {self._client}…"
+        )
         self._do_install()
 
     @work(thread=True, group="wizard", exit_on_error=False)
     def _do_install(self) -> dict[str, Any]:
         from brainkm.services.install import run_install
 
-        result = run_install(project_dir=self._project_dir, dev=True, force=False, no_graph=True)
+        try:
+            result = run_install(
+                project_dir=self._project_dir,
+                dev=True,
+                force=False,
+                no_graph=True,
+                client=self._client,
+            )
+        except Exception as exc:
+            return {"step": STEP_INSTALL, "error": str(exc), "client": self._client}
         return {
             "step": STEP_INSTALL,
+            "client": self._client,
             "project_dir": str(result.project_dir),
             "files_written": [str(p) for p in result.files_written],
             "files_skipped": [str(p) for p in result.files_skipped],
@@ -408,8 +483,7 @@ class WizardScreen(Screen):
             return {"step": "annotate-distill", "error": str(exc)}
 
     def _apply_distill_mode(self) -> None:
-        """Step 4: Read radio selection and write to config."""
-        # Primary picker only: cursor / ollama / groq (rules is advanced, not listed).
+        """Read distill radio selection and write to config."""
         mode_map = {i: mode for i, mode in enumerate(PRIMARY_DISTILL_MODES)}
         try:
             radio_set = self.query_one("#wizard-distill-radio", RadioSet)
@@ -422,10 +496,11 @@ class WizardScreen(Screen):
         self._do_apply_distill()
 
     def _run_cursor_cli(self) -> None:
-        """Step 5: Optional Agent CLI upgrade for cursor mode only."""
+        """Optional Agent CLI upgrade — only for Cursor client + cursor distill."""
+        cursor_relevant = self._client == "cursor" and self._distill_mode == "cursor"
         try:
             desc = self.query_one("#wizard-cursor-cli-description", Static)
-            if self._distill_mode == "cursor":
+            if cursor_relevant:
                 desc.update(
                     "Not a separate distill mode. Only upgrades cursor mode: "
                     "heuristic Cursor distill already works without this. "
@@ -433,14 +508,15 @@ class WizardScreen(Screen):
                 )
             else:
                 desc.update(
-                    "Skipped for non-cursor modes — Agent CLI only upgrades "
-                    f"distill_mode=cursor (current: {self._distill_mode})."
+                    "Skipped — Agent CLI only applies when agent client is Cursor "
+                    f"and distill_mode is cursor "
+                    f"(client={self._client}, distill={self._distill_mode})."
                 )
         except Exception:
             pass
-        if self._distill_mode != "cursor":
+        if not cursor_relevant:
             self.log_panel.log_info(
-                "Skipping Agent CLI — only relevant when distill mode is cursor"
+                "Skipping Agent CLI — requires client=cursor and distill_mode=cursor"
             )
             self._advance()
             return
@@ -685,6 +761,11 @@ class WizardScreen(Screen):
         step = result.get("step", "")
 
         if step == STEP_INSTALL:
+            if result.get("error"):
+                self.log_panel.log_error(f"Install failed: {result['error']}")
+                status = self.query_one("#wizard-install-status", Static)
+                status.update(f"[bold red]✗ {escape_markup(str(result['error']))}[/]")
+                return
             for path in result.get("files_written", []):
                 self.log_panel.log_plain(f"  wrote {path}")
             for path in result.get("files_skipped", []):
@@ -692,7 +773,8 @@ class WizardScreen(Screen):
             for warning in result.get("warnings", []):
                 self.log_panel.log_warning(warning)
             status = self.query_one("#wizard-install-status", Static)
-            status.update("[bold green]✓ Install complete[/]")
+            client = result.get("client", self._client)
+            status.update(f"[bold green]✓ Install complete (client={client})[/]")
             self._advance()
 
         elif step == STEP_DOCTOR:
@@ -716,14 +798,14 @@ class WizardScreen(Screen):
         elif step == STEP_DISTILL:
             self.log_panel.log_success(f"Distill mode set to: {result.get('mode', '?')}")
             self._advance()
-            # Agent CLI is only an upgrade for cursor — skip the step otherwise.
+            # Agent CLI is only an upgrade for Cursor client + cursor distill.
             if (
-                self._distill_mode != "cursor"
+                (self._distill_mode != "cursor" or self._client != "cursor")
                 and self._current_step < len(STEPS)
                 and STEPS[self._current_step] == STEP_CURSOR_CLI
             ):
                 self.log_panel.log_info(
-                    "Skipping Agent CLI step — only upgrades cursor mode"
+                    "Skipping Agent CLI step — requires client=cursor and distill_mode=cursor"
                 )
                 self._advance()
 

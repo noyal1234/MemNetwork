@@ -17,7 +17,9 @@ brainkm --help
 | Command | Purpose | Key flags | Example |
 |---------|---------|-----------|---------|
 | `brainkm version` | Print installed package version | — | `brainkm version` |
-| `brainkm install` | Scaffold `.brain/`, MCP config, Cursor hooks, rule | `--project-dir`, `--dev`, `--force`, `--no-graph` | `brainkm install --dev` |
+| `brainkm install` | Scaffold `.brain/`, MCP config, hooks, rule | `--project-dir`, `--dev`, `--force`, `--no-graph`, `--client cursor\|claude\|generic` | `brainkm install --dev --client cursor` |
+
+> **Tip:** `brainkm configure` wizard includes the same **Agent Client** picker before install (0.3.1+).
 | `brainkm migrate` | Apply pending SQLite migrations | `--project-dir` | `brainkm migrate` |
 | `brainkm configure` | Launch Textual config dashboard (wizard / status / forms / actions) | `--project-dir` | `brainkm configure` |
 
@@ -32,9 +34,9 @@ Requires `pip install -e "./brainkm[tui]"`. Without Textual, the command prints 
 | `brainkm capture` | Ingest transcript JSONL → chunks + distilled neurons | `--project-dir`, `--session-id` | `brainkm capture path/to/transcript.jsonl` |
 | `brainkm handover` | PreCompact durable distill + WAL checkpoint | `--project-dir`, `--session-id`, `--stdin` | `brainkm handover --stdin` |
 
-Distill backend is selected by `capture.distill_mode` in `.brain/config.json`: `rules` \| `cursor` \| `ollama` \| `groq`.
+Distill backend is selected by `capture.distill_mode` in `.brain/config.json`: `rules` \| `cursor` \| `ollama` \| `groq` \| `mcp`.
 
-All modes clean Cursor chrome before extract. PreCompact handover allows up to `handover.precompact_distill_timeout_seconds` (default **30s**) before falling back to `rules`.
+All modes clean Cursor chrome before extract. PreCompact handover allows up to `handover.precompact_distill_timeout_seconds` (default **30s**) before falling back to `rules`. `mcp` uses the host's sampling API when available.
 
 ---
 
@@ -80,7 +82,8 @@ Multi-IDE opt-in: set `graphify.auto_sync.watch_filesystem: true` in `.brain/con
 
 | Command | Purpose | Key flags | Example |
 |---------|---------|-----------|---------|
-| `brainkm hygiene` | Soft-archive memory neurons that fail the noise gate (transcript chrome, tool spam, boilerplate) | `--project-dir`, `--dry-run`, `--limit` | `brainkm hygiene --dry-run` |
+| `brainkm hygiene` | Soft-archive noisy (and optionally decayed) neurons | `--project-dir`, `--dry-run`, `--limit`, `--decay`, `--unused-days` | `brainkm hygiene --decay` |
+| `brainkm consolidate` | Merge near-duplicate neurons (sleep-time pass) | `--project-dir`, `--dry-run`, `--limit` | `brainkm consolidate` |
 
 Safe to re-run; archives via `forget` (reversible with audit log). SessionStart/context packs also skip noisy neurons at injection time.
 
@@ -90,7 +93,7 @@ Safe to re-run; archives via `forget` (reversible with audit log). SessionStart/
 
 | Command | Purpose | Key flags | Example |
 |---------|---------|-----------|---------|
-| `brainkm bench run` | Run suite: `abstention\|token\|dmr\|longmem\|budget\|compaction` | `--project-dir`, `--live` (token only) | `brainkm bench run token` |
+| `brainkm bench run` | Run suite: `abstention\|token\|dmr\|longmem\|budget\|compaction\|latency` | `--project-dir`, `--live` (token only) | `brainkm bench run latency` |
 | `brainkm bench probe` | Live `context_pack` size for one query | `--project-dir`, `--baseline` | `brainkm bench probe "auth middleware"` |
 | `brainkm bench calibrate` | Calibrate recall abstention thresholds | `--project-dir`, `--reference`, `--seed-reference-corpus` | `brainkm bench calibrate` |
 
@@ -101,7 +104,8 @@ Safe to re-run; archives via `forget` (reversible with audit log). SessionStart/
 | Command | Purpose | Key flags | Example |
 |---------|---------|-----------|---------|
 | `brainkm export` | Export neurons to markdown under `.brain/exports/` | `--project-dir`, `--full`, `--output` | `brainkm export` |
-| `brainkm import` | Merge neurons from JSON export | `--project-dir` | `brainkm import export.json` |
+| `brainkm import` | Merge or replace neurons from JSON export | `--project-dir`, `--replace` | `brainkm import export.json --replace` |
+| `brainkm team-export` | Export curated neurons to `.brain/team/neurons.json` | `--project-dir` | `brainkm team-export` |
 | `brainkm repair` | Rebuild FTS5 + integrity check | `--project-dir` | `brainkm repair` |
 
 ---
@@ -111,7 +115,7 @@ Safe to re-run; archives via `forget` (reversible with audit log). SessionStart/
 | Command | Purpose | Key flags | Example |
 |---------|---------|-----------|---------|
 | `brainkm viz` | Launch 3D neuron graph in the browser | `--project-dir`, `--port`, `--no-open`, `--demo` | `brainkm viz --port 5757` |
-| `brainkm mcp` | Run MCP stdio server (8 tools) | `--project-dir` | `brainkm mcp --project-dir .` |
+| `brainkm mcp` | Run MCP server (stdio or HTTP) | `--project-dir`, `--http`, `--host`, `--port` | `brainkm mcp --http --port 8765` |
 
 ---
 

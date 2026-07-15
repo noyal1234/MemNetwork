@@ -118,7 +118,7 @@ MemNetwork/
 
 ## 4. MCP tool contract (V1 / current)
 
-**Package version:** `0.3.0`
+**Package version:** `0.3.1`
 
 | Tool | Purpose |
 |------|---------|
@@ -324,8 +324,10 @@ All distill modes share Cursor chrome cleaning (`clean_cursor_text` / `is_distil
 | **V2** | Done | Tool registry, review queue, confidence-gated review, PostToolUse learning loop, co-activation procedure promotion |
 | **TUI** | Done | `brainkm configure` Textual app (dashboard, config editor, actions, wizard); optional `[tui]` extra — see [TUI_APP_PLAN.md](TUI_APP_PLAN.md) |
 | **0.2.0** | Done | End-to-end token cap on agent-facing packs; lean MCP payloads; MCP usage telemetry in `brain_stats`; distill cleaning parity + prompt fix; `brainkm hygiene`; injection-time noise gate; path-labeled code nodes |
-| **0.3.0** | Done | Redaction on all neuron write paths; SessionStart/snapshot total_tokens clamp; read-tool commits via WriteQueue; session-scoped `brain_stats`; TUI SVG snapshots + ANSI-16 fallback; version discipline |
-| **V3+** | Planned | Decay, optional semantic search |
+| **0.3.0** | Done | Redaction on all neuron write paths; SessionStart/snapshot total_tokens clamp; read-tool commits via WriteQueue; session-scoped `brain_stats`; TUI SVG snapshots + ANSI-16 fallback; version discipline; hybrid RRF retrieval + PPR; intent routing; conflict supersede; pack compression/summary-first; latency bench; usage feedback; decay/consolidate; multi-client install; MCP resources/HTTP; team neurons; import `--replace` |
+| **0.3.1** | Done | TUI wizard **Agent Client** step (`cursor` / `claude` / `generic`) wired to `run_install(--client)`; Cursor Agent CLI step gated on client+distill; docs/skill/CLI/TUI plan version sync |
+| **Public distribution** | **Deferred** | PyPI / `uvx` zero-clone install, trusted-publishing + public CI matrix, MCP Registry listing, Cursor deeplink — wait until repo is public and a stable version ships. Local path: `brainkm install --dev`. |
+| **V3+ polish** | Ongoing | Packaged ONNX MiniLM weights, cross-encoder reranker weights, refreshed public bench numbers after open-source |
 
 ### SQLite concurrency
 

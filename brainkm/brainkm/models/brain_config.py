@@ -30,9 +30,10 @@ class CaptureConfig(BaseModel):
     transcripts: bool = True
     plan_files: bool = True
     plan_glob: str = ".cursor/plans/*.plan.md"
-    distill_mode: Literal["cursor", "ollama", "groq", "rules"] = "cursor"
+    distill_mode: Literal["cursor", "ollama", "groq", "rules", "mcp"] = "cursor"
     max_auto_neurons_per_session: int = Field(default=50, ge=1, le=500)
     max_neurons_per_plan: int = Field(default=20, ge=1, le=200)
+    auto_hygiene: bool = True
 
 
 class InjectionConfig(BaseModel):
@@ -56,6 +57,12 @@ class RecallConfig(BaseModel):
     abstain_mode: Literal["percentile", "absolute"] = "percentile"
     abstain_percentile: float = Field(default=0.10, ge=0.0, le=1.0)
     min_recall_score: float | None = Field(default=None, ge=0.0, le=100.0)
+    activation: Literal["bfs", "ppr"] = "ppr"
+    ppr_damping: float = Field(default=0.85, ge=0.5, le=0.99)
+    ppr_iterations: int = Field(default=8, ge=2, le=30)
+    rerank: bool = False
+    decay_half_life_days: float = Field(default=30.0, ge=1.0, le=3650.0)
+    feedback_boost: bool = True
 
     @model_validator(mode="after")
     def absolute_mode_requires_threshold(self) -> RecallConfig:
@@ -63,6 +70,30 @@ class RecallConfig(BaseModel):
             msg = "min_recall_score is required when abstain_mode is 'absolute'"
             raise ValueError(msg)
         return self
+
+
+class SemanticConfig(BaseModel):
+    """T1 hybrid retrieval (vector + BM25 RRF). Off by default for zero-dep T0."""
+
+    enabled: bool = False
+    prefer_onnx: bool = True
+    vector_limit: int = Field(default=20, ge=5, le=100)
+    rrf_k: int = Field(default=60, ge=10, le=200)
+    embed_on_write: bool = True
+
+
+class DecayConfig(BaseModel):
+    enabled: bool = True
+    unused_days: int = Field(default=90, ge=7, le=3650)
+    consolidate_on_session_end: bool = False
+
+
+class CompressionConfig(BaseModel):
+    write_time: bool = True
+    max_body_tokens: int = Field(default=120, ge=40, le=800)
+    pack_dedup: bool = True
+    pack_diversity: bool = True
+    summary_first: bool = True
 
 
 class HandoverConfig(BaseModel):
@@ -113,6 +144,14 @@ class GroqConfig(BaseModel):
 
 class GitConfig(BaseModel):
     enabled: bool = False
+    link_on_capture: bool = True
+
+
+class TeamConfig(BaseModel):
+    """Git-shareable curated team neurons under ``.brain/team/``."""
+
+    auto_import_on_install: bool = True
+    team_dir: str = "team"
 
 
 class VizConfig(BaseModel):
@@ -144,8 +183,11 @@ class BrainConfig(BaseModel):
     ollama: OllamaConfig = Field(default_factory=OllamaConfig)
     groq: GroqConfig = Field(default_factory=GroqConfig)
     viz: VizConfig = Field(default_factory=VizConfig)
-    semantic: bool = False
+    semantic: SemanticConfig | bool = Field(default_factory=SemanticConfig)
+    compression: CompressionConfig = Field(default_factory=CompressionConfig)
+    decay: DecayConfig = Field(default_factory=DecayConfig)
     git: GitConfig = Field(default_factory=GitConfig)
+    team: TeamConfig = Field(default_factory=TeamConfig)
 
     @field_validator("project_roots")
     @classmethod
@@ -158,6 +200,24 @@ class BrainConfig(BaseModel):
             msg = "project_roots must contain at least one non-empty path"
             raise ValueError(msg)
         return normalized
+
+    @model_validator(mode="before")
+    @classmethod
+    def coerce_legacy_semantic(cls, data: object) -> object:
+        """Accept legacy ``\"semantic\": true|false`` boolean from older configs."""
+        if isinstance(data, dict) and isinstance(data.get("semantic"), bool):
+            data = {**data, "semantic": {"enabled": data["semantic"]}}
+        return data
+
+    def semantic_enabled(self) -> bool:
+        if isinstance(self.semantic, bool):
+            return self.semantic
+        return self.semantic.enabled
+
+    def semantic_config(self) -> SemanticConfig:
+        if isinstance(self.semantic, SemanticConfig):
+            return self.semantic
+        return SemanticConfig(enabled=bool(self.semantic))
 
     def brain_dir_relative(self) -> str:
         return ".brain"

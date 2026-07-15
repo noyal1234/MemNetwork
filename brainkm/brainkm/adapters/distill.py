@@ -52,10 +52,13 @@ def get_distill_adapter(
             project_dir=project_dir,
             session_id=session_id,
         )
-    if mode == "rules":
-        from brainkm.adapters.distill_rules import RulesDistillAdapter
+    if mode == "mcp":
+        from brainkm.adapters.mcp_distill import McpDistillAdapter
 
-        return RulesDistillAdapter()
+        return McpDistillAdapter(config)
+    from brainkm.adapters.distill_rules import RulesDistillAdapter
+
+    return RulesDistillAdapter()
 
 
 def distill_rounds_with_timeout(

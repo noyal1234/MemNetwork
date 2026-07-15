@@ -83,6 +83,23 @@
     "webllm_model": "Llama-3.2-1B-Instruct-q4f16_1-MLC",
     "webllm_prefetch": true
   },
-  "semantic": false,
-  "git": { "enabled": false }
+  "semantic": {
+    "enabled": false,
+    "prefer_onnx": true,
+    "embed_on_write": true
+  },
+  "compression": {
+    "write_time": true,
+    "max_body_tokens": 120,
+    "pack_dedup": true,
+    "pack_diversity": true,
+    "summary_first": true
+  },
+  "decay": {
+    "enabled": true,
+    "unused_days": 90,
+    "consolidate_on_session_end": false
+  },
+  "git": { "enabled": false, "link_on_capture": true },
+  "team": { "auto_import_on_install": true, "team_dir": "team" }
 }

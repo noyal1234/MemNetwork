@@ -257,6 +257,10 @@ def process_post_tool(
     )
 
     neuron_ids = load_recent_neuron_ids(conn, session_id, limit=config.learning.session_window_size)
+    if neuron_ids:
+        from brainkm.services.feedback import record_used
+
+        record_used(conn, list(neuron_ids))
     if len(neuron_ids) >= 2:
         for index, first in enumerate(neuron_ids):
             for second in neuron_ids[index + 1 :]:

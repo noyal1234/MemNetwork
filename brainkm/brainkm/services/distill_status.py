@@ -15,11 +15,11 @@ from brainkm.services.ollama_advisor import probe_ollama
 logger = get_logger("services.distill_status")
 
 # Backend / doctor order (rules remains a real mode + timeout fallback).
-DISTILL_MODES = ("cursor", "rules", "ollama", "groq")
+DISTILL_MODES = ("cursor", "rules", "ollama", "groq", "mcp")
 
 # Primary TUI pickers: rules is intentionally omitted — it overlaps conceptually
 # with cursor heuristics and is an advanced/offline fallback, not a peer choice.
-PRIMARY_DISTILL_MODES = ("cursor", "ollama", "groq")
+PRIMARY_DISTILL_MODES = ("cursor", "ollama", "groq", "mcp")
 
 # User-facing labels: cursor must not say "rule-based" (that collides with rules).
 DISTILL_MODE_LABELS: dict[str, str] = {
@@ -30,6 +30,7 @@ DISTILL_MODE_LABELS: dict[str, str] = {
     "rules": "rules — advanced raw pattern fallback (no Cursor cleanup)",
     "ollama": "ollama — local LLM (needs Ollama daemon)",
     "groq": "groq — cloud LLM (needs GROQ_API_KEY)",
+    "mcp": "mcp — client model via MCP sampling (falls back to rules)",
 }
 
 
@@ -122,6 +123,13 @@ def build_distill_status(
             ),
             is_default=False,
             is_active=active_mode == "groq",
+        ),
+        DistillModeStatus(
+            mode="mcp",
+            ready=True,
+            detail="uses host sampling when available; else rules",
+            is_default=False,
+            is_active=active_mode == "mcp",
         ),
     ]
     return statuses

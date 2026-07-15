@@ -42,7 +42,7 @@ from brainkm.services.mcp_results import (
 from brainkm.services.memory import forget_neuron, remember_neuron, token_count
 from brainkm.services.recall import recall_live
 from brainkm.services.recall_limit import get_recall_limit_state
-from brainkm.services.remember_links import find_supersede_candidates, link_code_nodes_by_path
+from brainkm.services.remember_links import detect_conflicts, link_code_nodes_by_path
 from brainkm.services.search import traverse
 from brainkm.services.session_activity import (
     flush_stale_session_hits,
@@ -66,7 +66,13 @@ def _maintenance(conn: sqlite3.Connection) -> None:
     prune_old_tool_use(conn)
 
 
-def handle_remember(conn: sqlite3.Connection, request: RememberRequest) -> RememberResponse:
+def handle_remember(
+    conn: sqlite3.Connection,
+    request: RememberRequest,
+    *,
+    config: BrainConfig | None = None,
+) -> RememberResponse:
+    cfg = config or BrainConfig()
     record = remember_neuron(
         conn,
         title=request.title,
@@ -76,6 +82,9 @@ def handle_remember(conn: sqlite3.Connection, request: RememberRequest) -> Remem
         tags=request.tags,
         session_id=request.session_id,
         source="mcp_remember",
+        compress=cfg.compression.write_time,
+        max_body_tokens=cfg.compression.max_body_tokens,
+        semantic_enabled=cfg.semantic_enabled(),
     )
     linked = link_code_nodes_by_path(
         conn,
@@ -83,12 +92,14 @@ def handle_remember(conn: sqlite3.Connection, request: RememberRequest) -> Remem
         title=record.title,
         content=record.content or "",
     )
-    candidates = find_supersede_candidates(
+    suggestions = detect_conflicts(
         conn,
         title=record.title,
         content=record.content or "",
         exclude_id=record.id,
     )
+    candidates = [s.node_id for s in suggestions]
+    conflicts = [s.node_id for s in suggestions if s.conflict]
     record_mcp_tool_use(conn, request.session_id, "remember", result_count=1)
     _maintenance(conn)
     conn.commit()
@@ -97,6 +108,7 @@ def handle_remember(conn: sqlite3.Connection, request: RememberRequest) -> Remem
         title=record.title,
         linked_code_nodes=linked,
         supersede_candidates=candidates,
+        conflict_suggestions=conflicts,
     )
 
 
@@ -130,6 +142,8 @@ def handle_recall(
         limit=request.limit,
         graph=config.graph,
         recall=config.recall,
+        semantic=config.semantic_config(),
+        config=config,
         project_dir=project_dir,
     )
     nodes: list[NeuronResult] = []
@@ -173,6 +187,7 @@ def handle_recall(
         abstained=result.abstained,
         source=result.source,
         session_chunks=chunks,
+        intent=result.intent,
     )
 
 
@@ -190,6 +205,7 @@ def handle_context_pack(
         project_dir=project_dir,
         seed_refs=request.seed_refs or None,
         include_structured=request.include_structured,
+        summary_first=request.summary_first,
     )
     hit_ids = filter_active_memory_ids(conn, list(result.truncation.included_ids))
     persist_neuron_hits(
@@ -371,7 +387,7 @@ async def dispatch_tool(name: str, arguments: dict[str, Any], runtime: BrainRunt
 
     if name == "remember":
         request = RememberRequest.model_validate(arguments)
-        result = await _run_write(runtime, handle_remember, request)
+        result = await _run_write(runtime, handle_remember, request, config=config)
         return result.model_dump()
 
     if name == "recall":

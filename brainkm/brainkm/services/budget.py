@@ -53,19 +53,33 @@ def line_tokens(title: str, content: str | None, stored: int | None = None) -> i
 
 
 def classify_query_type(query: str) -> str:
-    lowered = query.lower()
-    if any(ext in query for ext in (".py", ".ts", ".tsx", ".js", ".go", ".rs")):
-        return "code"
-    if any(word in lowered for word in ("error", "bug", "fix", "fail", "broken")):
-        return "debug"
-    if any(word in lowered for word in ("decide", "policy", "rule", "architecture")):
-        return "decision"
-    return "general"
+    """Legacy channel classifier — prefers intent router when available."""
+    from brainkm.services.intent import QueryIntent, classify_intent
+
+    intent = classify_intent(query)
+    mapping = {
+        QueryIntent.LOCATE: "code",
+        QueryIntent.IMPACT: "code",
+        QueryIntent.DEBUG: "debug",
+        QueryIntent.WHY: "decision",
+        QueryIntent.TEMPORAL: "decision",
+        QueryIntent.GENERAL: "general",
+    }
+    return mapping.get(intent, "general")
+
+
+def adaptive_token_budget(config: BrainConfig, query: str) -> int:
+    """Intent-scaled budget: min(config cap, intent fraction * cap)."""
+    from brainkm.services.intent import route_query
+
+    routing = route_query(query)
+    target = int(config.budget.total_tokens * routing.token_budget_fraction)
+    return max(200, min(config.budget.total_tokens, target))
 
 
 def context_pack_slots(config: BrainConfig, query: str | None = None) -> dict[str, int]:
     """Allocate token slots for context_pack; reallocate by query type when enabled."""
-    total = config.budget.total_tokens
+    total = adaptive_token_budget(config, query or "") if query else config.budget.total_tokens
     pre = config.budget.pre_tool
     query_type = classify_query_type(query or "")
 

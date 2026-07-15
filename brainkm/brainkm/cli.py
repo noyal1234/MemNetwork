@@ -346,13 +346,24 @@ def install_cmd(
         "--no-graph",
         help="Skip initial graphify extract/sync during install",
     ),
+    client: str = typer.Option(
+        "cursor",
+        "--client",
+        help="Target agent client: cursor | claude | generic",
+    ),
 ) -> None:
-    """Install MCP config, Cursor hooks, rule, and .brain scaffolding."""
+    """Install MCP config, hooks, rule, and .brain scaffolding."""
     from brainkm.services.install import run_install
 
-    result = run_install(project_dir=project_dir, dev=dev, force=force, no_graph=no_graph)
+    result = run_install(
+        project_dir=project_dir,
+        dev=dev,
+        force=force,
+        no_graph=no_graph,
+        client=client,
+    )
 
-    typer.echo(f"Installed brainkm into {result.project_dir}")
+    typer.echo(f"Installed brainkm into {result.project_dir} (client={client})")
     for path in result.files_written:
         typer.echo(f"  wrote {path.relative_to(result.project_dir)}")
     for path in result.files_skipped:
@@ -450,7 +461,10 @@ app.add_typer(bench_app, name="bench")
 
 @bench_app.command("run")
 def bench_run_cmd(
-    suite: str = typer.Argument(..., help="Suite: abstention|token|dmr|longmem|budget|compaction"),
+    suite: str = typer.Argument(
+        ...,
+        help="Suite: abstention|token|dmr|longmem|budget|compaction|latency",
+    ),
     project_dir: Path | None = typer.Option(None, "--project-dir"),
     live: bool = typer.Option(
         False,
@@ -773,6 +787,16 @@ def hygiene_cmd(
         "--limit",
         help="Max neurons to scan (default: all)",
     ),
+    decay: bool = typer.Option(
+        False,
+        "--decay",
+        help="Also soft-archive unused neurons past the decay horizon",
+    ),
+    unused_days: int = typer.Option(
+        90,
+        "--unused-days",
+        help="Unused horizon for --decay (days)",
+    ),
 ) -> None:
     """Soft-archive memory neurons that fail the quality gate (noise/chrome/boilerplate)."""
     from brainkm.db.connection import connect
@@ -784,7 +808,13 @@ def hygiene_cmd(
     db = brain_db_path(project_dir)
     conn = connect(db)
     try:
-        result = purge_noisy_neurons(conn, dry_run=dry_run, limit=limit)
+        result = purge_noisy_neurons(
+            conn,
+            dry_run=dry_run,
+            limit=limit,
+            decay=decay,
+            unused_days=unused_days,
+        )
     finally:
         conn.close()
     action = "would archive" if dry_run else "archived"
@@ -798,15 +828,50 @@ def hygiene_cmd(
             typer.echo(f"... and {len(result.archived_ids) - 50} more")
 
 
+@app.command("consolidate")
+def consolidate_cmd(
+    project_dir: Path | None = typer.Option(None, "--project-dir"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+    limit: int = typer.Option(200, "--limit"),
+) -> None:
+    """Merge near-duplicate neurons (sleep-time consolidation)."""
+    from brainkm.db.connection import connect
+    from brainkm.db.migrate import migrate
+    from brainkm.db.paths import brain_db_path
+    from brainkm.services.consolidate import consolidate_neurons
+
+    migrate(project_dir=project_dir, run_integrity_check=False)
+    conn = connect(brain_db_path(project_dir))
+    try:
+        result = consolidate_neurons(conn, dry_run=dry_run, limit=limit)
+        if not dry_run:
+            conn.commit()
+    finally:
+        conn.close()
+    typer.echo(
+        f"scanned={result.scanned} merged={result.merged} archived={result.archived}"
+    )
+
+
 @app.command("import")
 def import_cmd(
     source: Path = typer.Argument(..., help="JSON neuron export to merge"),
     project_dir: Path | None = typer.Option(None, "--project-dir"),
+    replace: bool = typer.Option(
+        False,
+        "--replace",
+        help="Soft-archive existing memory neurons then import (destructive)",
+    ),
 ) -> None:
-    """Import neurons from JSON export (merge-only: higher confidence wins)."""
-    from brainkm.services.import_merge import import_json_merge
+    """Import neurons from JSON export (merge or replace)."""
+    if replace:
+        from brainkm.services.import_merge import import_json_replace
 
-    result = import_json_merge(source, project_dir=project_dir)
+        result = import_json_replace(source, project_dir=project_dir)
+    else:
+        from brainkm.services.import_merge import import_json_merge
+
+        result = import_json_merge(source, project_dir=project_dir)
     typer.echo(
         f"Imported {result.imported}, skipped {result.skipped}, conflicts {result.conflicts}"
     )
@@ -868,6 +933,17 @@ def viz_cmd(
     )
 
 
+@app.command("team-export")
+def team_export_cmd(
+    project_dir: Path | None = typer.Option(None, "--project-dir"),
+) -> None:
+    """Export pinned / high-confidence neurons to ``.brain/team/neurons.json``."""
+    from brainkm.services.team import export_team_neurons
+
+    path = export_team_neurons(project_dir or Path.cwd())
+    typer.echo(f"Wrote {path}")
+
+
 @app.command("mcp")
 def mcp_cmd(
     project_dir: Path | None = typer.Option(
@@ -875,11 +951,18 @@ def mcp_cmd(
         "--project-dir",
         help="Target project root (defaults to cwd)",
     ),
+    http: bool = typer.Option(
+        False,
+        "--http",
+        help="Serve streamable HTTP instead of stdio (local multi-editor)",
+    ),
+    host: str = typer.Option("127.0.0.1", "--host"),
+    port: int = typer.Option(8765, "--port"),
 ) -> None:
-    """Run brainkm MCP stdio server (8 tools: remember, recall, context_pack, session_status, traverse, forget, brain_stats, graph_sync)."""
+    """Run brainkm MCP server (stdio by default, or --http)."""
     from brainkm.server import main as run_mcp_server
 
-    run_mcp_server(project_dir=project_dir)
+    run_mcp_server(project_dir=project_dir, http=http, host=host, port=port)
 
 
 if __name__ == "__main__":

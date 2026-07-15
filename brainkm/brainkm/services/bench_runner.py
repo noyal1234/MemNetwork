@@ -75,6 +75,12 @@ def run_compaction_suite(_db_path: Path) -> BenchSuiteResult:
     return run_real_compaction_suite(_db_path)
 
 
+def run_latency_suite_entry(db_path: Path) -> BenchSuiteResult:
+    from brainkm.services.latency_bench import run_latency_suite
+
+    return run_latency_suite(db_path)
+
+
 SUITE_RUNNERS = {
     "abstention": run_abstention_suite,
     "token": run_token_suite,
@@ -82,6 +88,7 @@ SUITE_RUNNERS = {
     "longmem": run_longmem_suite,
     "budget": run_budget_suite,
     "compaction": run_compaction_suite,
+    "latency": run_latency_suite_entry,
 }
 
 

@@ -40,6 +40,10 @@ class RememberResponse(BaseModel):
     title: str
     linked_code_nodes: list[str] = Field(default_factory=list)
     supersede_candidates: list[str] = Field(default_factory=list)
+    conflict_suggestions: list[str] = Field(
+        default_factory=list,
+        description="Near-duplicate nodes with a conflicting claim — prefer supersede",
+    )
 
 
 class RecallRequest(BaseModel):
@@ -58,6 +62,7 @@ class RecallResponse(BaseModel):
     abstained: bool = False
     source: str = "live_db"
     session_chunks: list[SessionChunkResult] = Field(default_factory=list)
+    intent: str | None = None
 
 
 class ContextPackRequest(BaseModel):
@@ -80,6 +85,13 @@ class ContextPackRequest(BaseModel):
         description=(
             "When true, include full neurons/graph_nodes arrays (duplicates pack_text). "
             "Default false to keep MCP payload within the token budget."
+        ),
+    )
+    summary_first: bool | None = Field(
+        default=None,
+        description=(
+            "When true, pack_text uses titles + one-line gists; expand via recall "
+            "truncation_followup. Defaults to BrainConfig.compression.summary_first."
         ),
     )
 

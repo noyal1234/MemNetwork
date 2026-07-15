@@ -163,6 +163,9 @@ def remember_neuron(
     confidence: float = 1.0,
     valid_from: str | None = None,
     node_id: str | None = None,
+    compress: bool = False,
+    max_body_tokens: int = 120,
+    semantic_enabled: bool = False,
 ) -> NeuronRecord:
     """Persist a neuron after secret redaction and injection scanning.
 
@@ -170,10 +173,15 @@ def remember_neuron(
     Mid-session remembers are visible to ``recall_live`` in the same session.
     """
     cleaned = require_clean(title, content or "", source=source)
-    return create_neuron(
+    body = cleaned.content
+    if compress and body:
+        from brainkm.services.compress import compress_body
+
+        body = compress_body(body, max_tokens=max_body_tokens)
+    record = create_neuron(
         conn,
         title=cleaned.title,
-        content=cleaned.content,
+        content=body,
         kind=kind,
         subtype=subtype,
         path=path,
@@ -184,6 +192,17 @@ def remember_neuron(
         valid_from=valid_from,
         node_id=node_id,
     )
+    if semantic_enabled and kind == "memory":
+        from brainkm.services.semantic import embed_neuron_if_enabled
+
+        embed_neuron_if_enabled(
+            conn,
+            record.id,
+            title=record.title,
+            content=record.content,
+            semantic_enabled=True,
+        )
+    return record
 
 
 def supersede_neuron(
