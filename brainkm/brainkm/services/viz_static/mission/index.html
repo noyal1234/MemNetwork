@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MemNetwork · Mission Control</title>
+  <meta name="description" content="2D workbench for exploring and operating your MemNetwork project brain." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/mission/theme.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "graphology": "https://cdn.jsdelivr.net/npm/graphology@0.25.4/+esm",
+      "sigma": "https://cdn.jsdelivr.net/npm/sigma@3.0.1/+esm",
+      "graphology-layout-forceatlas2": "https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/+esm"
+    }
+  }
+  </script>
+</head>
+<body>
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loading-text">Loading Mission Control…</div>
+</div>
+
+<div id="app">
+  <header id="header">
+    <div id="brand">
+      <strong>MemNetwork</strong>
+      <span>Mission Control</span>
+    </div>
+    <div id="header-stats">
+      <span><b id="stat-nodes">0</b> neurons</span>
+      <span><b id="stat-edges">0</b> edges</span>
+      <span><b id="stat-visible">0</b> visible</span>
+    </div>
+    <div id="header-actions">
+      <span id="kbd-hint">⌘K</span>
+      <button type="button" class="btn ghost" id="btn-theme" title="Toggle theme">Theme</button>
+      <button type="button" class="btn ghost" id="btn-nav" title="Toggle navigator">Nav</button>
+      <button type="button" class="btn ghost" id="btn-inspect" title="Toggle inspector">Inspect</button>
+      <a class="btn" href="/" title="Open Neural Cosmos 3D">Cinema</a>
+      <button type="button" class="btn primary" id="btn-palette">Command</button>
+    </div>
+  </header>
+
+  <div id="shell">
+    <aside id="navigator">
+      <div class="panel-section">
+        <div class="panel-title">Saved views</div>
+        <div id="views-list"></div>
+        <button type="button" class="btn" id="btn-save-view" style="margin-top:8px;width:100%">Save current view</button>
+      </div>
+      <div class="panel-section">
+        <div class="panel-title">Kinds</div>
+        <div class="chip-row" id="kind-filters"></div>
+        <div class="toggle-row">
+          <label for="show-archived">Show archived</label>
+          <input type="checkbox" id="show-archived" />
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-title">Edge types</div>
+        <div class="chip-row" id="rel-filters"></div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-title">Color by</div>
+        <select id="color-by" class="control-select">
+          <option value="kind">Kind / subtype</option>
+          <option value="directory">Top-level directory</option>
+          <option value="tag">First tag</option>
+        </select>
+      </div>
+      <div class="panel-section">
+        <div class="panel-title">Confidence</div>
+        <input type="range" id="conf-min" class="range-input" min="0" max="100" value="0" />
+        <div class="toggle-row"><span>Min</span><span id="conf-min-label">0%</span></div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-title">Sessions</div>
+        <div id="sessions-list"></div>
+      </div>
+    </aside>
+
+    <main id="center">
+      <div id="graph-host">
+        <div id="graph-container"></div>
+        <div id="canvas-tools">
+          <button type="button" class="btn" id="btn-fit">Fit</button>
+          <button type="button" class="btn" id="btn-relayout">Re-layout</button>
+        </div>
+        <div id="graph-status">Idle</div>
+      </div>
+    </main>
+
+    <aside id="inspector">
+      <div id="inspector-tabs">
+        <button type="button" data-tab="detail" class="active">Detail</button>
+        <button type="button" data-tab="neighbors">Neighbors</button>
+        <button type="button" data-tab="explain">Explain</button>
+        <button type="button" data-tab="history">History</button>
+      </div>
+      <div id="inspector-body">
+        <div id="inspector-empty">Select a node to inspect</div>
+        <div id="tab-detail" hidden></div>
+        <div id="tab-neighbors" hidden></div>
+        <div id="tab-explain" hidden>
+          <p style="color:var(--text-muted);margin-top:0">Local WebLLM — grounded via FTS5.</p>
+          <button type="button" class="btn primary" id="btn-explain" disabled>Explain this node</button>
+          <div id="explain-out" style="margin-top:12px;white-space:pre-wrap"></div>
+        </div>
+        <div id="tab-history" hidden></div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<div id="context-menu" role="menu"></div>
+
+<div id="palette-backdrop" aria-hidden="true">
+  <div id="palette" role="dialog" aria-label="Command palette">
+    <input id="palette-input" type="text" placeholder="Search neurons, &gt; actions, ? chat, via:calls Foo…" autocomplete="off" />
+    <div id="palette-hint">↑↓ navigate · Enter select · Esc close · prefixes: &gt; ? via:</div>
+    <div id="palette-results"></div>
+    <div id="palette-chat"></div>
+  </div>
+</div>
+
+<script type="module" src="/mission/app.js"></script>
+</body>
+</html>

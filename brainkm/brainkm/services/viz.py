@@ -329,6 +329,155 @@ def _query_search(conn: sqlite3.Connection, query: str, *, limit: int = 8) -> di
     return {"query": q, "results": results}
 
 
+def _query_sessions(conn: sqlite3.Connection) -> dict[str, Any]:
+    """Session list with time ranges for the Mission Control timeline lane."""
+    rows = conn.execute(
+        """
+        SELECT session_id,
+               MIN(COALESCE(valid_from, created_at, ingested_at)) AS t_start,
+               MAX(COALESCE(updated_at, valid_from, created_at)) AS t_end,
+               COUNT(*) AS node_count,
+               SUM(CASE WHEN kind = 'memory' THEN 1 ELSE 0 END) AS memory_count,
+               SUM(CASE WHEN kind = 'code' THEN 1 ELSE 0 END) AS code_count,
+               SUM(CASE WHEN kind = 'session' THEN 1 ELSE 0 END) AS session_node_count
+        FROM nodes
+        WHERE session_id IS NOT NULL AND TRIM(session_id) != ''
+        GROUP BY session_id
+        ORDER BY t_start DESC
+        """
+    ).fetchall()
+    sessions = []
+    for row in rows:
+        sessions.append({
+            "session_id": row["session_id"],
+            "t_start": row["t_start"],
+            "t_end": row["t_end"],
+            "node_count": int(row["node_count"] or 0),
+            "memory_count": int(row["memory_count"] or 0),
+            "code_count": int(row["code_count"] or 0),
+            "session_node_count": int(row["session_node_count"] or 0),
+        })
+    return {"sessions": sessions}
+
+
+_BUILTIN_VIEWS: list[dict[str, Any]] = [
+    {
+        "id": "builtin-code-map",
+        "name": "Code map",
+        "builtin": True,
+        "state": {
+            "kinds": ["code"],
+            "rels": [],
+            "colorBy": "directory",
+            "showArchived": False,
+            "subtype": None,
+        },
+    },
+    {
+        "id": "builtin-decisions",
+        "name": "Decisions",
+        "builtin": True,
+        "state": {
+            "kinds": ["memory"],
+            "rels": ["supersedes", "supports", "constrains", "influences"],
+            "colorBy": "kind",
+            "showArchived": False,
+            "subtype": "decision",
+        },
+    },
+    {
+        "id": "builtin-recent",
+        "name": "Recent activity",
+        "builtin": True,
+        "state": {
+            "kinds": ["memory", "code", "procedure", "session"],
+            "rels": [],
+            "colorBy": "kind",
+            "showArchived": False,
+            "subtype": None,
+            "recentDays": 7,
+        },
+    },
+]
+
+
+def _views_path(project_dir: Path | None) -> Path | None:
+    if project_dir is None:
+        return None
+    return Path(project_dir) / ".brain" / "viz_views.json"
+
+
+def _load_user_views(project_dir: Path | None) -> list[dict[str, Any]]:
+    path = _views_path(project_dir)
+    if path is None or not path.is_file():
+        return list(getattr(_VizHandler, "_demo_views", []) or [])
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        views = data.get("views") if isinstance(data, dict) else data
+        if not isinstance(views, list):
+            return []
+        return [v for v in views if isinstance(v, dict) and v.get("id") and v.get("name")]
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+def _save_user_views(project_dir: Path | None, views: list[dict[str, Any]]) -> None:
+    path = _views_path(project_dir)
+    if path is None:
+        _VizHandler._demo_views = views  # type: ignore[attr-defined]
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"views": views}, indent=2), encoding="utf-8")
+
+
+def _list_views(project_dir: Path | None) -> dict[str, Any]:
+    user = _load_user_views(project_dir)
+    return {"views": [*_BUILTIN_VIEWS, *user]}
+
+
+def _upsert_view(project_dir: Path | None, payload: dict[str, Any]) -> dict[str, Any]:
+    name = str(payload.get("name") or "").strip()
+    if not name:
+        raise ValueError("view name is required")
+    state = payload.get("state")
+    if not isinstance(state, dict):
+        raise ValueError("view state must be an object")
+    view_id = str(payload.get("id") or "").strip() or f"view-{uuid.uuid4().hex[:10]}"
+    if view_id.startswith("builtin-"):
+        raise ValueError("cannot overwrite builtin views")
+    views = _load_user_views(project_dir)
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    record = {
+        "id": view_id,
+        "name": name,
+        "builtin": False,
+        "state": state,
+        "updated_at": now,
+    }
+    replaced = False
+    for i, existing in enumerate(views):
+        if existing.get("id") == view_id:
+            views[i] = record
+            replaced = True
+            break
+    if not replaced:
+        record["created_at"] = now
+        views.append(record)
+    _save_user_views(project_dir, views)
+    return record
+
+
+def _delete_view(project_dir: Path | None, view_id: str) -> dict[str, Any]:
+    if view_id.startswith("builtin-"):
+        raise ValueError("cannot delete builtin views")
+    views = _load_user_views(project_dir)
+    next_views = [v for v in views if v.get("id") != view_id]
+    if len(next_views) == len(views):
+        raise KeyError(view_id)
+    _save_user_views(project_dir, next_views)
+    return {"ok": True, "id": view_id}
+
+
 # ---------------------------------------------------------------------------
 # DB lifecycle for the HTTP handler
 # ---------------------------------------------------------------------------
@@ -370,6 +519,7 @@ class _VizHandler(BaseHTTPRequestHandler):
     demo_conn: sqlite3.Connection | None = None
     demo: bool = False
     project_dir: Path | None = None
+    _demo_views: list[dict[str, Any]] = []
 
     def log_message(self, fmt: str, *args: object) -> None:  # type: ignore[override]
         logger.debug(fmt, *args)
@@ -388,6 +538,8 @@ class _VizHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
@@ -400,6 +552,14 @@ class _VizHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)
+
+    def _read_json_body(self) -> dict[str, Any]:
+        length = int(self.headers.get("Content-Length") or "0")
+        raw = self.rfile.read(length) if length > 0 else b"{}"
+        data = json.loads(raw.decode() or "{}")
+        if not isinstance(data, dict):
+            raise ValueError("JSON body must be an object")
+        return data
 
     def _send_static(self, rel: str) -> None:
         # Prevent path traversal
@@ -481,6 +641,49 @@ class _VizHandler(BaseHTTPRequestHandler):
             payload["model_lib"] = model_lib_url(preferred)
         return payload
 
+    def do_OPTIONS(self) -> None:  # noqa: N802
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+
+    def do_POST(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        path = parsed.path
+        if path == "/api/views":
+            try:
+                body = self._read_json_body()
+                record = _upsert_view(self.__class__.project_dir, body)
+                self._send_json(record, 201)
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, 400)
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("viz POST /api/views failed")
+                self._send_json({"error": str(exc)}, 500)
+            return
+        self._send_json({"error": "not found"}, 404)
+
+    def do_DELETE(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        path = parsed.path
+        if path.startswith("/api/views/"):
+            view_id = path[len("/api/views/") :].strip("/")
+            if not view_id or "/" in view_id or ".." in view_id:
+                self._send_json({"error": "not found"}, 404)
+                return
+            try:
+                self._send_json(_delete_view(self.__class__.project_dir, view_id))
+            except KeyError:
+                self._send_json({"error": "not found"}, 404)
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, 400)
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("viz DELETE /api/views failed")
+                self._send_json({"error": str(exc)}, 500)
+            return
+        self._send_json({"error": "not found"}, 404)
+
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path
@@ -531,6 +734,27 @@ class _VizHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": str(exc)}, 500)
             return
 
+        if path == "/api/sessions":
+            try:
+                conn, should_close = self._with_conn()
+                try:
+                    self._send_json(_query_sessions(conn))
+                finally:
+                    if should_close:
+                        conn.close()
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("viz /api/sessions failed")
+                self._send_json({"error": str(exc)}, 500)
+            return
+
+        if path == "/api/views":
+            try:
+                self._send_json(_list_views(self.__class__.project_dir))
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("viz /api/views failed")
+                self._send_json({"error": str(exc)}, 500)
+            return
+
         if path == "/api/webllm-config":
             try:
                 self._send_json(self._webllm_config())
@@ -549,11 +773,15 @@ class _VizHandler(BaseHTTPRequestHandler):
             self._send_model_file(model_id, rel)
             return
 
+        if path in ("/mission", "/mission/"):
+            self._send_static("mission/index.html")
+            return
+
         if path in ("/", "/index.html"):
             self._send_static("index.html")
             return
 
-        # Static assets: /styles.css, /app.js, /chat.js, ...
+        # Static assets: /styles.css, /app.js, /mission/*, ...
         if path.startswith("/") and ".." not in path:
             rel = path.lstrip("/")
             if rel:
@@ -605,6 +833,7 @@ def _prepare_handler_state(
     _VizHandler.demo_conn = None
     _VizHandler.db_path = None
     _VizHandler.project_dir = project_dir
+    _VizHandler._demo_views = []
 
     if demo:
         _VizHandler.demo_conn = _open_demo_connection()
@@ -659,7 +888,7 @@ def start_viz_server(
     if open_browser:
         def _open_after_delay() -> None:
             time.sleep(0.4)
-            webbrowser.open(url)
+            webbrowser.open(f"{url}/mission")
 
         threading.Thread(target=_open_after_delay, daemon=True).start()
 
@@ -698,7 +927,8 @@ def run_viz_server(
     typer.echo(
         f"🧠 MemNetwork Viz{mode_label} — {handle.node_count} neurons, "
         f"{handle.edge_count} edges\n"
-        f"   Serving at {handle.url}\n"
+        f"   Mission Control: {handle.url}/mission\n"
+        f"   Cinema (3D):     {handle.url}/\n"
         f"   Press Ctrl+C to stop."
     )
 

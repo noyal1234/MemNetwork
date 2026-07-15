@@ -23,6 +23,12 @@ def test_viz_static_package_data_includes_ui_assets() -> None:
     assert (root / "app.js").is_file()
     assert (root / "chat.js").is_file()
     assert (root / "webllm-worker.js").is_file()
+    mission = root / "mission"
+    assert (mission / "index.html").is_file()
+    assert (mission / "app.js").is_file()
+    assert (mission / "theme.css").is_file()
+    assert (mission / "graph.js").is_file()
+    assert (mission / "layout-worker.js").is_file()
 
 
 def test_start_viz_server_demo_serves_graph(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -161,3 +167,85 @@ def test_query_graph_includes_path_and_archived() -> None:
     assert any(n.get("path") for n in data["nodes"] if n["kind"] == "code")
     assert any(n.get("valid_until") for n in data["nodes"])
     conn.close()
+
+
+def test_mission_route_and_api_views_sessions(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("webbrowser.open", lambda *_a, **_k: True)
+    handle = start_viz_server(
+        project_dir=tmp_path,
+        demo=True,
+        open_browser=False,
+        port=0,
+    )
+    try:
+        with urlopen(f"{handle.url}/mission", timeout=2) as resp:  # noqa: S310
+            html = resp.read().decode()
+        assert "Mission Control" in html
+        assert "/mission/app.js" in html
+
+        with urlopen(f"{handle.url}/mission/theme.css", timeout=2) as resp:  # noqa: S310
+            css = resp.read().decode()
+        assert "--bg" in css
+        assert "[data-theme=\"light\"]" in css
+
+        with urlopen(f"{handle.url}/api/sessions", timeout=2) as resp:  # noqa: S310
+            sessions = json.loads(resp.read().decode())
+        assert "sessions" in sessions
+        assert isinstance(sessions["sessions"], list)
+        assert len(sessions["sessions"]) >= 1
+        assert "session_id" in sessions["sessions"][0]
+
+        with urlopen(f"{handle.url}/api/views", timeout=2) as resp:  # noqa: S310
+            views = json.loads(resp.read().decode())
+        assert any(v.get("id") == "builtin-code-map" for v in views["views"])
+
+        from urllib.request import Request
+
+        body = json.dumps(
+            {
+                "name": "My scratch",
+                "state": {"kinds": ["memory"], "colorBy": "kind", "showArchived": False},
+            }
+        ).encode()
+        req = Request(
+            f"{handle.url}/api/views",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urlopen(req, timeout=2) as resp:  # noqa: S310
+            created = json.loads(resp.read().decode())
+        assert created["name"] == "My scratch"
+        assert created["id"]
+
+        with urlopen(f"{handle.url}/api/views", timeout=2) as resp:  # noqa: S310
+            views2 = json.loads(resp.read().decode())
+        assert any(v.get("name") == "My scratch" for v in views2["views"])
+    finally:
+        handle.stop()
+
+
+def test_views_persist_under_brain_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("webbrowser.open", lambda *_a, **_k: True)
+    # Live-ish views path uses project_dir even in demo if provided
+    handle = start_viz_server(project_dir=tmp_path, demo=True, open_browser=False, port=0)
+    try:
+        from urllib.request import Request
+
+        body = json.dumps(
+            {"name": "Persisted", "state": {"kinds": ["code"], "colorBy": "directory"}}
+        ).encode()
+        req = Request(
+            f"{handle.url}/api/views",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urlopen(req, timeout=2) as resp:  # noqa: S310
+            assert resp.status in (200, 201)
+        path = tmp_path / ".brain" / "viz_views.json"
+        assert path.is_file()
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert any(v.get("name") == "Persisted" for v in data["views"])
+    finally:
+        handle.stop()

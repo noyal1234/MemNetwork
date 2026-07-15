@@ -1,7 +1,7 @@
 # Viz Redesign Plan — "Mission Control"
 
-> **Status:** Design only — implement as its own project after the Neural Cosmos Phase 1–3 update ships.  
-> **Related:** Current explorer is `brainkm viz` → [brainkm/brainkm/services/viz_static/](../brainkm/brainkm/services/viz_static/) (3D/2D Neural Cosmos + WebLLM chat).  
+> **Status:** Implemented on `UI/v2` — open `brainkm viz` → `/mission` (Neural Cosmos remains at `/`).  
+> **Related:** Mission UI lives in [brainkm/brainkm/services/viz_static/mission/](../brainkm/brainkm/services/viz_static/mission/). Cosmos 3D at [brainkm/brainkm/services/viz_static/](../brainkm/brainkm/services/viz_static/).  
 > **Goal:** A daily-driver workbench for inspecting and operating the project brain, not a showpiece explorer.
 
 ---
