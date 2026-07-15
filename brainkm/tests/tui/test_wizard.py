@@ -13,6 +13,7 @@ from brainkm.tui.screens.wizard import (
     STEP_DISTILL,
     STEP_INSTALL,
     STEP_PROJECT,
+    STEP_VIZ_LLM,
     STEPS,
 )
 
@@ -156,4 +157,55 @@ def test_wizard_step_ids_are_unique() -> None:
     assert STEP_INSTALL in STEPS
     assert STEP_DISTILL in STEPS
     assert STEP_CURSOR_CLI in STEPS
+    assert STEP_VIZ_LLM in STEPS
     assert STEPS.index(STEP_CURSOR_CLI) == STEPS.index(STEP_DISTILL) + 1
+    assert STEPS[-2] == STEP_VIZ_LLM
+    assert STEPS[-1] == "step-done"
+
+
+async def test_wizard_viz_llm_skip_advances(tmp_path: Path) -> None:
+    app = BrainkmConfigureApp(project_dir=tmp_path)
+    async with app.run_test(size=(140, 70)) as pilot:
+        await pilot.pause(0.3)
+        screen = app.screen
+        screen._current_step = STEPS.index(STEP_VIZ_LLM)
+        screen._update_step_visibility()
+        await pilot.pause(0.1)
+
+        await pilot.click("#btn-wizard-skip")
+        await pilot.pause(0.2)
+        assert screen._current_step == STEPS.index("step-done")
+
+
+async def test_wizard_viz_llm_run_uses_prefetch_mock(tmp_path: Path) -> None:
+    from brainkm.services.webllm_prefetch import PrefetchResult
+
+    app = BrainkmConfigureApp(project_dir=tmp_path)
+    async with app.run_test(size=(140, 70)) as pilot:
+        await pilot.pause(0.3)
+        (tmp_path / ".brain").mkdir(exist_ok=True)
+        (tmp_path / ".brain" / "config.json").write_text("{}", encoding="utf-8")
+
+        screen = app.screen
+        screen._current_step = STEPS.index(STEP_VIZ_LLM)
+        screen._update_step_visibility()
+        await pilot.pause(0.1)
+
+        fake = PrefetchResult(
+            model_id="Llama-3.2-1B-Instruct-q4f16_1-MLC",
+            cache_dir=tmp_path / "cache",
+            files_downloaded=3,
+            files_skipped=0,
+            bytes_downloaded=1024 * 1024,
+            already_cached=False,
+        )
+        with patch(
+            "brainkm.services.webllm_prefetch.prefetch_webllm_model",
+            return_value=fake,
+        ):
+            await pilot.click("#btn-wizard-run")
+            await pilot.pause(1.5)
+
+        cfg = json.loads((tmp_path / ".brain" / "config.json").read_text())
+        assert cfg["viz"]["webllm_model"] == "Llama-3.2-1B-Instruct-q4f16_1-MLC"
+        assert screen._current_step == STEPS.index("step-done")

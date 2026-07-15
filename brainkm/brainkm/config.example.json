@@ -79,6 +79,10 @@
       "watch_filesystem": false
     }
   },
+  "viz": {
+    "webllm_model": "Llama-3.2-1B-Instruct-q4f16_1-MLC",
+    "webllm_prefetch": true
+  },
   "semantic": false,
   "git": { "enabled": false }
 }

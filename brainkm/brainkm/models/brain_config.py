@@ -115,6 +115,19 @@ class GitConfig(BaseModel):
     enabled: bool = False
 
 
+class VizConfig(BaseModel):
+    """Browser viz / WebLLM preferences (prefers local weight cache when present)."""
+
+    webllm_model: str = Field(
+        default="Llama-3.2-1B-Instruct-q4f16_1-MLC",
+        description="Preferred WebLLM model id for Ask-your-brain chat",
+    )
+    webllm_prefetch: bool = Field(
+        default=True,
+        description="Whether wizard/setup should offer prefetching model weights",
+    )
+
+
 class BrainConfig(BaseModel):
     """Validated per-project brain configuration."""
 
@@ -130,6 +143,7 @@ class BrainConfig(BaseModel):
     graphify: GraphifyConfig = Field(default_factory=GraphifyConfig)
     ollama: OllamaConfig = Field(default_factory=OllamaConfig)
     groq: GroqConfig = Field(default_factory=GroqConfig)
+    viz: VizConfig = Field(default_factory=VizConfig)
     semantic: bool = False
     git: GitConfig = Field(default_factory=GitConfig)
 

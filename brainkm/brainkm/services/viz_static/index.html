@@ -8,578 +8,55 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-
-  <style>
-    :root {
-      --bg:          #050508;
-      --surface:     rgba(255,255,255,0.04);
-      --surface-2:   rgba(255,255,255,0.07);
-      --border:      rgba(255,255,255,0.08);
-      --text:        #e2e8f0;
-      --text-muted:  #64748b;
-      --text-dim:    #334155;
-
-      --memory:      #8b5cf6;
-      --memory-glow: rgba(139,92,246,0.4);
-      --code:        #06b6d4;
-      --code-glow:   rgba(6,182,212,0.4);
-      --procedure:   #f59e0b;
-      --procedure-glow: rgba(245,158,11,0.4);
-      --session:     #10b981;
-      --session-glow:rgba(16,185,129,0.4);
-      --unknown:     #6b7280;
-
-      --accent:      #818cf8;
-      --panel-w:     320px;
-    }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'Inter', system-ui, sans-serif;
-      font-size: 14px;
-      overflow: hidden;
-      height: 100vh;
-      width: 100vw;
-    }
-
-    /* ── HEADER ─────────────────────────────────────────── */
-    #header {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      z-index: 100;
-      height: 52px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 20px;
-      background: linear-gradient(180deg, rgba(5,5,8,0.95) 0%, transparent 100%);
-      border-bottom: 1px solid var(--border);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-    }
-
-    #logo {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    #logo-icon {
-      width: 28px; height: 28px;
-      background: conic-gradient(from 180deg, #8b5cf6, #06b6d4, #10b981, #8b5cf6);
-      border-radius: 50%;
-      position: relative;
-      animation: spin 12s linear infinite;
-    }
-
-    #logo-icon::after {
-      content: '';
-      position: absolute;
-      inset: 3px;
-      background: var(--bg);
-      border-radius: 50%;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    #logo-text {
-      font-size: 15px;
-      font-weight: 600;
-      letter-spacing: -0.3px;
-    }
-
-    #logo-text span {
-      background: linear-gradient(90deg, #8b5cf6, #06b6d4);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    #logo-subtitle {
-      font-size: 11px;
-      color: var(--text-muted);
-      font-weight: 400;
-    }
-
-    #header-stats {
-      display: flex;
-      gap: 20px;
-      align-items: center;
-    }
-
-    .stat-chip {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-
-    .stat-chip strong {
-      color: var(--text);
-      font-weight: 600;
-    }
-
-    .stat-dot {
-      width: 7px; height: 7px;
-      border-radius: 50%;
-      animation: pulse-dot 2s ease-in-out infinite;
-    }
-
-    @keyframes pulse-dot {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50%       { opacity: 0.5; transform: scale(0.7); }
-    }
-
-    #header-actions {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .header-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: var(--surface);
-      color: var(--text);
-      font-family: 'Inter', sans-serif;
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: border-color 0.2s, background 0.2s, color 0.2s;
-      user-select: none;
-    }
-
-    .header-btn:hover {
-      border-color: rgba(255,255,255,0.18);
-      background: var(--surface-2);
-    }
-
-    .header-btn.active {
-      border-color: rgba(129,140,248,0.45);
-      background: rgba(129,140,248,0.12);
-      color: #c7d2fe;
-    }
-
-    /* ── CANVAS ─────────────────────────────────────────── */
-    #graph-container {
-      position: fixed;
-      inset: 0;
-      z-index: 1;
-    }
-
-    /* ── LEFT SIDEBAR ───────────────────────────────────── */
-    #sidebar {
-      position: fixed;
-      top: 64px;
-      left: 16px;
-      z-index: 50;
-      width: 220px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .panel {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      padding: 14px;
-      transition: border-color 0.2s;
-    }
-
-    .panel:hover { border-color: rgba(255,255,255,0.14); }
-
-    .panel-title {
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 0.8px;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      margin-bottom: 10px;
-    }
-
-    /* Kind toggles */
-    #kind-filters {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .kind-toggle {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
-      padding: 6px 8px;
-      border-radius: 8px;
-      border: 1px solid transparent;
-      transition: all 0.18s;
-      user-select: none;
-    }
-
-    .kind-toggle:hover { background: var(--surface-2); }
-
-    .kind-toggle.active { border-color: rgba(255,255,255,0.1); }
-
-    .kind-toggle.inactive { opacity: 0.38; }
-
-    .kind-dot {
-      width: 10px; height: 10px;
-      border-radius: 50%;
-      flex-shrink: 0;
-      box-shadow: 0 0 6px currentColor;
-    }
-
-    .kind-label { font-size: 12px; font-weight: 500; }
-
-    .kind-count {
-      margin-left: auto;
-      font-size: 11px;
-      color: var(--text-muted);
-      font-family: 'JetBrains Mono', monospace;
-    }
-
-    /* Search */
-    #search-input {
-      width: 100%;
-      background: rgba(0,0,0,0.3);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px 10px;
-      color: var(--text);
-      font-family: 'Inter', sans-serif;
-      font-size: 13px;
-      outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-
-    #search-input::placeholder { color: var(--text-dim); }
-
-    #search-input:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 2px rgba(129,140,248,0.15);
-    }
-
-    /* Timeline */
-    #timeline-wrap { display: flex; flex-direction: column; gap: 8px; }
-
-    .timeline-labels {
-      display: flex;
-      justify-content: space-between;
-      font-size: 10px;
-      color: var(--text-muted);
-      font-family: 'JetBrains Mono', monospace;
-    }
-
-    #timeline-slider {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 100%;
-      height: 4px;
-      border-radius: 4px;
-      background: var(--border);
-      outline: none;
-      cursor: pointer;
-    }
-
-    #timeline-slider::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 14px; height: 14px;
-      border-radius: 50%;
-      background: var(--accent);
-      box-shadow: 0 0 8px rgba(129,140,248,0.6);
-      cursor: pointer;
-    }
-
-    #timeline-value {
-      font-size: 11px;
-      color: var(--accent);
-      text-align: center;
-      font-family: 'JetBrains Mono', monospace;
-    }
-
-    /* Legend */
-    #legend { display: flex; flex-direction: column; gap: 5px; }
-
-    .legend-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    .legend-icon {
-      width: 14px; height: 14px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
-    #detail-kind-badge .detail-kind-sep {
-      color: var(--text-muted);
-      opacity: 0.55;
-      font-weight: 500;
-    }
-
-    /* ── RIGHT DETAIL PANEL ─────────────────────────────── */
-    #detail-panel {
-      position: fixed;
-      top: 64px;
-      right: 16px;
-      z-index: 50;
-      width: var(--panel-w);
-      max-height: calc(100vh - 80px);
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      transform: translateX(calc(var(--panel-w) + 24px));
-      transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
-      scrollbar-width: thin;
-      scrollbar-color: var(--border) transparent;
-    }
-
-    #detail-panel.open { transform: translateX(0); }
-
-    #detail-header {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      padding: 16px;
-    }
-
-    #detail-close {
-      float: right;
-      cursor: pointer;
-      color: var(--text-muted);
-      font-size: 18px;
-      line-height: 1;
-      padding: 2px 4px;
-      border-radius: 4px;
-      transition: color 0.15s;
-    }
-
-    #detail-close:hover { color: var(--text); }
-
-    #detail-kind-badge {
-      display: inline-block;
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      padding: 3px 8px;
-      border-radius: 20px;
-      margin-bottom: 8px;
-    }
-
-    #detail-title {
-      font-size: 15px;
-      font-weight: 600;
-      line-height: 1.4;
-      margin-bottom: 8px;
-    }
-
-    .detail-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 6px;
-    }
-
-    .meta-pill {
-      font-size: 10px;
-      padding: 2px 7px;
-      border-radius: 12px;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      font-family: 'JetBrains Mono', monospace;
-    }
-
-    #detail-content-panel {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      padding: 14px;
-    }
-
-    #detail-content {
-      font-size: 13px;
-      line-height: 1.65;
-      color: #94a3b8;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-
-    #detail-connections-panel {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      padding: 14px;
-    }
-
-    .conn-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      padding: 6px 0;
-      border-bottom: 1px solid var(--border);
-      cursor: pointer;
-      transition: background 0.15s;
-      border-radius: 6px;
-    }
-
-    .conn-item:last-child { border-bottom: none; }
-
-    .conn-item:hover { background: var(--surface-2); padding-left: 4px; }
-
-    .conn-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
-
-    .conn-title { font-size: 12px; font-weight: 500; line-height: 1.4; }
-
-    .conn-rel {
-      font-size: 10px;
-      color: var(--text-muted);
-      font-family: 'JetBrains Mono', monospace;
-    }
-
-    /* ── TOOLTIP ────────────────────────────────────────── */
-    #tooltip {
-      position: fixed;
-      z-index: 200;
-      pointer-events: none;
-      background: rgba(10,10,18,0.92);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px 12px;
-      max-width: 260px;
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      transform: translate(14px, -50%);
-      opacity: 0;
-      transition: opacity 0.12s;
-    }
-
-    #tooltip.visible { opacity: 1; }
-
-    #tooltip-title { font-size: 12px; font-weight: 600; margin-bottom: 3px; }
-    #tooltip-kind  { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
-
-    /* ── LOADING ────────────────────────────────────────── */
-    #loading {
-      position: fixed;
-      inset: 0;
-      z-index: 300;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 20px;
-      background: var(--bg);
-      transition: opacity 0.5s;
-    }
-
-    #loading.hidden { opacity: 0; pointer-events: none; }
-
-    .spinner {
-      width: 48px; height: 48px;
-      border: 3px solid rgba(139,92,246,0.2);
-      border-top-color: #8b5cf6;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-
-    #loading-text {
-      font-size: 14px;
-      color: var(--text-muted);
-      letter-spacing: 0.3px;
-    }
-
-    /* ── ARCHIVED BADGE ─────────────────────────────────── */
-    .archived-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 10px;
-      padding: 2px 8px;
-      border-radius: 20px;
-      background: rgba(107,114,128,0.2);
-      border: 1px solid rgba(107,114,128,0.3);
-      color: #9ca3af;
-      margin-left: 8px;
-    }
-
-    /* scrollbar */
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-  </style>
+  <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
 
-<!-- Loading screen -->
 <div id="loading">
   <div class="spinner"></div>
   <div id="loading-text">Initialising neural cosmos…</div>
 </div>
 
-<!-- Header -->
 <div id="header">
   <div id="logo">
     <div id="logo-icon"></div>
     <div>
       <div id="logo-text"><span>MemNetwork</span> · Neural Cosmos</div>
-      <div id="logo-subtitle">3D Knowledge Graph Visualization</div>
+      <div id="logo-subtitle">Knowledge Graph Visualization</div>
     </div>
   </div>
   <div id="header-actions">
+    <button id="chat-toggle" class="header-btn" type="button" title="Ask your brain">
+      Ask
+    </button>
     <button id="motion-toggle" class="header-btn" type="button" title="Pause motion (Space)">
       <span id="motion-toggle-icon">⏸</span>
       <span id="motion-toggle-label">Pause</span>
     </button>
     <div id="header-stats">
       <div class="stat-chip">
-        <div class="stat-dot" style="background:#8b5cf6;color:#8b5cf6"></div>
+        <div class="stat-dot" style="background:#8b5cf6"></div>
         <strong id="stat-nodes">0</strong> neurons
       </div>
       <div class="stat-chip">
-        <div class="stat-dot" style="background:#06b6d4;color:#06b6d4"></div>
+        <div class="stat-dot" style="background:#06b6d4"></div>
         <strong id="stat-edges">0</strong> edges
       </div>
       <div class="stat-chip">
-        <div class="stat-dot" style="background:#10b981;color:#10b981;animation-delay:0.5s"></div>
+        <div class="stat-dot" style="background:#10b981;animation-delay:0.5s"></div>
         <strong id="stat-visible">0</strong> visible
       </div>
       <div class="stat-chip" id="stat-links-wrap" style="display:none">
-        <div class="stat-dot" style="background:#f59e0b;color:#f59e0b"></div>
+        <div class="stat-dot" style="background:#f59e0b"></div>
         <strong id="stat-links">0</strong> linked
       </div>
     </div>
   </div>
 </div>
 
-<!-- 3D Graph -->
 <div id="graph-container"></div>
 
-<!-- Left sidebar -->
 <div id="sidebar">
-  <!-- Kind filters -->
   <div class="panel">
     <div class="panel-title">Node Kinds</div>
     <div id="kind-filters">
@@ -604,15 +81,31 @@
         <span class="kind-count" id="count-session">0</span>
       </div>
     </div>
+    <div class="toggle-row" style="margin-top:10px">
+      <label for="show-archived">Show archived</label>
+      <input type="checkbox" id="show-archived" />
+    </div>
   </div>
 
-  <!-- Search -->
   <div class="panel">
     <div class="panel-title">Search Neurons</div>
-    <input id="search-input" type="text" placeholder="Title, tag, content…" autocomplete="off" />
+    <input id="search-input" type="text" placeholder="Title, tag, content… (/)" autocomplete="off" />
   </div>
 
-  <!-- Timeline -->
+  <div class="panel">
+    <div class="panel-title">Color by</div>
+    <select id="color-mode" class="control-select">
+      <option value="kind">Kind / subtype</option>
+      <option value="directory">Top-level directory</option>
+      <option value="tag">First tag</option>
+    </select>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Edge types</div>
+    <div id="edge-filters" class="chip-row"></div>
+  </div>
+
   <div class="panel">
     <div class="panel-title">Timeline</div>
     <div id="timeline-wrap">
@@ -625,7 +118,23 @@
     </div>
   </div>
 
-  <!-- Legend -->
+  <div class="panel">
+    <div class="panel-title">Focus mode</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">
+      Double-click a node for neighborhood view
+    </div>
+    <div class="toggle-row">
+      <label for="focus-depth">Depth</label>
+      <input type="range" id="focus-depth" min="1" max="3" value="1" style="width:90px" />
+      <span id="focus-depth-label">1</span>
+    </div>
+    <div id="focus-bar">
+      <span id="focus-label">Focused</span>
+      <button type="button" id="focus-exit">Exit focus</button>
+    </div>
+    <div id="perf-hint"></div>
+  </div>
+
   <div class="panel">
     <div class="panel-title">Legend</div>
     <div id="legend">
@@ -633,16 +142,13 @@
         <div class="legend-icon" style="background:#fbbf24;border:2px solid #fde68a;transform:scale(0.85)"></div>
         Selected node
       </div>
-      <div class="legend-row" style="font-size:11px;color:var(--text-muted)">
-        Connected nodes keep their kind color
-      </div>
       <div class="legend-row">
         <div class="legend-icon" style="background:rgba(139,92,246,0.6);border:2px solid #8b5cf6;transform:scale(0.7)"></div>
         Memory
       </div>
       <div class="legend-row">
         <div class="legend-icon" style="background:#06b6d4;border:2px solid #67e8f9;transform:scale(0.75)"></div>
-        File (module)
+        File / module
       </div>
       <div class="legend-row">
         <div class="legend-icon" style="background:#6366f1;border:2px solid #a5b4fc;transform:scale(0.75)"></div>
@@ -656,27 +162,22 @@
         <div class="legend-icon" style="background:rgba(139,92,246,0.6);border:2px solid #8b5cf6;transform:scale(0.7)"></div>
         Pinned (gold ring)
       </div>
-      <div class="legend-row">
-        <div class="legend-icon" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2)"></div>
-        Archived (dimmed)
-      </div>
       <div class="legend-row" style="font-size:11px;color:var(--text-muted)">
-        Node size = use count
-      </div>
-      <div class="legend-row" style="font-size:11px;color:var(--text-muted)">
-        Edge brightness = weight
+        Node size = use count · edge brightness = weight
       </div>
     </div>
   </div>
 </div>
 
-<!-- Right detail panel -->
 <div id="detail-panel">
   <div id="detail-header">
     <span id="detail-close" title="Close">✕</span>
     <div id="detail-kind-badge"></div>
     <div id="detail-title"></div>
     <div class="detail-meta" id="detail-meta"></div>
+  </div>
+  <div id="detail-actions">
+    <button id="explain-btn" class="header-btn" type="button">Explain this node</button>
   </div>
   <div id="detail-content-panel">
     <div class="panel-title">Content</div>
@@ -688,665 +189,41 @@
   </div>
 </div>
 
-<!-- Hover tooltip -->
+<div id="chat-panel">
+  <div id="chat-header">
+    <h2>Ask your brain</h2>
+    <span id="chat-close" title="Close">✕</span>
+  </div>
+  <div id="chat-setup">
+    <div class="panel-title">Local model (WebLLM · WebGPU)</div>
+    <select id="chat-model" class="control-select">
+      <option value="Llama-3.2-3B-Instruct-q4f16_1-MLC">Llama 3.2 3B (default)</option>
+      <option value="Llama-3.2-1B-Instruct-q4f16_1-MLC">Llama 3.2 1B (lighter)</option>
+      <option value="SmolLM2-360M-Instruct-q4f16_1-MLC">SmolLM2 360M (tiny)</option>
+    </select>
+    <button id="chat-load-btn" class="header-btn" type="button">Load model</button>
+    <div id="chat-progress-wrap">
+      <div id="chat-progress-bar"><div id="chat-progress-fill"></div></div>
+      <div id="chat-progress-text">0%</div>
+    </div>
+    <div id="chat-status">Idle — model stays on this device</div>
+  </div>
+  <div id="chat-messages"></div>
+  <div id="chat-composer">
+    <textarea id="chat-input" rows="1" placeholder="Ask about this project's brain…" disabled></textarea>
+    <button id="chat-send" type="button" disabled>Send</button>
+    <button id="chat-stop" type="button" style="display:none">Stop</button>
+  </div>
+  <div id="chat-footer">Private · no API keys · grounded via FTS5</div>
+</div>
+
 <div id="tooltip">
   <div id="tooltip-title"></div>
   <div id="tooltip-kind"></div>
 </div>
 
-<!-- Libraries -->
-<script src="https://unpkg.com/three@0.160.1/build/three.min.js"></script>
-<script src="https://unpkg.com/3d-force-graph@1.73.4/dist/3d-force-graph.min.js"></script>
-
-<script>
-// ─────────────────────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────────────────────
-const KIND_COLORS = {
-  memory:    '#8b5cf6',
-  code:      '#06b6d4',
-  procedure: '#f59e0b',
-  session:   '#10b981',
-};
-const CODE_SUBTYPE_COLORS = {
-  file:     '#06b6d4',  // cyan — modules / source files
-  class:    '#6366f1',  // indigo — classes & types
-  function: '#f472b6',  // rose — functions & methods
-};
-const MEMORY_SUBTYPE_COLORS = {
-  fact:     '#c4b5fd',  // lavender core
-  decision: '#f97316',  // orange — architectural choices
-  rule:     '#eab308',  // amber — project rules
-  error:    '#ef4444',  // red — pitfalls / failures
-  pattern:  '#d946ef',  // fuchsia — recurring patterns
-  context:  '#14b8a6',  // teal — session / branch context
-};
-const KIND_DEFAULT = '#6b7280';
-const SELECTED_COLOR = '#fbbf24';
-const FORCE_CHARGE = -120;
-const FORCE_LINK_DISTANCE = e => 60 + (1 - (e.weight || 0.5)) * 40;
-
-const getColor = k => KIND_COLORS[k] || KIND_DEFAULT;
-
-function getMemorySubtypeColor(subtype) {
-  if (subtype && MEMORY_SUBTYPE_COLORS[subtype]) {
-    return MEMORY_SUBTYPE_COLORS[subtype];
-  }
-  return null;
-}
-
-function getNodeColor(node) {
-  if (node?.kind === 'code' && node.subtype && CODE_SUBTYPE_COLORS[node.subtype]) {
-    return CODE_SUBTYPE_COLORS[node.subtype];
-  }
-  return getColor(node?.kind);
-}
-
-function nodeSize(n) {
-  const min = 8;
-  const max = 18;
-  const uc  = n.use_count || 0;
-  // log1p keeps low-use nodes large; sqrt alone left use_count=0 nodes too small
-  return Math.min(min + Math.log1p(uc) * 2.5, max);
-}
-
-function edgeId(v) {
-  return (v && typeof v === 'object') ? v.id : v;
-}
-
-const REL_COLORS = {
-  supersedes: '#f87171',
-  calls:      '#06b6d4',
-  imports:    '#38bdf8',
-  influences: '#8b5cf6',
-  constrains: '#c084fc',
-  spawned:    '#f59e0b',
-  produced:   '#10b981',
-};
-
-function linkColorFor(e, highlighted = false) {
-  const w = e.weight || 0.5;
-  const alpha = highlighted
-    ? 'ff'
-    : Math.floor(Math.min(40 + w * 120, 160)).toString(16).padStart(2, '0');
-  const base = REL_COLORS[e.relationship] || '#94a3b8';
-  return base + alpha;
-}
-
-function isNeighbourOf(nodeId, focusId) {
-  return allEdges.some(
-    e => (edgeId(e.source) === focusId && edgeId(e.target) === nodeId) ||
-         (edgeId(e.target) === focusId && edgeId(e.source) === nodeId)
-  );
-}
-
-function edgesForNode(nodeId) {
-  return allEdges.filter(
-    e => edgeId(e.source) === nodeId || edgeId(e.target) === nodeId
-  );
-}
-
-function nodeVisualState(node) {
-  const base = getNodeColor(node);
-  const isArchived = !!node.valid_until;
-
-  if (selectedId) {
-    if (node.id === selectedId) {
-      return { color: SELECTED_COLOR, opacity: 1, emissiveIntensity: 0.95, haloOpacity: 0.2 };
-    }
-    if (isNeighbourOf(node.id, selectedId)) {
-      return { color: base, opacity: 1, emissiveIntensity: 0.88, haloOpacity: 0.14 };
-    }
-    return { color: base, opacity: 0.18, emissiveIntensity: 0.08, haloOpacity: 0 };
-  }
-
-  if (searchQuery && !isVisible(node)) {
-    return { color: base, opacity: 0.15, emissiveIntensity: 0.08, haloOpacity: 0 };
-  }
-
-  return {
-    color: base,
-    opacity: isArchived ? 0.3 : 1,
-    emissiveIntensity: isArchived ? 0.2 : 0.6,
-    haloOpacity: isArchived ? 0 : 0.08,
-  };
-}
-
-function applyNodeVisual(obj, node) {
-  if (!obj?.children?.length) return;
-  const v = nodeVisualState(node);
-
-  for (const child of obj.children) {
-    if (child.userData?.role === 'core' && child.material) {
-      child.material.color.set(v.color);
-      child.material.emissive.set(v.color);
-      child.material.emissiveIntensity = v.emissiveIntensity;
-      child.material.opacity = v.opacity;
-    }
-    if (child.userData?.role === 'halo' && child.material) {
-      child.material.color.set(v.color);
-      child.material.opacity = v.haloOpacity;
-      child.visible = v.haloOpacity > 0;
-    }
-  }
-}
-
-function freezeSimulation() {
-  if (!graph) return;
-  graph.cooldownTicks(0);
-  graph.d3Force('charge')?.strength(0);
-  graph.d3Force('link')?.strength(0);
-}
-
-function unfreezeSimulation() {
-  if (!graph) return;
-  graph.d3Force('charge')?.strength(FORCE_CHARGE);
-  graph.d3Force('link')?.strength(1);
-  graph.d3Force('link')?.distance(FORCE_LINK_DISTANCE);
-  graph.cooldownTicks(Infinity);
-  graph.d3ReheatSimulation();
-}
-
-function updateAllNodeVisuals() {
-  if (!graph) return;
-  graph.graphData().nodes.forEach(n => {
-    const obj = n.__vizObj || n.__threeObj;
-    if (obj) applyNodeVisual(obj, n);
-  });
-}
-
-function buildNodeObject(n) {
-  const group = new THREE.Group();
-  const v = nodeVisualState(n);
-  const size  = nodeSize(n);
-
-  const geo  = new THREE.SphereGeometry(size, 16, 16);
-  const mat  = new THREE.MeshStandardMaterial({
-    color: v.color,
-    emissive: v.color,
-    emissiveIntensity: v.emissiveIntensity,
-    transparent: true,
-    opacity: v.opacity,
-    roughness: 0.2,
-    metalness: 0.3,
-  });
-  const core = new THREE.Mesh(geo, mat);
-  core.userData.role = 'core';
-  group.add(core);
-
-  const haloGeo = new THREE.SphereGeometry(size * 1.6, 16, 16);
-  const haloMat = new THREE.MeshBasicMaterial({
-    color: v.color,
-    transparent: true,
-    opacity: v.haloOpacity,
-    side: THREE.BackSide,
-  });
-  const halo = new THREE.Mesh(haloGeo, haloMat);
-  halo.userData.role = 'halo';
-  halo.visible = v.haloOpacity > 0;
-  group.add(halo);
-
-  if (n.user_pinned) {
-    const ringGeo = new THREE.TorusGeometry(size * 1.5, 0.8, 8, 32);
-    const ringMat = new THREE.MeshBasicMaterial({ color: '#fbbf24', transparent: true, opacity: 0.9 });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    ring.rotation.x = Math.PI / 2;
-    ring.userData.role = 'ring';
-    group.add(ring);
-  }
-
-  n.__vizObj = group;
-  return group;
-}
-
-// ─────────────────────────────────────────────────────────────
-// State
-// ─────────────────────────────────────────────────────────────
-let allNodes     = [];
-let allEdges     = [];
-let activeKinds  = new Set(['memory','code','procedure','session']);
-let searchQuery  = '';
-let timelineCutoff = null;   // ISO string or null = all
-let selectedId   = null;
-let graph        = null;
-let motionPaused = false;
-
-// ─────────────────────────────────────────────────────────────
-// Motion control
-// ─────────────────────────────────────────────────────────────
-const motionToggleBtn   = document.getElementById('motion-toggle');
-const motionToggleIcon  = document.getElementById('motion-toggle-icon');
-const motionToggleLabel = document.getElementById('motion-toggle-label');
-
-function setMotionPaused(paused) {
-  motionPaused = paused;
-  if (graph) {
-    graph.controls().autoRotate = !paused;
-    if (paused) freezeSimulation();
-    else unfreezeSimulation();
-  }
-
-  motionToggleBtn.classList.toggle('active', paused);
-  motionToggleIcon.textContent = paused ? '▶' : '⏸';
-  motionToggleLabel.textContent = paused ? 'Play' : 'Pause';
-  motionToggleBtn.title = paused ? 'Resume auto-rotation (Space)' : 'Pause auto-rotation (Space)';
-}
-
-motionToggleBtn.addEventListener('click', () => setMotionPaused(!motionPaused));
-
-document.addEventListener('keydown', e => {
-  if (e.code === 'Space' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
-    e.preventDefault();
-    setMotionPaused(!motionPaused);
-  }
-});
-
-// ─────────────────────────────────────────────────────────────
-// Tooltip
-// ─────────────────────────────────────────────────────────────
-const tooltip     = document.getElementById('tooltip');
-const tooltipTitle = document.getElementById('tooltip-title');
-const tooltipKind  = document.getElementById('tooltip-kind');
-
-function showTooltip(node, x, y) {
-  tooltipTitle.textContent = node.title;
-  tooltipKind.textContent  = `${node.kind}${node.subtype ? ' · ' + node.subtype : ''}`;
-  tooltipTitle.style.color = nodeVisualState(node).color;
-  tooltip.style.left = x + 'px';
-  tooltip.style.top  = y + 'px';
-  tooltip.classList.add('visible');
-}
-
-function hideTooltip() {
-  tooltip.classList.remove('visible');
-}
-
-// ─────────────────────────────────────────────────────────────
-// Detail panel
-// ─────────────────────────────────────────────────────────────
-const detailPanel    = document.getElementById('detail-panel');
-const detailClose    = document.getElementById('detail-close');
-const detailBadge    = document.getElementById('detail-kind-badge');
-const detailTitle    = document.getElementById('detail-title');
-const detailMeta     = document.getElementById('detail-meta');
-const detailContent  = document.getElementById('detail-content');
-const detailConns    = document.getElementById('detail-connections');
-
-detailClose.addEventListener('click', () => {
-  detailPanel.classList.remove('open');
-  selectedId = null;
-  document.getElementById('stat-links-wrap').style.display = 'none';
-  refreshGraph();
-});
-
-function renderDetailBadge(node) {
-  const kindColor = getNodeColor(node);
-  const kindLabel = node.kind.toUpperCase();
-
-  if (node.subtype) {
-    const subtypeLabel = node.subtype.toUpperCase();
-    let subtypeColor = kindColor;
-    if (node.kind === 'memory') {
-      subtypeColor = getMemorySubtypeColor(node.subtype) || kindColor;
-    } else if (node.kind === 'code' && CODE_SUBTYPE_COLORS[node.subtype]) {
-      subtypeColor = CODE_SUBTYPE_COLORS[node.subtype];
-    }
-    detailBadge.innerHTML =
-      `<span style="color:${kindColor}">${kindLabel}</span>` +
-      `<span class="detail-kind-sep"> · </span>` +
-      `<span style="color:${subtypeColor}">${subtypeLabel}</span>`;
-    detailBadge.style.background = kindColor + '22';
-    detailBadge.style.border = `1px solid ${kindColor}44`;
-    return;
-  }
-
-  detailBadge.textContent = kindLabel;
-  detailBadge.style.background = kindColor + '22';
-  detailBadge.style.color = kindColor;
-  detailBadge.style.border = `1px solid ${kindColor}44`;
-}
-
-function openDetail(node) {
-  selectedId = node.id;
-  const isArchived = !!node.valid_until;
-
-  renderDetailBadge(node);
-  // Title
-  detailTitle.innerHTML = node.title + (isArchived ? '<span class="archived-badge">ARCHIVED</span>' : '');
-
-  // Meta pills
-  const pills = [];
-  if (node.confidence != null) pills.push(`conf ${(node.confidence * 100).toFixed(0)}%`);
-  if (node.use_count)         pills.push(`↑ ${node.use_count} uses`);
-  if (node.user_pinned)       pills.push('📌 pinned');
-  if (node.tags)              node.tags.split(',').forEach(t => t.trim() && pills.push(t.trim()));
-  detailMeta.innerHTML = pills.map(p => `<span class="meta-pill">${p}</span>`).join('');
-
-  // Content
-  detailContent.textContent = node.content || '(no content)';
-
-  // Connections
-  const connected = edgesForNode(node.id);
-  const nodeById = Object.fromEntries(allNodes.map(n => [n.id, n]));
-
-  if (connected.length === 0) {
-    detailConns.innerHTML = '<div style="font-size:12px;color:var(--text-muted)">No connections.</div>';
-  } else {
-    detailConns.innerHTML = connected.map(e => {
-      const srcId = edgeId(e.source);
-      const otherId = srcId === node.id ? edgeId(e.target) : srcId;
-      const other   = nodeById[otherId] || {};
-      const ocolor  = getNodeColor(other);
-      const dir     = srcId === node.id ? '→' : '←';
-      return `
-        <div class="conn-item" data-id="${otherId}">
-          <div class="conn-dot" style="background:${ocolor}"></div>
-          <div>
-            <div class="conn-title" style="color:${ocolor}">${other.title || otherId}</div>
-            <div class="conn-rel">${dir} ${e.relationship || 'linked'} · weight ${(e.weight||1).toFixed(2)}</div>
-          </div>
-        </div>`;
-    }).join('');
-
-    detailConns.querySelectorAll('.conn-item').forEach(el => {
-      el.addEventListener('click', () => {
-        const target = allNodes.find(n => n.id === el.dataset.id);
-        if (target) openDetail(target);
-      });
-    });
-  }
-
-  detailPanel.classList.add('open');
-  document.getElementById('stat-links').textContent = connected.length;
-  document.getElementById('stat-links-wrap').style.display = '';
-  setMotionPaused(true);
-  refreshGraph();
-}
-
-// ─────────────────────────────────────────────────────────────
-// Filter helpers
-// ─────────────────────────────────────────────────────────────
-function isVisible(node) {
-  if (!activeKinds.has(node.kind)) return false;
-  if (timelineCutoff && node.valid_from && node.valid_from > timelineCutoff) return false;
-  if (searchQuery) {
-    const q = searchQuery.toLowerCase();
-    const haystack = `${node.title} ${node.tags || ''} ${node.content || ''}`.toLowerCase();
-    if (!haystack.includes(q)) return false;
-  }
-  return true;
-}
-
-function visibleNodes() { return allNodes.filter(isVisible); }
-
-function visibleEdges(visSet, focusId = null) {
-  return allEdges.filter(e => {
-    const src = edgeId(e.source);
-    const tgt = edgeId(e.target);
-    if (!visSet.has(src) || !visSet.has(tgt)) return false;
-    if (focusId) return src === focusId || tgt === focusId;
-    return true;
-  });
-}
-
-function applyLinkStyles(highlighted) {
-  if (!graph) return;
-  graph
-    .linkColor(e => linkColorFor(e, highlighted))
-    .linkWidth(e => highlighted ? 1.0 + (e.weight || 0.5) * 2.0 : 0.4 + (e.weight || 0.5) * 1.2)
-    .linkOpacity(highlighted ? 1.0 : 0.8)
-    .linkDirectionalParticles(e => highlighted ? 3 : (e.weight > 0.8 ? 2 : 1))
-    .linkDirectionalParticleWidth(e => highlighted ? 2.0 : 1.2 + (e.weight || 0.5))
-    .linkDirectionalParticleColor(e => REL_COLORS[e.relationship] || '#94a3b8');
-}
-
-// ─────────────────────────────────────────────────────────────
-// Graph refresh
-// ─────────────────────────────────────────────────────────────
-function refreshGraph() {
-  if (!graph) return;
-  const vnodes = visibleNodes();
-  const visSet = new Set(vnodes.map(n => n.id));
-  const vedges = visibleEdges(visSet, selectedId);
-
-  graph.graphData({ nodes: vnodes, links: vedges });
-
-  if (motionPaused) freezeSimulation();
-
-  document.getElementById('stat-visible').textContent = vnodes.length;
-  applyLinkStyles(!!selectedId);
-  updateAllNodeVisuals();
-}
-
-// ─────────────────────────────────────────────────────────────
-// Count pills
-// ─────────────────────────────────────────────────────────────
-function updateCounts() {
-  ['memory','code','procedure','session'].forEach(k => {
-    document.getElementById('count-' + k).textContent =
-      allNodes.filter(n => n.kind === k).length;
-  });
-  document.getElementById('stat-nodes').textContent = allNodes.length;
-  document.getElementById('stat-edges').textContent = allEdges.length;
-  document.getElementById('stat-visible').textContent = visibleNodes().length;
-}
-
-// ─────────────────────────────────────────────────────────────
-// Timeline init
-// ─────────────────────────────────────────────────────────────
-function initTimeline() {
-  const dates = allNodes
-    .map(n => n.valid_from)
-    .filter(Boolean)
-    .sort();
-  if (!dates.length) return;
-
-  const minDate = dates[0];
-  const maxDate = dates[dates.length - 1];
-
-  document.getElementById('timeline-min').textContent = minDate.slice(0,10);
-  document.getElementById('timeline-max').textContent = maxDate.slice(0,10);
-
-  const slider = document.getElementById('timeline-slider');
-  slider.addEventListener('input', () => {
-    const pct = slider.value / 100;
-    const minT = new Date(minDate).getTime();
-    const maxT = new Date(maxDate).getTime();
-    const cutT = minT + (maxT - minT) * pct;
-    const cutDate = new Date(cutT);
-    timelineCutoff = cutDate.toISOString();
-    document.getElementById('timeline-value').textContent =
-      pct >= 0.999 ? 'All time' : cutDate.toISOString().slice(0,10);
-    if (pct >= 0.999) timelineCutoff = null;
-    refreshGraph();
-  });
-}
-
-// ─────────────────────────────────────────────────────────────
-// Init graph
-// ─────────────────────────────────────────────────────────────
-function initGraph(data) {
-  // Remap from_id/to_id → source/target for 3d-force-graph
-  allNodes = data.nodes.map(n => ({...n}));
-  allEdges = data.edges.map(e => ({
-    ...e,
-    source: e.from_id,
-    target: e.to_id,
-  }));
-
-  const container = document.getElementById('graph-container');
-
-  graph = ForceGraph3D({ controlType: 'orbit' })(container)
-    .width(window.innerWidth)
-    .height(window.innerHeight)
-    .backgroundColor('#050508')
-
-    // Nodes
-    .nodeVal(n => {
-      const s = nodeSize(n);
-      return s * s;
-    })
-    .nodeColor(n => {
-      if (n.valid_until) return getNodeColor(n) + '66';
-      return getNodeColor(n);
-    })
-    .nodeOpacity(0.95)
-    .nodeResolution(16)
-
-    // Custom node rendering: glow sphere + pinned ring
-    .nodeThreeObject(buildNodeObject)
-    .nodeThreeObjectExtend(false)
-
-    // Links
-    .linkColor(e => linkColorFor(e, false))
-    .linkWidth(e => 0.4 + (e.weight || 0.5) * 1.2)
-    .linkOpacity(0.8)
-    .linkDirectionalParticles(e => e.weight > 0.8 ? 2 : 1)
-    .linkDirectionalParticleWidth(e => 1.2 + (e.weight || 0.5))
-    .linkDirectionalParticleSpeed(0.004)
-    .linkDirectionalParticleColor(e => REL_COLORS[e.relationship] || '#94a3b8')
-
-    // Events
-    .onNodeHover((node, prevNode) => {
-      container.style.cursor = node ? 'pointer' : 'default';
-      if (node) {
-        const rect = container.getBoundingClientRect();
-        showTooltip(node, rect.left + rect.width / 2, rect.top + rect.height / 2);
-      } else {
-        hideTooltip();
-      }
-    })
-    .onNodeClick((node, event) => {
-      hideTooltip();
-      openDetail(node);
-    })
-    .onBackgroundClick(() => {
-      detailPanel.classList.remove('open');
-      selectedId = null;
-      document.getElementById('stat-links-wrap').style.display = 'none';
-      refreshGraph();
-    });
-
-  // Lighting
-  const scene = graph.scene();
-  scene.add(new THREE.AmbientLight(0xffffff, 0.3));
-  const ptLight1 = new THREE.PointLight(0x8b5cf6, 2, 400);
-  ptLight1.position.set(100, 100, 100);
-  scene.add(ptLight1);
-  const ptLight2 = new THREE.PointLight(0x06b6d4, 1.5, 400);
-  ptLight2.position.set(-100, -80, -100);
-  scene.add(ptLight2);
-
-  // Star field
-  const starGeo = new THREE.BufferGeometry();
-  const starCount = 1500;
-  const positions = new Float32Array(starCount * 3);
-  for (let i = 0; i < starCount; i++) {
-    positions[i * 3]     = (Math.random() - 0.5) * 2000;
-    positions[i * 3 + 1] = (Math.random() - 0.5) * 2000;
-    positions[i * 3 + 2] = (Math.random() - 0.5) * 2000;
-  }
-  starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.6, transparent: true, opacity: 0.5 });
-  scene.add(new THREE.Points(starGeo, starMat));
-
-  // Slow auto-rotate (paused via header button or node selection)
-  graph.controls().autoRotate = true;
-  graph.controls().autoRotateSpeed = 0.4;
-  graph.controls().enableDamping = true;
-  setMotionPaused(false);
-
-  // Initial data
-  const vnodes = visibleNodes();
-  const visSet = new Set(vnodes.map(n => n.id));
-  graph.graphData({ nodes: vnodes, links: visibleEdges(visSet) });
-
-  // Force tuning
-  graph.d3Force('charge').strength(FORCE_CHARGE);
-  graph.d3Force('link').distance(FORCE_LINK_DISTANCE);
-
-  updateCounts();
-  initTimeline();
-}
-
-// ─────────────────────────────────────────────────────────────
-// Kind filter toggles
-// ─────────────────────────────────────────────────────────────
-document.querySelectorAll('.kind-toggle').forEach(el => {
-  el.addEventListener('click', () => {
-    const k = el.dataset.kind;
-    if (activeKinds.has(k)) {
-      activeKinds.delete(k);
-      el.classList.remove('active');
-      el.classList.add('inactive');
-    } else {
-      activeKinds.add(k);
-      el.classList.remove('inactive');
-      el.classList.add('active');
-    }
-    refreshGraph();
-  });
-});
-
-// ─────────────────────────────────────────────────────────────
-// Search
-// ─────────────────────────────────────────────────────────────
-let searchDebounce;
-document.getElementById('search-input').addEventListener('input', e => {
-  clearTimeout(searchDebounce);
-  searchDebounce = setTimeout(() => {
-    searchQuery = e.target.value.trim();
-    refreshGraph();
-  }, 200);
-});
-
-// ─────────────────────────────────────────────────────────────
-// Window resize
-// ─────────────────────────────────────────────────────────────
-window.addEventListener('resize', () => {
-  if (graph) {
-    graph.width(window.innerWidth).height(window.innerHeight);
-  }
-});
-
-// ─────────────────────────────────────────────────────────────
-// Track mouse for tooltip
-// ─────────────────────────────────────────────────────────────
-window.addEventListener('mousemove', e => {
-  if (tooltip.classList.contains('visible')) {
-    tooltip.style.left = (e.clientX + 14) + 'px';
-    tooltip.style.top  = (e.clientY - 20) + 'px';
-  }
-});
-
-// ─────────────────────────────────────────────────────────────
-// Fetch & boot
-// ─────────────────────────────────────────────────────────────
-async function boot() {
-  const loading = document.getElementById('loading');
-  const loadText = document.getElementById('loading-text');
-
-  try {
-    loadText.textContent = 'Fetching neuron graph…';
-    const res = await fetch('/api/graph');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-
-    loadText.textContent = `Building 3D cosmos — ${data.nodes.length} neurons…`;
-    await new Promise(r => setTimeout(r, 400));
-
-    initGraph(data);
-
-    loading.classList.add('hidden');
-    setTimeout(() => loading.remove(), 600);
-  } catch (err) {
-    loadText.textContent = `Error: ${err.message}`;
-    loadText.style.color = '#f87171';
-    console.error(err);
-  }
-}
-
-boot();
-</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1.73.4/dist/3d-force-graph.min.js"></script>
+<script type="module" src="/app.js"></script>
 </body>
 </html>

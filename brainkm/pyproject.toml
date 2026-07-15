@@ -62,6 +62,8 @@ brainkm = [
     "config.example.json",
     "bench/fixtures/*.json",
     "tui/styles/*.tcss",
+    "services/viz_static/*",
+    "services/viz_static/**/*",
 ]
 
 [tool.pytest.ini_options]

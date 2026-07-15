@@ -35,6 +35,7 @@ STEP_DISTILL = "step-distill"
 STEP_CURSOR_CLI = "step-cursor-cli"
 STEP_APIKEY = "step-apikey"
 STEP_GRAPH = "step-graph"
+STEP_VIZ_LLM = "step-viz-llm"
 STEP_DONE = "step-done"
 
 STEPS = [
@@ -45,6 +46,7 @@ STEPS = [
     STEP_CURSOR_CLI,
     STEP_APIKEY,
     STEP_GRAPH,
+    STEP_VIZ_LLM,
     STEP_DONE,
 ]
 
@@ -53,7 +55,8 @@ class WizardScreen(Screen):
     """Phase 4 — guided first-run wizard.
 
     Walks through: project dir → install → hardware doctor → distill mode
-    → Cursor agent CLI (optional) → API key → graph sync → done.
+    → Cursor agent CLI (optional) → API key → graph sync → viz WebLLM
+    prefetch (optional) → done.
     """
 
     BINDINGS = [
@@ -178,11 +181,37 @@ class WizardScreen(Screen):
                 )
                 yield Static("", id="wizard-graph-status")
 
-            # --- Step 8: Done ---
+            # --- Step 8: Viz WebLLM prefetch ---
+            with Vertical(classes="wizard-step", id=STEP_VIZ_LLM):
+                yield Static("8 ─ Viz Chat Model (Optional)", classes="step-title")
+                yield Static(
+                    "Prefetch an on-device WebLLM model for `brainkm viz` Ask-your-brain.\n"
+                    "Weights go to ~/.cache/brainkm/webllm/ (once). The browser still needs\n"
+                    "Chrome/Edge + WebGPU; first Ask loads into GPU from your local cache.",
+                    classes="step-description",
+                )
+                with RadioSet(id="wizard-viz-llm-radio"):
+                    yield RadioButton(
+                        "Llama 3.2 1B — recommended (~1 GB)",
+                        value=True,
+                        id="radio-viz-1b",
+                    )
+                    yield RadioButton(
+                        "Llama 3.2 3B — best quality (~2 GB)",
+                        id="radio-viz-3b",
+                    )
+                    yield RadioButton(
+                        "SmolLM2 360M — lightest (~0.3 GB)",
+                        id="radio-viz-smol",
+                    )
+                yield Static("", id="wizard-viz-llm-status")
+
+            # --- Step 9: Done ---
             with Vertical(classes="wizard-step", id=STEP_DONE):
                 yield Static("✓ Setup Complete!", classes="step-title")
                 yield Static(
-                    "Your project brain is ready. Switch to the Dashboard to see the status.",
+                    "Your project brain is ready. Switch to the Dashboard to see the status.\n"
+                    "Open viz with: brainkm viz  ·  Ask chat uses your prefetched model if cached.",
                     classes="step-description",
                 )
 
@@ -266,6 +295,15 @@ class WizardScreen(Screen):
                 )
             except Exception:
                 pass
+        elif step == STEP_VIZ_LLM:
+            self.log_panel.log_info(
+                "Skipped WebLLM prefetch — load a model later in the viz Ask panel"
+            )
+            try:
+                status = self.query_one("#wizard-viz-llm-status", Static)
+                status.update("[dim]● Skipped — download on first Ask instead[/]")
+            except Exception:
+                pass
         self._advance()
 
     def _advance(self) -> None:
@@ -288,6 +326,7 @@ class WizardScreen(Screen):
             STEP_CURSOR_CLI: self._run_cursor_cli,
             STEP_APIKEY: self._apply_api_key,
             STEP_GRAPH: self._run_graph_sync,
+            STEP_VIZ_LLM: self._run_viz_llm_prefetch,
         }
         runner = runners.get(step)
         if runner:
@@ -524,6 +563,68 @@ class WizardScreen(Screen):
         except Exception as exc:
             return {"step": STEP_GRAPH, "error": str(exc)}
 
+    def _selected_viz_model_id(self) -> str:
+        from brainkm.services.webllm_prefetch import DEFAULT_MODEL_ID
+
+        mapping = {
+            0: "Llama-3.2-1B-Instruct-q4f16_1-MLC",
+            1: "Llama-3.2-3B-Instruct-q4f16_1-MLC",
+            2: "SmolLM2-360M-Instruct-q4f16_1-MLC",
+        }
+        try:
+            radio = self.query_one("#wizard-viz-llm-radio", RadioSet)
+            return mapping.get(radio.pressed_index, DEFAULT_MODEL_ID)
+        except Exception:
+            return DEFAULT_MODEL_ID
+
+    def _run_viz_llm_prefetch(self) -> None:
+        model_id = self._selected_viz_model_id()
+        self.log_panel.log_info(f"Prefetching WebLLM model: {model_id}")
+        self.log_panel.log_plain("  (large download — progress appears below)")
+        self._do_viz_llm_prefetch(model_id)
+
+    @work(thread=True, group="wizard", exit_on_error=False)
+    def _do_viz_llm_prefetch(self, model_id: str) -> dict[str, Any]:
+        import json
+
+        from brainkm.services.config_loader import config_path
+        from brainkm.services.webllm_prefetch import prefetch_webllm_model
+
+        progress_lines: list[str] = []
+
+        def progress(name: str, done: int, total: int) -> None:
+            if name == "done":
+                progress_lines.append(f"  finished {total} files")
+            elif done == 0 or done % 5 == 0 or done + 1 == total:
+                progress_lines.append(f"  [{done}/{total}] {name}")
+
+        result = prefetch_webllm_model(model_id, progress=progress)
+
+        # Persist preference into .brain/config.json
+        cp = config_path(self._project_dir)
+        if cp.is_file():
+            cfg = json.loads(cp.read_text(encoding="utf-8"))
+        else:
+            cfg = {}
+        cfg.setdefault("viz", {})["webllm_model"] = model_id
+        cfg["viz"]["webllm_prefetch"] = True
+        cp.parent.mkdir(parents=True, exist_ok=True)
+        cp.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+
+        out: dict[str, Any] = {
+            "step": STEP_VIZ_LLM,
+            "model_id": model_id,
+            "cache_dir": str(result.cache_dir),
+            "files_downloaded": result.files_downloaded,
+            "files_skipped": result.files_skipped,
+            "bytes_downloaded": result.bytes_downloaded,
+            "already_cached": result.already_cached,
+            "progress": progress_lines,
+        }
+        if result.error:
+            out["error"] = result.error
+        return out
+
     # ------------------------------------------------------------------
     # Worker result handler
     # ------------------------------------------------------------------
@@ -678,6 +779,32 @@ class WizardScreen(Screen):
                 self.log_panel.log_success(f"Graph synced: {node_count} code nodes")
                 status = self.query_one("#wizard-graph-status", Static)
                 status.update(f"[bold green]✓ {node_count} code nodes imported[/]")
+            self._advance()
+
+        elif step == STEP_VIZ_LLM:
+            for line in result.get("progress") or []:
+                self.log_panel.log_plain(line)
+            status = self.query_one("#wizard-viz-llm-status", Static)
+            model_id = escape_markup(str(result.get("model_id", "?")))
+            if result.get("error"):
+                self.log_panel.log_warning(f"WebLLM prefetch: {result['error']}")
+                status.update(
+                    f"[bold yellow]● Prefetch failed[/] ({model_id}) — "
+                    "Ask can still download in-browser later"
+                )
+            elif result.get("already_cached"):
+                self.log_panel.log_success(f"Already cached: {result.get('cache_dir')}")
+                status.update(f"[bold green]✓ Already cached[/] {model_id}")
+            else:
+                mb = int(result.get("bytes_downloaded", 0)) / (1024 * 1024)
+                self.log_panel.log_success(
+                    f"Downloaded {result.get('files_downloaded', 0)} files "
+                    f"({mb:.0f} MB) → {result.get('cache_dir')}"
+                )
+                status.update(
+                    f"[bold green]✓ Prefetched[/] {model_id} "
+                    f"({result.get('files_downloaded', 0)} files)"
+                )
             self._advance()
 
     # ------------------------------------------------------------------

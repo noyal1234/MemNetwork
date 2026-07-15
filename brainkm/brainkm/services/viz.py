@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 import sqlite3
 import threading
 import time
@@ -12,6 +13,7 @@ from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 from brainkm.logging_config import get_logger
 
@@ -33,6 +35,7 @@ _DEMO_NODES: list[dict[str, Any]] = [
         "user_pinned": 1, "valid_from": "2025-01-10T10:00:00", "valid_until": None,
         "ingested_at": "2025-01-10T10:00:00", "session_id": "sess-alpha",
         "created_at": "2025-01-10T10:00:00", "updated_at": "2025-01-10T10:00:00",
+        "path": None, "source": "demo",
     },
     {
         "id": "mem-002", "kind": "memory", "subtype": "pivot",
@@ -42,6 +45,7 @@ _DEMO_NODES: list[dict[str, Any]] = [
         "user_pinned": 0, "valid_from": "2025-01-15T14:30:00", "valid_until": None,
         "ingested_at": "2025-01-15T14:30:00", "session_id": "sess-alpha",
         "created_at": "2025-01-15T14:30:00", "updated_at": "2025-01-15T14:30:00",
+        "path": None, "source": "demo",
     },
     {
         "id": "mem-003", "kind": "memory", "subtype": "rule",
@@ -54,6 +58,7 @@ _DEMO_NODES: list[dict[str, Any]] = [
         "user_pinned": 1, "valid_from": "2025-01-12T09:00:00", "valid_until": None,
         "ingested_at": "2025-01-12T09:00:00", "session_id": "sess-beta",
         "created_at": "2025-01-12T09:00:00", "updated_at": "2025-03-01T12:00:00",
+        "path": None, "source": "demo",
     },
     {
         "id": "mem-004", "kind": "memory", "subtype": "error",
@@ -63,6 +68,7 @@ _DEMO_NODES: list[dict[str, Any]] = [
         "user_pinned": 0, "valid_from": "2025-02-20T16:00:00", "valid_until": None,
         "ingested_at": "2025-02-20T16:00:00", "session_id": "sess-gamma",
         "created_at": "2025-02-20T16:00:00", "updated_at": "2025-02-20T16:00:00",
+        "path": None, "source": "demo",
     },
     {
         "id": "mem-005", "kind": "memory", "subtype": "decision",
@@ -72,6 +78,7 @@ _DEMO_NODES: list[dict[str, Any]] = [
         "user_pinned": 0, "valid_from": "2025-01-08T11:00:00", "valid_until": None,
         "ingested_at": "2025-01-08T11:00:00", "session_id": "sess-alpha",
         "created_at": "2025-01-08T11:00:00", "updated_at": "2025-01-08T11:00:00",
+        "path": None, "source": "demo",
     },
     {
         "id": "mem-006", "kind": "memory", "subtype": "fact",
@@ -81,6 +88,7 @@ _DEMO_NODES: list[dict[str, Any]] = [
         "user_pinned": 1, "valid_from": "2025-02-01T08:00:00", "valid_until": None,
         "ingested_at": "2025-02-01T08:00:00", "session_id": "sess-beta",
         "created_at": "2025-02-01T08:00:00", "updated_at": "2025-02-01T08:00:00",
+        "path": None, "source": "demo",
     },
     # --- code neurons ---
     {
@@ -91,6 +99,7 @@ _DEMO_NODES: list[dict[str, Any]] = [
         "user_pinned": 0, "valid_from": "2025-01-05T00:00:00", "valid_until": None,
         "ingested_at": "2025-01-05T00:00:00", "session_id": None,
         "created_at": "2025-01-05T00:00:00", "updated_at": "2025-03-10T09:00:00",
+        "path": "brainkm/brainkm/services/memory.py", "source": "graphify",
     },
     {
         "id": "code-002", "kind": "code", "subtype": "module",
@@ -100,6 +109,7 @@ _DEMO_NODES: list[dict[str, Any]] = [
         "user_pinned": 0, "valid_from": "2025-01-05T00:00:00", "valid_until": None,
         "ingested_at": "2025-01-05T00:00:00", "session_id": None,
         "created_at": "2025-01-05T00:00:00", "updated_at": "2025-01-05T00:00:00",
+        "path": "brainkm/brainkm/db/connection.py", "source": "graphify",
     },
     {
         "id": "code-003", "kind": "code", "subtype": "module",
@@ -109,6 +119,7 @@ _DEMO_NODES: list[dict[str, Any]] = [
         "user_pinned": 0, "valid_from": "2025-01-10T00:00:00", "valid_until": None,
         "ingested_at": "2025-01-10T00:00:00", "session_id": None,
         "created_at": "2025-01-10T00:00:00", "updated_at": "2025-02-15T14:00:00",
+        "path": "brainkm/brainkm/tools/remember.py", "source": "graphify",
     },
     {
         "id": "code-004", "kind": "code", "subtype": "module",
@@ -118,6 +129,7 @@ _DEMO_NODES: list[dict[str, Any]] = [
         "user_pinned": 0, "valid_from": "2025-01-18T00:00:00", "valid_until": None,
         "ingested_at": "2025-01-18T00:00:00", "session_id": None,
         "created_at": "2025-01-18T00:00:00", "updated_at": "2025-03-05T11:00:00",
+        "path": "brainkm/brainkm/services/search.py", "source": "graphify",
     },
     {
         "id": "code-005", "kind": "code", "subtype": "module",
@@ -127,6 +139,7 @@ _DEMO_NODES: list[dict[str, Any]] = [
         "user_pinned": 0, "valid_from": "2025-02-10T00:00:00", "valid_until": None,
         "ingested_at": "2025-02-10T00:00:00", "session_id": None,
         "created_at": "2025-02-10T00:00:00", "updated_at": "2025-02-10T00:00:00",
+        "path": "brainkm/brainkm/adapters/graphify.py", "source": "graphify",
     },
     # --- procedure neurons ---
     {
@@ -137,6 +150,7 @@ _DEMO_NODES: list[dict[str, Any]] = [
         "user_pinned": 0, "valid_from": "2025-03-01T00:00:00", "valid_until": None,
         "ingested_at": "2025-03-01T00:00:00", "session_id": "sess-delta",
         "created_at": "2025-03-01T00:00:00", "updated_at": "2025-03-01T00:00:00",
+        "path": None, "source": "demo",
     },
     {
         "id": "proc-002", "kind": "procedure", "subtype": "tool_chain",
@@ -146,6 +160,7 @@ _DEMO_NODES: list[dict[str, Any]] = [
         "user_pinned": 0, "valid_from": "2025-02-05T00:00:00", "valid_until": None,
         "ingested_at": "2025-02-05T00:00:00", "session_id": "sess-beta",
         "created_at": "2025-02-05T00:00:00", "updated_at": "2025-02-05T00:00:00",
+        "path": None, "source": "demo",
     },
     # --- session neurons ---
     {
@@ -156,6 +171,7 @@ _DEMO_NODES: list[dict[str, Any]] = [
         "user_pinned": 0, "valid_from": "2025-01-05T00:00:00", "valid_until": None,
         "ingested_at": "2025-01-05T00:00:00", "session_id": "sess-alpha",
         "created_at": "2025-01-05T00:00:00", "updated_at": "2025-01-05T00:00:00",
+        "path": None, "source": "demo",
     },
     {
         "id": "sess-n-002", "kind": "session", "subtype": "context",
@@ -165,6 +181,7 @@ _DEMO_NODES: list[dict[str, Any]] = [
         "user_pinned": 0, "valid_from": "2025-02-18T00:00:00", "valid_until": None,
         "ingested_at": "2025-02-18T00:00:00", "session_id": "sess-gamma",
         "created_at": "2025-02-18T00:00:00", "updated_at": "2025-02-18T00:00:00",
+        "path": None, "source": "demo",
     },
     # --- archived neuron ---
     {
@@ -175,11 +192,11 @@ _DEMO_NODES: list[dict[str, Any]] = [
         "user_pinned": 0, "valid_from": "2025-01-06T00:00:00", "valid_until": "2025-01-08T11:00:00",
         "ingested_at": "2025-01-06T00:00:00", "session_id": "sess-alpha",
         "created_at": "2025-01-06T00:00:00", "updated_at": "2025-01-08T11:00:00",
+        "path": None, "source": "demo",
     },
 ]
 
 _DEMO_EDGES: list[dict[str, Any]] = [
-    # architecture decisions ↔ code they influenced
     {"from_id": "mem-001", "to_id": "code-002", "relationship": "influences", "weight": 0.9},
     {"from_id": "mem-002", "to_id": "mem-006", "relationship": "supports", "weight": 0.8},
     {"from_id": "mem-003", "to_id": "code-001", "relationship": "constrains", "weight": 0.95},
@@ -188,21 +205,17 @@ _DEMO_EDGES: list[dict[str, Any]] = [
     {"from_id": "mem-004", "to_id": "proc-001", "relationship": "spawned", "weight": 0.85},
     {"from_id": "mem-005", "to_id": "code-003", "relationship": "influences", "weight": 0.88},
     {"from_id": "mem-006", "to_id": "mem-003", "relationship": "related_to", "weight": 0.75},
-    # code nodes — import/call edges
     {"from_id": "code-003", "to_id": "code-001", "relationship": "calls", "weight": 1.0},
     {"from_id": "code-001", "to_id": "code-004", "relationship": "calls", "weight": 1.0},
     {"from_id": "code-001", "to_id": "code-002", "relationship": "imports", "weight": 1.0},
     {"from_id": "code-004", "to_id": "code-002", "relationship": "imports", "weight": 1.0},
     {"from_id": "code-005", "to_id": "code-002", "relationship": "imports", "weight": 0.9},
-    # procedures ↔ knowledge
     {"from_id": "proc-001", "to_id": "code-002", "relationship": "targets", "weight": 0.8},
     {"from_id": "proc-002", "to_id": "code-003", "relationship": "targets", "weight": 0.85},
     {"from_id": "proc-002", "to_id": "code-001", "relationship": "targets", "weight": 0.8},
-    # sessions ↔ neurons they produced
     {"from_id": "sess-n-001", "to_id": "mem-001", "relationship": "produced", "weight": 0.7},
     {"from_id": "sess-n-001", "to_id": "mem-005", "relationship": "produced", "weight": 0.7},
     {"from_id": "sess-n-002", "to_id": "mem-004", "relationship": "produced", "weight": 0.75},
-    # supersedes chain
     {"from_id": "mem-005", "to_id": "mem-arch-001", "relationship": "supersedes", "weight": 1.0},
 ]
 
@@ -214,10 +227,10 @@ def _seed_demo(conn: sqlite3.Connection) -> None:
             """INSERT OR IGNORE INTO nodes
                (id, kind, subtype, title, content, tags, use_count, confidence,
                 user_pinned, valid_from, valid_until, ingested_at, session_id,
-                created_at, updated_at)
+                created_at, updated_at, path, source)
                VALUES (:id,:kind,:subtype,:title,:content,:tags,:use_count,:confidence,
                        :user_pinned,:valid_from,:valid_until,:ingested_at,:session_id,
-                       :created_at,:updated_at)""",
+                       :created_at,:updated_at,:path,:source)""",
             n,
         )
     for e in _DEMO_EDGES:
@@ -232,21 +245,19 @@ def _seed_demo(conn: sqlite3.Connection) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Graph query
+# Graph / version / search queries
 # ---------------------------------------------------------------------------
 
 def _query_graph(conn: sqlite3.Connection) -> dict[str, Any]:
-    """Return all active nodes and their edges as a JSON-serialisable dict."""
+    """Return all nodes (including archived) and their edges as JSON-ready dict."""
     cur = conn.execute(
         """SELECT id, kind, subtype, title, content, tags, use_count, confidence,
                   user_pinned, valid_from, valid_until, ingested_at, session_id,
-                  created_at, updated_at
+                  created_at, updated_at, path, source
            FROM nodes
            ORDER BY use_count DESC"""
     )
     nodes = [dict(row) for row in cur.fetchall()]
-
-    # Build set of node ids for edge filtering
     node_ids = {n["id"] for n in nodes}
 
     cur = conn.execute(
@@ -260,17 +271,116 @@ def _query_graph(conn: sqlite3.Connection) -> dict[str, Any]:
     return {"nodes": nodes, "edges": edges}
 
 
+def _query_version(conn: sqlite3.Connection) -> dict[str, Any]:
+    """Lightweight fingerprint so the client can poll for live updates."""
+    row = conn.execute(
+        """SELECT COUNT(*) AS node_count,
+                  COALESCE(MAX(updated_at), '') AS max_updated
+           FROM nodes"""
+    ).fetchone()
+    edge_count = conn.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
+    return {
+        "node_count": int(row["node_count"]),
+        "edge_count": int(edge_count),
+        "max_updated": row["max_updated"] or "",
+    }
+
+
+def _query_search(conn: sqlite3.Connection, query: str, *, limit: int = 8) -> dict[str, Any]:
+    """FTS5-backed neuron search for chat grounding / RAG."""
+    from brainkm.services.search import fts_search_nodes
+
+    q = (query or "").strip()
+    if not q:
+        return {"query": q, "results": []}
+
+    hits = fts_search_nodes(conn, q, limit=limit)
+    if not hits:
+        return {"query": q, "results": []}
+
+    placeholders = ",".join("?" for _ in hits)
+    ids = [node_id for node_id, _ in hits]
+    score_by_id = {node_id: score for node_id, score in hits}
+    rows = conn.execute(
+        f"""SELECT id, kind, subtype, title, content, tags, path, source,
+                   confidence, use_count, valid_until
+            FROM nodes WHERE id IN ({placeholders})""",
+        ids,
+    ).fetchall()
+    by_id = {row["id"]: dict(row) for row in rows}
+    results = []
+    for node_id, _score in hits:
+        node = by_id.get(node_id)
+        if not node:
+            continue
+        content = node.get("content") or ""
+        results.append({
+            "id": node["id"],
+            "kind": node["kind"],
+            "subtype": node.get("subtype"),
+            "title": node["title"],
+            "content": content[:600],
+            "tags": node.get("tags"),
+            "path": node.get("path"),
+            "source": node.get("source"),
+            "score": score_by_id[node_id],
+            "archived": bool(node.get("valid_until")),
+        })
+    return {"query": q, "results": results}
+
+
+# ---------------------------------------------------------------------------
+# DB lifecycle for the HTTP handler
+# ---------------------------------------------------------------------------
+
+def _open_demo_connection() -> sqlite3.Connection:
+    from brainkm.db.connection import configure_connection
+    from brainkm.db.paths import migrations_dir
+
+    conn = sqlite3.connect(":memory:", check_same_thread=False)
+    configure_connection(conn)
+    for sql_path in sorted(migrations_dir().glob("*.sql")):
+        conn.executescript(sql_path.read_text(encoding="utf-8"))
+    conn.commit()
+    _seed_demo(conn)
+    logger.info(
+        "viz demo mode: seeded %d nodes, %d edges",
+        len(_DEMO_NODES),
+        len(_DEMO_EDGES),
+    )
+    return conn
+
+
+def _open_live_connection(db_path: Path) -> sqlite3.Connection:
+    from brainkm.db.connection import configure_connection
+
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, check_same_thread=False)
+    configure_connection(conn)
+    return conn
+
+
 # ---------------------------------------------------------------------------
 # HTTP handler
 # ---------------------------------------------------------------------------
 
 class _VizHandler(BaseHTTPRequestHandler):
-    """Minimal HTTP handler: serves /api/graph JSON and / static HTML."""
+    """Serves /api/* JSON and static assets under viz_static/."""
 
-    graph_data: dict[str, Any] = {}
+    db_path: Path | None = None
+    demo_conn: sqlite3.Connection | None = None
+    demo: bool = False
+    project_dir: Path | None = None
 
     def log_message(self, fmt: str, *args: object) -> None:  # type: ignore[override]
         logger.debug(fmt, *args)
+
+    def _with_conn(self):
+        """Yield a usable connection (demo shared, or fresh read-only live)."""
+        if self.__class__.demo and self.__class__.demo_conn is not None:
+            return self.__class__.demo_conn, False
+        if self.__class__.db_path is None:
+            raise FileNotFoundError("viz server has no database")
+        return _open_live_connection(self.__class__.db_path), True
 
     def _send_json(self, data: dict | list, status: int = 200) -> None:
         body = json.dumps(data, default=str).encode()
@@ -278,28 +388,179 @@ class _VizHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
 
-    def _send_html(self, path: Path) -> None:
-        body = path.read_bytes()
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
+    def _send_bytes(self, body: bytes, content_type: str, status: int = 200) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)
+
+    def _send_static(self, rel: str) -> None:
+        # Prevent path traversal
+        candidate = (_STATIC_DIR / rel).resolve()
+        if not str(candidate).startswith(str(_STATIC_DIR.resolve())):
+            self._send_json({"error": "not found"}, 404)
+            return
+        if not candidate.is_file():
+            self._send_json({"error": "not found"}, 404)
+            return
+        mime, _ = mimetypes.guess_type(str(candidate))
+        if candidate.suffix == ".js":
+            mime = "text/javascript; charset=utf-8"
+        elif candidate.suffix == ".css":
+            mime = "text/css; charset=utf-8"
+        elif candidate.suffix == ".html":
+            mime = "text/html; charset=utf-8"
+        self._send_bytes(candidate.read_bytes(), mime or "application/octet-stream")
+
+    def _send_model_file(self, model_id: str, rel: str) -> None:
+        from brainkm.services.webllm_prefetch import WEBLLM_MODELS, model_cache_dir
+
+        if model_id not in WEBLLM_MODELS or ".." in rel or rel.startswith("/"):
+            self._send_json({"error": "not found"}, 404)
+            return
+        root = model_cache_dir(model_id).resolve()
+        candidate = (root / rel).resolve()
+        if not str(candidate).startswith(str(root)) or not candidate.is_file():
+            self._send_json({"error": "not found"}, 404)
+            return
+        mime, _ = mimetypes.guess_type(str(candidate))
+        if candidate.suffix == ".json":
+            mime = "application/json"
+        self._send_bytes(candidate.read_bytes(), mime or "application/octet-stream")
+
+    def _webllm_config(self) -> dict[str, Any]:
+        from brainkm.services.webllm_prefetch import (
+            DEFAULT_MODEL_ID,
+            WEBLLM_MODELS,
+            is_model_cached,
+            model_lib_url,
+            status_summary,
+            webllm_engine_config,
+        )
+
+        preferred = DEFAULT_MODEL_ID
+        project_dir = self.__class__.project_dir
+        if project_dir is not None:
+            try:
+                from brainkm.services.config_loader import load_brain_config
+
+                cfg = load_brain_config(project_dir)
+                preferred = cfg.viz.webllm_model or preferred
+            except Exception:  # noqa: BLE001
+                pass
+        if preferred not in WEBLLM_MODELS:
+            preferred = DEFAULT_MODEL_ID
+
+        cached = is_model_cached(preferred)
+        payload: dict[str, Any] = {
+            "preferred_model": preferred,
+            "cached": cached,
+            "models": status_summary(preferred)["models"],
+            "use_local": cached,
+        }
+        if cached:
+            payload["app_config"] = {
+                "model_list": [
+                    webllm_engine_config(
+                        preferred,
+                        local_model_base_url=f"/models/{preferred}",
+                    )
+                ]
+            }
+            # Absolute URL so workers resolve correctly
+            host = self.headers.get("Host") or "127.0.0.1"
+            base = f"http://{host}/models/{preferred}/"
+            payload["app_config"]["model_list"][0]["model"] = base
+            payload["model_lib"] = model_lib_url(preferred)
+        return payload
 
     def do_GET(self) -> None:  # noqa: N802
-        if self.path == "/api/graph":
-            self._send_json(self.__class__.graph_data)
-        elif self.path in ("/", "/index.html"):
-            html_path = _STATIC_DIR / "index.html"
-            if html_path.exists():
-                self._send_html(html_path)
-            else:
-                self._send_json({"error": "index.html not found"}, 404)
-        else:
-            self._send_json({"error": "not found"}, 404)
+        parsed = urlparse(self.path)
+        path = parsed.path
+
+        if path == "/api/graph":
+            try:
+                conn, should_close = self._with_conn()
+                try:
+                    self._send_json(_query_graph(conn))
+                finally:
+                    if should_close:
+                        conn.close()
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("viz /api/graph failed")
+                self._send_json({"error": str(exc)}, 500)
+            return
+
+        if path == "/api/version":
+            try:
+                conn, should_close = self._with_conn()
+                try:
+                    self._send_json(_query_version(conn))
+                finally:
+                    if should_close:
+                        conn.close()
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("viz /api/version failed")
+                self._send_json({"error": str(exc)}, 500)
+            return
+
+        if path == "/api/search":
+            params = parse_qs(parsed.query)
+            query = (params.get("q") or [""])[0]
+            try:
+                limit = int((params.get("limit") or ["8"])[0])
+            except ValueError:
+                limit = 8
+            limit = max(1, min(limit, 20))
+            try:
+                conn, should_close = self._with_conn()
+                try:
+                    self._send_json(_query_search(conn, query, limit=limit))
+                finally:
+                    if should_close:
+                        conn.close()
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("viz /api/search failed")
+                self._send_json({"error": str(exc)}, 500)
+            return
+
+        if path == "/api/webllm-config":
+            try:
+                self._send_json(self._webllm_config())
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("viz /api/webllm-config failed")
+                self._send_json({"error": str(exc)}, 500)
+            return
+
+        if path.startswith("/models/"):
+            # /models/<model_id>/<relative/path>
+            parts = path.strip("/").split("/", 2)
+            if len(parts) < 3:
+                self._send_json({"error": "not found"}, 404)
+                return
+            _models, model_id, rel = parts[0], parts[1], parts[2]
+            self._send_model_file(model_id, rel)
+            return
+
+        if path in ("/", "/index.html"):
+            self._send_static("index.html")
+            return
+
+        # Static assets: /styles.css, /app.js, /chat.js, ...
+        if path.startswith("/") and ".." not in path:
+            rel = path.lstrip("/")
+            if rel:
+                self._send_static(rel)
+                return
+
+        self._send_json({"error": "not found"}, 404)
 
 
 # ---------------------------------------------------------------------------
@@ -323,46 +584,43 @@ class VizServerHandle:
         self.server.shutdown()
         self.server.server_close()
         self.thread.join(timeout=2.0)
+        demo_conn = _VizHandler.demo_conn
+        if demo_conn is not None:
+            try:
+                demo_conn.close()
+            except Exception:  # noqa: BLE001
+                pass
+            _VizHandler.demo_conn = None
 
 
-def _build_graph(
+def _prepare_handler_state(
     project_dir: Path | None,
     *,
     demo: bool,
 ) -> dict[str, Any]:
-    """Load graph JSON from brain.db or a seeded in-memory demo DB."""
-    import sqlite3 as _sqlite3
-
-    from brainkm.db.connection import configure_connection
+    """Configure class-level handler state and return an initial version fingerprint."""
     from brainkm.db.paths import brain_db_path
 
+    _VizHandler.demo = demo
+    _VizHandler.demo_conn = None
+    _VizHandler.db_path = None
+    _VizHandler.project_dir = project_dir
+
     if demo:
-        from brainkm.db.paths import migrations_dir
+        _VizHandler.demo_conn = _open_demo_connection()
+        return _query_version(_VizHandler.demo_conn)
 
-        conn = _sqlite3.connect(":memory:", check_same_thread=False)
-        configure_connection(conn)
-        for sql_path in sorted(migrations_dir().glob("*.sql")):
-            conn.executescript(sql_path.read_text(encoding="utf-8"))
-        conn.commit()
-        _seed_demo(conn)
-        logger.info(
-            "viz demo mode: seeded %d nodes, %d edges",
-            len(_DEMO_NODES),
-            len(_DEMO_EDGES),
+    db_path = brain_db_path(project_dir)
+    if not db_path.exists():
+        msg = (
+            f"No brain.db found at {db_path}. "
+            "Run 'brainkm install' first, or use demo mode."
         )
-    else:
-        db_path = brain_db_path(project_dir)
-        if not db_path.exists():
-            msg = (
-                f"No brain.db found at {db_path}. "
-                "Run 'brainkm install' first, or use demo mode."
-            )
-            raise FileNotFoundError(msg)
-        conn = _sqlite3.connect(str(db_path), check_same_thread=False)
-        configure_connection(conn)
-
+        raise FileNotFoundError(msg)
+    _VizHandler.db_path = db_path
+    conn = _open_live_connection(db_path)
     try:
-        return _query_graph(conn)
+        return _query_version(conn)
     finally:
         conn.close()
 
@@ -387,13 +645,11 @@ def start_viz_server(
     """Start the viz HTTP server in a daemon thread (non-blocking).
 
     Used by the Textual TUI so the dashboard stays interactive while the
-    3D neuron graph is served in the browser.
+    neuron graph is served in the browser.
     """
-    graph = _build_graph(project_dir, demo=demo)
-    _VizHandler.graph_data = graph
-
-    node_count = len(graph["nodes"])
-    edge_count = len(graph["edges"])
+    version = _prepare_handler_state(project_dir, demo=demo)
+    node_count = int(version["node_count"])
+    edge_count = int(version["edge_count"])
     server, bound_port = _bind_viz_server(port)
     url = f"http://127.0.0.1:{bound_port}"
 
