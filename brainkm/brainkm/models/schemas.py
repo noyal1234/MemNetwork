@@ -71,7 +71,7 @@ class ContextPackRequest(BaseModel):
         min_length=1,
         description=(
             "Task query. Include a symbol name or file path so the code neighborhood "
-            "can be seeded from the AST graph (or pass seed_refs)."
+            "can be seeded (or pass seed_refs). For pure call/import questions use traverse."
         ),
     )
     session_id: str | None = None
@@ -137,20 +137,38 @@ class TraverseRequest(BaseModel):
     from_ref: str = Field(
         ...,
         description=(
-            "Node ID, file path, or symbol name. Use before editing shared code "
-            "to see callers/importers (call/import/flow questions)."
+            "Symbol name, file path, or node ID to traverse from. "
+            "For blast-radius: what calls/imports this symbol?"
         ),
     )
-    to_ref: str | None = Field(None, description="Target; omit for 1-hop neighborhood")
+    to_ref: str | None = Field(
+        None,
+        description="Optional target symbol/path; omit for neighborhood around from_ref",
+    )
     max_hops: int = Field(default=1, ge=1, le=2)
-    relationship: str | None = Field(None, description="Filter: imports|calls|supersedes|...")
-    direction: Literal["out", "in", "both"] = "out"
+    relationship: str | None = Field(
+        None,
+        description=(
+            "Edge filter. Default (omit): structural flow edges "
+            "(calls, imports, imports_from, defines, contains, method, uses, inherits). "
+            "Pass a type, comma-list, or '*' for all edges including references."
+        ),
+    )
+    direction: Literal["out", "in", "both"] = Field(
+        default="both",
+        description=(
+            "Edge direction. both (default)=callers+callees; "
+            "in=callers/importers of from_ref; out=callees/exports from from_ref."
+        ),
+    )
 
 
 class TraverseResponse(BaseModel):
     from_ref: str
+    resolved_id: str | None = None
     nodes: list[NeuronResult]
     hops_explored: int = 0
+    hint: str | None = None
 
 
 class ForgetRequest(BaseModel):

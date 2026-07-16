@@ -10,7 +10,7 @@ REQUIRED_OUTPUT_KEYS = {
     "recall": {"nodes", "abstained", "query"},
     "context_pack": {"pack_text", "truncation", "query"},
     "session_status": {"updated"},
-    "traverse": {"from_ref", "nodes"},
+    "traverse": {"from_ref", "nodes", "resolved_id", "hint"},
     "forget": {"node_id", "archived"},
     "brain_stats": {"neurons_by_kind", "graph_nodes"},
     "graph_sync": {"requested", "ran"},

@@ -81,10 +81,23 @@ def test_traverse_resolves_path_and_relationship(brain_db) -> None:
             relationship="imports",
             direction="out",
         )
+        assert result.resolved_id == "file-a"
+        assert result.hint is None
         assert len(result.nodes) == 1
         assert result.nodes[0].node_id == "file-b"
         assert result.nodes[0].relationship == "imports"
         assert result.nodes[0].via == "file-a"
         assert result.hops_explored >= 1
+    finally:
+        conn.close()
+
+
+def test_traverse_unresolved_hint(brain_db) -> None:
+    conn = connect(brain_db)
+    try:
+        result = traverse(conn, "definitely-missing-node-xyz")
+        assert result.nodes == []
+        assert result.resolved_id is None
+        assert result.hint is not None
     finally:
         conn.close()

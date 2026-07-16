@@ -81,7 +81,78 @@ def test_traverse_one_hop(runtime, tmp_path) -> None:
             TraverseRequest(from_ref="a.py", max_hops=1),
             config=BrainConfig(),
         )
+        assert result.resolved_id == "a"
+        assert result.hint is None
         assert any(n.node_id == "b" for n in result.nodes)
+        assert all(n.node_id != "a" for n in result.nodes)
+    finally:
+        conn.close()
+
+
+def test_traverse_unresolved_returns_hint(runtime, tmp_path) -> None:
+    conn = connect(tmp_path / ".brain" / "brain.db")
+    try:
+        result = handle_traverse(
+            conn,
+            TraverseRequest(from_ref="NonExistentSymbolXYZ"),
+            config=BrainConfig(),
+        )
+        assert result.nodes == []
+        assert result.resolved_id is None
+        assert result.hint is not None
+        assert "from_ref" in result.hint
+    finally:
+        conn.close()
+
+
+def test_traverse_default_both_finds_callers(runtime, tmp_path) -> None:
+    conn = connect(tmp_path / ".brain" / "brain.db")
+    try:
+        insert_node(conn, node_id="target", kind="code", subtype="function", title="target_fn")
+        insert_node(conn, node_id="caller", kind="code", subtype="function", title="caller_fn")
+        insert_edge(
+            conn,
+            edge_id="e1",
+            from_id="caller",
+            to_id="target",
+            relationship="calls",
+        )
+        conn.commit()
+
+        result = handle_traverse(
+            conn,
+            TraverseRequest(from_ref="target_fn", max_hops=1),
+            config=BrainConfig(),
+        )
+        assert result.resolved_id == "target"
+        assert any(n.node_id == "caller" for n in result.nodes)
+    finally:
+        conn.close()
+
+
+def test_traverse_skips_references_by_default(runtime, tmp_path) -> None:
+    conn = connect(tmp_path / ".brain" / "brain.db")
+    try:
+        insert_node(conn, node_id="fn", kind="code", subtype="function", title="fn")
+        insert_node(conn, node_id="ref", kind="code", subtype="class", title="RefOnly")
+        insert_node(conn, node_id="callee", kind="code", subtype="function", title="callee")
+        insert_edge(conn, edge_id="e1", from_id="fn", to_id="ref", relationship="references")
+        insert_edge(conn, edge_id="e2", from_id="fn", to_id="callee", relationship="calls")
+        conn.commit()
+
+        default = handle_traverse(
+            conn,
+            TraverseRequest(from_ref="fn", max_hops=1),
+            config=BrainConfig(),
+        )
+        assert {n.node_id for n in default.nodes} == {"callee"}
+
+        all_edges = handle_traverse(
+            conn,
+            TraverseRequest(from_ref="fn", max_hops=1, relationship="*"),
+            config=BrainConfig(),
+        )
+        assert {n.node_id for n in all_edges.nodes} == {"callee", "ref"}
     finally:
         conn.close()
 

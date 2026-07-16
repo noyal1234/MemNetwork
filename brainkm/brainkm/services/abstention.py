@@ -65,6 +65,9 @@ def should_abstain(
     if best is None:
         return True
 
+    if recall.min_bm25_strength is not None and abs(best) < recall.min_bm25_strength:
+        return True
+
     if recall.abstain_mode == "absolute":
         threshold = recall.min_recall_score
         if threshold is None:

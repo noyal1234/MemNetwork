@@ -1,0 +1,709 @@
+{
+  "version": 1,
+  "id": "task_v1",
+  "description": "Task success: with-brain pack vs selective-read without-arm; gold checklist gate",
+  "min_coverage": 0.75,
+  "scenarios": [
+    {
+      "id": "token_budget",
+      "query": "how does token budget greedy truncation work",
+      "selective_baseline": [
+        {
+          "path": "brainkm/brainkm/services/budget.py",
+          "max_tokens": 400
+        },
+        {
+          "path": "brainkm/brainkm/services/context_pack.py",
+          "max_tokens": 400
+        }
+      ],
+      "gold_facts": [
+        "greedy_truncate",
+        "total_tokens"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_budget",
+          "subtype": "decision",
+          "title": "Token budget policy",
+          "content": "greedy_truncate keeps highest-priority neurons under total_tokens cap"
+        }
+      ],
+      "reference_answer": "Use greedy_truncate to keep packs under total_tokens (default 1500).",
+      "answer_facts": [
+        "greedy_truncate",
+        "total_tokens"
+      ]
+    },
+    {
+      "id": "mcp_dispatch",
+      "query": "MCP tool dispatch recall context_pack architecture",
+      "selective_baseline": [
+        {
+          "path": "brainkm/brainkm/tools/dispatch.py",
+          "max_tokens": 350
+        },
+        {
+          "path": "brainkm/brainkm/server.py",
+          "max_tokens": 350
+        }
+      ],
+      "gold_facts": [
+        "dispatch",
+        "services"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_mcp",
+          "subtype": "rule",
+          "title": "MCP dispatch pattern",
+          "content": "MCP tools dispatch to services; validate with Pydantic; never skip layers"
+        }
+      ],
+      "reference_answer": "Handlers dispatch to services after Pydantic validation.",
+      "answer_facts": [
+        "dispatch",
+        "services"
+      ]
+    },
+    {
+      "id": "graphify_routing",
+      "query": "Graphify vs @codebase routing for traverse",
+      "selective_baseline": [
+        {
+          "path": "docs/AI_PROJECT_BRIEF.md",
+          "max_tokens": 500
+        },
+        {
+          "path": "AGENTS.md",
+          "max_tokens": 300
+        }
+      ],
+      "gold_facts": [
+        "Graphify",
+        "traverse"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_graph",
+          "subtype": "decision",
+          "title": "Graphify routing",
+          "content": "Locate with Cursor @codebase; flow and blast radius use Graphify traverse and context_pack"
+        }
+      ],
+      "reference_answer": "Use @codebase to locate; use traverse/context_pack for flow.",
+      "answer_facts": [
+        "Graphify",
+        "traverse"
+      ]
+    },
+    {
+      "id": "session_snapshot",
+      "query": "SessionStart frozen injection snapshot",
+      "selective_baseline": [
+        {
+          "path": "brainkm/brainkm/services/snapshot.py",
+          "max_tokens": 400
+        },
+        {
+          "path": "brainkm/brainkm/services/hooks.py",
+          "max_tokens": 400
+        }
+      ],
+      "gold_facts": [
+        "SessionStart",
+        "snapshot"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_snap",
+          "subtype": "decision",
+          "title": "Frozen snapshot",
+          "content": "SessionStart builds a frozen snapshot; mid-session remember does not mutate injection"
+        }
+      ],
+      "reference_answer": "SessionStart freezes a snapshot that mid-session remembers do not mutate.",
+      "answer_facts": [
+        "SessionStart",
+        "snapshot"
+      ]
+    },
+    {
+      "id": "wal_checkpoint",
+      "query": "WAL checkpoint before PreCompact handover",
+      "selective_baseline": [
+        {
+          "path": "brainkm/brainkm/db/connection.py",
+          "max_tokens": 300
+        },
+        {
+          "path": "docs/FEATURES.md",
+          "max_tokens": 300
+        }
+      ],
+      "gold_facts": [
+        "WAL",
+        "handover"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_wal",
+          "subtype": "rule",
+          "title": "WAL checkpoint rule",
+          "content": "Run WAL checkpoint before PreCompact handover to avoid stale pages"
+        }
+      ],
+      "reference_answer": "Checkpoint WAL before handover/compaction.",
+      "answer_facts": [
+        "WAL",
+        "handover"
+      ]
+    },
+    {
+      "id": "redaction",
+      "query": "how are secrets kept out of neurons remember_neuron redaction",
+      "selective_baseline": [
+        {
+          "path": "brainkm/brainkm/adapters/redaction.py",
+          "max_tokens": 400
+        },
+        {
+          "path": "docs/SECURITY.md",
+          "max_tokens": 300
+        }
+      ],
+      "gold_facts": [
+        "redaction",
+        "remember_neuron"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_redact",
+          "subtype": "rule",
+          "title": "Redaction chokepoint",
+          "content": "All writes funnel through remember_neuron which redacts secrets before storage"
+        }
+      ],
+      "reference_answer": "remember_neuron redacts before storage; never bypass it.",
+      "answer_facts": [
+        "remember_neuron",
+        "redact"
+      ]
+    },
+    {
+      "id": "abstention",
+      "query": "when should recall abstain on low confidence",
+      "selective_baseline": [
+        {
+          "path": "brainkm/brainkm/services/abstention.py",
+          "max_tokens": 350
+        },
+        {
+          "path": "brainkm/brainkm/services/recall.py",
+          "max_tokens": 350
+        }
+      ],
+      "gold_facts": [
+        "abstain",
+        "BM25"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_abs",
+          "subtype": "rule",
+          "title": "Abstention rule",
+          "content": "Recall abstains when BM25 scores fall below the calibrated percentile threshold"
+        }
+      ],
+      "reference_answer": "Abstain when BM25 is below calibrated threshold.",
+      "answer_facts": [
+        "abstain",
+        "BM25"
+      ]
+    },
+    {
+      "id": "write_queue",
+      "query": "how does WriteQueue serialize MCP writes",
+      "selective_baseline": [
+        {
+          "path": "brainkm/brainkm/services/write_queue.py",
+          "max_tokens": 400
+        }
+      ],
+      "gold_facts": [
+        "WriteQueue",
+        "serialize"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_wq",
+          "subtype": "fact",
+          "title": "Write queue",
+          "content": "WriteQueue serializes MCP writes with SQLITE_BUSY retry"
+        }
+      ],
+      "reference_answer": "WriteQueue serializes writes with busy retry.",
+      "answer_facts": [
+        "WriteQueue",
+        "serialize"
+      ]
+    },
+    {
+      "id": "fts_search",
+      "query": "FTS5 BM25 search for neurons",
+      "selective_baseline": [
+        {
+          "path": "brainkm/brainkm/services/search.py",
+          "max_tokens": 400
+        }
+      ],
+      "gold_facts": [
+        "FTS5",
+        "BM25"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_fts",
+          "subtype": "fact",
+          "title": "FTS5 BM25",
+          "content": "Default retrieval uses SQLite FTS5 BM25 without requiring a local LLM"
+        }
+      ],
+      "reference_answer": "Default search is FTS5 BM25.",
+      "answer_facts": [
+        "FTS5",
+        "BM25"
+      ]
+    },
+    {
+      "id": "hybrid_rrf",
+      "query": "hybrid RRF fusion FTS and vectors",
+      "selective_baseline": [
+        {
+          "path": "brainkm/brainkm/services/search.py",
+          "max_tokens": 300
+        },
+        {
+          "path": "brainkm/brainkm/services/semantic.py",
+          "max_tokens": 300
+        }
+      ],
+      "gold_facts": [
+        "RRF",
+        "hybrid"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_rrf",
+          "subtype": "decision",
+          "title": "Hybrid RRF",
+          "content": "Hybrid retrieval fuses FTS and optional vectors with reciprocal rank fusion RRF"
+        }
+      ],
+      "reference_answer": "Hybrid mode fuses FTS + vectors via RRF.",
+      "answer_facts": [
+        "RRF",
+        "hybrid"
+      ]
+    },
+    {
+      "id": "ppr_activation",
+      "query": "weighted PPR activation instead of BFS",
+      "selective_baseline": [
+        {
+          "path": "docs/AI_PROJECT_BRIEF.md",
+          "max_tokens": 400
+        },
+        {
+          "path": "docs/FEATURES.md",
+          "max_tokens": 300
+        }
+      ],
+      "gold_facts": [
+        "PPR",
+        "activation"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_ppr",
+          "subtype": "fact",
+          "title": "PPR activation",
+          "content": "Graph activation uses weighted personalized PageRank PPR by default instead of flat BFS"
+        }
+      ],
+      "reference_answer": "Default activation is weighted PPR.",
+      "answer_facts": [
+        "PPR",
+        "activation"
+      ]
+    },
+    {
+      "id": "distill_modes",
+      "query": "which distill modes are supported",
+      "selective_baseline": [
+        {
+          "path": "brainkm/brainkm/services/distill_status.py",
+          "max_tokens": 300
+        },
+        {
+          "path": "docs/FEATURES.md",
+          "max_tokens": 300
+        }
+      ],
+      "gold_facts": [
+        "ollama",
+        "cursor"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_distill",
+          "subtype": "fact",
+          "title": "Distill modes",
+          "content": "Distill modes include cursor, rules, ollama, groq, and mcp sampling"
+        }
+      ],
+      "reference_answer": "Modes: cursor, rules, ollama, groq, mcp.",
+      "answer_facts": [
+        "ollama",
+        "cursor"
+      ]
+    },
+    {
+      "id": "graph_sync",
+      "query": "when to run graph_sync after large refactors",
+      "selective_baseline": [
+        {
+          "path": "brainkm/brainkm/services/graphify_sync.py",
+          "max_tokens": 350
+        },
+        {
+          "path": "AGENTS.md",
+          "max_tokens": 250
+        }
+      ],
+      "gold_facts": [
+        "graph",
+        "sync"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_gsync",
+          "subtype": "rule",
+          "title": "Graph sync when stale",
+          "content": "When brain_stats shows a stale graph, refresh with graph_sync or brainkm graph sync"
+        }
+      ],
+      "reference_answer": "Run graph_sync when brain_stats reports staleness.",
+      "answer_facts": [
+        "graph",
+        "sync"
+      ]
+    },
+    {
+      "id": "token_cap_policy",
+      "query": "default total_tokens budget cap for packs",
+      "selective_baseline": [
+        {
+          "path": "brainkm/brainkm/models/brain_config.py",
+          "max_tokens": 400
+        }
+      ],
+      "gold_facts": [
+        "1500",
+        "total_tokens"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_cap",
+          "subtype": "fact",
+          "title": "Default token cap",
+          "content": "budget.total_tokens defaults to 1500 for agent-facing packs"
+        }
+      ],
+      "reference_answer": "Default total_tokens is 1500.",
+      "answer_facts": [
+        "1500",
+        "total_tokens"
+      ]
+    },
+    {
+      "id": "layers_architecture",
+      "query": "MCP tool service adapter SQLite layering rule",
+      "selective_baseline": [
+        {
+          "path": "AGENTS.md",
+          "max_tokens": 400
+        },
+        {
+          "path": ".cursor/skills/memnetwork-backend/SKILL.md",
+          "max_tokens": 400
+        }
+      ],
+      "gold_facts": [
+        "MCP",
+        "SQLite"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_layers",
+          "subtype": "rule",
+          "title": "Layering rule",
+          "content": "MCP Tool to Service to Adapter to SQLite \u2014 never skip layers"
+        }
+      ],
+      "reference_answer": "MCP \u2192 service \u2192 adapter \u2192 SQLite; never skip.",
+      "answer_facts": [
+        "MCP",
+        "SQLite"
+      ]
+    },
+    {
+      "id": "compaction_handover",
+      "query": "why PreCompact handover before Cursor compaction",
+      "selective_baseline": [
+        {
+          "path": "docs/FEATURES.md",
+          "max_tokens": 350
+        },
+        {
+          "path": "docs/AI_PROJECT_BRIEF.md",
+          "max_tokens": 350
+        }
+      ],
+      "gold_facts": [
+        "PreCompact",
+        "handover"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_compact",
+          "subtype": "decision",
+          "title": "PreCompact handover",
+          "content": "PreCompact runs brainkm handover so architectural truth survives Cursor compaction"
+        }
+      ],
+      "reference_answer": "Handover persists decisions before lossy compaction.",
+      "answer_facts": [
+        "PreCompact",
+        "handover"
+      ]
+    },
+    {
+      "id": "coactivation",
+      "query": "how do co-activation edges promote procedures",
+      "selective_baseline": [
+        {
+          "path": "docs/FEATURES.md",
+          "max_tokens": 400
+        },
+        {
+          "path": ".cursor/skills/memnetwork-backend/reference.md",
+          "max_tokens": 400
+        }
+      ],
+      "gold_facts": [
+        "co-activation",
+        "procedure"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_coact",
+          "subtype": "pattern",
+          "title": "Co-activation procedures",
+          "content": "co-activation edges promote procedure neurons when threshold is met with external tools"
+        }
+      ],
+      "reference_answer": "Co-activation above threshold promotes procedures.",
+      "answer_facts": [
+        "co-activation",
+        "procedure"
+      ]
+    },
+    {
+      "id": "semantic_consent",
+      "query": "Semantic Quality consent before ONNX embeddings",
+      "selective_baseline": [
+        {
+          "path": "docs/FEATURES.md",
+          "max_tokens": 300
+        },
+        {
+          "path": "docs/BENCHMARKS.md",
+          "max_tokens": 300
+        }
+      ],
+      "gold_facts": [
+        "Semantic",
+        "consent"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_sem",
+          "subtype": "decision",
+          "title": "Semantic consent",
+          "content": "Wizard Semantic Quality consent is required before enabling ONNX MiniLM embeddings"
+        }
+      ],
+      "reference_answer": "Consent in wizard before enabling semantic embeddings.",
+      "answer_facts": [
+        "Semantic",
+        "consent"
+      ]
+    },
+    {
+      "id": "para_token_budget",
+      "query": "explain greedy truncation under the injection token cap",
+      "selective_baseline": [
+        {
+          "path": "brainkm/brainkm/services/budget.py",
+          "max_tokens": 400
+        },
+        {
+          "path": "brainkm/brainkm/services/context_pack.py",
+          "max_tokens": 400
+        }
+      ],
+      "gold_facts": [
+        "greedy_truncate",
+        "total_tokens"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_budget",
+          "subtype": "decision",
+          "title": "Token budget policy",
+          "content": "greedy_truncate keeps highest-priority neurons under total_tokens cap"
+        }
+      ],
+      "reference_answer": "Use greedy_truncate to keep packs under total_tokens (default 1500).",
+      "answer_facts": [
+        "greedy_truncate",
+        "total_tokens"
+      ]
+    },
+    {
+      "id": "para_mcp_dispatch",
+      "query": "where do MCP handlers delegate before touching SQLite",
+      "selective_baseline": [
+        {
+          "path": "brainkm/brainkm/tools/dispatch.py",
+          "max_tokens": 350
+        },
+        {
+          "path": "brainkm/brainkm/server.py",
+          "max_tokens": 350
+        }
+      ],
+      "gold_facts": [
+        "dispatch",
+        "services"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_mcp",
+          "subtype": "rule",
+          "title": "MCP dispatch pattern",
+          "content": "MCP tools dispatch to services; validate with Pydantic; never skip layers"
+        }
+      ],
+      "reference_answer": "Handlers dispatch to services after Pydantic validation.",
+      "answer_facts": [
+        "dispatch",
+        "services"
+      ]
+    },
+    {
+      "id": "para_graphify_routing",
+      "query": "when should I traverse instead of semantic codebase search",
+      "selective_baseline": [
+        {
+          "path": "docs/AI_PROJECT_BRIEF.md",
+          "max_tokens": 500
+        },
+        {
+          "path": "AGENTS.md",
+          "max_tokens": 300
+        }
+      ],
+      "gold_facts": [
+        "Graphify",
+        "traverse"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_graph",
+          "subtype": "decision",
+          "title": "Graphify routing",
+          "content": "Locate with Cursor @codebase; flow and blast radius use Graphify traverse and context_pack"
+        }
+      ],
+      "reference_answer": "Use @codebase to locate; use traverse/context_pack for flow.",
+      "answer_facts": [
+        "Graphify",
+        "traverse"
+      ]
+    },
+    {
+      "id": "para_session_snapshot",
+      "query": "does mid-session remember change the frozen SessionStart pack",
+      "selective_baseline": [
+        {
+          "path": "brainkm/brainkm/services/snapshot.py",
+          "max_tokens": 400
+        },
+        {
+          "path": "brainkm/brainkm/services/hooks.py",
+          "max_tokens": 400
+        }
+      ],
+      "gold_facts": [
+        "SessionStart",
+        "snapshot"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_snap",
+          "subtype": "decision",
+          "title": "Frozen snapshot",
+          "content": "SessionStart builds a frozen snapshot; mid-session remember does not mutate injection"
+        }
+      ],
+      "reference_answer": "SessionStart freezes a snapshot that mid-session remembers do not mutate.",
+      "answer_facts": [
+        "SessionStart",
+        "snapshot"
+      ]
+    },
+    {
+      "id": "para_redaction",
+      "query": "what is the chokepoint that strips secrets before neurons persist",
+      "selective_baseline": [
+        {
+          "path": "brainkm/brainkm/adapters/redaction.py",
+          "max_tokens": 400
+        },
+        {
+          "path": "docs/SECURITY.md",
+          "max_tokens": 300
+        }
+      ],
+      "gold_facts": [
+        "redaction",
+        "remember_neuron"
+      ],
+      "seed_neurons": [
+        {
+          "id": "task_redact",
+          "subtype": "rule",
+          "title": "Redaction chokepoint",
+          "content": "All writes funnel through remember_neuron which redacts secrets before storage"
+        }
+      ],
+      "reference_answer": "remember_neuron redacts before storage; never bypass it.",
+      "answer_facts": [
+        "remember_neuron",
+        "redact"
+      ]
+    }
+  ]
+}

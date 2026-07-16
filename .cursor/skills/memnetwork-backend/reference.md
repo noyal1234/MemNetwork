@@ -176,10 +176,16 @@ Local dev of brainkm:
 | `abstention` | calibration fixture | pass rate vs expected recall/abstain |
 | `budget` | pack profiles | token allocation per task type |
 | `compaction` | 3 scenarios | neuron survival across compact cycle |
+| `retrieval` | held-out gold corpus (~64 queries) | Recall@1/@5, MRR, nDCG@5, abstain leak rate |
+| `task` | live brain + selective-read baseline (~18 tasks) | gold-fact coverage with vs without |
+| `compare` | live brain (token proxy) | naive file-dump vs context_pack |
+| `latency` | smoke (ephemeral) + loaded (project) | cold/warm p50/p95 with stdev |
 
 ```bash
-brainkm bench run token
-brainkm bench run dmr
+brainkm bench run eval
+brainkm bench run retrieval
+brainkm bench run task
+brainkm bench run compare
 brainkm bench calibrate
 ```
 

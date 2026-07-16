@@ -10,11 +10,11 @@ This project uses **brainkm** — a local SQLite project brain at `.brain/brain.
 
 ## Before reading many files
 
-- **Consult** MCP **`context_pack`** first for navigation tasks (include a **symbol or file path**
+- Prefer MCP **`traverse`** for call/import/flow and blast-radius questions ("what calls X?",
+  "what breaks if I change Y?") — pass a symbol or path; then confirm with targeted reads.
+- Prefer MCP **`context_pack`** for multi-file task context (include a **symbol or file path**
   in the query or `seed_refs`), **then verify in source** before editing — packs are hints,
   never a substitute for reading the code you will change.
-- Prefer MCP **`traverse`** for call/import/flow and blast-radius questions ("what calls X?",
-  "what breaks if I change Y?"), then confirm with targeted reads.
 - Use **`recall`** for architectural decisions, rules, and past pivots — not chat history alone.
 - Use **`remember`** to persist decisions the team should not re-debate.
 
@@ -23,17 +23,19 @@ This project uses **brainkm** — a local SQLite project brain at `.brain/brain.
 | Question type | Use first | Why |
 |---------------|-----------|-----|
 | "Where is symbol X defined?" | Cursor search / Grep / `@codebase` | Semantic/symbol locate |
-| "What calls / imports X?" / "impact of changing Y" | **`traverse`** or **`context_pack`** with symbol/path, then verify | AST graph relationships |
+| "What calls / imports X?" / "impact of changing Y" | **`traverse`** (symbol/path), then verify | Focused AST neighborhood |
 | "Why did we choose X?" | **`recall`** | Decisions live in neurons, not the code index |
 | Understand one module (would open 3+ files) | **`context_pack`** then targeted reads | Bounded pack vs file dumps |
 
 Do **not** treat brainkm as a second `@codebase`. Use Cursor to **locate**; use Graphify
-(`traverse` / `context_pack`) to explain **flow**. Never skip reading source because a pack
-abstained or looked incomplete — prefer fewer injected tokens over trusting noise.
+(`traverse` for flow, `context_pack` for task packs) to explain structure. Never skip reading
+source because a pack abstained or looked incomplete — prefer fewer injected tokens over
+trusting noise.
 
 If `traverse` / `context_pack` results look empty or wrong, check **`brain_stats`** first —
 a stale or missing code graph is the usual cause; refresh with **`graph_sync`** (or
-`brainkm graph sync`) instead of distrusting the whole brain.
+`brainkm graph sync`) instead of distrusting the whole brain. Empty `traverse` responses
+include a `hint` and `resolved_id` when the graph matched but had no neighbors.
 
 ## What lives in the brain
 

@@ -33,8 +33,8 @@ def test_render_injection_pack_includes_graph_status() -> None:
         [SnapshotNeuron("1", "memory", "rule", "Rule", "Body", 5)],
         graph_status=(
             "Code graph: 12 nodes / 34 edges. "
-            "For call/import/flow questions consult traverse or context_pack with a symbol, "
-            "then verify in source before editing."
+            "For call/import/blast-radius use traverse; for multi-file task context "
+            "use context_pack with a symbol — then verify in source before editing."
         ),
     )
     assert "Code graph: 12 nodes / 34 edges" in pack

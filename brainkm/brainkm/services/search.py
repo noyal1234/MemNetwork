@@ -34,7 +34,92 @@ TYPE_MULTIPLIERS: dict[tuple[str, str | None], float] = {
 
 DEFAULT_MULTIPLIER = 1.0
 
+# Structural edges for traverse (excludes noisy references / co_activated by default).
+FLOW_RELATIONSHIPS = frozenset(
+    {
+        "calls",
+        "imports",
+        "imports_from",
+        "defines",
+        "contains",
+        "method",
+        "uses",
+        "inherits",
+    }
+)
+
+UNRESOLVED_TRAVERSE_HINT = (
+    "No graph node matched from_ref — pass an exact symbol or file path "
+    "(e.g. handle_traverse or brainkm/tools/dispatch.py). "
+    "If the graph looks stale, check brain_stats then graph_sync."
+)
+
 _FTS_TOKEN = re.compile(r"[\w.-]+", re.UNICODE)
+_TOKEN_BOUNDARY = re.compile(r"[\w.-]+", re.UNICODE)
+
+
+def query_tokens(query: str) -> list[str]:
+    """Lowercased word tokens from a user query."""
+    return [token.lower() for token in _TOKEN_BOUNDARY.findall(query)]
+
+
+def count_token_overlap(query_tokens_list: list[str], text: str) -> int:
+    """Count query tokens that appear in ``text`` (word boundary or substring for longer tokens)."""
+    if not query_tokens_list:
+        return 0
+    lower = text.lower()
+    hits = 0
+    for token in query_tokens_list:
+        if re.search(rf"\b{re.escape(token)}\b", lower):
+            hits += 1
+        elif len(token) >= 4 and token in lower:
+            hits += 1
+    return hits
+
+
+def filter_fts_hits_by_overlap(
+    conn: sqlite3.Connection,
+    hits: list[tuple[str, float]],
+    query: str,
+    *,
+    min_overlap: int = 2,
+) -> list[tuple[str, float]]:
+    """Drop weak OR-FTS hits that share fewer than ``min_overlap`` query tokens."""
+    tokens = query_tokens(query)
+    if len(tokens) < min_overlap:
+        return hits
+    filtered: list[tuple[str, float]] = []
+    for node_id, score in hits:
+        row = conn.execute(
+            "SELECT title, content FROM nodes WHERE id = ? AND valid_until IS NULL",
+            (node_id,),
+        ).fetchone()
+        if row is None:
+            continue
+        text = f"{row[0] or ''} {row[1] or ''}"
+        if count_token_overlap(tokens, text) >= min_overlap:
+            filtered.append((node_id, score))
+    return filtered
+
+
+def parse_relationships(relationship: str | None) -> frozenset[str] | None:
+    """Parse a single relationship or comma-separated list. ``*`` means no filter."""
+    if relationship is None:
+        return None
+    text = relationship.strip()
+    if not text:
+        return None
+    if text == "*":
+        return None
+    parts = frozenset(part.strip() for part in text.split(",") if part.strip())
+    return parts or None
+
+
+def relationships_for_traverse(relationship: str | None) -> frozenset[str] | None:
+    """Default to structural flow edges; ``*`` disables the filter."""
+    if relationship is None:
+        return FLOW_RELATIONSHIPS
+    return parse_relationships(relationship)
 
 
 def sanitize_fts_query(query: str) -> str:
@@ -65,7 +150,8 @@ def fts_search_nodes(
         """,
         (match_query, limit),
     ).fetchall()
-    return [(row[0], float(row[1])) for row in rows]
+    hits = [(row[0], float(row[1])) for row in rows]
+    return filter_fts_hits_by_overlap(conn, hits, query)
 
 
 @dataclass(frozen=True)
@@ -89,6 +175,8 @@ class TraversalResult:
     hops_explored: int
     abstained: bool = False
     intent: str | None = None
+    resolved_id: str | None = None
+    hint: str | None = None
 
 
 @dataclass
@@ -110,54 +198,39 @@ def _neighbors_for_node(
     node_id: str,
     *,
     min_weight: float,
-    relationship: str | None,
+    relationships: frozenset[str] | None,
     direction: Literal["out", "in", "both"],
 ) -> list[tuple[str, float, str]]:
     """Load edges for a single node (indexed lookups)."""
     neighbors: list[tuple[str, float, str]] = []
+    rel_sql = ""
+    rel_params: tuple[object, ...] = ()
+    if relationships:
+        placeholders = ",".join("?" for _ in relationships)
+        rel_sql = f" AND relationship IN ({placeholders})"
+        rel_params = tuple(sorted(relationships))
+
     if direction in ("out", "both"):
-        if relationship:
-            rows = conn.execute(
-                """
-                SELECT to_id, weight, relationship
-                FROM edges
-                WHERE from_id = ? AND weight >= ? AND relationship = ?
-                ORDER BY weight DESC
-                """,
-                (node_id, min_weight, relationship),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                """
-                SELECT to_id, weight, relationship
-                FROM edges
-                WHERE from_id = ? AND weight >= ?
-                ORDER BY weight DESC
-                """,
-                (node_id, min_weight),
-            ).fetchall()
+        rows = conn.execute(
+            f"""
+            SELECT to_id, weight, relationship
+            FROM edges
+            WHERE from_id = ? AND weight >= ?{rel_sql}
+            ORDER BY weight DESC
+            """,
+            (node_id, min_weight, *rel_params),
+        ).fetchall()
         neighbors.extend((row[0], float(row[1]), row[2]) for row in rows)
     if direction in ("in", "both"):
-        if relationship:
-            rows = conn.execute(
-                """
-                SELECT from_id, weight, relationship
-                FROM edges
-                WHERE to_id = ? AND weight >= ? AND relationship = ?
-                ORDER BY weight DESC
-                """,
-                (node_id, min_weight, relationship),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                """
-                SELECT from_id, weight, relationship
-                FROM edges
-                WHERE to_id = ? AND weight >= ?
-                ORDER BY weight DESC
-                """,
-                (node_id, min_weight),
-            ).fetchall()
+        rows = conn.execute(
+            f"""
+            SELECT from_id, weight, relationship
+            FROM edges
+            WHERE to_id = ? AND weight >= ?{rel_sql}
+            ORDER BY weight DESC
+            """,
+            (node_id, min_weight, *rel_params),
+        ).fetchall()
         neighbors.extend((row[0], float(row[1]), row[2]) for row in rows)
     return neighbors
 
@@ -172,8 +245,14 @@ def bfs_activate(
     min_weight: float,
     direction: Literal["out", "in", "both"] = "both",
     relationship: str | None = None,
+    relationships: frozenset[str] | None = None,
 ) -> tuple[dict[str, _ActivationMeta], int]:
     """Weighted multi-hop BFS from seeded node activations using per-node edge queries."""
+    rels = (
+        relationships
+        if relationships is not None
+        else parse_relationships(relationship)
+    )
     meta: dict[str, _ActivationMeta] = {
         node_id: _ActivationMeta(activation=act, depth=0)
         for node_id, act in seed_activations.items()
@@ -191,7 +270,7 @@ def bfs_activate(
             conn,
             node_id,
             min_weight=min_weight,
-            relationship=relationship,
+            relationships=rels,
             direction=direction,
         )
         neighbors.sort(key=lambda item: item[1], reverse=True)
@@ -227,11 +306,17 @@ def ppr_activate(
     min_weight: float = 0.3,
     direction: Literal["out", "in", "both"] = "both",
     relationship: str | None = None,
+    relationships: frozenset[str] | None = None,
 ) -> tuple[dict[str, _ActivationMeta], int]:
     """Personalized PageRank seeded from retrieval hits; uses edge weights (incl. co_activated)."""
     if not seed_activations:
         return {}, 0
 
+    rels = (
+        relationships
+        if relationships is not None
+        else parse_relationships(relationship)
+    )
     seed_sum = sum(seed_activations.values()) or 1.0
     personal: dict[str, float] = {k: v / seed_sum for k, v in seed_activations.items()}
 
@@ -247,7 +332,7 @@ def ppr_activate(
                 conn,
                 node_id,
                 min_weight=min_weight,
-                relationship=relationship,
+                relationships=rels,
                 direction=direction,
             ):
                 if neighbor_id not in candidate and len(candidate) < max_activation_nodes:
@@ -262,7 +347,7 @@ def ppr_activate(
             conn,
             node_id,
             min_weight=min_weight,
-            relationship=relationship,
+            relationships=rels,
             direction=direction,
         )
         # Prefer higher-weight edges; keep bounded fanout.
@@ -587,16 +672,22 @@ def traverse(
     to_ref: str | None = None,
     max_hops: int = 1,
     relationship: str | None = None,
-    direction: Literal["out", "in", "both"] = "out",
+    direction: Literal["out", "in", "both"] = "both",
     graph: GraphConfig | None = None,
 ) -> TraversalResult:
-    """Explicit graph hop from a resolved reference."""
+    """Explicit graph hop from a resolved reference (structural flow edges by default)."""
     cfg = graph or GraphConfig()
     max_hops = min(max(max_hops, 1), 2)
+    rels = relationships_for_traverse(relationship)
 
     start_id = resolve_node_ref(conn, from_ref)
     if start_id is None:
-        return TraversalResult(nodes=[], hops_explored=0)
+        return TraversalResult(
+            nodes=[],
+            hops_explored=0,
+            resolved_id=None,
+            hint=UNRESOLVED_TRAVERSE_HINT,
+        )
 
     seed_activations = {start_id: 1.0}
     activations, hops = bfs_activate(
@@ -607,14 +698,41 @@ def traverse(
         max_activation_nodes=cfg.max_activation_nodes,
         min_weight=cfg.min_edge_weight_to_traverse,
         direction=direction,
-        relationship=relationship,
+        relationships=rels,
     )
 
     if to_ref is not None:
         target_id = resolve_node_ref(conn, to_ref)
         if target_id is None or target_id not in activations:
-            return TraversalResult(nodes=[], hops_explored=hops)
+            return TraversalResult(
+                nodes=[],
+                hops_explored=hops,
+                resolved_id=start_id,
+                hint=(
+                    f"Resolved {start_id} but to_ref was not reached within "
+                    f"{max_hops} hop(s) (direction={direction}). "
+                    "Try max_hops=2, direction=both, or relationship=*."
+                ),
+            )
         activations = {target_id: activations[target_id]}
 
-    ranked = rank_activated_nodes(conn, activations)
-    return TraversalResult(nodes=ranked, hops_explored=hops)
+    # Drop the seed — agents already know from_ref; neighbors are the answer.
+    neighbor_activations = {
+        node_id: meta
+        for node_id, meta in activations.items()
+        if node_id != start_id
+    }
+    ranked = rank_activated_nodes(conn, neighbor_activations)
+    hint = None
+    if not ranked:
+        hint = (
+            f"Resolved {start_id} but found no neighbors in {hops} hop(s) "
+            f"(direction={direction}). Try direction=both, max_hops=2, "
+            "or relationship=* to include references/co_activated."
+        )
+    return TraversalResult(
+        nodes=ranked,
+        hops_explored=hops,
+        resolved_id=start_id,
+        hint=hint,
+    )

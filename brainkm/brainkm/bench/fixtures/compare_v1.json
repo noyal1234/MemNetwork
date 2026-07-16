@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "id": "compare_v1",
+  "description": "With-brain context_pack vs without-brain naive multi-file read (native Cursor user)",
+  "scenarios": [
+    {
+      "id": "token_budget",
+      "query": "how does token budget greedy truncation work",
+      "baseline_files": [
+        "brainkm/brainkm/services/budget.py",
+        "brainkm/brainkm/services/context_pack.py",
+        "brainkm/brainkm/services/memory.py"
+      ],
+      "must_include_substrings": ["greedy_truncate", "total_tokens"]
+    },
+    {
+      "id": "mcp_dispatch",
+      "query": "MCP tool dispatch recall context_pack",
+      "baseline_files": [
+        "brainkm/brainkm/tools/dispatch.py",
+        "brainkm/brainkm/server.py",
+        "brainkm/brainkm/models/schemas.py"
+      ],
+      "must_include_substrings": ["dispatch", "context_pack"]
+    },
+    {
+      "id": "graphify_routing",
+      "query": "Graphify vs @codebase routing for traverse",
+      "baseline_files": [
+        "docs/AI_PROJECT_BRIEF.md",
+        "brainkm/brainkm/services/context_pack.py",
+        "AGENTS.md"
+      ],
+      "must_include_substrings": ["Graphify", "traverse"]
+    },
+    {
+      "id": "session_snapshot",
+      "query": "SessionStart frozen injection snapshot",
+      "baseline_files": [
+        "brainkm/brainkm/services/hooks.py",
+        "brainkm/brainkm/services/snapshot.py"
+      ],
+      "must_include_substrings": ["SessionStart", "snapshot"]
+    }
+  ]
+}

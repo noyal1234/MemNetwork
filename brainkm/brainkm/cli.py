@@ -463,13 +463,31 @@ app.add_typer(bench_app, name="bench")
 def bench_run_cmd(
     suite: str = typer.Argument(
         ...,
-        help="Suite: abstention|token|dmr|longmem|budget|compaction|latency",
+        help=(
+            "Suite: eval|retrieval|task|abstention|token|dmr|longmem|budget|"
+            "compaction|latency|compare"
+        ),
     ),
     project_dir: Path | None = typer.Option(None, "--project-dir"),
     live: bool = typer.Option(
         False,
         "--live",
         help="Token suite only: measure against project brain.db (graph + neurons)",
+    ),
+    profile: str = typer.Option(
+        "both",
+        "--profile",
+        help="Latency (and eval) profile: smoke|loaded|both",
+    ),
+    fixture_only: bool = typer.Option(
+        False,
+        "--fixture-only",
+        help="Task/eval: seed ephemeral neurons instead of live brain.db",
+    ),
+    judge: bool = typer.Option(
+        False,
+        "--judge",
+        help="Task/eval: optional Ollama LLM judge (soft metric; skips if unreachable)",
     ),
 ) -> None:
     """Run a bench suite."""
@@ -481,7 +499,14 @@ def bench_run_cmd(
         raise typer.Exit(code=2)
 
     db_path = brain_db_path(project_dir)
-    result = run_bench_suite(suite, db_path, live=live)
+    result = run_bench_suite(
+        suite,
+        db_path,
+        live=live,
+        profile=profile,
+        fixture_only=fixture_only,
+        judge=judge,
+    )
     typer.echo(format_suite_result(result))
     if result.passed < result.total:
         raise typer.Exit(code=1)

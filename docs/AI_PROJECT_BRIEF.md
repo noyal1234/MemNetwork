@@ -2,7 +2,8 @@
 
 > **Purpose:** Single source of truth for what MemNetwork is, how it is built, and what to implement next.  
 > **Repo:** `MemNetwork/` — Python package `brainkm` (MCP server + CLI).  
-> **MCP server name:** `brainkm` · **Storage:** `.brain/brain.db` per target project.
+> **MCP server name:** `brainkm` · **Storage:** `.brain/brain.db` per target project.  
+> **User-facing feature catalog:** [FEATURES.md](FEATURES.md)
 
 ---
 
@@ -124,9 +125,9 @@ MemNetwork/
 |------|---------|
 | `remember` | Store neuron; auto-link to code nodes by path mentions |
 | `recall` | FTS5 + graph activation; abstain on low confidence (percentile default P10); bodies capped to `budget.total_tokens` |
-| `context_pack` | Task-specific compiled pack (graph + neurons + procedures). Default MCP payload is lean (`pack_text` + truncation IDs); pass `include_structured=true` for full neuron arrays |
+| `context_pack` | Task-specific compiled pack (graph + neurons + procedures). Prefer before 3+ file reads; for pure blast-radius use `traverse`. Default MCP payload is lean (`pack_text` + truncation IDs); pass `include_structured=true` for full neuron arrays |
 | `session_status` | Read/write session context neuron |
-| `traverse` | Explicit graph hop between entities (path-labeled code nodes) |
+| `traverse` | Focused AST neighborhood (callers/callees/imports). Defaults: `direction=both`, structural edges; returns `resolved_id` + `hint` on empty |
 | `forget` | Soft-archive node (`valid_until`) + cascade edges |
 | `brain_stats` | Health summary: neuron/graph counts, MCP usage (7d), abstention rate, dead-neuron count; optional `session_id` adds per-session MCP/hit/snapshot/distill fields |
 | `graph_sync` | Queue or force Graphify extract+import |
@@ -155,7 +156,7 @@ MemNetwork **complements** Cursor — it does not replace built-in indexing, use
 |---------------|-----------|-----|
 | "Where is auth middleware defined?" | **@codebase** or `context_pack` | Semantic/symbol lookup across source |
 | "Why did we choose JWT over session cookies?" | **`recall`** | Decision lives in chat/plan distill, not in code index |
-| "What connects `AuthService` to `UserRepo`?" | **`traverse`** / `context_pack` | Structural AST graph + neurons |
+| "What connects `AuthService` to `UserRepo`?" | **`traverse`** | Focused AST neighborhood (callers/callees/imports) |
 | "What failed last time we touched payments?" | **`recall`** (subtype `error`) | Known failure modes are neurons |
 | Read 5+ files to understand one module | **`context_pack`** then targeted reads | Bounded pack vs multi-file dumps; never skip reading source you will change |
 

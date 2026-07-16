@@ -1,0 +1,1052 @@
+{
+  "version": 1,
+  "id": "retrieval_v1",
+  "description": "Held-out IR ranking eval: Recall@k / MRR / nDCG on ephemeral gold corpus",
+  "floors": {
+    "recall_at_5": 0.55,
+    "recall_at_1": 0.4,
+    "mrr": 0.45,
+    "ndcg_at_5": 0.5,
+    "abstain_accuracy": 0.85,
+    "theme_leak_accuracy": 0.9
+  },
+  "corpus": [
+    {
+      "id": "rb_budget_policy",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Token budget greedy truncate",
+      "content": "greedy_truncate keeps highest-priority neurons under total_tokens cap of 1500"
+    },
+    {
+      "id": "rb_budget_tiktoken",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "tiktoken budget counting",
+      "content": "token_count uses tiktoken encoding for budget enforcement"
+    },
+    {
+      "id": "rb_budget_slots",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Per-channel budget slots",
+      "content": "context_pack allocates memory code and procedure slots with dynamic reallocation"
+    },
+    {
+      "id": "rb_wal_rule",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "PreCompact WAL checkpoint",
+      "content": "Run PRAGMA wal_checkpoint FULL before handover to prevent stale pages"
+    },
+    {
+      "id": "rb_wal_mode",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "SQLite WAL mode",
+      "content": "brain.db uses WAL mode with single-writer WriteQueue for MCP"
+    },
+    {
+      "id": "rb_wal_busy",
+      "kind": "memory",
+      "subtype": "error",
+      "title": "WAL checkpoint busy",
+      "content": "handover failed when wal_checkpoint returned SQLITE_BUSY"
+    },
+    {
+      "id": "rb_graph_import",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Graphify graph.json import",
+      "content": "graph_import loads graphify-out graph.json into SQLite code nodes"
+    },
+    {
+      "id": "rb_graph_routing",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Graphify vs codebase routing",
+      "content": "Locate with Cursor codebase; flow and blast radius use traverse and context_pack"
+    },
+    {
+      "id": "rb_graph_autosync",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "Graphify auto sync debounce",
+      "content": "PostToolUse Write Edit touches graph_sync.requested for debounced MCP sync"
+    },
+    {
+      "id": "rb_mcp_dispatch",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "MCP dispatch pattern",
+      "content": "tools delegate to services; validate with Pydantic at entry never skip layers"
+    },
+    {
+      "id": "rb_mcp_resources",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "MCP resources and HTTP",
+      "content": "server exposes MCP resources and optional HTTP transport besides stdio"
+    },
+    {
+      "id": "rb_mcp_output",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Typed MCP outputSchema",
+      "content": "TOOL_DEFINITIONS register request and response models for outputSchema"
+    },
+    {
+      "id": "rb_hook_snapshot",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Frozen SessionStart snapshot",
+      "content": "SessionStart builds frozen snapshot; mid-session remember does not mutate injection"
+    },
+    {
+      "id": "rb_hook_handover",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "PreCompact handover",
+      "content": "PreCompact hook runs brainkm handover before Cursor compaction"
+    },
+    {
+      "id": "rb_hook_capture",
+      "kind": "memory",
+      "subtype": "pattern",
+      "title": "SessionEnd capture distill",
+      "content": "SessionEnd distills transcripts into neurons via rules cursor or ollama"
+    },
+    {
+      "id": "rb_abs_percentile",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "Recall abstention percentile",
+      "content": "Return empty when BM25 below calibrated corpus percentile threshold"
+    },
+    {
+      "id": "rb_abs_min_score",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "min_recall_score threshold",
+      "content": "RecallConfig.min_recall_score gates low confidence hits"
+    },
+    {
+      "id": "rb_abs_max_turn",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "Max recalls per turn",
+      "content": "max_recalls_per_turn defaults to 3 unless truncation_followup"
+    },
+    {
+      "id": "rb_distill_modes",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Distill mode matrix",
+      "content": "Supported distill modes are cursor rules ollama groq and mcp sampling"
+    },
+    {
+      "id": "rb_distill_redact",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "Redact before remember",
+      "content": "All neuron writes funnel through remember_neuron redaction and injection scan"
+    },
+    {
+      "id": "rb_distill_claude",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Claude JSONL capture",
+      "content": "Claude Code transcripts are JSONL and use the claude capture adapter"
+    },
+    {
+      "id": "rb_sem_onnx",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "ONNX MiniLM embeddings",
+      "content": "Optional semantic extra uses ONNX MiniLM for hybrid RRF retrieval"
+    },
+    {
+      "id": "rb_sem_rerank",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Cross-encoder rerank",
+      "content": "Optional CE reranker reorders candidates after hybrid retrieval"
+    },
+    {
+      "id": "rb_sem_consent",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Semantic Quality consent",
+      "content": "Wizard Semantic Quality consent required before enabling embeddings"
+    },
+    {
+      "id": "rb_learn_coact",
+      "kind": "memory",
+      "subtype": "pattern",
+      "title": "Co-activation learning",
+      "content": "co_activated edges increment when neurons appear together in the session window"
+    },
+    {
+      "id": "rb_learn_proc",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Procedure promotion",
+      "content": "Procedures promote when co-activation exceeds threshold with two external tools"
+    },
+    {
+      "id": "rb_learn_decay",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "Neuron decay consolidate",
+      "content": "Unused neurons decay; consolidate merges near-duplicate memories"
+    },
+    {
+      "id": "rb_temp_old_auth",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Auth sessions cookie old",
+      "content": "We used server sessions with cookies for auth historically"
+    },
+    {
+      "id": "rb_temp_new_jwt",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Auth JWT supersede",
+      "content": "We superseded cookies with JWT access tokens fifteen minute expiry"
+    },
+    {
+      "id": "rb_temp_old_bfs",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Flat BFS activation old",
+      "content": "Activation used flat two-hop BFS before PPR"
+    },
+    {
+      "id": "rb_temp_new_ppr",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Weighted PPR activation",
+      "content": "Activation now uses weighted personalized PageRank by default"
+    },
+    {
+      "id": "rb_noise_k8s",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Kubernetes ingress TLS",
+      "content": "Cluster ingress terminates TLS with cert-manager certificates"
+    },
+    {
+      "id": "rb_noise_weather",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Weather rainfall forecast",
+      "content": "Tomorrow rainfall probability is forty percent coastal"
+    },
+    {
+      "id": "rb_noise_gpu",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "GPU cluster training",
+      "content": "Machine learning training uses eight A100 GPUs"
+    },
+    {
+      "id": "rb_noise_banana",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Quantum banana reactor",
+      "content": "Quantum banana reactor flux capacitor needs shielding"
+    },
+    {
+      "id": "rb_noise_payroll",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Payroll tax filing",
+      "content": "Quarterly payroll taxes file by the fifteenth"
+    }
+  ],
+  "queries": [
+    {
+      "id": "q_budget_truncate",
+      "query": "greedy_truncate total_tokens priority neurons",
+      "relevant_ids": [
+        "rb_budget_policy"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_budget_policy": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_budget_tiktoken",
+      "query": "tiktoken encoding budget enforcement token_count",
+      "relevant_ids": [
+        "rb_budget_tiktoken"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_budget_tiktoken": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_budget_slots",
+      "query": "memory code procedure slots dynamic reallocation",
+      "relevant_ids": [
+        "rb_budget_slots"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_budget_slots": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_wal_checkpoint",
+      "query": "PRAGMA wal_checkpoint FULL before handover",
+      "relevant_ids": [
+        "rb_wal_rule"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_wal_rule": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_wal_mode",
+      "query": "SQLite WAL single-writer WriteQueue MCP",
+      "relevant_ids": [
+        "rb_wal_mode"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_wal_mode": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_wal_busy",
+      "query": "wal_checkpoint SQLITE_BUSY handover failed",
+      "relevant_ids": [
+        "rb_wal_busy"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_wal_busy": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_graph_import",
+      "query": "graphify-out graph.json SQLite code nodes",
+      "relevant_ids": [
+        "rb_graph_import"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_graph_import": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_graph_routing",
+      "query": "Locate Cursor codebase traverse context_pack blast radius",
+      "relevant_ids": [
+        "rb_graph_routing"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_graph_routing": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_graph_autosync",
+      "query": "graph_sync.requested debounced MCP PostToolUse",
+      "relevant_ids": [
+        "rb_graph_autosync"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_graph_autosync": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_mcp_dispatch",
+      "query": "MCP tools delegate services Pydantic never skip layers",
+      "relevant_ids": [
+        "rb_mcp_dispatch"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_mcp_dispatch": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_mcp_http",
+      "query": "MCP resources optional HTTP transport stdio",
+      "relevant_ids": [
+        "rb_mcp_resources"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_mcp_resources": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_mcp_schema",
+      "query": "TOOL_DEFINITIONS outputSchema request response models",
+      "relevant_ids": [
+        "rb_mcp_output"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_mcp_output": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_hook_frozen",
+      "query": "SessionStart frozen snapshot mid-session remember injection",
+      "relevant_ids": [
+        "rb_hook_snapshot"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_hook_snapshot": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_hook_handover",
+      "query": "PreCompact brainkm handover before Cursor compaction",
+      "relevant_ids": [
+        "rb_hook_handover"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_hook_handover": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_hook_capture",
+      "query": "SessionEnd distill transcripts rules cursor ollama",
+      "relevant_ids": [
+        "rb_hook_capture"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_hook_capture": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_abs_percentile",
+      "query": "BM25 calibrated corpus percentile abstention threshold",
+      "relevant_ids": [
+        "rb_abs_percentile"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_abs_percentile": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_abs_min",
+      "query": "RecallConfig min_recall_score low confidence gate",
+      "relevant_ids": [
+        "rb_abs_min_score"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_abs_min_score": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_abs_max",
+      "query": "max_recalls_per_turn truncation_followup three",
+      "relevant_ids": [
+        "rb_abs_max_turn"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_abs_max_turn": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_distill_modes",
+      "query": "distill modes cursor rules ollama groq mcp sampling",
+      "relevant_ids": [
+        "rb_distill_modes"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_distill_modes": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_distill_redact",
+      "query": "remember_neuron redaction injection scan write path",
+      "relevant_ids": [
+        "rb_distill_redact"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_distill_redact": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_distill_claude",
+      "query": "Claude Code JSONL capture adapter transcripts",
+      "relevant_ids": [
+        "rb_distill_claude"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_distill_claude": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_sem_onnx",
+      "query": "ONNX MiniLM hybrid RRF semantic embeddings",
+      "relevant_ids": [
+        "rb_sem_onnx"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_sem_onnx": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_sem_ce",
+      "query": "cross-encoder CE reranker hybrid retrieval reorder",
+      "relevant_ids": [
+        "rb_sem_rerank"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_sem_rerank": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_sem_consent",
+      "query": "Wizard Semantic Quality consent enable embeddings",
+      "relevant_ids": [
+        "rb_sem_consent"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_sem_consent": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_learn_coact",
+      "query": "co_activated edges session window neurons together",
+      "relevant_ids": [
+        "rb_learn_coact"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_learn_coact": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_learn_proc",
+      "query": "procedure promote co-activation threshold external tools",
+      "relevant_ids": [
+        "rb_learn_proc"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_learn_proc": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_learn_decay",
+      "query": "unused neurons decay consolidate near-duplicate",
+      "relevant_ids": [
+        "rb_learn_decay"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_learn_decay": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_temp_jwt",
+      "query": "JWT access tokens fifteen minute expiry superseded cookies",
+      "relevant_ids": [
+        "rb_temp_new_jwt"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_temp_new_jwt": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_temp_ppr",
+      "query": "weighted personalized PageRank activation default",
+      "relevant_ids": [
+        "rb_temp_new_ppr"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_temp_new_ppr": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_multi_budget",
+      "query": "token budget truncation tiktoken slots",
+      "relevant_ids": [
+        "rb_budget_policy",
+        "rb_budget_tiktoken",
+        "rb_budget_slots"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_budget_policy": 1.0,
+        "rb_budget_tiktoken": 1.0,
+        "rb_budget_slots": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_multi_wal",
+      "query": "WAL checkpoint WriteQueue SQLITE_BUSY",
+      "relevant_ids": [
+        "rb_wal_rule",
+        "rb_wal_mode",
+        "rb_wal_busy"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_wal_rule": 1.0,
+        "rb_wal_mode": 1.0,
+        "rb_wal_busy": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_multi_graph",
+      "query": "Graphify import traverse codebase routing autosync",
+      "relevant_ids": [
+        "rb_graph_import",
+        "rb_graph_routing",
+        "rb_graph_autosync"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_graph_import": 1.0,
+        "rb_graph_routing": 1.0,
+        "rb_graph_autosync": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_multi_mcp",
+      "query": "MCP dispatch Pydantic resources HTTP outputSchema",
+      "relevant_ids": [
+        "rb_mcp_dispatch",
+        "rb_mcp_resources",
+        "rb_mcp_output"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_mcp_dispatch": 1.0,
+        "rb_mcp_resources": 1.0,
+        "rb_mcp_output": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_multi_hooks",
+      "query": "SessionStart PreCompact SessionEnd handover snapshot",
+      "relevant_ids": [
+        "rb_hook_snapshot",
+        "rb_hook_handover",
+        "rb_hook_capture"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_hook_snapshot": 1.0,
+        "rb_hook_handover": 1.0,
+        "rb_hook_capture": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_multi_abs",
+      "query": "abstention percentile min_recall_score max_recalls",
+      "relevant_ids": [
+        "rb_abs_percentile",
+        "rb_abs_min_score",
+        "rb_abs_max_turn"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_abs_percentile": 1.0,
+        "rb_abs_min_score": 1.0,
+        "rb_abs_max_turn": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_multi_distill",
+      "query": "distill redaction Claude JSONL ollama groq",
+      "relevant_ids": [
+        "rb_distill_modes",
+        "rb_distill_redact",
+        "rb_distill_claude"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_distill_modes": 1.0,
+        "rb_distill_redact": 1.0,
+        "rb_distill_claude": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_multi_sem",
+      "query": "ONNX MiniLM CE rerank Semantic Quality consent",
+      "relevant_ids": [
+        "rb_sem_onnx",
+        "rb_sem_rerank",
+        "rb_sem_consent"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_sem_onnx": 1.0,
+        "rb_sem_rerank": 1.0,
+        "rb_sem_consent": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_multi_learn",
+      "query": "co-activation procedure decay consolidate",
+      "relevant_ids": [
+        "rb_learn_coact",
+        "rb_learn_proc",
+        "rb_learn_decay"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_learn_coact": 1.0,
+        "rb_learn_proc": 1.0,
+        "rb_learn_decay": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_multi_auth_temporal",
+      "query": "auth JWT superseded cookies sessions",
+      "relevant_ids": [
+        "rb_temp_new_jwt",
+        "rb_temp_old_auth"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_temp_new_jwt": 2.0,
+        "rb_temp_old_auth": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_multi_activation",
+      "query": "PPR activation replaced flat BFS two-hop",
+      "relevant_ids": [
+        "rb_temp_new_ppr",
+        "rb_temp_old_bfs"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_temp_new_ppr": 2.0,
+        "rb_temp_old_bfs": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_soft_budget",
+      "query": "how do we cap injection tokens",
+      "relevant_ids": [
+        "rb_budget_policy"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_budget_policy": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_soft_wal",
+      "query": "prevent stale sqlite pages before compact",
+      "relevant_ids": [
+        "rb_wal_rule"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_wal_rule": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_soft_graph",
+      "query": "when should I use traverse instead of search",
+      "relevant_ids": [
+        "rb_graph_routing"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_graph_routing": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_soft_mcp",
+      "query": "architecture rule for MCP handlers",
+      "relevant_ids": [
+        "rb_mcp_dispatch"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_mcp_dispatch": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_soft_hook",
+      "query": "does remembering mid chat update the session pack",
+      "relevant_ids": [
+        "rb_hook_snapshot"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_hook_snapshot": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_soft_abs",
+      "query": "when should recall stay silent",
+      "relevant_ids": [
+        "rb_abs_percentile"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_abs_percentile": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_soft_redact",
+      "query": "how do we keep secrets out of neurons",
+      "relevant_ids": [
+        "rb_distill_redact"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_distill_redact": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_soft_sem",
+      "query": "do we need user consent for embeddings",
+      "relevant_ids": [
+        "rb_sem_consent"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_sem_consent": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_soft_proc",
+      "query": "when do tool chains become procedures",
+      "relevant_ids": [
+        "rb_learn_proc"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_learn_proc": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_soft_ppr",
+      "query": "what replaced two hop bfs activation",
+      "relevant_ids": [
+        "rb_temp_new_ppr"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_temp_new_ppr": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_abs_k8s",
+      "query": "kubernetes ingress cert-manager TLS cluster",
+      "relevant_ids": [
+        "rb_noise_k8s"
+      ],
+      "should_abstain": false,
+      "expect_noise_only": true,
+      "relevance": {
+        "rb_noise_k8s": 1.0
+      }
+    },
+    {
+      "id": "q_abs_weather",
+      "query": "tomorrow rainfall coastal weather forecast",
+      "relevant_ids": [
+        "rb_noise_weather"
+      ],
+      "should_abstain": false,
+      "expect_noise_only": true,
+      "relevance": {
+        "rb_noise_weather": 1.0
+      }
+    },
+    {
+      "id": "q_abs_gpu",
+      "query": "A100 tensor core matrix multiply training cluster",
+      "relevant_ids": [
+        "rb_noise_gpu"
+      ],
+      "should_abstain": false,
+      "expect_noise_only": true,
+      "relevance": {
+        "rb_noise_gpu": 1.0
+      }
+    },
+    {
+      "id": "q_abs_banana",
+      "query": "quantum banana reactor flux shielding",
+      "relevant_ids": [
+        "rb_noise_banana"
+      ],
+      "should_abstain": false,
+      "expect_noise_only": true,
+      "relevance": {
+        "rb_noise_banana": 1.0
+      }
+    },
+    {
+      "id": "q_abs_payroll",
+      "query": "quarterly payroll tax filing fifteenth",
+      "relevant_ids": [
+        "rb_noise_payroll"
+      ],
+      "should_abstain": false,
+      "expect_noise_only": true,
+      "relevance": {
+        "rb_noise_payroll": 1.0
+      }
+    },
+    {
+      "id": "q_abs_crypto",
+      "query": "bitcoin ethereum wallet cold storage",
+      "relevant_ids": [],
+      "should_abstain": true,
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_abs_recipe",
+      "query": "sourdough starter hydration percentage bake",
+      "relevant_ids": [],
+      "should_abstain": true,
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_abs_sports",
+      "query": "wimbledon championship tennis finals match",
+      "relevant_ids": [],
+      "should_abstain": true,
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_abs_flight",
+      "query": "airport runway weather delay diversion",
+      "relevant_ids": [],
+      "should_abstain": true,
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_abs_plant",
+      "query": "orchid watering schedule humidity greenhouse",
+      "relevant_ids": [],
+      "should_abstain": true,
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_near_budget_noise",
+      "query": "total_tokens greedy_truncate injection budget",
+      "relevant_ids": [
+        "rb_budget_policy"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_budget_policy": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_near_wal_noise",
+      "query": "wal_checkpoint handover before compact",
+      "relevant_ids": [
+        "rb_wal_rule"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_wal_rule": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_near_graph_noise",
+      "query": "graph.json graphify code nodes import",
+      "relevant_ids": [
+        "rb_graph_import"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_graph_import": 1.0
+      },
+      "expect_noise_only": false
+    },
+    {
+      "id": "q_near_mcp_noise",
+      "query": "Pydantic MCP tool dispatch services layer",
+      "relevant_ids": [
+        "rb_mcp_dispatch"
+      ],
+      "should_abstain": false,
+      "relevance": {
+        "rb_mcp_dispatch": 1.0
+      },
+      "expect_noise_only": false
+    }
+  ]
+}

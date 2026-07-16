@@ -34,13 +34,13 @@ Use the **brainkm** MCP tools for project memory:
 | Question | Tool |
 |----------|------|
 | Why did we choose X? | `recall` |
-| What calls / imports X? | `traverse` or `context_pack` |
-| Bounded task context | `context_pack` (include a symbol or path) |
+| What calls / imports X? Impact of changing Y? | `traverse` |
+| Bounded multi-file task context | `context_pack` (include a symbol or path) |
 | Store a decision | `remember` |
 
 Packs are hints — always verify in source before editing.
-Prefer `context_pack` over dumping many files. Expand truncated ids via
-`recall` with `truncation_followup: true` instead of re-reading modules.
+Prefer `traverse` for blast-radius; `context_pack` before opening 3+ files.
+Expand truncated ids via `recall` with `truncation_followup: true`.
 """
 
 

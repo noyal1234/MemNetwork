@@ -12,6 +12,7 @@
 ## Docs
 
 - [AGENTS.md](AGENTS.md) — agent entry point
+- [docs/FEATURES.md](docs/FEATURES.md) — product feature catalog (what brainkm does and why)
 - [docs/INSTALL.md](docs/INSTALL.md) — clone + local editable setup
 - [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md) — architecture + roadmap
 - [docs/BENCHMARKS.md](docs/BENCHMARKS.md) — bench targets

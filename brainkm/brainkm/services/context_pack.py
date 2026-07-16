@@ -32,7 +32,8 @@ from brainkm.services.search import (
 
 GRAPH_HINT = (
     "Graph available but no symbol/path resolved from query — "
-    "retry with a symbol name or file path, or call traverse directly."
+    "retry with a symbol/path in the query or seed_refs. "
+    "For pure call/import/blast-radius questions prefer traverse."
 )
 MAX_QUERY_CHARS = 240
 MAX_PACK_QUERY_TOKENS = 40
@@ -306,6 +307,40 @@ def _display_content(row: sqlite3.Row) -> str:
     return " — ".join(parts) if parts else raw
 
 
+_POLICY_MARKERS = (
+    "remember_neuron",
+    "redact",
+    "redaction",
+    "supersede",
+    "WriteQueue",
+    "sanitize",
+)
+
+
+def _summarize_memory_content(content: str, subtype: str | None) -> str:
+    """Summary-first with policy markers preserved for rule/decision neurons."""
+    body = content.strip()
+    if not body:
+        return body
+    if subtype in {"rule", "decision"} and token_count(body) <= 80:
+        return body
+    first_line = body.split("\n", 1)[0].strip()
+    if len(first_line) > 160:
+        first_line = first_line[:157] + "…"
+    lower_body = body.lower()
+    lower_first = first_line.lower()
+    for marker in _POLICY_MARKERS:
+        marker_lower = marker.lower()
+        if marker_lower in lower_body and marker_lower not in lower_first:
+            idx = lower_body.find(marker_lower)
+            start = body.rfind(".", 0, idx) + 1
+            end = body.find(".", idx + len(marker))
+            clause = body[start : end if end > 0 else len(body)].strip()
+            if clause:
+                return f"{first_line} — {clause}"
+    return first_line
+
+
 def _to_neuron_result(row: sqlite3.Row, *, score: float | None = None) -> NeuronResult:
     path = None
     try:
@@ -438,6 +473,8 @@ def _collect_graph_neighborhood(
     """Traverse up to 2 hops from each seed; merge and dedupe by node id."""
     scored: dict[str, float] = {}
     for seed_id in seed_ids:
+        # Seeds are the query anchors — keep them even though traverse omits self.
+        scored[seed_id] = max(scored.get(seed_id, 0.0), 1.0)
         traversal = traverse(
             conn,
             seed_id,
@@ -501,6 +538,13 @@ def compile_context_pack(
         semantic=config.semantic_config(),
         project_dir=project_dir,
     )
+    code_seed_refs: list[str] = []
+    for ranked in recall.nodes:
+        row = _node_row(conn, ranked.node_id)
+        if row is None or row["kind"] != "code":
+            continue
+        path = (row["path"] or "").strip()
+        code_seed_refs.append(path if path else ranked.node_id)
     for ranked in recall.nodes:
         row = _node_row(conn, ranked.node_id)
         if row is None or row["kind"] != "memory":
@@ -520,10 +564,7 @@ def compile_context_pack(
         line = _to_budget_line(row)
         content = line.content
         if use_summary and content:
-            first_line = content.strip().split("\n", 1)[0]
-            if len(first_line) > 160:
-                first_line = first_line[:157] + "…"
-            content = first_line
+            content = _summarize_memory_content(content, row["subtype"])
         neuron_lines.append(
             BudgetLine(
                 node_id=line.node_id,
@@ -549,7 +590,12 @@ def compile_context_pack(
     graph_results: list[NeuronResult] = []
     graph_hint: str | None = None
     if graph_ok:
-        seed_ids = _resolve_graph_seeds(conn, query, explicit=seed_refs)
+        merged_refs = list(seed_refs or []) + code_seed_refs
+        seed_ids = _resolve_graph_seeds(
+            conn,
+            query,
+            explicit=merged_refs or None,
+        )
         if seed_ids:
             graph_lines, graph_results = _collect_graph_neighborhood(
                 conn,

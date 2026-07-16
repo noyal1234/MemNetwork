@@ -292,8 +292,10 @@ def handle_traverse(
     conn.commit()
     return TraverseResponse(
         from_ref=request.from_ref,
+        resolved_id=result.resolved_id,
         nodes=nodes,
         hops_explored=result.hops_explored,
+        hint=result.hint,
     )
 
 

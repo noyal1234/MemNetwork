@@ -268,6 +268,7 @@ def test_traverse_includes_relationship(runtime, tmp_path) -> None:
             TraverseRequest(from_ref="a.py", max_hops=1, direction="out"),
             config=BrainConfig(),
         )
+        assert result.resolved_id == "fa"
         match = next(n for n in result.nodes if n.node_id == "fb")
         assert match.relationship == "imports"
         assert match.via == "fa"

@@ -1,4 +1,4 @@
-"""Bench suite runner — token, DMR-lite, LongMemEval-lite, budget, compaction."""
+"""Bench suite runner — product-grade eval + regression canaries."""
 
 from __future__ import annotations
 
@@ -7,8 +7,24 @@ from pathlib import Path
 from brainkm.bench.results import BenchCaseResult, BenchSuiteResult
 from brainkm.models.brain_config import RecallConfig
 from brainkm.services.abstention_calibrate import calibrate_abstention, load_package_fixture
+from brainkm.services.compare_bench import format_compare_summary, run_compare_suite
 from brainkm.services.recall import recall_live
+from brainkm.services.retrieval_bench import run_retrieval_suite
+from brainkm.services.task_bench import format_task_summary, run_task_suite
 from brainkm.services.token_bench import format_token_summary, run_budget_suite, run_token_suite
+
+CANARY_SUITES = (
+    "abstention",
+    "dmr",
+    "longmem",
+    "budget",
+    "compaction",
+)
+
+EVAL_CORE_SUITES = (
+    "retrieval",
+    "task",
+)
 
 
 def run_abstention_suite(db_path: Path) -> BenchSuiteResult:
@@ -33,7 +49,6 @@ def run_abstention_suite(db_path: Path) -> BenchSuiteResult:
 
         save_calibration(calibration, project_dir)
         cases: list[BenchCaseResult] = []
-        # Score fixture queries on the same isolated corpus used for calibration.
         for item in fixture.queries:
             result = recall_live(
                 conn,
@@ -78,7 +93,7 @@ def run_compaction_suite(_db_path: Path) -> BenchSuiteResult:
 def run_latency_suite_entry(db_path: Path) -> BenchSuiteResult:
     from brainkm.services.latency_bench import run_latency_suite
 
-    return run_latency_suite(db_path)
+    return run_latency_suite(db_path, profile="both")
 
 
 SUITE_RUNNERS = {
@@ -89,17 +104,94 @@ SUITE_RUNNERS = {
     "budget": run_budget_suite,
     "compaction": run_compaction_suite,
     "latency": run_latency_suite_entry,
+    "compare": run_compare_suite,
+    "retrieval": run_retrieval_suite,
+    "task": lambda db_path: run_task_suite(db_path, fixture_only=False, judge=False),
 }
 
 
-def run_bench_suite(suite: str, db_path: Path, *, live: bool = False) -> BenchSuiteResult:
+def run_bench_suite(
+    suite: str,
+    db_path: Path,
+    *,
+    live: bool = False,
+    profile: str = "both",
+    fixture_only: bool = False,
+    judge: bool = False,
+) -> BenchSuiteResult:
     if suite == "token" and live:
         return run_token_suite(db_path, live=True)
+    if suite == "latency":
+        from brainkm.services.latency_bench import run_latency_suite
+
+        return run_latency_suite(db_path, profile=profile)
+    if suite == "task":
+        return run_task_suite(db_path, fixture_only=fixture_only, judge=judge)
+    if suite == "eval":
+        return run_eval_suite(
+            db_path,
+            profile=profile,
+            fixture_only=fixture_only,
+            judge=judge,
+        )
     runner = SUITE_RUNNERS.get(suite)
     if runner is None:
         msg = f"unknown bench suite: {suite}"
         raise ValueError(msg)
     return runner(db_path)
+
+
+def run_eval_suite(
+    db_path: Path,
+    *,
+    profile: str = "both",
+    fixture_only: bool = False,
+    judge: bool = False,
+) -> BenchSuiteResult:
+    """Product-grade eval: retrieval + task + latency + regression canaries."""
+    from brainkm.services.latency_bench import run_latency_suite
+
+    cases: list[BenchCaseResult] = []
+    blocks: list[BenchSuiteResult] = [
+        run_retrieval_suite(db_path),
+        run_task_suite(db_path, fixture_only=fixture_only, judge=judge),
+        run_latency_suite(db_path, profile=profile),
+    ]
+    for name in CANARY_SUITES:
+        blocks.append(SUITE_RUNNERS[name](db_path))
+
+    for block in blocks:
+        block_pass = block.passed == block.total
+        cases.append(
+            BenchCaseResult(
+                name=block.suite,
+                passed=block_pass,
+                detail=f"{block.passed}/{block.total} ({block.pass_rate:.0%})",
+            )
+        )
+        for case in block.cases:
+            cases.append(
+                BenchCaseResult(
+                    name=f"{block.suite}/{case.name}",
+                    passed=case.passed,
+                    detail=case.detail,
+                )
+            )
+
+    # Hard gate: core suites must fully pass; canaries reported but eval pass =
+    # all core metric cases under retrieval/task/latency that are direct children.
+    core_ok = all(
+        case.passed
+        for case in cases
+        if case.name in {"retrieval", "task", "latency", "latency-smoke", "latency-loaded"}
+        or case.name.startswith("retrieval/")
+        or case.name.startswith("task/")
+        or case.name.startswith("latency")
+    )
+    # Simpler: eval suite passes iff every case passed (canaries included as gate too).
+    passed = sum(1 for case in cases if case.passed)
+    _ = core_ok  # documented intent; full gate includes canaries for release script
+    return BenchSuiteResult(suite="eval", passed=passed, total=len(cases), cases=cases)
 
 
 def format_suite_result(result: BenchSuiteResult) -> str:
@@ -110,6 +202,32 @@ def format_suite_result(result: BenchSuiteResult) -> str:
     summary = format_token_summary(result)
     if summary:
         lines.append(summary)
+    compare_summary = format_compare_summary(result)
+    if compare_summary:
+        lines.append(compare_summary)
+    task_summary = format_task_summary(result)
+    if task_summary:
+        lines.append(task_summary)
     if result.suite == "token-live":
-        lines.append("Live mode: uses project brain.db (graph + neurons). Cap pass = pack <= budget.total_tokens.")
+        lines.append(
+            "Live mode: uses project brain.db (graph + neurons). "
+            "Cap pass = pack <= budget.total_tokens."
+        )
+    if result.suite == "compare":
+        lines.append(
+            "Compare (token proxy): without=naive multi-file read; "
+            "with=live context_pack. Prefer `task` for success metrics."
+        )
+    if result.suite == "task":
+        lines.append(
+            "Task: without=selective token-capped reads; with=context_pack; "
+            "gold checklist is the hard gate."
+        )
+    if result.suite == "retrieval":
+        lines.append("Retrieval: held-out gold corpus; metrics are means over ranking queries.")
+    if result.suite == "eval":
+        lines.append(
+            "Eval aggregates retrieval + task + latency + canaries. "
+            "Headline quality = retrieval/task, not canary 100% rates."
+        )
     return "\n".join(lines)

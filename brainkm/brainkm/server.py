@@ -58,9 +58,9 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
     (
         "context_pack",
         (
-            "Compile a bounded task pack (neurons + code neighborhood + procedures). "
-            "Include a symbol or file path in the query (or seed_refs) so the AST graph "
-            "neighborhood can be seeded. Prefer before reading 3+ source files."
+            "Compile a bounded task pack (decisions + code neighborhood + procedures). "
+            "Prefer before reading 3+ source files — include a symbol or path "
+            "(or seed_refs). For pure call/import/blast-radius questions use traverse."
         ),
         ContextPackRequest,
         ContextPackResponse,
@@ -74,8 +74,10 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
     (
         "traverse",
         (
-            "Explicit 1–2 hop AST graph traversal (calls/imports/defines). "
-            "Use before editing shared code to see callers/importers and flow impact."
+            "Focused AST neighborhood for one symbol or path: callers, callees, imports. "
+            "Prefer for blast-radius ('what calls X?', 'what breaks if I change Y?'). "
+            "Defaults: direction=both, structural edges. Not for decisions (recall) "
+            "or multi-file task packs (context_pack)."
         ),
         TraverseRequest,
         TraverseResponse,

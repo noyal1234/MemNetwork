@@ -158,8 +158,8 @@ def _graph_status_line(conn: sqlite3.Connection) -> str | None:
     node_count, edge_count = graph_counts(conn)
     return (
         f"Code graph: {node_count} nodes / {edge_count} edges. "
-        "For call/import/flow questions consult traverse or context_pack with a symbol, "
-        "then verify in source before editing."
+        "For call/import/blast-radius use traverse; for multi-file task context "
+        "use context_pack with a symbol — then verify in source before editing."
     )
 
 

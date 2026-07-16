@@ -24,6 +24,12 @@ def test_percentile_abstention_uses_corpus_threshold() -> None:
     assert should_abstain([-5.0], recall, corpus_threshold=-2.0) is False
 
 
+def test_min_bm25_strength_abstains_weak_hits() -> None:
+    recall = RecallConfig(abstain_mode="percentile", min_bm25_strength=3.0)
+    assert should_abstain([-0.5], recall, corpus_threshold=-10.0) is True
+    assert should_abstain([-5.0], recall, corpus_threshold=-4.0) is False
+
+
 def test_recall_with_bfs_abstains_on_absolute_threshold(brain_db) -> None:
     conn = connect(brain_db)
     try:

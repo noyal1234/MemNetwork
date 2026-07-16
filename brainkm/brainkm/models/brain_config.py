@@ -57,6 +57,11 @@ class RecallConfig(BaseModel):
     abstain_mode: Literal["percentile", "absolute"] = "percentile"
     abstain_percentile: float = Field(default=0.10, ge=0.0, le=1.0)
     min_recall_score: float | None = Field(default=None, ge=0.0, le=100.0)
+    min_bm25_strength: float | None = Field(
+        default=3.0,
+        ge=0.0,
+        description="Percentile mode: abstain when |best BM25| is below this (weak single-token hits)",
+    )
     activation: Literal["bfs", "ppr"] = "ppr"
     ppr_damping: float = Field(default=0.85, ge=0.5, le=0.99)
     ppr_iterations: int = Field(default=8, ge=2, le=30)
