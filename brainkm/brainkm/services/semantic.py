@@ -73,7 +73,11 @@ def vector_search_nodes(
     limit: int = 20,
     prefer_onnx: bool = True,
 ) -> list[tuple[str, float]]:
-    """Return (node_id, cosine_similarity) for active nodes with embeddings."""
+    """Return (node_id, cosine_similarity) for active nodes with embeddings.
+
+    Only compares rows stored under the active embedder's ``model`` + ``dim`` so
+    hashing and ONNX spaces are never mixed.
+    """
     if not _embeddings_table_exists(conn):
         return []
     embedder = get_embedder(prefer_onnx=prefer_onnx)
@@ -84,7 +88,10 @@ def vector_search_nodes(
         FROM node_embeddings e
         JOIN nodes n ON n.id = e.node_id
         WHERE n.valid_until IS NULL
-        """
+          AND e.model = ?
+          AND e.dim = ?
+        """,
+        (embedder.model_id, embedder.dim),
     ).fetchall()
     scored: list[tuple[str, float]] = []
     for node_id, blob in rows:
@@ -130,21 +137,26 @@ def backfill_embeddings(
     limit: int | None = None,
     prefer_onnx: bool = True,
 ) -> int:
-    """Embed active memory neurons missing from node_embeddings. Returns count."""
+    """Embed active memory neurons missing or foreign to the active model.
+
+    Replaces rows whose ``model`` does not match the current embedder so a
+    hashing→ONNX switch does not leave mixed spaces in the table.
+    """
     if not _embeddings_table_exists(conn):
         return 0
+    embedder = get_embedder(prefer_onnx=prefer_onnx)
     sql = """
         SELECT n.id, n.title, n.content
         FROM nodes n
         LEFT JOIN node_embeddings e ON e.node_id = n.id
         WHERE n.valid_until IS NULL
           AND n.kind = 'memory'
-          AND e.node_id IS NULL
+          AND (e.node_id IS NULL OR e.model != ? OR e.dim != ?)
         ORDER BY n.updated_at DESC
     """
     if limit is not None:
         sql += f" LIMIT {int(limit)}"
-    rows = conn.execute(sql).fetchall()
+    rows = conn.execute(sql, (embedder.model_id, embedder.dim)).fetchall()
     count = 0
     for node_id, title, content in rows:
         upsert_node_embedding(

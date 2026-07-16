@@ -78,35 +78,45 @@ def adaptive_token_budget(config: BrainConfig, query: str) -> int:
 
 
 def context_pack_slots(config: BrainConfig, query: str | None = None) -> dict[str, int]:
-    """Allocate token slots for context_pack; reallocate by query type when enabled."""
+    """Allocate token slots for context_pack; reallocate by query type when enabled.
+
+    Slots are always non-negative and ``sum(slots) <= total``.
+    """
     total = adaptive_token_budget(config, query or "") if query else config.budget.total_tokens
     pre = config.budget.pre_tool
     query_type = classify_query_type(query or "")
 
     if config.budget.dynamic_reallocation:
         if query_type == "code":
-            graph = min(pre.graph_neighborhood, int(total * 0.45))
-            neurons = max(200, total - graph - min(pre.procedure_expanded, total // 5))
-            procedures = total - graph - neurons
+            graph = min(pre.graph_neighborhood, int(total * 0.45), total)
+            remaining = max(0, total - graph)
+            procedures = min(pre.procedure_expanded, remaining // 5, remaining)
+            neurons = max(0, remaining - procedures)
         elif query_type == "debug":
-            neurons = min(600, int(total * 0.55))
-            graph = min(pre.graph_neighborhood, int(total * 0.25))
-            procedures = total - graph - neurons
+            neurons = min(600, int(total * 0.55), total)
+            remaining = max(0, total - neurons)
+            graph = min(pre.graph_neighborhood, int(total * 0.25), remaining)
+            procedures = max(0, remaining - graph)
         elif query_type == "decision":
-            neurons = min(700, int(total * 0.6))
-            graph = min(pre.graph_neighborhood, int(total * 0.2))
-            procedures = total - graph - neurons
+            neurons = min(700, int(total * 0.6), total)
+            remaining = max(0, total - neurons)
+            graph = min(pre.graph_neighborhood, int(total * 0.2), remaining)
+            procedures = max(0, remaining - graph)
         else:
-            graph = min(pre.graph_neighborhood, total // 2)
-            procedures = min(pre.procedure_expanded, total // 4)
-            neurons = max(200, total - graph - procedures)
+            graph = min(pre.graph_neighborhood, total // 2, total)
+            remaining = max(0, total - graph)
+            procedures = min(pre.procedure_expanded, remaining // 4, remaining)
+            neurons = max(0, remaining - procedures)
         return {"neurons": neurons, "graph": graph, "procedures": procedures}
 
-    return {
-        "neurons": min(500, total // 2),
-        "graph": min(pre.graph_neighborhood, total // 3),
-        "procedures": min(pre.procedure_expanded, total // 4),
-    }
+    neurons = min(500, total // 2)
+    graph = min(pre.graph_neighborhood, total // 3, max(0, total - neurons))
+    procedures = min(
+        pre.procedure_expanded,
+        total // 4,
+        max(0, total - neurons - graph),
+    )
+    return {"neurons": neurons, "graph": graph, "procedures": procedures}
 
 
 def _fit_line_to_budget(line: BudgetLine, max_tokens: int) -> BudgetLine:

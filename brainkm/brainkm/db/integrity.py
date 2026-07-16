@@ -11,6 +11,10 @@ logger = get_logger("db.integrity")
 FTS_TABLES = ("nodes_fts", "session_fts")
 
 
+class FtsIntegrityError(RuntimeError):
+    """Raised when FTS5 integrity-check reports mismatches."""
+
+
 def check_fts_table(conn: sqlite3.Connection, table: str) -> list[tuple]:
     """Run FTS5 integrity-check for one virtual table."""
     cursor = conn.execute(f"INSERT INTO {table}({table}) VALUES('integrity-check')")

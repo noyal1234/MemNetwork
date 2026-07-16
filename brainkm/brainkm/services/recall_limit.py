@@ -20,7 +20,12 @@ class RecallLimitState:
         *,
         truncation_followup: bool = False,
     ) -> bool:
-        """Return True when recall is allowed."""
+        """Return True when recall is allowed.
+
+        Without a ``session_id`` the limit is not applied — anonymous/HTTP
+        clients must not share a single ``__default__`` bucket (that starves
+        peers). Callers that want limiting should pass a stable session id.
+        """
         if truncation_followup:
             return True
 
@@ -28,7 +33,10 @@ class RecallLimitState:
         if limit <= 0:
             return True
 
-        key = session_id or "__default__"
+        if not session_id:
+            return True
+
+        key = session_id
         now = time.monotonic()
         count, started = self.turn_counts.get(key, (0, now))
 

@@ -333,6 +333,11 @@ def handle_graph_sync(
     *,
     config: BrainConfig,
 ) -> GraphSyncResponse:
+    """Queue a sync request, or run extract+import synchronously when force=True.
+
+    MCP ``dispatch_tool`` uses a split path for force (extract off-queue, import
+    on WriteQueue); this helper remains for CLI/tests.
+    """
     from brainkm.services.graphify_sync import request_graph_sync, sync_graph
 
     if not request.force:
@@ -350,14 +355,18 @@ def handle_graph_sync(
         extract=not request.skip_extract,
         force=True,
     )
-    ok_statuses = {"completed", "ok", "skipped_empty", "skipped", "skipped_locked"}
+    return _graph_sync_response_from_result(result)
+
+
+def _graph_sync_response_from_result(result) -> GraphSyncResponse:
+    ok_statuses = {"completed", "ok", "skipped_empty"}
     status_ok = result.status in ok_statuses
     nodes = result.import_result.node_count if result.import_result else None
     edges = result.import_result.edge_count if result.import_result else None
     return GraphSyncResponse(
         requested=False,
         ran=True,
-        ok=status_ok and result.status not in {"extract_failed", "missing_graph"},
+        ok=status_ok,
         message=result.message or result.status,
         nodes_imported=nodes,
         edges_imported=edges,
@@ -441,14 +450,49 @@ async def dispatch_tool(name: str, arguments: dict[str, Any], runtime: BrainRunt
     if name == "graph_sync":
         request = GraphSyncRequest.model_validate(arguments or {})
 
-        def _log_and_sync(conn: sqlite3.Connection) -> GraphSyncResponse:
+        def _log_tool_use(conn: sqlite3.Connection) -> None:
             record_mcp_tool_use(conn, None, "graph_sync", result_count=1 if request.force else 0)
             _maintenance(conn)
             conn.commit()
-            return handle_graph_sync(runtime.project_dir, request, config=config)
 
-        result = await _run_write(runtime, _log_and_sync)
-        return result.model_dump()
+        await _run_write(runtime, _log_tool_use)
+
+        if not request.force:
+            result = handle_graph_sync(runtime.project_dir, request, config=config)
+            return result.model_dump()
+
+        # Force: extract outside WriteQueue; import serialized on the queue.
+        import asyncio
+
+        from brainkm.models.graphify import GraphSyncResult
+        from brainkm.services.graphify_sync import (
+            finalize_force_sync,
+            prepare_force_sync,
+            release_force_sync_lock,
+        )
+        from brainkm.services.write_queue import get_write_queue
+
+        prepared = await asyncio.to_thread(
+            prepare_force_sync,
+            runtime.project_dir,
+            config,
+            extract=not request.skip_extract,
+            force=True,
+        )
+        if isinstance(prepared, GraphSyncResult):
+            return _graph_sync_response_from_result(prepared).model_dump()
+
+        root, cfg, graph_path, extract_ok = prepared
+        try:
+
+            def _finalize() -> GraphSyncResult:
+                return finalize_force_sync(root, cfg, graph_path, extract_ok)
+
+            sync_result = await get_write_queue().run(_finalize)
+        except Exception:
+            release_force_sync_lock(runtime.project_dir)
+            raise
+        return _graph_sync_response_from_result(sync_result).model_dump()
 
     msg = f"unknown tool: {name}"
     raise ValueError(msg)

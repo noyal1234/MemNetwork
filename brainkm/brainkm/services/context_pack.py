@@ -484,10 +484,11 @@ def compile_context_pack(
     )
     effective_slots = slots or context_pack_slots(config, query)
     budget_cap = adaptive_token_budget(config, query)
-    if slots is None:
-        hard_cap = max(0, budget_cap - PACK_FRAMING_OVERHEAD_TOKENS)
-    else:
-        hard_cap = max(0, sum(effective_slots.values()) - PACK_FRAMING_OVERHEAD_TOKENS)
+    # Always respect budget_cap; custom slots must not widen the truncate pass.
+    hard_cap = max(
+        0,
+        min(budget_cap, sum(effective_slots.values())) - PACK_FRAMING_OVERHEAD_TOKENS,
+    )
     graph_ok = graph_available(conn)
     query_echo = _cap_query_for_pack(query)
 
@@ -640,6 +641,8 @@ def compile_context_pack(
 
     neurons: list[NeuronResult] = []
     if include_structured:
+        from brainkm.services.mcp_results import trim_neurons_to_budget
+
         neurons = [
             NeuronResult(
                 node_id=line.node_id,
@@ -651,6 +654,12 @@ def compile_context_pack(
             for line in neuron_kept
         ]
         graph_results = [node for node in graph_results if node.node_id in final_ids]
+        # Structured arrays duplicate pack_text bodies — keep them within the
+        # same agent-facing budget as lean pack_text.
+        structured_budget = max(100, budget_cap - MCP_JSON_OVERHEAD_TOKENS)
+        half = max(50, structured_budget // 2)
+        neurons = trim_neurons_to_budget(neurons, budget=half)
+        graph_results = trim_neurons_to_budget(graph_results, budget=structured_budget - half)
     else:
         graph_results = []
         # Keep truncation id lists short so the MCP JSON envelope stays budgeted.

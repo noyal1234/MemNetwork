@@ -764,16 +764,20 @@ def review_approve_cmd(
     from brainkm.db.connection import connect
     from brainkm.db.paths import brain_db_path
     from brainkm.services.review import approve_pending
+    from brainkm.services.write_queue import run_blocking
 
-    conn = connect(brain_db_path(project_dir))
-    try:
-        if approve_pending(node_id, conn=conn, project_dir=project_dir):
-            typer.echo(f"Approved {node_id}")
-        else:
-            typer.echo(f"No pending item for {node_id}", err=True)
-            raise typer.Exit(code=1)
-    finally:
-        conn.close()
+    def _approve() -> bool:
+        conn = connect(brain_db_path(project_dir))
+        try:
+            return approve_pending(node_id, conn=conn, project_dir=project_dir)
+        finally:
+            conn.close()
+
+    if run_blocking(_approve):
+        typer.echo(f"Approved {node_id}")
+    else:
+        typer.echo(f"No pending item for {node_id}", err=True)
+        raise typer.Exit(code=1)
 
 
 @review_app.command("reject")
@@ -784,16 +788,20 @@ def review_reject_cmd(
     from brainkm.db.connection import connect
     from brainkm.db.paths import brain_db_path
     from brainkm.services.review import reject_pending
+    from brainkm.services.write_queue import run_blocking
 
-    conn = connect(brain_db_path(project_dir))
-    try:
-        if reject_pending(node_id, conn=conn, project_dir=project_dir):
-            typer.echo(f"Rejected {node_id}")
-        else:
-            typer.echo(f"No pending item for {node_id}", err=True)
-            raise typer.Exit(code=1)
-    finally:
-        conn.close()
+    def _reject() -> bool:
+        conn = connect(brain_db_path(project_dir))
+        try:
+            return reject_pending(node_id, conn=conn, project_dir=project_dir)
+        finally:
+            conn.close()
+
+    if run_blocking(_reject):
+        typer.echo(f"Rejected {node_id}")
+    else:
+        typer.echo(f"No pending item for {node_id}", err=True)
+        raise typer.Exit(code=1)
 
 
 @app.command("hygiene")
@@ -829,20 +837,25 @@ def hygiene_cmd(
     from brainkm.db.migrate import migrate
     from brainkm.db.paths import brain_db_path
     from brainkm.services.hygiene import purge_noisy_neurons
+    from brainkm.services.write_queue import run_blocking
 
     migrate(project_dir=project_dir, run_integrity_check=False)
     db = brain_db_path(project_dir)
-    conn = connect(db)
-    try:
-        result = purge_noisy_neurons(
-            conn,
-            dry_run=dry_run,
-            limit=limit,
-            decay=decay,
-            unused_days=unused_days,
-        )
-    finally:
-        conn.close()
+
+    def _purge():
+        conn = connect(db)
+        try:
+            return purge_noisy_neurons(
+                conn,
+                dry_run=dry_run,
+                limit=limit,
+                decay=decay,
+                unused_days=unused_days,
+            )
+        finally:
+            conn.close()
+
+    result = run_blocking(_purge)
     action = "would archive" if dry_run else "archived"
     typer.echo(
         f"scanned={result.scanned} kept={result.kept} {action}={result.archived}"
@@ -865,15 +878,21 @@ def consolidate_cmd(
     from brainkm.db.migrate import migrate
     from brainkm.db.paths import brain_db_path
     from brainkm.services.consolidate import consolidate_neurons
+    from brainkm.services.write_queue import run_blocking
 
     migrate(project_dir=project_dir, run_integrity_check=False)
-    conn = connect(brain_db_path(project_dir))
-    try:
-        result = consolidate_neurons(conn, dry_run=dry_run, limit=limit)
-        if not dry_run:
-            conn.commit()
-    finally:
-        conn.close()
+
+    def _consolidate():
+        conn = connect(brain_db_path(project_dir))
+        try:
+            result = consolidate_neurons(conn, dry_run=dry_run, limit=limit)
+            if not dry_run:
+                conn.commit()
+            return result
+        finally:
+            conn.close()
+
+    result = run_blocking(_consolidate)
     typer.echo(
         f"scanned={result.scanned} merged={result.merged} archived={result.archived}"
     )
@@ -968,6 +987,17 @@ def team_export_cmd(
 
     path = export_team_neurons(project_dir or Path.cwd())
     typer.echo(f"Wrote {path}")
+
+
+@app.command("team-import")
+def team_import_cmd(
+    project_dir: Path | None = typer.Option(None, "--project-dir"),
+) -> None:
+    """Import ``.brain/team/neurons.json`` via confidence-based merge."""
+    from brainkm.services.team import import_team_neurons
+
+    count = import_team_neurons(project_dir or Path.cwd())
+    typer.echo(f"Imported {count} team neuron(s)")
 
 
 @app.command("mcp")

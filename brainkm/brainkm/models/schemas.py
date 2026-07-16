@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class NeuronResult(BaseModel):
@@ -117,6 +117,13 @@ class SessionStatusRequest(BaseModel):
     session_id: str | None = None
     title: str | None = None
     body: str | None = None
+
+    @model_validator(mode="after")
+    def title_and_body_together(self) -> SessionStatusRequest:
+        if (self.title is None) ^ (self.body is None):
+            msg = "session_status requires both title and body together, or neither (read)"
+            raise ValueError(msg)
+        return self
 
 
 class SessionStatusResponse(BaseModel):

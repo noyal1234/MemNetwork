@@ -107,3 +107,13 @@ def test_recall_rate_limit() -> None:
     assert state.check("s1", cfg) is True
     assert state.check("s1", cfg) is False
     assert state.check("s1", cfg, truncation_followup=True) is True
+
+
+def test_recall_rate_limit_anonymous_not_shared() -> None:
+    """Clients omitting session_id must not share one global bucket."""
+    state = RecallLimitState()
+    cfg = BrainConfig(injection={"max_recalls_per_turn": 1})
+    assert state.check(None, cfg) is True
+    assert state.check(None, cfg) is True
+    assert state.check("s1", cfg) is True
+    assert state.check("s1", cfg) is False

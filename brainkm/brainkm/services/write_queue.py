@@ -86,3 +86,25 @@ def get_write_queue() -> WriteQueue:
     if _write_queue is None:
         _write_queue = WriteQueue()
     return _write_queue
+
+
+def run_blocking(fn: Callable[..., T], /, *args: Any, **kwargs: Any) -> T:
+    """Run ``fn`` through the WriteQueue from sync CLI code.
+
+    Starts the queue worker if MCP is not already running; stops it again when
+    this call started the worker (does not stop a live MCP server queue).
+    """
+    import anyio
+
+    async def _run() -> T:
+        queue = get_write_queue()
+        started_here = queue._worker_task is None
+        if started_here:
+            await queue.start()
+        try:
+            return await queue.run(fn, *args, **kwargs)
+        finally:
+            if started_here:
+                await queue.stop()
+
+    return anyio.run(_run)

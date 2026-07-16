@@ -185,3 +185,48 @@ def test_upsert_embedding_roundtrip(tmp_path: Path) -> None:
         assert isinstance(row[1], (bytes, memoryview))
     finally:
         conn.close()
+
+
+def test_vector_search_filters_by_active_model(tmp_path: Path) -> None:
+    """Hashing-model rows must not seed search when query embedder is ONNX id."""
+    from brainkm.adapters.embeddings import HASHING_MODEL, ONNX_MODEL, pack_embedding
+    from brainkm.services.semantic import vector_search_nodes
+
+    conn = _brain(tmp_path)
+    try:
+        node = remember_neuron(conn, title="JWT auth", content="token refresh")
+        # Store under hashing model id (normal prefer_onnx=False path).
+        upsert_node_embedding(conn, node.id, "JWT auth\ntoken refresh", prefer_onnx=False)
+        # Also plant a foreign ONNX-labeled row with garbage dims matching — should
+        # only match when active model is ONNX; we force hashing via prefer_onnx=False.
+        conn.execute(
+            """
+            INSERT INTO node_embeddings (node_id, model, dim, embedding, updated_at)
+            VALUES (?, ?, 384, ?, datetime('now'))
+            ON CONFLICT(node_id) DO UPDATE SET
+              model = excluded.model,
+              embedding = excluded.embedding
+            """,
+            (node.id, ONNX_MODEL, pack_embedding([0.0] * 384)),
+        )
+        conn.commit()
+        # Active hashing search ignores ONNX-labeled row → empty or no match.
+        hits_hash = vector_search_nodes(conn, "JWT token", prefer_onnx=False)
+        # After overwrite, row is ONNX_MODEL — hashing filter should return [].
+        row = conn.execute(
+            "SELECT model FROM node_embeddings WHERE node_id = ?", (node.id,)
+        ).fetchone()
+        assert row[0] == ONNX_MODEL
+        assert hits_hash == []
+
+        # Restore hashing model row and confirm it is found.
+        upsert_node_embedding(conn, node.id, "JWT auth\ntoken refresh", prefer_onnx=False)
+        conn.commit()
+        hits = vector_search_nodes(conn, "JWT token", prefer_onnx=False)
+        assert any(nid == node.id for nid, _ in hits)
+        stored = conn.execute(
+            "SELECT model FROM node_embeddings WHERE node_id = ?", (node.id,)
+        ).fetchone()
+        assert stored[0] == HASHING_MODEL
+    finally:
+        conn.close()

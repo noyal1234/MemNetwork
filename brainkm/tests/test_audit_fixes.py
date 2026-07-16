@@ -227,6 +227,31 @@ def test_graph_sync_request_only(runtime, tmp_path) -> None:
     assert (tmp_path / ".brain" / "graph_sync.requested").is_file()
 
 
+def test_graph_sync_force_skipped_locked_not_ok(runtime, tmp_path, monkeypatch) -> None:
+    from dataclasses import dataclass
+
+    from brainkm.services import graphify_sync
+
+    @dataclass
+    class _Fake:
+        status: str
+        message: str = ""
+        import_result: object | None = None
+
+    monkeypatch.setattr(
+        graphify_sync,
+        "sync_graph",
+        lambda **kwargs: _Fake(status="skipped_locked", message="locked"),
+    )
+    response = handle_graph_sync(
+        tmp_path,
+        GraphSyncRequest(force=True),
+        config=BrainConfig(graphify={"enabled": True}),
+    )
+    assert response.ran is True
+    assert response.ok is False
+
+
 def test_traverse_includes_relationship(runtime, tmp_path) -> None:
     from brainkm.models.schemas import TraverseRequest
     from brainkm.tools.dispatch import handle_traverse

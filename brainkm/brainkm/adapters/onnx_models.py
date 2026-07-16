@@ -107,18 +107,29 @@ def ensure_cross_encoder(*, download: bool = True) -> tuple[Path, Path] | None:
     return model, tok
 
 
-def ensure_semantic_models(*, include_cross_encoder: bool = False) -> dict[str, bool]:
-    """Download consent-time models. Returns readiness flags."""
+def ensure_semantic_models(
+    *,
+    include_cross_encoder: bool = False,
+    on_ready: object | None = None,
+) -> dict[str, bool]:
+    """Download consent-time models. Returns readiness flags.
+
+    ``on_ready`` is an optional zero-arg callable invoked after download so the
+    service layer can reset CE caches without adapters importing services.
+    """
     be = ensure_biencoder(download=True) is not None
     ce = False
     if include_cross_encoder:
         ce = ensure_cross_encoder(download=True) is not None
     try:
-        from brainkm.adapters.embeddings import get_embedder
-        from brainkm.services.rerank import reset_cross_encoder_cache
+        from brainkm.adapters.embeddings import reset_embedder_cache
 
-        get_embedder.cache_clear()
-        reset_cross_encoder_cache()
+        reset_embedder_cache()
     except Exception:  # noqa: BLE001
-        pass
+        logger.warning("embedder cache clear after ONNX download failed", exc_info=True)
+    if callable(on_ready):
+        try:
+            on_ready()
+        except Exception:  # noqa: BLE001
+            logger.warning("on_ready callback after ONNX download failed", exc_info=True)
     return {"biencoder": be, "cross_encoder": ce}

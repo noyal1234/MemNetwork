@@ -9,7 +9,7 @@ import anyio
 from mcp.server import NotificationOptions, Server
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
-from mcp.types import Resource, TextContent, Tool
+from mcp.types import CallToolResult, Resource, TextContent, Tool
 
 from brainkm import __version__
 from brainkm.config import get_settings
@@ -132,17 +132,26 @@ def create_server(runtime: BrainRuntime) -> Server:
 
     @server.call_tool()
     async def call_tool(name: str, arguments: dict | None):
+        # Return a dict so MCP SDK 1.28+ fills structuredContent (required when
+        # outputSchema is set). Errors use CallToolResult(isError=True) to skip
+        # outputSchema validation.
         try:
-            payload = await dispatch_tool(name, arguments or {}, runtime)
+            return await dispatch_tool(name, arguments or {}, runtime)
         except Exception as exc:
             logger.exception("tool=%s failed", name)
-            payload = {"error": str(exc), "tool": name}
-        return [
-            TextContent(
-                type="text",
-                text=json.dumps(payload, separators=(",", ":"), ensure_ascii=False),
+            return CallToolResult(
+                content=[
+                    TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {"error": str(exc), "tool": name},
+                            separators=(",", ":"),
+                            ensure_ascii=False,
+                        ),
+                    )
+                ],
+                isError=True,
             )
-        ]
 
     @server.list_resources()
     async def list_resources() -> list[Resource]:

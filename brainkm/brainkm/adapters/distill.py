@@ -70,7 +70,13 @@ def distill_rounds_with_timeout(
     timeout_seconds: int | None,
     config: BrainConfig,
 ) -> tuple[list[DistilledNeuron], str]:
-    """Run distill with optional timeout; fall back to rules on timeout."""
+    """Run distill with optional timeout; fall back to rules on timeout.
+
+    On timeout the executor is shut down with ``wait=False`` so rules fallback
+    returns promptly. The orphaned LLM/agent call may still finish in the
+    background; callers must tolerate late side-effect-free completion.
+    """
+    _ = config
     if timeout_seconds is None or timeout_seconds <= 0:
         return adapter.distill_rounds(
             rounds,
@@ -78,26 +84,33 @@ def distill_rounds_with_timeout(
             max_total=max_total,
         ), adapter.mode
 
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(
-            adapter.distill_rounds,
+    executor = ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(
+        adapter.distill_rounds,
+        rounds,
+        round_chunk_ids=round_chunk_ids,
+        max_total=max_total,
+    )
+    try:
+        result = future.result(timeout=timeout_seconds)
+        executor.shutdown(wait=True, cancel_futures=False)
+        return result, adapter.mode
+    except FuturesTimeoutError:
+        logger.warning(
+            "distill timed out after %ss (mode=%s); falling back to rules",
+            timeout_seconds,
+            adapter.mode,
+        )
+        future.cancel()
+        executor.shutdown(wait=False, cancel_futures=True)
+        from brainkm.adapters.distill_rules import RulesDistillAdapter
+
+        rules = RulesDistillAdapter()
+        return rules.distill_rounds(
             rounds,
             round_chunk_ids=round_chunk_ids,
             max_total=max_total,
-        )
-        try:
-            return future.result(timeout=timeout_seconds), adapter.mode
-        except FuturesTimeoutError:
-            logger.warning(
-                "distill timed out after %ss (mode=%s); falling back to rules",
-                timeout_seconds,
-                adapter.mode,
-            )
-            from brainkm.adapters.distill_rules import RulesDistillAdapter
-
-            rules = RulesDistillAdapter()
-            return rules.distill_rounds(
-                rounds,
-                round_chunk_ids=round_chunk_ids,
-                max_total=max_total,
-            ), "rules"
+        ), "rules"
+    except Exception:
+        executor.shutdown(wait=False, cancel_futures=True)
+        raise

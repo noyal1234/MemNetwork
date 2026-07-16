@@ -255,14 +255,19 @@ def seconds_since_last_successful_sync(project_dir: Path) -> float | None:
     return (datetime.now(UTC) - last.astimezone(UTC)).total_seconds()
 
 
-def sync_graph(
+def prepare_force_sync(
     project_dir: Path | None = None,
     config: BrainConfig | None = None,
     *,
     extract: bool = True,
     force: bool = False,
-) -> GraphSyncResult:
-    """Extract (optional) and import graph.json with fail-safe guards."""
+) -> GraphSyncResult | tuple[Path, BrainConfig, Path, bool | None]:
+    """Acquire lock + optional extract; return early result or import hold tuple.
+
+    Hold tuple: ``(root, cfg, graph_path, extract_ok)``. Caller must call
+    ``finalize_force_sync`` (releases the lock) or ``release_force_sync_lock``.
+    Early ``GraphSyncResult`` returns always release the lock.
+    """
     root = (project_dir if project_dir is not None else Path.cwd()).resolve()
     cfg = config or load_brain_config(root)
 
@@ -283,6 +288,7 @@ def sync_graph(
             message="graph sync already in progress",
         )
 
+    hold_lock = False
     extract_ok: bool | None = None
     try:
         if extract:
@@ -317,6 +323,27 @@ def sync_graph(
                 message="0 code nodes after code_only filter; prior graph preserved",
             )
 
+        hold_lock = True
+        return (root, cfg, graph_path, extract_ok)
+    except Exception:
+        raise
+    finally:
+        if not hold_lock:
+            _release_lock(lock_path)
+
+
+def release_force_sync_lock(project_dir: Path) -> None:
+    _release_lock(_lock_path(project_dir.resolve()))
+
+
+def finalize_force_sync(
+    root: Path,
+    cfg: BrainConfig,
+    graph_path: Path,
+    extract_ok: bool | None,
+) -> GraphSyncResult:
+    """Import graph.json then release the force-sync lock."""
+    try:
         import_result = import_project_graph(
             project_dir=root,
             config=cfg,
@@ -340,7 +367,27 @@ def sync_graph(
             import_result=import_result,
         )
     finally:
-        _release_lock(lock_path)
+        _release_lock(_lock_path(root))
+
+
+def sync_graph(
+    project_dir: Path | None = None,
+    config: BrainConfig | None = None,
+    *,
+    extract: bool = True,
+    force: bool = False,
+) -> GraphSyncResult:
+    """Extract (optional) and import graph.json with fail-safe guards."""
+    prepared = prepare_force_sync(
+        project_dir,
+        config,
+        extract=extract,
+        force=force,
+    )
+    if isinstance(prepared, GraphSyncResult):
+        return prepared
+    root, cfg, graph_path, extract_ok = prepared
+    return finalize_force_sync(root, cfg, graph_path, extract_ok)
 
 
 def _graph_available_for_project(project_dir: Path) -> bool:

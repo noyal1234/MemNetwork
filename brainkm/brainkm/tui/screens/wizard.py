@@ -602,6 +602,7 @@ class WizardScreen(Screen):
 
         from brainkm.adapters.onnx_models import ensure_semantic_models
         from brainkm.services.config_loader import config_path, load_brain_config
+        from brainkm.services.rerank import reset_cross_encoder_cache
         from brainkm.services.semantic import semantic_ready
 
         ready = semantic_ready(self._project_dir)
@@ -620,7 +621,10 @@ class WizardScreen(Screen):
                 "deps_hint": ready.get("deps_install_hint"),
             }
 
-        flags = ensure_semantic_models(include_cross_encoder=self._semantic_rerank)
+        flags = ensure_semantic_models(
+            include_cross_encoder=self._semantic_rerank,
+            on_ready=reset_cross_encoder_cache,
+        )
         if not flags.get("biencoder"):
             return {
                 "step": STEP_SEMANTIC,

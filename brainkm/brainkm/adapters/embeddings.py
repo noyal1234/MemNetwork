@@ -119,6 +119,7 @@ class OnnxMiniLMEmbedder:
             )
             self._input_names = [inp.name for inp in self._session.get_inputs()]
             self._np = np
+            self._failed = False
         except Exception:  # noqa: BLE001
             logger.debug("ONNX MiniLM load failed", exc_info=True)
             self._session = None
@@ -126,6 +127,13 @@ class OnnxMiniLMEmbedder:
             self._failed = True
             return False
         return True
+
+    def clear_failed(self) -> None:
+        """Allow retry after a transient load failure / new weights download."""
+        self._failed = False
+        self._session = None
+        self._tokenizer = None
+        self._input_names = []
 
     def embed(self, text: str) -> list[float]:
         if not self._ensure_session():
@@ -164,8 +172,12 @@ class OnnxMiniLMEmbedder:
         return _l2_normalize([float(x) for x in vec])
 
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=2)
 def get_embedder(*, prefer_onnx: bool = True) -> Embedder:
+    """Return hashing or ONNX wrapper.
+
+    ``maxsize=2`` so prefer_onnx True/False callers do not thrash each other.
+    """
     if prefer_onnx:
         try:
             import onnxruntime  # noqa: F401
@@ -176,6 +188,11 @@ def get_embedder(*, prefer_onnx: bool = True) -> Embedder:
         except ImportError:
             pass
     return HashingEmbedder()
+
+
+def reset_embedder_cache() -> None:
+    """Clear cached embedders and allow ONNX reload after download."""
+    get_embedder.cache_clear()
 
 
 def pack_embedding(vec: list[float]) -> bytes:

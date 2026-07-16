@@ -11,7 +11,7 @@ import subprocess
 from pathlib import Path
 
 from brainkm.adapters.cursor_clean import clean_cursor_text, distillable_round, is_distill_noise
-from brainkm.adapters.distill_prompts import SYSTEM_PROMPT, build_context_block, parse_json_array
+from brainkm.adapters.distill_prompts import SYSTEM_PROMPT, build_context_block, normalize_subtype, parse_json_array
 from brainkm.adapters.distill_rules import (
     DECISION_PATTERNS,
     ERROR_PATTERNS,
@@ -74,8 +74,11 @@ def load_predistilled_neurons(
     for item in items:
         if not isinstance(item, dict):
             continue
+        subtype = normalize_subtype(item.get("subtype"))
+        if not subtype:
+            continue
         neuron = DistilledNeuron(
-            subtype=str(item.get("subtype", "fact")),
+            subtype=subtype,
             title=str(item.get("title", "")).strip(),
             body=str(item.get("body", "")).strip(),
             tags=[str(tag) for tag in item.get("tags", []) if tag],
@@ -288,8 +291,11 @@ class CursorDistillAdapter:
             body = clean_cursor_text(str(item.get("body", "")))
             if not title or not body or is_distill_noise(title) or is_distill_noise(body):
                 continue
+            subtype = normalize_subtype(item.get("subtype"))
+            if not subtype:
+                continue
             neuron = DistilledNeuron(
-                subtype=str(item.get("subtype", "fact")),
+                subtype=subtype,
                 title=title,
                 body=body,
                 tags=[str(tag) for tag in item.get("tags", []) if tag],

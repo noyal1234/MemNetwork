@@ -105,6 +105,7 @@ Safe to re-run; archives via `forget` (reversible with audit log). SessionStart/
 | `brainkm export` | Export neurons to markdown under `.brain/exports/` | `--project-dir`, `--full`, `--output` | `brainkm export` |
 | `brainkm import` | Merge or replace neurons from JSON export | `--project-dir`, `--replace` | `brainkm import export.json --replace` |
 | `brainkm team-export` | Export curated neurons to `.brain/team/neurons.json` | `--project-dir` | `brainkm team-export` |
+| `brainkm team-import` | Import `.brain/team/neurons.json` (confidence merge) | `--project-dir` | `brainkm team-import` |
 | `brainkm repair` | Rebuild FTS5 + integrity check | `--project-dir` | `brainkm repair` |
 
 ---

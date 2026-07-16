@@ -79,6 +79,8 @@ class RankedNode:
     path: str | None = None
     relationship: str | None = None
     via: str | None = None
+    content: str | None = None
+    updated_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -377,7 +379,7 @@ def rank_activated_nodes(
     placeholders = ",".join("?" for _ in activations)
     rows = conn.execute(
         f"""
-        SELECT id, kind, subtype, title, confidence, path, use_count, updated_at
+        SELECT id, kind, subtype, title, content, confidence, path, use_count, updated_at
         FROM nodes
         WHERE id IN ({placeholders})
           AND (valid_until IS NULL)
@@ -393,7 +395,17 @@ def rank_activated_nodes(
     )
 
     ranked: list[RankedNode] = []
-    for node_id, kind, subtype, title, confidence, path, use_count, updated_at in rows:
+    for (
+        node_id,
+        kind,
+        subtype,
+        title,
+        content,
+        confidence,
+        path,
+        use_count,
+        updated_at,
+    ) in rows:
         info = activations[node_id]
         multiplier = type_multiplier(kind, subtype)
         if subtype in boost_subtypes:
@@ -417,6 +429,8 @@ def rank_activated_nodes(
                 path=path,
                 relationship=info.relationship,
                 via=info.via,
+                content=content,
+                updated_at=updated_at,
             )
         )
 
@@ -530,9 +544,13 @@ def recall_with_bfs(
 
         ranked = rerank_nodes(query, ranked, enabled=True)
 
-    if routing.intent == QueryIntent.TEMPORAL:
-        # Soft preference: decision/fact subtypes already boosted; keep order.
-        pass
+    if routing.time_filter:
+        # Soft temporal preference: keep score primary, prefer fresher ties.
+        ranked = sorted(
+            ranked,
+            key=lambda item: (item.score, item.updated_at or ""),
+            reverse=True,
+        )
 
     return TraversalResult(
         nodes=ranked,

@@ -15,7 +15,7 @@
 | **Zero-LLM default (T0)** | Rule-based distill, FTS5 BM25, Graphify AST — no local Ollama, no cloud API required |
 | **User-chosen distill** | `capture.distill_mode`: `rules` (default path), `ollama` (local), `groq` (free cloud), or `cursor` |
 | **Compaction-aware** | PreCompact handover + SessionEnd capture so truth survives Cursor chat compaction |
-| **Inspectable** | Every memory is a SQLite row or markdown export — `forget`, `pin`, `merge` |
+| **Inspectable** | Every memory is a SQLite row or markdown export — `forget`, export/import, consolidate |
 | **Bounded tokens** | 1500-token hard cap on agent-facing packs (`pack_text` + compact MCP JSON); structural retrieval over file dumps |
 | **Complement Cursor** | Does not replace @codebase or Cursor Memories — stores **project-specific** decisions |
 

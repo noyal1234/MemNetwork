@@ -1,12 +1,59 @@
 """Tests for schema migrations."""
 
+from pathlib import Path
+
 from brainkm.db.connection import connect
-from brainkm.db.migrate import migrate
+from brainkm.db.migrate import apply_migration_sql, migrate, split_sql_statements
 
 
 def test_migrate_is_idempotent(brain_db) -> None:
     applied_again = migrate(db_path=brain_db, run_integrity_check=False)
     assert applied_again == []
+
+
+def test_split_sql_keeps_trigger_intact() -> None:
+    sql = """
+CREATE TABLE t (id TEXT);
+CREATE TRIGGER t_ins AFTER INSERT ON t BEGIN
+  INSERT INTO t_log VALUES (new.id);
+END;
+CREATE INDEX idx_t ON t(id);
+"""
+    stmts = split_sql_statements(sql)
+    assert len(stmts) == 3
+    assert "CREATE TRIGGER" in stmts[1]
+    assert "END;" in stmts[1]
+
+
+def test_apply_migration_records_version_atomically(tmp_path: Path) -> None:
+    """DDL + version insert share one transaction (no executescript auto-commit)."""
+    db = tmp_path / "brain.db"
+    conn = connect(db)
+    try:
+        conn.execute(
+            """
+            CREATE TABLE schema_migrations (
+              version TEXT PRIMARY KEY,
+              applied_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.commit()
+        apply_migration_sql(
+            conn,
+            "CREATE TABLE IF NOT EXISTS demo (id TEXT PRIMARY KEY);",
+            version="999_demo",
+        )
+        versions = {
+            row[0]
+            for row in conn.execute("SELECT version FROM schema_migrations").fetchall()
+        }
+        assert "999_demo" in versions
+        assert conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE name='demo'"
+        ).fetchone()
+    finally:
+        conn.close()
 
 
 def test_core_tables_exist(brain_db) -> None:
