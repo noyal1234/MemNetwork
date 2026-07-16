@@ -597,6 +597,32 @@ app.add_typer(groq_app, name="groq")
 cursor_app = typer.Typer(help="Cursor agent CLI distill diagnostics")
 app.add_typer(cursor_app, name="cursor")
 
+semantic_app = typer.Typer(help="Local semantic retrieval (MiniLM / rerank) diagnostics")
+app.add_typer(semantic_app, name="semantic")
+
+
+@semantic_app.command("doctor")
+def semantic_doctor_cmd(
+    project_dir: Path | None = typer.Option(
+        None,
+        "--project-dir",
+        help="Target project root (defaults to cwd)",
+    ),
+) -> None:
+    """Report hardware recommendation and ONNX MiniLM / cross-encoder readiness."""
+    from brainkm.services.semantic import semantic_ready
+    from brainkm.services.semantic_advisor import (
+        format_semantic_recommend,
+        recommend_semantic_profile,
+    )
+
+    rec = recommend_semantic_profile()
+    typer.echo(format_semantic_recommend(rec))
+    ready = semantic_ready(project_dir)
+    typer.echo("Status:")
+    for key, value in ready.items():
+        typer.echo(f"  {key}: {value}")
+
 
 @ollama_app.command("doctor")
 def ollama_doctor_cmd(

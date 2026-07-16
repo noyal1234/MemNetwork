@@ -169,6 +169,8 @@ def semantic_ready(project_dir: Path | None = None) -> dict[str, bool | str]:
     _ = project_dir
     has_onnx = False
     has_vec = False
+    has_tokenizers = False
+    has_hf = False
     try:
         import onnxruntime  # noqa: F401
 
@@ -181,8 +183,47 @@ def semantic_ready(project_dir: Path | None = None) -> dict[str, bool | str]:
         has_vec = True
     except ImportError:
         pass
+    try:
+        import tokenizers  # noqa: F401
+
+        has_tokenizers = True
+    except ImportError:
+        pass
+    try:
+        import huggingface_hub  # noqa: F401
+
+        has_hf = True
+    except ImportError:
+        pass
+
+    from brainkm.adapters.embeddings import HASHING_MODEL, get_embedder
+    from brainkm.adapters.onnx_models import (
+        biencoder_cached,
+        cross_encoder_cached,
+        onnx_cache_dir,
+    )
+    from brainkm.services.rerank import cross_encoder_available
+
+    embedder = get_embedder(prefer_onnx=True)
+    # Probe without download — reflects whether weights actually load.
+    if biencoder_cached() and has_onnx and has_tokenizers:
+        _ = embedder.embed("ping")
+        probe_id = embedder.model_id
+    else:
+        probe_id = HASHING_MODEL
+
     return {
         "onnxruntime": has_onnx,
         "sqlite_vec": has_vec,
-        "fallback_embedder": "hashing-v1",
+        "tokenizers": has_tokenizers,
+        "huggingface_hub": has_hf,
+        "biencoder_cached": biencoder_cached(),
+        "cross_encoder_cached": cross_encoder_cached(),
+        "cross_encoder_loaded": bool(
+            cross_encoder_cached() and cross_encoder_available()
+        ),
+        "active_embedder": probe_id,
+        "cache_dir": str(onnx_cache_dir()),
+        "fallback_embedder": HASHING_MODEL,
+        "deps_install_hint": 'pip install -e "./brainkm[semantic]"',
     }

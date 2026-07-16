@@ -18,12 +18,10 @@ brainkm --help
 |---------|---------|-----------|---------|
 | `brainkm version` | Print installed package version | — | `brainkm version` |
 | `brainkm install` | Scaffold `.brain/`, MCP config, hooks, rule | `--project-dir`, `--dev`, `--force`, `--no-graph`, `--client cursor\|claude\|generic` | `brainkm install --dev --client cursor` |
-
-> **Tip:** `brainkm configure` wizard includes the same **Agent Client** picker before install (0.3.1+).
 | `brainkm migrate` | Apply pending SQLite migrations | `--project-dir` | `brainkm migrate` |
 | `brainkm configure` | Launch Textual config dashboard (wizard / status / forms / actions) | `--project-dir` | `brainkm configure` |
 
-Requires `pip install -e "./brainkm[tui]"`. Without Textual, the command prints the install hint and exits `1`. Design notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
+> **Tip:** `brainkm configure` wizard includes **Agent Client** and **Semantic Quality** consent steps (0.3.2+). Requires `pip install -e "./brainkm[tui]"`. Semantic weights: `pip install -e "./brainkm[semantic]"`. Design notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
 
 ---
 
@@ -45,6 +43,7 @@ All modes clean Cursor chrome before extract. PreCompact handover allows up to `
 | Command | Purpose | Key flags | Example |
 |---------|---------|-----------|---------|
 | `brainkm ollama doctor` | Hardware profile, recommended local model, daemon status | `--project-dir`, `--apply` | `brainkm ollama doctor --apply` |
+| `brainkm semantic doctor` | Local MiniLM / CE readiness + RAM recommendation | `--project-dir` | `brainkm semantic doctor` |
 | `brainkm groq doctor` | API key presence (masked), reachability, configured model | `--project-dir` | `brainkm groq doctor` |
 
 Notes:

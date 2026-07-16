@@ -45,6 +45,32 @@ SECTION_FIELDS: dict[str, list[dict[str, Any]]] = {
             "max": 200,
             "help": "Maximum neurons extracted per plan file",
         },
+        {
+            "key": "auto_hygiene",
+            "label": "Auto Hygiene on Capture",
+            "type": "bool",
+            "help": "Purge noisy auto-captured neurons after distill",
+        },
+    ],
+    "semantic": [
+        {
+            "key": "enabled",
+            "label": "Semantic Hybrid Retrieval",
+            "type": "bool",
+            "help": "Enable MiniLM vector + FTS RRF (requires brainkm[semantic] + cached model)",
+        },
+        {
+            "key": "prefer_onnx",
+            "label": "Prefer ONNX MiniLM",
+            "type": "bool",
+            "help": "Use ONNX weights when cached; else hashing embedder",
+        },
+        {
+            "key": "embed_on_write",
+            "label": "Embed on Write",
+            "type": "bool",
+            "help": "Store embeddings when remembering neurons",
+        },
     ],
     "ollama": [
         {
@@ -133,6 +159,55 @@ SECTION_FIELDS: dict[str, list[dict[str, Any]]] = {
             "min": 0.0,
             "max": 1.0,
             "help": "Percentile threshold (0.0 – 1.0) for corpus BM25 scores",
+        },
+        {
+            "key": "activation",
+            "label": "Graph Activation",
+            "type": "select",
+            "options": ["ppr", "bfs"],
+            "help": "Weighted PPR (default) or flat 2-hop BFS",
+        },
+        {
+            "key": "rerank",
+            "label": "Rerank Top-N",
+            "type": "bool",
+            "help": "Cross-encoder when cached; else cosine blend (precision tax)",
+        },
+        {
+            "key": "feedback_boost",
+            "label": "Usage Feedback Boost",
+            "type": "bool",
+            "help": "Boost neurons the agent actually used",
+        },
+        {
+            "key": "decay_half_life_days",
+            "label": "Decay Half-Life (days)",
+            "type": "float",
+            "min": 1.0,
+            "max": 3650.0,
+            "help": "Recency damping half-life for recall scoring",
+        },
+    ],
+    "decay": [
+        {
+            "key": "enabled",
+            "label": "Decay Soft-Archive",
+            "type": "bool",
+            "help": "Allow unused neurons to be soft-archived by hygiene --decay",
+        },
+        {
+            "key": "unused_days",
+            "label": "Unused Days Horizon",
+            "type": "int",
+            "min": 7,
+            "max": 3650,
+            "help": "Days without use before decay may archive",
+        },
+        {
+            "key": "consolidate_on_session_end",
+            "label": "Consolidate on Session End",
+            "type": "bool",
+            "help": "Merge near-duplicates after capture (can be slow)",
         },
     ],
     "injection": [

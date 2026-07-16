@@ -29,5 +29,6 @@ a neuron body is included in an agent-facing pack (outbound injection gate).
 
 ## Supply chain
 
-- Optional `[semantic]` extra pulls `onnxruntime` + `sqlite-vec`.
+- Optional `[semantic]` extra pulls `onnxruntime`, `sqlite-vec`, `huggingface_hub`, `tokenizers`, `numpy`.
+- ONNX MiniLM / cross-encoder weights download only after wizard or doctor consent into `~/.cache/brainkm/onnx/` (not the project tree).
 - Graphify extract stays offline (`code_only`) when configured.

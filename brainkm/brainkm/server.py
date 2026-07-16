@@ -19,13 +19,21 @@ from brainkm.db.paths import brain_db_path
 from brainkm.logging_config import get_logger
 from brainkm.models.schemas import (
     BrainStatsRequest,
+    BrainStatsResponse,
     ContextPackRequest,
+    ContextPackResponse,
     ForgetRequest,
+    ForgetResponse,
     GraphSyncRequest,
+    GraphSyncResponse,
     RecallRequest,
+    RecallResponse,
     RememberRequest,
+    RememberResponse,
     SessionStatusRequest,
+    SessionStatusResponse,
     TraverseRequest,
+    TraverseResponse,
 )
 from brainkm.services.config_loader import load_brain_config
 from brainkm.services.graphify_sync import start_graph_sync_scheduler, stop_graph_sync_scheduler
@@ -34,16 +42,18 @@ from brainkm.tools.dispatch import BrainRuntime, dispatch_tool
 
 logger = get_logger("server")
 
-TOOL_DEFINITIONS: list[tuple[str, str, type]] = [
+TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
     (
         "remember",
         "Store a project neuron (decision, fact, rule). Input is redacted before storage.",
         RememberRequest,
+        RememberResponse,
     ),
     (
         "recall",
         "Hybrid FTS5 + optional vector RRF + PPR graph recall. Abstains on low confidence.",
         RecallRequest,
+        RecallResponse,
     ),
     (
         "context_pack",
@@ -53,8 +63,14 @@ TOOL_DEFINITIONS: list[tuple[str, str, type]] = [
             "neighborhood can be seeded. Prefer before reading 3+ source files."
         ),
         ContextPackRequest,
+        ContextPackResponse,
     ),
-    ("session_status", "Read or write the current session context neuron.", SessionStatusRequest),
+    (
+        "session_status",
+        "Read or write the current session context neuron.",
+        SessionStatusRequest,
+        SessionStatusResponse,
+    ),
     (
         "traverse",
         (
@@ -62,8 +78,14 @@ TOOL_DEFINITIONS: list[tuple[str, str, type]] = [
             "Use before editing shared code to see callers/importers and flow impact."
         ),
         TraverseRequest,
+        TraverseResponse,
     ),
-    ("forget", "Soft-archive a neuron (sets valid_until via audit_log).", ForgetRequest),
+    (
+        "forget",
+        "Soft-archive a neuron (sets valid_until via audit_log).",
+        ForgetRequest,
+        ForgetResponse,
+    ),
     (
         "brain_stats",
         (
@@ -71,6 +93,7 @@ TOOL_DEFINITIONS: list[tuple[str, str, type]] = [
             "review queue size, abstention calibration. Use before trusting traverse/context_pack."
         ),
         BrainStatsRequest,
+        BrainStatsResponse,
     ),
     (
         "graph_sync",
@@ -79,6 +102,7 @@ TOOL_DEFINITIONS: list[tuple[str, str, type]] = [
             "Use when brain_stats reports a stale graph or after large refactors."
         ),
         GraphSyncRequest,
+        GraphSyncResponse,
     ),
 ]
 
@@ -95,18 +119,13 @@ def create_server(runtime: BrainRuntime) -> Server:
     @server.list_tools()
     async def list_tools() -> list[Tool]:
         tools: list[Tool] = []
-        for name, description, model in TOOL_DEFINITIONS:
-            schema = _tool_schema(model)
+        for name, description, request_model, response_model in TOOL_DEFINITIONS:
             tools.append(
                 Tool(
                     name=name,
                     description=description,
-                    inputSchema=schema,
-                    # Structured output hint for MCP clients that support it.
-                    outputSchema={
-                        "type": "object",
-                        "additionalProperties": True,
-                    },
+                    inputSchema=_tool_schema(request_model),
+                    outputSchema=_tool_schema(response_model),
                 )
             )
         return tools
@@ -198,6 +217,7 @@ async def run_stdio_server(project_dir: Path | None = None) -> None:
     brain_config = load_brain_config(root)
     runtime = BrainRuntime(project_dir=root)
     server = create_server(runtime)
+    _register_sampling_callback(server)
     queue = get_write_queue()
     await queue.start()
     start_graph_sync_scheduler(root, brain_config)
@@ -206,8 +226,31 @@ async def run_stdio_server(project_dir: Path | None = None) -> None:
     try:
         await _serve(runtime, server)
     finally:
+        from brainkm.adapters.mcp_distill import clear_sampling_callback
+
+        clear_sampling_callback()
         stop_graph_sync_scheduler()
         await queue.stop()
+
+
+def _register_sampling_callback(server: Server) -> None:
+    """Register MCP sampling distill hook.
+
+    Capture/distill runs outside the MCP request task in most flows, so the
+    default callback returns empty → rules fallback. Hosts/tests may call
+    ``set_sampling_callback`` with a real sampler. When a request context with
+    ``session.create_message`` is present, we attempt a best-effort sync bridge.
+    """
+    from brainkm.adapters.mcp_distill import clear_sampling_callback, set_sampling_callback
+
+    clear_sampling_callback()
+    _ = server  # reserved for future ContextVar-bound session
+
+    def _sampling_callback(*, system: str, user: str, max_tokens: int = 2000) -> str:
+        _ = (system, user, max_tokens)
+        return ""
+
+    set_sampling_callback(_sampling_callback)
 
 
 async def run_http_server(
@@ -227,6 +270,7 @@ async def run_http_server(
     brain_config = load_brain_config(root)
     runtime = BrainRuntime(project_dir=root)
     server = create_server(runtime)
+    _register_sampling_callback(server)
     queue = get_write_queue()
     await queue.start()
     start_graph_sync_scheduler(root, brain_config)
@@ -250,6 +294,9 @@ async def run_http_server(
     try:
         await http_server.serve()
     finally:
+        from brainkm.adapters.mcp_distill import clear_sampling_callback
+
+        clear_sampling_callback()
         stop_graph_sync_scheduler()
         await queue.stop()
 

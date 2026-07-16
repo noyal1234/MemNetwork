@@ -1,7 +1,7 @@
 # Benchmarks
 
 Published numbers for brainkm retrieval quality, token savings, and latency.
-Regenerate on release:
+Regenerate on release (local — CI deferred while the repo is private):
 
 ```bash
 brainkm bench run abstention
@@ -13,7 +13,9 @@ brainkm bench run compaction
 brainkm bench run latency
 ```
 
-## Headline results (local fixture corpus, brainkm 0.3.x)
+## Headline results (local fixture / empty-brain smoke, brainkm 0.3.2)
+
+Hardware note for latency row below: macOS arm64, hashing embedder (semantic off), empty fresh `brain.db`, measured 2026-07-15.
 
 | Suite | Metric | Result | Notes |
 |-------|--------|--------|-------|
@@ -21,19 +23,21 @@ brainkm bench run latency
 | Abstention | Fixture precision | Calibrated to P10 percentile | Avoids injecting low-confidence noise |
 | DMR-lite | External recall vs summarize | External store wins (MemGPT-style) | Packs survive Cursor compaction via PreCompact handover |
 | LongMemEval-lite | Temporal supersede | Supersedes preferred over ADD-only | Conflict detection suggests supersede on remember |
-| Latency | recall p95 | Target **≤150ms** (no reranker) | Hashing embedder + PPR on local SQLite |
-| Latency | context_pack p95 | Target **≤250ms** | Summary-first + adaptive intent budgets |
+| Latency | recall p50 / p95 | **0.5 ms / 0.6 ms** (empty brain) | Target ≤80 / ≤150 ms without reranker |
+| Latency | context_pack p50 / p95 | **0.7 ms / 77.4 ms** (empty brain) | Target ≤250 ms p95; summary-first + adaptive budgets |
+| Semantic (opt-in) | MiniLM + CE | Wizard/doctor consent; default off | `pip install -e "./brainkm[semantic]"` + `brainkm semantic doctor` |
 
-Exact pass/fail rates are environment-dependent; CI runs the suites and this file should be refreshed from `bench run` output on each release.
+Exact fixture pass/fail rates are environment-dependent; refresh this file from `bench run` output on each release. Numbers are **not** CI-regenerated while public workflows are deferred.
 
 ## Before / after Phase A–C
 
 | Dial | Before (0.2.0) | After (0.3+) |
 |------|----------------|--------------|
-| Retrieval | FTS5 + flat 2-hop BFS | Hybrid RRF (FTS+vector) + weighted PPR + intent routing |
+| Retrieval | FTS5 + flat 2-hop BFS | Hybrid RRF (FTS+vector when enabled) + weighted PPR + intent routing |
 | Pack density | Subtype priority only | Write-time compression + dedup + MMR diversity + summary-first |
 | Quality loop | Co-activation only | Injected-vs-used feedback + decay + consolidate |
 | Speed | Untargeted | Latency suite with explicit p50/p95 targets |
+| Semantic fidelity (0.3.2) | Hashing theater under `[semantic]` | Real ONNX MiniLM + optional CE; wizard consent |
 
 ## How we measure token savings
 

@@ -55,7 +55,12 @@ class McpDistillAdapter:
                 max_tokens=2000,
             )
             if not raw:
-                raise RuntimeError("empty sampling response")
+                logger.info("MCP sampling returned empty — falling back to rules distill")
+                return self._fallback.distill_rounds(
+                    rounds,
+                    round_chunk_ids=round_chunk_ids,
+                    max_total=max_total,
+                )
             items = parse_json_array(raw)
             neurons: list[DistilledNeuron] = []
             # Attach chunk ids from first round as rough provenance.

@@ -14,6 +14,7 @@ from brainkm.tui.screens.wizard import (
     STEP_DISTILL,
     STEP_INSTALL,
     STEP_PROJECT,
+    STEP_SEMANTIC,
     STEP_VIZ_LLM,
     STEPS,
 )
@@ -81,8 +82,8 @@ async def test_wizard_distill_mode_selection_writes_config(tmp_path: Path) -> No
     app = BrainkmConfigureApp(project_dir=tmp_path)
     async with app.run_test(size=(140, 70)) as pilot:
         await pilot.pause(0.3)
-        # client -> install -> doctor
-        for _ in range(3):
+        # client -> install -> doctor -> semantic
+        for _ in range(4):
             await pilot.click("#btn-wizard-run")
             await pilot.pause(1.5)
 
@@ -109,12 +110,28 @@ async def test_wizard_distill_mode_selection_writes_config(tmp_path: Path) -> No
         assert STEPS[screen._current_step] == STEP_APIKEY
 
 
+async def test_wizard_semantic_skip_advances(tmp_path: Path) -> None:
+    app = BrainkmConfigureApp(project_dir=tmp_path)
+    async with app.run_test(size=(140, 70)) as pilot:
+        await pilot.pause(0.3)
+        # client, install, doctor → semantic
+        for _ in range(3):
+            await pilot.click("#btn-wizard-run")
+            await pilot.pause(1.5)
+
+        screen = app.screen
+        assert STEPS[screen._current_step] == STEP_SEMANTIC
+        await pilot.click("#btn-wizard-skip")
+        await pilot.pause(0.3)
+        assert STEPS[screen._current_step] == STEP_DISTILL
+
+
 async def test_wizard_cursor_cli_skip_advances(tmp_path: Path) -> None:
     app = BrainkmConfigureApp(project_dir=tmp_path)
     async with app.run_test(size=(140, 70)) as pilot:
         await pilot.pause(0.3)
-        # client, install, doctor, distill (default cursor)
-        for _ in range(4):
+        # client, install, doctor, semantic, distill (default cursor)
+        for _ in range(5):
             await pilot.click("#btn-wizard-run")
             await pilot.pause(1.5)
 
@@ -132,7 +149,7 @@ async def test_wizard_cursor_cli_run_with_mocked_install(tmp_path: Path) -> None
     app = BrainkmConfigureApp(project_dir=tmp_path)
     async with app.run_test(size=(140, 70)) as pilot:
         await pilot.pause(0.3)
-        for _ in range(4):
+        for _ in range(5):
             await pilot.click("#btn-wizard-run")
             await pilot.pause(1.5)
 
@@ -188,11 +205,14 @@ def test_wizard_step_ids_are_unique() -> None:
     assert STEP_PROJECT in STEPS
     assert STEP_CLIENT in STEPS
     assert STEP_INSTALL in STEPS
+    assert STEP_SEMANTIC in STEPS
     assert STEP_DISTILL in STEPS
     assert STEP_CURSOR_CLI in STEPS
     assert STEP_VIZ_LLM in STEPS
     assert STEPS.index(STEP_CLIENT) == STEPS.index(STEP_PROJECT) + 1
     assert STEPS.index(STEP_INSTALL) == STEPS.index(STEP_CLIENT) + 1
+    assert STEPS.index(STEP_SEMANTIC) == STEPS.index("step-doctor") + 1
+    assert STEPS.index(STEP_DISTILL) == STEPS.index(STEP_SEMANTIC) + 1
     assert STEPS.index(STEP_CURSOR_CLI) == STEPS.index(STEP_DISTILL) + 1
     assert STEPS[-2] == STEP_VIZ_LLM
     assert STEPS[-1] == "step-done"

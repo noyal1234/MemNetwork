@@ -428,19 +428,20 @@ Each action is a button that spawns a Textual `Worker`. Output is captured line-
 
 **Purpose:** Guided alternative to manually running `brainkm install --client …` + doctor commands. Activated automatically when `.brain/` does not exist, or via the `w` keybinding.
 
-**Steps (sequential screens) — as of 0.3.1:**
+**Steps (sequential screens) — as of 0.3.2:**
 
 ```mermaid
 flowchart LR
     A["1. Project dir"] --> B["2. Agent client"]
     B --> C["3. Install scaffolding"]
-    C --> D["4. Hardware doctor"]
-    D --> E["5. Distill mode"]
-    E --> F["6. Cursor Agent CLI optional"]
-    F --> G["7. API key optional"]
-    G --> H["8. Graph sync optional"]
-    H --> I["9. Viz WebLLM optional"]
-    I --> J["Done"]
+    C --> D["4. Hardware doctor Ollama"]
+    D --> E["5. Semantic Quality"]
+    E --> F["6. Distill mode"]
+    F --> G["7. Cursor Agent CLI optional"]
+    G --> H["8. API key optional"]
+    H --> I["9. Graph sync optional"]
+    I --> J["10. Viz WebLLM optional"]
+    J --> K["Done"]
 ```
 
 | Step | What happens | Service call |
@@ -448,12 +449,13 @@ flowchart LR
 | **1. Project dir** | Confirm `--project-dir` or `cwd`. Warn if `.brain/` already exists. Auto-advances. | — |
 | **2. Agent client** | Radio: `cursor` / `claude` / `generic`. Chooses hooks / MCP / `CLAUDE.md` / `AGENTS.md` layout. | `client_adapters.get_client_adapter()` |
 | **3. Install** | Run `run_install(project_dir, dev=True, client=…)` and list files written/skipped. | `install.run_install(..., client=)` |
-| **4. Hardware doctor** | Ollama/hardware recommendation. | `ollama_advisor.build_doctor_report()` |
-| **5. Distill mode** | Radio: `cursor` / `ollama` / `groq` / `mcp` (rules is advanced fallback). | config write |
-| **6. Cursor Agent CLI** | Only when **client=cursor** and **distill=cursor**; otherwise auto-skipped. | `cursor_advisor` |
-| **7. API key** | Optional `GROQ_API_KEY` → `.env` when using groq. | `groq_advisor` |
-| **8. Graph sync** | Optional Graphify extract+import. | `graphify_sync.sync_graph()` |
-| **9. Viz WebLLM** | Optional local model prefetch for `brainkm viz`. | `webllm_prefetch` |
+| **4. Hardware doctor** | Ollama/hardware recommendation (chat/distill models — not retrieval embeddings). | `ollama_advisor.build_doctor_report()` |
+| **5. Semantic Quality** | Recommend MiniLM from RAM; user consents. Optional CE checkbox (default off). Skip keeps hashing. | `semantic_advisor` + `onnx_models.ensure_semantic_models` |
+| **6. Distill mode** | Radio: `cursor` / `ollama` / `groq` / `mcp` (rules is advanced fallback). | config write |
+| **7. Cursor Agent CLI** | Only when **client=cursor** and **distill=cursor**; otherwise auto-skipped. | `cursor_advisor` |
+| **8. API key** | Optional `GROQ_API_KEY` → `.env` when using groq. | `groq_advisor` |
+| **9. Graph sync** | Optional Graphify extract+import. | `graphify_sync.sync_graph()` |
+| **10. Viz WebLLM** | Optional local model prefetch for `brainkm viz`. | `webllm_prefetch` |
 
 ---
 
@@ -656,7 +658,7 @@ Dashboard layout matches the Design 1 / DESIGN.md Cyber-Industrial mockup:
 | `test_dashboard.py` | Status panel population, Ollama/Groq channel rendering, review table empty state, refresh, approve/reject |
 | `test_config_editor.py` | Dirty-state gating, save-to-disk, Pydantic validation errors, `.env`-only API key writing |
 | `test_actions.py` | Every action button, export-to-project-dir, review approve/reject flows |
-| `test_wizard.py` | Agent client pick, install scaffolding (cursor/claude), distill-mode write, Cursor CLI skip/gate, skip flow |
+| `test_wizard.py` | Agent client, semantic quality skip, install scaffolding (cursor/claude), distill-mode write, Cursor CLI skip/gate |
 | `test_command_palette.py` | CLI introspection correctness (incl. the Click-fork regression), palette open/navigate |
 | `test_logging.py` | TUI log sink / stderr handler isolation; Actions log receives service output |
 

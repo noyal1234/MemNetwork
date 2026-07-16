@@ -11,6 +11,7 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import (
     Button,
+    Checkbox,
     Footer,
     Header,
     Input,
@@ -32,6 +33,7 @@ STEP_PROJECT = "step-project"
 STEP_CLIENT = "step-client"
 STEP_INSTALL = "step-install"
 STEP_DOCTOR = "step-doctor"
+STEP_SEMANTIC = "step-semantic"
 STEP_DISTILL = "step-distill"
 STEP_CURSOR_CLI = "step-cursor-cli"
 STEP_APIKEY = "step-apikey"
@@ -44,6 +46,7 @@ STEPS = [
     STEP_CLIENT,
     STEP_INSTALL,
     STEP_DOCTOR,
+    STEP_SEMANTIC,
     STEP_DISTILL,
     STEP_CURSOR_CLI,
     STEP_APIKEY,
@@ -77,7 +80,7 @@ class WizardScreen(Screen):
     """First-run wizard.
 
     Walks through: project dir → agent client → install → hardware doctor →
-    distill mode → Cursor agent CLI (optional, cursor client + cursor distill) →
+    semantic quality (consent) → distill mode → Cursor agent CLI (optional) →
     API key → graph sync → viz WebLLM prefetch (optional) → done.
     """
 
@@ -92,6 +95,8 @@ class WizardScreen(Screen):
         self._current_step = 0
         self._distill_mode = "cursor"
         self._client = "cursor"
+        self._semantic_enable = False
+        self._semantic_rerank = False
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -148,18 +153,46 @@ class WizardScreen(Screen):
                 )
                 yield Static("", id="wizard-install-status")
 
-            # --- Step 4: Hardware doctor ---
+            # --- Step 4: Hardware doctor (Ollama) ---
             with Vertical(classes="wizard-step", id=STEP_DOCTOR):
-                yield Static("4 ─ Hardware Doctor", classes="step-title")
+                yield Static("4 ─ Hardware Doctor (Ollama)", classes="step-title")
                 yield Static(
-                    "Detect hardware capabilities and recommend an Ollama model.",
+                    "Detect hardware and recommend an Ollama chat/distill model "
+                    "(separate from local retrieval embeddings).",
                     classes="step-description",
                 )
                 yield Static("", id="wizard-doctor-status")
 
-            # --- Step 5: Distill mode ---
+            # --- Step 5: Semantic quality (retrieval embeddings) ---
+            with Vertical(classes="wizard-step", id=STEP_SEMANTIC):
+                yield Static("5 ─ Semantic Quality (Optional)", classes="step-title")
+                yield Static(
+                    "Local retrieval embeddings (MiniLM) — not an Ollama/chat model.\n"
+                    "Doctor recommends; you consent. Default stays hashing (zero-dep).",
+                    classes="step-description",
+                )
+                yield Static("", id="wizard-semantic-recommend")
+                yield Static("", id="wizard-semantic-deps")
+                with RadioSet(id="wizard-semantic-radio"):
+                    yield RadioButton(
+                        "Enable MiniLM quality (~90 MB download)",
+                        id="radio-semantic-enable",
+                    )
+                    yield RadioButton(
+                        "Skip — keep hashing embeddings (recommended on small RAM)",
+                        value=True,
+                        id="radio-semantic-skip",
+                    )
+                yield Checkbox(
+                    "Also enable cross-encoder rerank (slower, more precise)",
+                    id="wizard-rerank-check",
+                    value=False,
+                )
+                yield Static("", id="wizard-semantic-status")
+
+            # --- Step 6: Distill mode ---
             with Vertical(classes="wizard-step", id=STEP_DISTILL):
-                yield Static("5 ─ Distill Mode", classes="step-title")
+                yield Static("6 ─ Distill Mode", classes="step-title")
                 yield Static(
                     "How should brainkm extract neurons from transcripts?\n"
                     "Pick one backend. Cursor Agent CLI (next step) only upgrades "
@@ -175,10 +208,10 @@ class WizardScreen(Screen):
                         )
                 yield Static("", id="wizard-distill-status")
 
-            # --- Step 6: Optional Cursor Agent CLI upgrade ---
+            # --- Step 7: Optional Cursor Agent CLI upgrade ---
             with Vertical(classes="wizard-step", id=STEP_CURSOR_CLI):
                 yield Static(
-                    "6 ─ Upgrade Cursor Distill (Agent CLI, Optional)",
+                    "7 ─ Upgrade Cursor Distill (Agent CLI, Optional)",
                     classes="step-title",
                 )
                 yield Static(
@@ -196,9 +229,9 @@ class WizardScreen(Screen):
                 )
                 yield Static("", id="wizard-cursor-cli-status")
 
-            # --- Step 7: API key ---
+            # --- Step 8: API key ---
             with Vertical(classes="wizard-step", id=STEP_APIKEY):
-                yield Static("7 ─ API Key (Optional)", classes="step-title")
+                yield Static("8 ─ API Key (Optional)", classes="step-title")
                 yield Static(
                     "If you chose 'groq', paste your GROQ_API_KEY below.",
                     classes="step-description",
@@ -212,18 +245,18 @@ class WizardScreen(Screen):
                     )
                 yield Static("", id="wizard-apikey-status")
 
-            # --- Step 8: Graph sync ---
+            # --- Step 9: Graph sync ---
             with Vertical(classes="wizard-step", id=STEP_GRAPH):
-                yield Static("8 ─ Graph Sync (Optional)", classes="step-title")
+                yield Static("9 ─ Graph Sync (Optional)", classes="step-title")
                 yield Static(
                     "Run Graphify AST extraction and import into brain.db.",
                     classes="step-description",
                 )
                 yield Static("", id="wizard-graph-status")
 
-            # --- Step 9: Viz WebLLM prefetch ---
+            # --- Step 10: Viz WebLLM prefetch ---
             with Vertical(classes="wizard-step", id=STEP_VIZ_LLM):
-                yield Static("9 ─ Viz Chat Model (Optional)", classes="step-title")
+                yield Static("10 ─ Viz Chat Model (Optional)", classes="step-title")
                 yield Static(
                     "Prefetch an on-device WebLLM model for `brainkm viz` Ask-your-brain.\n"
                     "Weights go to ~/.cache/brainkm/webllm/ (once). The browser still needs\n"
@@ -246,7 +279,7 @@ class WizardScreen(Screen):
                     )
                 yield Static("", id="wizard-viz-llm-status")
 
-            # --- Step 10: Done ---
+            # --- Done ---
             with Vertical(classes="wizard-step", id=STEP_DONE):
                 yield Static("✓ Setup Complete!", classes="step-title")
                 yield Static(
@@ -312,6 +345,72 @@ class WizardScreen(Screen):
         skip_btn.disabled = is_done
         finish_btn.disabled = not is_done
 
+        if not is_done and STEPS[self._current_step] == STEP_SEMANTIC:
+            self._refresh_semantic_step()
+
+    def _refresh_semantic_step(self) -> None:
+        """Populate recommendation labels and default radio for Semantic Quality."""
+        try:
+            from brainkm.services.semantic import semantic_ready
+            from brainkm.services.semantic_advisor import (
+                format_semantic_recommend,
+                recommend_semantic_profile,
+            )
+
+            rec = recommend_semantic_profile()
+            ready = semantic_ready(self._project_dir)
+            recommend_el = self.query_one("#wizard-semantic-recommend", Static)
+            recommend_el.update(escape_markup(format_semantic_recommend(rec)))
+            deps_el = self.query_one("#wizard-semantic-deps", Static)
+            deps_el.update(
+                escape_markup(
+                    f"Deps: onnx={ready.get('onnxruntime')} tokenizers={ready.get('tokenizers')} "
+                    f"hf={ready.get('huggingface_hub')} | "
+                    f"cached MiniLM={ready.get('biencoder_cached')} CE={ready.get('cross_encoder_cached')}\n"
+                    f"If deps missing: {ready.get('deps_install_hint')}"
+                )
+            )
+            radio = self.query_one("#wizard-semantic-radio", RadioSet)
+            # pressed_index: 0=enable, 1=skip — match recommendation.
+            if rec.recommend_enable:
+                radio.action_first_button()
+                # ensure enable selected
+                for i, _child in enumerate(radio.children):
+                    pass
+                # Textual: set via pressing enable button id
+                try:
+                    enable_btn = self.query_one("#radio-semantic-enable", RadioButton)
+                    enable_btn.value = True
+                except Exception:
+                    pass
+            else:
+                try:
+                    skip_btn = self.query_one("#radio-semantic-skip", RadioButton)
+                    skip_btn.value = True
+                except Exception:
+                    pass
+            try:
+                check = self.query_one("#wizard-rerank-check", Checkbox)
+                check.value = False
+                check.disabled = not rec.recommend_enable
+            except Exception:
+                pass
+        except Exception as exc:
+            self.log_panel.log_warning(f"Semantic recommend failed: {exc}")
+
+    def on_radio_set_changed(self, event: RadioSet.Changed) -> None:
+        if event.radio_set.id != "wizard-semantic-radio":
+            return
+        try:
+            check = self.query_one("#wizard-rerank-check", Checkbox)
+            # index 0 = enable MiniLM
+            enabling = event.radio_set.pressed_index == 0
+            check.disabled = not enabling
+            if not enabling:
+                check.value = False
+        except Exception:
+            pass
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id or ""
         if btn_id == "btn-wizard-back":
@@ -325,7 +424,14 @@ class WizardScreen(Screen):
 
     def _skip_current_step(self) -> None:
         step = STEPS[self._current_step]
-        if step == STEP_CURSOR_CLI:
+        if step == STEP_SEMANTIC:
+            self.log_panel.log_info("Skipped semantic quality — hashing remains default")
+            try:
+                status = self.query_one("#wizard-semantic-status", Static)
+                status.update("[dim]● Skipped — FTS + PPR only (T0)[/]")
+            except Exception:
+                pass
+        elif step == STEP_CURSOR_CLI:
             self.log_panel.log_info(
                 "Skipped Cursor agent CLI — heuristic distill remains available"
             )
@@ -364,6 +470,7 @@ class WizardScreen(Screen):
             STEP_CLIENT: self._apply_client,
             STEP_INSTALL: self._run_install,
             STEP_DOCTOR: self._run_doctor,
+            STEP_SEMANTIC: self._apply_semantic,
             STEP_DISTILL: self._apply_distill_mode,
             STEP_CURSOR_CLI: self._run_cursor_cli,
             STEP_APIKEY: self._apply_api_key,
@@ -460,6 +567,86 @@ class WizardScreen(Screen):
             }
         except Exception as exc:
             return {"step": STEP_DOCTOR, "error": str(exc)}
+
+    def _apply_semantic(self) -> None:
+        """Step 5: consent for MiniLM (+ optional CE). Skip leaves defaults."""
+        try:
+            radio = self.query_one("#wizard-semantic-radio", RadioSet)
+            self._semantic_enable = radio.pressed_index == 0
+        except Exception:
+            self._semantic_enable = False
+        try:
+            check = self.query_one("#wizard-rerank-check", Checkbox)
+            self._semantic_rerank = bool(check.value) and self._semantic_enable
+        except Exception:
+            self._semantic_rerank = False
+
+        if not self._semantic_enable:
+            self.log_panel.log_info("Semantic quality skipped — hashing embeddings remain default")
+            try:
+                status = self.query_one("#wizard-semantic-status", Static)
+                status.update("[dim]● Skipped — FTS + PPR only (T0)[/]")
+            except Exception:
+                pass
+            self._advance()
+            return
+
+        self.log_panel.log_info(
+            f"Enabling MiniLM (rerank={self._semantic_rerank}) — may download ~90 MB…"
+        )
+        self._do_semantic_enable()
+
+    @work(thread=True, group="wizard", exit_on_error=False)
+    def _do_semantic_enable(self) -> dict[str, Any]:
+        import json
+
+        from brainkm.adapters.onnx_models import ensure_semantic_models
+        from brainkm.services.config_loader import config_path, load_brain_config
+        from brainkm.services.semantic import semantic_ready
+
+        ready = semantic_ready(self._project_dir)
+        missing_deps = not (
+            ready.get("onnxruntime")
+            and ready.get("tokenizers")
+            and ready.get("huggingface_hub")
+        )
+        if missing_deps:
+            return {
+                "step": STEP_SEMANTIC,
+                "error": (
+                    f"Missing [semantic] deps. Install with: {ready.get('deps_install_hint')} "
+                    "then re-run this step or enable in Config editor."
+                ),
+                "deps_hint": ready.get("deps_install_hint"),
+            }
+
+        flags = ensure_semantic_models(include_cross_encoder=self._semantic_rerank)
+        if not flags.get("biencoder"):
+            return {
+                "step": STEP_SEMANTIC,
+                "error": "MiniLM download/cache failed — left hashing; try again later.",
+            }
+        if self._semantic_rerank and not flags.get("cross_encoder"):
+            # Still enable semantic; warn about CE
+            ce_warn = "Cross-encoder cache failed — rerank will use cosine fallback."
+        else:
+            ce_warn = None
+
+        cfg = load_brain_config(self._project_dir)
+        data = cfg.model_dump(mode="json")
+        data.setdefault("semantic", {})
+        data["semantic"]["enabled"] = True
+        data.setdefault("recall", {})
+        data["recall"]["rerank"] = bool(self._semantic_rerank)
+        path = config_path(self._project_dir)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        return {
+            "step": STEP_SEMANTIC,
+            "enabled": True,
+            "rerank": self._semantic_rerank,
+            "warning": ce_warn,
+        }
 
     def _annotate_distill_radios(self) -> None:
         """Probe backends and annotate distill radio labels with readiness."""
@@ -793,6 +980,25 @@ class WizardScreen(Screen):
                     f"{state} Ollama {'reachable' if reachable else 'unreachable'} "
                     f"| Recommended: [bold]{recommended}[/]"
                 )
+            self._advance()
+
+        elif step == STEP_SEMANTIC:
+            status = self.query_one("#wizard-semantic-status", Static)
+            if result.get("error"):
+                self.log_panel.log_error(str(result["error"]))
+                status.update(f"[bold yellow]● {escape_markup(str(result['error']))}[/]")
+                # Advance anyway — T0 remains usable.
+                self._advance()
+                return
+            if result.get("warning"):
+                self.log_panel.log_warning(str(result["warning"]))
+            self.log_panel.log_success(
+                f"Semantic enabled (rerank={result.get('rerank', False)})"
+            )
+            status.update(
+                f"[bold green]✓ MiniLM enabled[/] "
+                f"(rerank={'on' if result.get('rerank') else 'off'})"
+            )
             self._advance()
 
         elif step == STEP_DISTILL:

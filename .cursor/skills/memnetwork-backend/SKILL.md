@@ -9,7 +9,7 @@ description: >-
 # MemNetwork Backend Development
 
 Guide for implementing features in the **brainkm** Python package.
-Current version: **0.3.1** (keep in lockstep with `pyproject.toml` and `__version__` — see the release checklist in `AGENTS.md`). Feature history lives in the Implementation status table of `docs/AI_PROJECT_BRIEF.md`; do not re-derive it here.
+Current version: **0.3.2** (keep in lockstep with `pyproject.toml` and `__version__` — see the release checklist in `AGENTS.md`). Feature history lives in the Implementation status table of `docs/AI_PROJECT_BRIEF.md`; do not re-derive it here.
 
 ## When to use this skill
 
@@ -24,17 +24,17 @@ Current version: **0.3.1** (keep in lockstep with `pyproject.toml` and `__versio
 | Path | Purpose |
 |------|---------|
 | `brainkm/brainkm/cli.py` | Typer CLI entry |
-| `brainkm/brainkm/server.py` | MCP stdio server; `TOOL_DEFINITIONS` registry (name, description, request model) |
+| `brainkm/brainkm/server.py` | MCP stdio/HTTP; `TOOL_DEFINITIONS` (name, description, request, response) |
 | `brainkm/brainkm/tools/dispatch.py` | All MCP handlers (`handle_<tool>`) + `dispatch_tool` router |
 | `brainkm/brainkm/config.py` | `get_settings()` env config |
 | `brainkm/brainkm/models/brain_config.py` | `.brain/config.json` schema |
 | `brainkm/brainkm/models/schemas.py` | MCP tool I/O models |
 | `brainkm/brainkm/services/` | Business logic — memory, recall, search, budget, snapshot, learning, procedures, review, write_queue, mcp_results, … |
-| `brainkm/brainkm/adapters/` | graphify, transcripts, redaction, distill (rules/cursor/ollama/groq) |
+| `brainkm/brainkm/adapters/` | graphify, transcripts, redaction, distill (rules/cursor/ollama/groq/mcp), embeddings/onnx |
 | `brainkm/brainkm/hooks/cursor/` | Installed hook + rule templates (`hooks.json`, `brainkm.mdc`) |
 | `brainkm/brainkm/hooks/claude/` | Claude Code hooks template |
 | `brainkm/brainkm/services/client_adapters.py` | Cursor / Claude / generic install adapters |
-| `brainkm/brainkm/tui/` | Optional Textual `brainkm configure` (wizard includes **Agent Client** step) |
+| `brainkm/brainkm/tui/` | Optional Textual `brainkm configure` (Agent Client + Semantic Quality consent) |
 | `brainkm/brainkm/db/` | SQLite connection (WAL), migrations, FTS5 |
 | `brainkm/tests/` | pytest suite (`tests/tui/` holds Textual snapshot tests) |
 | `.venv/` | Python venv at repo root |
@@ -72,7 +72,7 @@ Python **3.11 or 3.12** recommended.
 1. Define request/response models in `models/schemas.py`
 2. Implement the logic as a service function in `services/` (testable without MCP transport)
 3. Add `handle_<name>(conn, request, ...)` in `tools/dispatch.py` and route it in `dispatch_tool` via `_run_write` (WriteQueue)
-4. Register `(name, description, RequestModel)` in `TOOL_DEFINITIONS` in `server.py`
+4. Register `(name, description, RequestModel, ResponseModel)` in `TOOL_DEFINITIONS` in `server.py`
 5. Add tests in `tests/` (see `test_mcp_tools.py` for handler-level patterns)
 6. Update the tool tables in `docs/AI_PROJECT_BRIEF.md` §4 and `.cursor/rules/memnetwork-mcp-tools.mdc`
 
