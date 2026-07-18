@@ -55,7 +55,9 @@ def test_connect_claude_writes_project_mcp(tmp_path: Path) -> None:
     migrate(project_dir=tmp_path, run_integrity_check=False)
     run_connect("claude", tmp_path, transport="http", hooks=True, dev=True)
     assert (tmp_path / ".mcp.json").is_file()
-    assert (tmp_path / ".claude" / "hooks.json").is_file()
+    assert (tmp_path / ".claude" / "settings.json").is_file()
+    settings = json.loads((tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    assert "SessionStart" in settings["hooks"]
     mcp = json.loads((tmp_path / ".mcp.json").read_text(encoding="utf-8"))
     assert "url" in mcp["mcpServers"]["brainkm"]
 

@@ -448,11 +448,11 @@ flowchart LR
 |------|-------------|-------------|
 | **1. Project dir** | Confirm `--project-dir` or `cwd`. Warn if `.brain/` already exists. Auto-advances. | — |
 | **2. Which apps** | Checkboxes: Cursor / Claude / Codex. One app = simple stdio; two+ = shared HTTP. | checkboxes → `shared_mode` |
-| **3. Set up brain** | `run_install` (+ `connect` for extra apps); always enables `auto_observe`. Plain-language copy. | `install` / `connect` |
+| **3. Set up brain** | `run_install` (+ `connect` for extra apps); always enables `auto_observe`. Claude → `.claude/settings.json` hooks + `.mcp.json` + rules/skill; Cursor → `.cursor/hooks.json`. | `install` / `connect` |
 | **4–10** | Same as before (doctor, semantic, distill, …). | — |
-| **Done** | Plain next steps. Shared mode: **Start Brain** button (background `serve`). | `serve_helper.start_serve_background` |
+| **Done** | Plain next steps (Claude tip when selected). Shared mode: **Start Brain** button (background `serve`). | `serve_helper.start_serve_background` |
 
-Dashboard shows **Shared Brain** panel with Start/Stop for HTTP mode; simple mode says “no serve needed”.
+Dashboard **Shared Brain** panel shows Observe on/off; when a Claude install is present it also shows **Claude hooks** (`settings.json` vs missing).
 
 ---
 

@@ -45,18 +45,21 @@ brainkm semantic doctor
 
 PyPI / `uvx brainkm install`, MCP Registry listing, Cursor one-click deeplink, and a trusted-publishing release workflow are **intentionally deferred** while this repository stays private. Revisit after a stable cut is ready to open-source.
 
-## vs Cursor Memories / @codebase / Mem0
+## vs Cursor Memories / Claude Auto Memory / @codebase / Mem0
 
 | Job | Prefer |
 |-----|--------|
 | Cross-project user prefs | Cursor Memories |
+| Claude's private notes | Claude Auto Memory (`MEMORY.md`) — leave alone |
+| Authored Claude project rules | `CLAUDE.md` / `.claude/rules` |
 | "Where is symbol X?" | @codebase / Grep |
 | "Why did we choose X?" | **brainkm `recall`** |
 | "What calls X?" | **brainkm `traverse` / `context_pack`** |
 | Hosted multi-tenant memory | Mem0 / Zep — not the goal here |
 
-brainkm is **local-first**, **zero-LLM-default** (`rules` distill), and complementary to Cursor — not a second codebase index.
+brainkm is **local-first**, **zero-LLM-default** (`rules` distill), and complementary to Cursor / Claude — not a second codebase index. Claude silent memory installs into `.claude/settings.json` (see [INSTALL.md](docs/INSTALL.md)).
+
 
 ## Status
 
-**brainkm 0.4.0** — 8 MCP tools + typed `outputSchema` + resources, shared localhost brain (`serve` / `connect` / `doctor` + TUI Start Brain), hook-first passive capture (`auto_observe`), hybrid retrieval (real ONNX MiniLM when consented), weighted PPR, intent routing, compression/dedup/summary-first packs, feedback ranking, decay/consolidate, multi-client install (Cursor / Claude / Codex / generic) + guided TUI (app checkboxes, Semantic Quality), Claude JSONL capture, optional HTTP transport, latency bench, team neuron layer, import `--replace`. `remember` is pin/correct only — hooks fill the brain. See [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md) and [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+**brainkm 0.4.1** — Claude Code silent memory (`.claude/settings.json` hooks + `hookSpecificOutput`, subagent lifecycle, doctor/TUI verify) on top of 0.4.0: 8 MCP tools, shared localhost brain, hook-first `auto_observe`, hybrid retrieval, multi-client install (Cursor / Claude / Codex / generic) + guided TUI. `remember` is pin/correct only — hooks fill the brain. See [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md) and [docs/BENCHMARKS.md](docs/BENCHMARKS.md).

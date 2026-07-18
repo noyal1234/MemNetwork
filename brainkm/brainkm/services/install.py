@@ -141,6 +141,149 @@ def build_hooks_config(
     }
 
 
+def _claude_hook_command(brainkm_bin: str, *args: str, timeout: int | None = None) -> dict[str, object]:
+    """One Claude Code command-hook entry (nested under matcher groups)."""
+    cmd = f"{brainkm_bin} {' '.join(args)} --client claude"
+    entry: dict[str, object] = {"type": "command", "command": cmd}
+    if timeout is not None:
+        entry["timeout"] = timeout
+    return entry
+
+
+def _claude_event_group(
+    *handlers: dict[str, object],
+    matcher: str | None = None,
+) -> list[dict[str, object]]:
+    group: dict[str, object] = {"hooks": list(handlers)}
+    if matcher is not None:
+        group["matcher"] = matcher
+    return [group]
+
+
+def build_claude_hooks_config(
+    brainkm_bin: str,
+    *,
+    config: BrainConfig | None = None,
+) -> dict[str, object]:
+    """Claude Code hooks fragment for ``.claude/settings.json`` (PascalCase + nested)."""
+    cfg = config or BrainConfig()
+    matcher = pre_tool_matcher(cfg.injection.pre_tool_patterns)
+    # Claude uses Bash instead of Shell for the terminal tool.
+    claude_matcher = matcher.replace("Shell", "Bash") if matcher else "Write|Edit|Bash"
+    return {
+        "hooks": {
+            "SessionStart": _claude_event_group(
+                _claude_hook_command(brainkm_bin, "session-start", "--stdin", timeout=30),
+            ),
+            "SessionEnd": _claude_event_group(
+                _claude_hook_command(brainkm_bin, "session-end", "--stdin", timeout=120),
+            ),
+            "PreCompact": _claude_event_group(
+                _claude_hook_command(brainkm_bin, "handover", "--stdin", timeout=30),
+                matcher="manual|auto",
+            ),
+            "PostCompact": _claude_event_group(
+                _claude_hook_command(brainkm_bin, "post-compact", "--stdin", timeout=30),
+            ),
+            "PreToolUse": _claude_event_group(
+                _claude_hook_command(brainkm_bin, "pre-tool", "--stdin", timeout=15),
+                matcher=claude_matcher,
+            ),
+            "PostToolUse": _claude_event_group(
+                _claude_hook_command(brainkm_bin, "post-tool", "--stdin", timeout=15),
+            ),
+            "PostToolUseFailure": _claude_event_group(
+                _claude_hook_command(brainkm_bin, "post-tool-failure", "--stdin", timeout=15),
+            ),
+            "UserPromptSubmit": _claude_event_group(
+                _claude_hook_command(brainkm_bin, "user-prompt", "--stdin", timeout=15),
+            ),
+            "SubagentStart": _claude_event_group(
+                _claude_hook_command(brainkm_bin, "subagent-start", "--stdin", timeout=30),
+            ),
+            "SubagentStop": _claude_event_group(
+                _claude_hook_command(brainkm_bin, "subagent-stop", "--stdin", timeout=60),
+            ),
+            "Stop": _claude_event_group(
+                _claude_hook_command(brainkm_bin, "agent-stop", "--stdin", timeout=15),
+            ),
+        },
+    }
+
+
+def _command_contains_brainkm(command: str) -> bool:
+    return "brainkm" in command
+
+
+def _claude_group_has_brainkm(group: object) -> bool:
+    if not isinstance(group, dict):
+        return False
+    hooks = group.get("hooks")
+    if not isinstance(hooks, list):
+        return False
+    for item in hooks:
+        if isinstance(item, dict) and _command_contains_brainkm(str(item.get("command", ""))):
+            return True
+    return False
+
+
+def _merge_claude_event_groups(
+    existing: list[object],
+    incoming: list[object],
+) -> list[object]:
+    """Keep foreign matcher groups; replace prior brainkm groups with incoming."""
+    kept = [row for row in existing if not _claude_group_has_brainkm(row)]
+    for row in incoming:
+        if isinstance(row, dict):
+            kept.append(row)
+    return kept
+
+
+def merge_claude_settings_hooks(
+    existing_settings: dict[str, object],
+    incoming_hooks: dict[str, object],
+) -> dict[str, object]:
+    """Merge brainkm hooks into Claude ``.claude/settings.json`` without clobbering other keys."""
+    merged = dict(existing_settings)
+    incoming = incoming_hooks.get("hooks")
+    if not isinstance(incoming, dict):
+        return merged
+
+    existing_hooks = merged.get("hooks")
+    hooks_out: dict[str, object] = (
+        dict(existing_hooks) if isinstance(existing_hooks, dict) else {}
+    )
+    for event, groups in incoming.items():
+        if not isinstance(groups, list):
+            continue
+        current = hooks_out.get(event)
+        if isinstance(current, list):
+            hooks_out[event] = _merge_claude_event_groups(current, groups)
+        else:
+            hooks_out[event] = list(groups)
+    merged["hooks"] = hooks_out
+    return merged
+
+
+def write_claude_settings_hooks(
+    settings_path: Path,
+    brainkm_bin: str,
+    *,
+    config: BrainConfig | None = None,
+) -> dict[str, object]:
+    """Write/merge Claude silent-memory hooks into ``.claude/settings.json``."""
+    incoming = build_claude_hooks_config(brainkm_bin, config=config)
+    if settings_path.is_file():
+        existing = json.loads(settings_path.read_text(encoding="utf-8"))
+        if not isinstance(existing, dict):
+            existing = {}
+    else:
+        existing = {}
+    merged = merge_claude_settings_hooks(existing, incoming)
+    _write_json(settings_path, merged)
+    return merged
+
+
 def build_mcp_config(
     *,
     dev: bool,
@@ -408,6 +551,11 @@ def run_install(
                 result.files_written.append(skill_dst)
 
     if adapter.kind == "claude":
+        # Silent observe on by default for Claude (agentmemory-style capture-on).
+        cfg = cfg.model_copy(
+            update={"capture": cfg.capture.model_copy(update={"auto_observe": True})}
+        )
+
         mcp_path = root / ".mcp.json"
         if mcp_path.is_file():
             existing_mcp = json.loads(mcp_path.read_text(encoding="utf-8"))
@@ -419,15 +567,46 @@ def run_install(
 
         claude_dir = root / ".claude"
         claude_dir.mkdir(parents=True, exist_ok=True)
-        claude_hooks_dst = claude_dir / "hooks.json"
-        claude_hooks = build_hooks_config(brainkm_bin, config=cfg)
-        hooks_dict = claude_hooks.get("hooks")
-        if isinstance(hooks_dict, dict) and "postCompact" not in hooks_dict:
-            hooks_dict["postCompact"] = [
-                {"command": f"{brainkm_bin} post-compact --project-dir ."}
-            ]
-        _write_json(claude_hooks_dst, claude_hooks)
-        result.files_written.append(claude_hooks_dst)
+        settings_path = claude_dir / "settings.json"
+        write_claude_settings_hooks(settings_path, brainkm_bin, config=cfg)
+        result.files_written.append(settings_path)
+
+        legacy_hooks = claude_dir / "hooks.json"
+        if legacy_hooks.is_file():
+            result.warnings.append(
+                "Legacy .claude/hooks.json found — Claude Code loads hooks from "
+                ".claude/settings.json only. Safe to delete the legacy file after verifying "
+                "settings hooks with `brainkm doctor`."
+            )
+
+        # Path-scoped routing rule (Claude equivalent of brainkm.mdc).
+        rule_src = (
+            Path(__file__).resolve().parents[1] / "hooks" / "claude" / "rules" / "brainkm.md"
+        )
+        if rule_src.is_file():
+            rule_dst = claude_dir / "rules" / "brainkm.md"
+            if rule_dst.is_file() and not force:
+                result.files_skipped.append(rule_dst)
+            else:
+                _write_text(rule_dst, rule_src.read_text(encoding="utf-8"))
+                result.files_written.append(rule_dst)
+
+        skill_src = (
+            Path(__file__).resolve().parents[1]
+            / "hooks"
+            / "claude"
+            / "skills"
+            / "brainkm-routing"
+            / "SKILL.md"
+        )
+        if skill_src.is_file():
+            skill_dst = claude_dir / "skills" / "brainkm-routing" / "SKILL.md"
+            if skill_dst.is_file() and not force:
+                result.files_skipped.append(skill_dst)
+            else:
+                _write_text(skill_dst, skill_src.read_text(encoding="utf-8"))
+                result.files_written.append(skill_dst)
+
         agents_path = root / "CLAUDE.md"
         if agents_path.is_file() and not force:
             existing = agents_path.read_text(encoding="utf-8")
@@ -480,7 +659,15 @@ def run_install(
     result.files_written.append(example_dst)
 
     config_dst = brain_root / "config.json"
-    if config_dst.is_file() and not force and config is None and not http:
+    # Claude install always persists auto_observe=true (and other cfg updates).
+    must_save_config = (
+        force
+        or config is not None
+        or http
+        or adapter.kind == "claude"
+        or not config_dst.is_file()
+    )
+    if not must_save_config:
         result.files_skipped.append(config_dst)
     else:
         save_brain_config(root, cfg)

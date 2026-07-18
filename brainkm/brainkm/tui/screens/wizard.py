@@ -65,12 +65,15 @@ APP_CHECKBOXES: list[tuple[str, str, str]] = [
 INSTALL_PLAIN: dict[str, str] = {
     "single": (
         "We'll set up silent memory for one app. You won't need an extra terminal — "
-        "your coding app starts the brain automatically. Silent capture stays on."
+        "your coding app starts the brain automatically. Silent capture stays on.\n"
+        "Claude Code → hooks in .claude/settings.json + .mcp.json "
+        "(not .claude/hooks.json). Cursor → .cursor/hooks.json."
     ),
     "shared": (
         "You use more than one coding app. We'll share one brain across them.\n"
         "Later you'll click Start Brain (or leave one small terminal open while you code). "
-        "You only do that once per day — not for every chat."
+        "You only do that once per day — not for every chat.\n"
+        "Claude hooks land in .claude/settings.json; Cursor in .cursor/hooks.json."
     ),
 }
 
@@ -356,6 +359,13 @@ class WizardScreen(Screen):
     def _refresh_done_step(self) -> None:
         """Plain-language next steps + enable Start Brain when shared mode."""
         shared = self._shared_mode
+        apps = list(self._selected_apps) or [self._client]
+        claude_note = ""
+        if "claude" in apps:
+            claude_note = (
+                "\nClaude Code: hooks live in `.claude/settings.json` "
+                "(leave Claude Auto Memory alone). Verify with `brainkm doctor`."
+            )
         try:
             next_el = self.query_one("#wizard-done-next-steps", Static)
             start_btn = self.query_one("#btn-wizard-start-serve", Button)
@@ -366,6 +376,7 @@ class WizardScreen(Screen):
                     "`brainkm serve` running).\n"
                     "2. Open Cursor / Claude / Codex as usual — they share the same memory.\n"
                     "You do [not] need to start the brain for every chat — only once while you work."
+                    + claude_note
                 )
                 start_btn.disabled = False
             else:
@@ -374,6 +385,7 @@ class WizardScreen(Screen):
                     "Just open your coding app and work. Memory starts automatically — "
                     "no extra terminals, no serve command.\n"
                     "Silent capture is on: useful decisions stick around without you clicking Remember."
+                    + claude_note
                 )
                 start_btn.disabled = True
         except Exception:
@@ -1091,6 +1103,11 @@ class WizardScreen(Screen):
             apps = ", ".join(result.get("apps") or [result.get("client", self._client)])
             mode = "shared" if self._shared_mode else "simple"
             status.update(f"[bold green]✓ Brain ready[/] ({mode}: {apps})")
+            if "claude" in (result.get("apps") or [result.get("client")]):
+                self.log_panel.log_info(
+                    "Claude: hooks in .claude/settings.json — leave Auto Memory alone; "
+                    "brainkm holds team decisions + graph. Run `brainkm doctor` to verify."
+                )
             self._advance()
 
         elif step == "start_serve":

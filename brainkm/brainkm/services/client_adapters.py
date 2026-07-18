@@ -83,13 +83,24 @@ class ClaudeClientAdapter:
             "postToolUse",
             "userPromptSubmit",
             "postToolUseFailure",
+            "subagentStart",
+            "subagentStop",
+            "stop",
         ]
 
     def transcript_style(self) -> str:
         return "claude_jsonl"
 
     def agents_snippet(self) -> str:
-        return AGENTS_SNIPPET + "\nInstalled for Claude Code via `brainkm install --client claude`.\n"
+        return (
+            AGENTS_SNIPPET
+            + "\nInstalled for Claude Code via `brainkm install --client claude`.\n"
+            + "\n## Coexistence with Claude native memory\n\n"
+            + "- **CLAUDE.md / `.claude/rules`** = authored project instructions (static).\n"
+            + "- **Claude Auto Memory (`MEMORY.md`)** = Claude's private notes — leave alone.\n"
+            + "- **brainkm** = searchable project brain (decisions, graph, compaction survival).\n"
+            + "Prefs/debug notes stay in Auto Memory; durable team decisions → brainkm MCP.\n"
+        )
 
     def config_dir_name(self) -> str:
         return ".claude"

@@ -9,7 +9,7 @@
 
 ## 1. Product vision
 
-**MemNetwork** is a **local, project-scoped augmented brain** for Cursor (and eventually Claude Code). It captures architectural decisions from chat and plans, maps code structure via an AST graph, and injects bounded context so agents stop re-reading files and re-explaining past decisions.
+**MemNetwork** is a **local, project-scoped augmented brain** for Cursor and Claude Code (Codex connect supported). It captures architectural decisions from chat and plans, maps code structure via an AST graph, and injects bounded context so agents stop re-reading files and re-explaining past decisions.
 
 | Principle | Meaning |
 |-----------|---------|
@@ -119,7 +119,7 @@ MemNetwork/
 
 ## 4. MCP tool contract (V1 / current)
 
-**Package version:** `0.4.0`
+**Package version:** `0.4.1`
 
 | Tool | Purpose |
 |------|---------|
@@ -332,6 +332,7 @@ All distill modes share Cursor chrome cleaning (`clean_cursor_text` / `is_distil
 | **0.3.2** | Done | Real ONNX MiniLM + CE rerank (opt-in `[semantic]`); wizard **Semantic Quality** consent after Hardware Doctor; typed MCP `outputSchema`; Claude JSONL capture; MCP sampling callback hook; TUI knobs for semantic/rerank/decay; BENCHMARKS local latency numbers |
 | **0.4.0** | Done | Shared localhost brain: `serve` / `connect` / `doctor`, URL MCP, `/health`, TUI app checkboxes + Start Brain; Claude `.mcp.json` + Codex adapter; `capture.auto_observe` (PostToolUse / prompts / failures → capped observations → SessionEnd promote); `remember` demoted to pin/correct in rules/docs |
 | **Nodal adopt** | Done | Lifecycle ladder (observation TTL, episode, `distilled_from`); `about_file`/`about_symbol` + hook file seeds; concept materializer; Seed→Expand→Diversify→Budget→Abstain; pack quotas; `consolidate --llm`; temporal supersede meta; team tags; skill pack; scorecard bench; `file-history` / `provenance` / `demo` CLI |
+| **0.4.1** | Done | Claude Code silent memory parity: `.claude/settings.json` hooks + `hookSpecificOutput`; SubagentStart/Stop + Stop; Claude-default `auto_observe`; `.claude/rules` + routing skill; doctor dry-run; TUI copy/dashboard Claude hooks status; coexistence with CLAUDE.md / Auto Memory |
 | **Public distribution** | **Deferred** | PyPI / `uvx` zero-clone install, trusted-publishing + public CI matrix, MCP Registry listing, Cursor deeplink — wait until repo is public and a stable version ships. Local path: `brainkm install --dev`. |
 | **V3+ polish** | Ongoing | Packaged ONNX MiniLM weights, cross-encoder reranker weights, refreshed public bench numbers after open-source |
 

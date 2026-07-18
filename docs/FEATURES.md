@@ -60,12 +60,25 @@ Hooks wire brainkm into the agent lifecycle so memory keeps working while you vi
 
 | Event | Cursor | Claude | Codex | Notes |
 |-------|--------|--------|-------|-------|
-| SessionStart injection | yes | yes | yes | Frozen pack; no MCP required |
+| SessionStart injection | yes | yes | yes | Frozen pack; Claude uses `hookSpecificOutput` |
 | SessionEnd distill + observe promote | yes | yes | yes | Primary memory path |
 | PreCompact handover | yes | yes | yes | |
-| PostToolUse observe | yes | yes | yes | Needs `capture.auto_observe` |
+| PostCompact refresh | — | yes | — | Claude-only; refreshes frozen pack |
+| PostToolUse observe | yes | yes | yes | Claude install enables `auto_observe` by default |
 | UserPromptSubmit | yes | yes | — | Gist only |
 | PostToolUseFailure | — | yes | — | Cursor: failure payload on PostToolUse |
+| SubagentStart / SubagentStop | — | yes | — | Multi-agent silent path |
+| Stop | — | yes | — | Flush use counts / optional gist |
+
+Claude hooks install into **`.claude/settings.json`** (not `.claude/hooks.json`). MCP is project **`.mcp.json`**.
+
+### Coexistence with Claude native memory
+
+| Layer | Role |
+|-------|------|
+| `CLAUDE.md` / `.claude/rules` | Authored static instructions |
+| Claude Auto Memory (`MEMORY.md`) | Claude's private notes — brainkm does not write here |
+| brainkm (`.brain/brain.db`) | Searchable decisions, Graphify, compaction survival |
 
 ### Shared localhost brain
 

@@ -1,8 +1,8 @@
 # brainkm
 
-Local project brain for Cursor — MCP server backed by SQLite FTS5 and a weighted knowledge graph.
+Local project brain for Cursor and Claude Code — MCP server backed by SQLite FTS5 and a weighted knowledge graph.
 
-**Version:** `0.4.0`
+**Version:** `0.4.1`
 
 ## Requirements
 
@@ -18,7 +18,8 @@ From the MemNetwork repo root:
 bash brainkm/scripts/setup_dev.sh
 source .venv/bin/activate
 pip install -e "./brainkm[tui]"   # optional but recommended
-brainkm configure                 # guided setup (or: brainkm install --dev)
+brainkm configure                 # guided setup (pick Cursor / Claude / Codex)
+# or: brainkm install --dev --client claude
 brainkm version
 ```
 
@@ -30,7 +31,14 @@ source .venv/bin/activate
 pip install -e "./brainkm[dev,graphify]"
 ```
 
-**Memory path:** hooks + `capture.auto_observe` fill the brain; MCP `remember` is pin/correct only. Shared multi-app: Dashboard → Start Brain (or `brainkm serve` + `connect --http`).
+**Memory path:** hooks + `capture.auto_observe` fill the brain; MCP `remember` is pin/correct only.
+
+| Client | Hooks | MCP |
+|--------|-------|-----|
+| Cursor | `.cursor/hooks.json` | `.cursor/mcp.json` |
+| Claude Code | `.claude/settings.json` | project `.mcp.json` |
+
+Claude native Auto Memory (`MEMORY.md`) stays separate — brainkm does not write it. Shared multi-app: Dashboard → Start Brain (or `brainkm serve` + `connect --http`). Verify Claude with `brainkm doctor`.
 ## Code graph (Graphify)
 
 Recommended for `context_pack` / `traverse` navigation:

@@ -109,6 +109,14 @@ def capture_cmd(
     )
 
 
+def _hook_client_option() -> str:
+    return typer.Option(
+        "cursor",
+        "--client",
+        help="Hook host: cursor | claude (stdout envelope + fail-soft for claude)",
+    )
+
+
 @app.command("handover")
 def handover_cmd(
     transcript: Path | None = typer.Argument(
@@ -126,11 +134,15 @@ def handover_cmd(
         "--stdin",
         help="Read PreCompact hook payload JSON from stdin",
     ),
+    client: str = _hook_client_option(),
 ) -> None:
     """PreCompact handover: distill transcript, WAL checkpoint, exit 0 when durable."""
     import sys
 
     from brainkm.services.handover import run_handover, run_handover_from_stdin
+
+    kind = (client or "cursor").strip().lower()
+    fail_soft = kind == "claude"
 
     try:
         if stdin:
@@ -145,22 +157,27 @@ def handover_cmd(
         else:
             typer.echo("Provide a transcript path or use --stdin", err=True)
             raise typer.Exit(code=1)
-    except (ValueError, FileNotFoundError, json.JSONDecodeError) as exc:
+    except Exception as exc:
         logger.error("handover failed: %s", exc)
+        if fail_soft:
+            raise typer.Exit(code=0) from exc
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
 
-    if result.skipped:
-        typer.echo(f"Skipped: {result.reason}")
-    else:
-        export_note = f", export={result.export_path.name}" if result.export_path else ""
-        typer.echo(
-            f"Handover session {result.session_id}: "
-            f"{result.chunk_count} chunks, {result.neuron_count} neurons "
-            f"({result.distill_mode}){export_note}"
-        )
+    if kind != "claude":
+        if result.skipped:
+            typer.echo(f"Skipped: {result.reason}")
+        else:
+            export_note = f", export={result.export_path.name}" if result.export_path else ""
+            typer.echo(
+                f"Handover session {result.session_id}: "
+                f"{result.chunk_count} chunks, {result.neuron_count} neurons "
+                f"({result.distill_mode}){export_note}"
+            )
 
     if not result.checkpoint_ok:
+        if fail_soft:
+            raise typer.Exit(code=0)
         typer.echo("WAL checkpoint failed — compaction may race brain.db writes", err=True)
         raise typer.Exit(code=1)
 
@@ -382,27 +399,47 @@ def install_cmd(
         typer.echo(f"  warning: {warning}", err=True)
 
 
-def _run_stdin_hook(handler_name: str, handler, *, cursor_event: str | None = None) -> None:
+def _run_stdin_hook(
+    handler_name: str,
+    handler,
+    *,
+    event: str | None = None,
+    client: str = "cursor",
+) -> None:
     import sys
 
-    from brainkm.services.hooks import build_cursor_hook_stdout
+    from brainkm.services.hooks import build_claude_hook_stdout, build_cursor_hook_stdout
+
+    kind = (client or "cursor").strip().lower()
+    fail_soft = kind == "claude"
 
     try:
         payload = sys.stdin.read()
         result = handler(payload)
-    except (ValueError, FileNotFoundError, json.JSONDecodeError) as exc:
+    except Exception as exc:
         logger.error("%s failed: %s", handler_name, exc)
+        if fail_soft:
+            # Never block Claude Code sessions / tool use.
+            raise typer.Exit(code=0) from exc
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
 
-    if cursor_event is not None:
+    if event is not None:
         if result.skipped:
             logger.info("%s skipped: %s", handler_name, result.reason)
         else:
             logger.info("%s ok session_id=%s", handler_name, result.session_id)
-        typer.echo(json.dumps(build_cursor_hook_stdout(result, cursor_event)))
+        if kind == "claude":
+            payload_out = build_claude_hook_stdout(result, event)
+            if payload_out is not None:
+                typer.echo(json.dumps(payload_out))
+            return
+        typer.echo(json.dumps(build_cursor_hook_stdout(result, event)))
         return
 
+    # Capture-only hooks: Claude prints nothing; Cursor keeps human-readable status.
+    if kind == "claude":
+        return
     if result.skipped:
         typer.echo(f"Skipped: {result.reason}")
     else:
@@ -413,6 +450,7 @@ def _run_stdin_hook(handler_name: str, handler, *, cursor_event: str | None = No
 def session_start_cmd(
     project_dir: Path | None = typer.Option(None, "--project-dir"),
     stdin: bool = typer.Option(True, "--stdin", help="Read hook payload JSON from stdin"),
+    client: str = _hook_client_option(),
 ) -> None:
     """SessionStart hook — migrate brain.db and prepare session."""
     from brainkm.services.hooks import run_session_start
@@ -424,7 +462,8 @@ def session_start_cmd(
     _run_stdin_hook(
         "SessionStart",
         lambda raw: run_session_start(raw, project_dir=project_dir),
-        cursor_event="sessionStart",
+        event="sessionStart",
+        client=client,
     )
 
 
@@ -432,6 +471,7 @@ def session_start_cmd(
 def session_end_cmd(
     project_dir: Path | None = typer.Option(None, "--project-dir"),
     stdin: bool = typer.Option(True, "--stdin", help="Read hook payload JSON from stdin"),
+    client: str = _hook_client_option(),
 ) -> None:
     """SessionEnd hook — capture transcript into neurons."""
     from brainkm.services.hooks import run_session_end
@@ -443,6 +483,7 @@ def session_end_cmd(
     _run_stdin_hook(
         "SessionEnd",
         lambda raw: run_session_end(raw, project_dir=project_dir),
+        client=client,
     )
 
 
@@ -450,6 +491,7 @@ def session_end_cmd(
 def pre_tool_cmd(
     project_dir: Path | None = typer.Option(None, "--project-dir"),
     stdin: bool = typer.Option(True, "--stdin", help="Read hook payload JSON from stdin"),
+    client: str = _hook_client_option(),
 ) -> None:
     """PreToolUse hook — inject bounded context_pack for matched write/edit/shell tools."""
     from brainkm.services.hooks import run_pre_tool_use
@@ -461,7 +503,8 @@ def pre_tool_cmd(
     _run_stdin_hook(
         "PreToolUse",
         lambda raw: run_pre_tool_use(raw, project_dir=project_dir),
-        cursor_event="preToolUse",
+        event="preToolUse",
+        client=client,
     )
 
 
@@ -586,6 +629,7 @@ def bench_calibrate_cmd(
 def post_compact_cmd(
     project_dir: Path | None = typer.Option(None, "--project-dir"),
     stdin: bool = typer.Option(True, "--stdin", help="Read hook payload JSON from stdin"),
+    client: str = _hook_client_option(),
 ) -> None:
     """PostCompact hook — refresh frozen injection snapshot after compaction."""
     from brainkm.services.hooks import run_post_compact
@@ -597,7 +641,8 @@ def post_compact_cmd(
     _run_stdin_hook(
         "PostCompact",
         lambda raw: run_post_compact(raw, project_dir=project_dir),
-        cursor_event="postCompact",
+        event="postCompact",
+        client=client,
     )
 
 
@@ -605,6 +650,7 @@ def post_compact_cmd(
 def post_tool_cmd(
     project_dir: Path | None = typer.Option(None, "--project-dir"),
     stdin: bool = typer.Option(True, "--stdin", help="Read hook payload JSON from stdin"),
+    client: str = _hook_client_option(),
 ) -> None:
     """PostToolUse hook — observations, graph sync, co-activation learning."""
     from brainkm.services.hooks import run_post_tool_use
@@ -616,7 +662,8 @@ def post_tool_cmd(
     _run_stdin_hook(
         "PostToolUse",
         lambda raw: run_post_tool_use(raw, project_dir=project_dir, failed=False),
-        cursor_event="postToolUse",
+        event="postToolUse",
+        client=client,
     )
 
 
@@ -624,6 +671,7 @@ def post_tool_cmd(
 def post_tool_failure_cmd(
     project_dir: Path | None = typer.Option(None, "--project-dir"),
     stdin: bool = typer.Option(True, "--stdin", help="Read hook payload JSON from stdin"),
+    client: str = _hook_client_option(),
 ) -> None:
     """PostToolUseFailure hook — record failure observation."""
     from brainkm.services.hooks import run_post_tool_use
@@ -635,7 +683,7 @@ def post_tool_failure_cmd(
     _run_stdin_hook(
         "PostToolUseFailure",
         lambda raw: run_post_tool_use(raw, project_dir=project_dir, failed=True),
-        cursor_event="postToolUseFailure",
+        client=client,
     )
 
 
@@ -643,6 +691,7 @@ def post_tool_failure_cmd(
 def user_prompt_cmd(
     project_dir: Path | None = typer.Option(None, "--project-dir"),
     stdin: bool = typer.Option(True, "--stdin", help="Read hook payload JSON from stdin"),
+    client: str = _hook_client_option(),
 ) -> None:
     """UserPromptSubmit hook — capped prompt gist observation."""
     from brainkm.services.hooks import run_user_prompt_submit
@@ -654,7 +703,67 @@ def user_prompt_cmd(
     _run_stdin_hook(
         "UserPromptSubmit",
         lambda raw: run_user_prompt_submit(raw, project_dir=project_dir),
-        cursor_event="userPromptSubmit",
+        client=client,
+    )
+
+
+@app.command("subagent-start")
+def subagent_start_cmd(
+    project_dir: Path | None = typer.Option(None, "--project-dir"),
+    stdin: bool = typer.Option(True, "--stdin", help="Read hook payload JSON from stdin"),
+    client: str = _hook_client_option(),
+) -> None:
+    """SubagentStart hook — register subagent session activity (Claude)."""
+    from brainkm.services.hooks import run_subagent_start
+
+    if not stdin:
+        typer.echo("--stdin is required for subagent-start hook", err=True)
+        raise typer.Exit(code=1)
+
+    _run_stdin_hook(
+        "SubagentStart",
+        lambda raw: run_subagent_start(raw, project_dir=project_dir),
+        client=client,
+    )
+
+
+@app.command("subagent-stop")
+def subagent_stop_cmd(
+    project_dir: Path | None = typer.Option(None, "--project-dir"),
+    stdin: bool = typer.Option(True, "--stdin", help="Read hook payload JSON from stdin"),
+    client: str = _hook_client_option(),
+) -> None:
+    """SubagentStop hook — promote observations for the subagent session (Claude)."""
+    from brainkm.services.hooks import run_subagent_stop
+
+    if not stdin:
+        typer.echo("--stdin is required for subagent-stop hook", err=True)
+        raise typer.Exit(code=1)
+
+    _run_stdin_hook(
+        "SubagentStop",
+        lambda raw: run_subagent_stop(raw, project_dir=project_dir),
+        client=client,
+    )
+
+
+@app.command("agent-stop")
+def agent_stop_cmd(
+    project_dir: Path | None = typer.Option(None, "--project-dir"),
+    stdin: bool = typer.Option(True, "--stdin", help="Read hook payload JSON from stdin"),
+    client: str = _hook_client_option(),
+) -> None:
+    """Stop hook — flush use counts / optional stop gist (Claude)."""
+    from brainkm.services.hooks import run_agent_stop
+
+    if not stdin:
+        typer.echo("--stdin is required for agent-stop hook", err=True)
+        raise typer.Exit(code=1)
+
+    _run_stdin_hook(
+        "Stop",
+        lambda raw: run_agent_stop(raw, project_dir=project_dir),
+        client=client,
     )
 
 

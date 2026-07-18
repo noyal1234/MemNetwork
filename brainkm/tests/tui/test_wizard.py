@@ -76,7 +76,7 @@ async def test_wizard_claude_client_install(tmp_path: Path) -> None:
         await pilot.pause(2.0)
 
         assert (tmp_path / ".brain").is_dir()
-        assert (tmp_path / ".claude" / "hooks.json").is_file()
+        assert (tmp_path / ".claude" / "settings.json").is_file()
         assert (tmp_path / "CLAUDE.md").is_file()
         cfg = json.loads((tmp_path / ".brain" / "config.json").read_text(encoding="utf-8"))
         assert cfg["capture"]["auto_observe"] is True

@@ -15,6 +15,7 @@ from brainkm.services.install import (
     merge_hooks_json,
     resolve_hook_command,
     resolve_project_dir,
+    write_claude_settings_hooks,
 )
 from brainkm.services.mcp_transport import (
     BRAINKM_MCP_SERVER_KEY,
@@ -81,7 +82,7 @@ def hooks_path_for_client(project_dir: Path, client: str) -> Path | None:
     if kind == "cursor":
         return project_dir / ".cursor" / "hooks.json"
     if kind == "claude":
-        return project_dir / ".claude" / "hooks.json"
+        return project_dir / ".claude" / "settings.json"
     if kind == "codex":
         return project_dir / ".codex" / "hooks.json"
     return None
@@ -133,33 +134,35 @@ def run_connect(
         hooks_path = hooks_path_for_client(root, kind)
         if hooks_path is not None:
             brainkm_bin = resolve_hook_command(dev=dev)
-            hooks_payload = build_hooks_config(brainkm_bin)
             if kind == "claude":
-                hooks_payload.setdefault("hooks", {})
-                hooks_dict = hooks_payload["hooks"]
-                if isinstance(hooks_dict, dict) and "postCompact" not in hooks_dict:
-                    hooks_dict["postCompact"] = [
-                        {"command": f"{brainkm_bin} post-compact --project-dir ."}
-                    ]
-            if kind == "cursor":
-                # Strip unsupported events via merge_hooks_json.
+                write_claude_settings_hooks(hooks_path, brainkm_bin)
+                result.files_written.append(hooks_path)
+                legacy = root / ".claude" / "hooks.json"
+                if legacy.is_file():
+                    result.warnings.append(
+                        "Legacy .claude/hooks.json found — Claude loads "
+                        ".claude/settings.json; remove the legacy file after verifying doctor."
+                    )
+            elif kind == "cursor":
+                hooks_payload = build_hooks_config(brainkm_bin)
                 if hooks_path.is_file():
                     existing = json.loads(hooks_path.read_text(encoding="utf-8"))
                     merged = merge_hooks_json(existing, hooks_payload)
                 else:
                     merged = merge_hooks_json({}, hooks_payload)
                 _write_json(hooks_path, merged)
+                result.files_written.append(hooks_path)
             else:
+                hooks_payload = build_hooks_config(brainkm_bin)
                 if hooks_path.is_file():
                     existing = json.loads(hooks_path.read_text(encoding="utf-8"))
-                    # Codex/Claude: deep-merge without stripping postCompact.
                     from brainkm.services.install import _deep_merge_dict
 
                     merged = _deep_merge_dict(existing, hooks_payload)
                     _write_json(hooks_path, merged)
                 else:
                     _write_json(hooks_path, hooks_payload)
-            result.files_written.append(hooks_path)
+                result.files_written.append(hooks_path)
 
     if update_config:
         cfg = load_brain_config(root)
@@ -169,7 +172,7 @@ def run_connect(
             "http_host": host,
             "http_port": port,
         }
-        if transport == "http":
+        if transport == "http" or kind == "claude":
             capture = data.setdefault("capture", {})
             if isinstance(capture, dict):
                 capture["auto_observe"] = True

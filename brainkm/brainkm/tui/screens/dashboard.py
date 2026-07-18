@@ -274,16 +274,21 @@ class DashboardScreen(Screen):
     def _load_serve_status(self) -> dict[str, Any]:
         try:
             from brainkm.services.config_loader import load_brain_config
+            from brainkm.services.mcp_doctor import claude_hooks_wired
             from brainkm.services.serve_helper import get_serve_status
 
             cfg = load_brain_config(self._project_dir)
             status = get_serve_status(self._project_dir)
+            claude_dir = (self._project_dir / ".claude").is_dir() or (
+                self._project_dir / ".mcp.json"
+            ).is_file()
             return {
                 "running": status.running,
                 "transport": cfg.mcp.transport,
                 "auto_observe": cfg.capture.auto_observe,
                 "url": status.health_url,
                 "detail": status.detail,
+                "claude_hooks": claude_hooks_wired(self._project_dir) if claude_dir else None,
             }
         except Exception as exc:
             return {"error": str(exc), "running": False, "transport": "?"}
@@ -297,27 +302,30 @@ class DashboardScreen(Screen):
             return
         transport = str(data.get("transport", "?"))
         running = bool(data.get("running"))
+        items: list[tuple[str, str, str]]
         if transport == "stdio":
-            panel.set_items(
-                [
-                    ("Mode", "simple (auto)", "ok"),
-                    ("Observe", "on" if data.get("auto_observe") else "off", "ok"),
-                    ("Note", "no serve needed", "muted"),
-                ]
-            )
+            items = [
+                ("Mode", "simple (auto)", "ok"),
+                ("Observe", "on" if data.get("auto_observe") else "off", "ok"),
+                ("Note", "no serve needed", "muted"),
+            ]
             start_btn.disabled = True
             stop_btn.disabled = True
-            return
-        panel.set_items(
-            [
+        else:
+            items = [
                 ("Mode", "shared HTTP", "accent"),
                 ("Server", "running" if running else "stopped", "ok" if running else "warning"),
                 ("Observe", "on" if data.get("auto_observe") else "off", "ok"),
                 ("URL", str(data.get("url", ""))[:48], "muted"),
             ]
-        )
-        start_btn.disabled = running
-        stop_btn.disabled = not running
+            start_btn.disabled = running
+            stop_btn.disabled = not running
+        claude_hooks = data.get("claude_hooks")
+        if claude_hooks is True:
+            items.append(("Claude hooks", "settings.json", "ok"))
+        elif claude_hooks is False:
+            items.append(("Claude hooks", "missing", "warning"))
+        panel.set_items(items)
 
     # --- Ollama ---
 

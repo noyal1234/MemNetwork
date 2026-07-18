@@ -1,6 +1,6 @@
 [project]
 name = "brainkm"
-version = "0.4.0"
+version = "0.4.1"
 description = "MemNetwork — local project brain MCP server (SQLite FTS5 + graph memory)"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -63,6 +63,8 @@ brainkm = [
     "hooks/cursor/*.mdc",
     "hooks/cursor/skills/**/*.md",
     "hooks/claude/*.json",
+    "hooks/claude/rules/*.md",
+    "hooks/claude/skills/**/*.md",
     "config.example.json",
     "bench/fixtures/*.json",
     "tui/styles/*.tcss",

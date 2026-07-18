@@ -127,9 +127,11 @@ Safe to re-run; archives via `forget` (reversible with audit log). SessionStart/
 
 ## Hooks (Cursor-invoked; prefer not to run manually)
 
-These commands expect hook payload JSON on stdin (`--stdin`). Cursor hooks call them; manual use is for debugging only.
+These commands expect hook payload JSON on stdin (`--stdin`). Cursor / Claude hooks call them; manual use is for debugging only.
 
-| Command | Cursor event | Purpose |
+Use `--client claude` for Claude Code so stdout uses `hookSpecificOutput` (and fail-soft exit 0). Default `--client cursor`.
+
+| Command | Host event | Purpose |
 |---------|--------------|---------|
 | `brainkm session-start` | SessionStart | Migrate brain.db; prepare frozen injection |
 | `brainkm session-end` | SessionEnd | Capture + promote observations |
@@ -138,11 +140,23 @@ These commands expect hook payload JSON on stdin (`--stdin`). Cursor hooks call 
 | `brainkm post-tool-failure` | PostToolUseFailure | Failure observation |
 | `brainkm user-prompt` | UserPromptSubmit | Prompt gist observation |
 | `brainkm post-compact` | PostCompact | Refresh frozen snapshot (Claude) |
+| `brainkm subagent-start` | SubagentStart | Subagent activity (Claude) |
+| `brainkm subagent-stop` | SubagentStop | Promote observations for subagent (Claude) |
+| `brainkm agent-stop` | Stop | Flush use counts / optional gist (Claude) |
 
 Example debug:
 
 ```bash
 echo '{"session_id":"debug"}' | brainkm session-start --stdin --project-dir .
+echo '{"session_id":"debug"}' | brainkm session-start --stdin --client claude --project-dir .
+```
+
+Claude install path:
+
+```bash
+brainkm install --dev --client claude
+brainkm connect claude --hooks
+brainkm doctor
 ```
 
 ---
