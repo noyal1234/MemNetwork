@@ -36,7 +36,13 @@ def _remember_import_neuron(
     item: dict,
     confidence: float,
     node_id: str | None = None,
+    extra_tags: list[str] | None = None,
 ):
+    tags = item.get("tags") if isinstance(item.get("tags"), list) else []
+    tags = [str(t) for t in tags]
+    for tag in extra_tags or []:
+        if tag not in tags:
+            tags.append(tag)
     return remember_neuron(
         conn,
         title=title,
@@ -46,6 +52,7 @@ def _remember_import_neuron(
         confidence=confidence,
         node_id=node_id or new_ulid(),
         source="import:merge",
+        tags=tags,
     )
 
 

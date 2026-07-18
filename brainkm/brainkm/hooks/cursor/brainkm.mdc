@@ -16,7 +16,9 @@ This project uses **brainkm** — a local SQLite project brain at `.brain/brain.
   in the query or `seed_refs`), **then verify in source** before editing — packs are hints,
   never a substitute for reading the code you will change.
 - Use **`recall`** for architectural decisions, rules, and past pivots — not chat history alone.
-- Use **`remember`** to persist decisions the team should not re-debate.
+- Memory is filled primarily by **hooks** (SessionEnd distill, PostToolUse observations,
+  SessionStart injection). Call **`remember` only to pin** durable project truth or **correct**
+  a wrong auto-capture — not for ordinary session learning.
 
 ## Tool routing (locate vs flow vs decisions)
 

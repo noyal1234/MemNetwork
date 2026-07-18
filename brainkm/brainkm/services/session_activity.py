@@ -183,3 +183,61 @@ def record_mcp_tool_use(
         """,
         (new_ulid(), sid, logged_name, source, utc_now_iso()),
     )
+
+
+FILE_SEED_CAP = 5
+
+
+def record_file_seed(
+    conn: sqlite3.Connection,
+    session_id: str | None,
+    path: str,
+) -> None:
+    """Stash a recently touched file path for implicit recall/pack seeding."""
+    if not session_id or not path or not path.strip():
+        return
+    cleaned = path.strip()[:240]
+    conn.execute(
+        """
+        INSERT INTO session_activity (
+          id, session_id, kind, node_id, tool_name, source, created_at
+        ) VALUES (?, ?, 'file_seed', NULL, ?, 'hook', ?)
+        """,
+        (new_ulid(), session_id, cleaned, utc_now_iso()),
+    )
+
+
+def load_file_seeds(conn: sqlite3.Connection, session_id: str | None) -> list[str]:
+    """Return recent file seed paths (newest first, capped)."""
+    if not session_id:
+        return []
+    from brainkm.services.file_history import seed_ids_for_path
+
+    rows = conn.execute(
+        """
+        SELECT tool_name FROM session_activity
+        WHERE session_id = ? AND kind = 'file_seed'
+        ORDER BY created_at DESC
+        LIMIT ?
+        """,
+        (session_id, FILE_SEED_CAP),
+    ).fetchall()
+    seed_ids: list[str] = []
+    seen: set[str] = set()
+    for (path,) in rows:
+        if not path or path in seen:
+            continue
+        seen.add(path)
+        for node_id in seed_ids_for_path(conn, path, limit=4):
+            if node_id not in seed_ids:
+                seed_ids.append(node_id)
+    return seed_ids
+
+
+def clear_file_seeds(conn: sqlite3.Connection, session_id: str | None) -> None:
+    if not session_id:
+        return
+    conn.execute(
+        "DELETE FROM session_activity WHERE session_id = ? AND kind = 'file_seed'",
+        (session_id,),
+    )

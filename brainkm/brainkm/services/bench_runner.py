@@ -107,6 +107,9 @@ SUITE_RUNNERS = {
     "compare": run_compare_suite,
     "retrieval": run_retrieval_suite,
     "task": lambda db_path: run_task_suite(db_path, fixture_only=False, judge=False),
+    "scorecard": lambda _db: __import__(
+        "brainkm.services.scorecard_bench", fromlist=["run_scorecard_suite"]
+    ).run_scorecard_suite(_db),
 }
 
 
@@ -195,6 +198,10 @@ def run_eval_suite(
 
 
 def format_suite_result(result: BenchSuiteResult) -> str:
+    if result.suite == "scorecard":
+        from brainkm.services.scorecard_bench import format_scorecard_summary
+
+        return format_scorecard_summary(result)
     lines = [f"Suite {result.suite}: {result.passed}/{result.total} ({result.pass_rate:.0%})"]
     for case in result.cases:
         status = "PASS" if case.passed else "FAIL"

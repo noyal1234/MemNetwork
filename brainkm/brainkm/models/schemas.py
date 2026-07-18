@@ -27,6 +27,8 @@ class SessionChunkResult(BaseModel):
 
 
 class RememberRequest(BaseModel):
+    """Pin durable project truth or correct a wrong auto-capture (hooks are primary)."""
+
     title: str = Field(..., min_length=1, max_length=200)
     body: str = Field(..., min_length=1)
     kind: str = Field(default="memory")
@@ -54,6 +56,16 @@ class RecallRequest(BaseModel):
         default=False,
         description="Exempt from max_recalls_per_turn when fetching omitted neurons",
     )
+    include_sources: bool | None = Field(
+        default=None,
+        description="Attach compact provenance; defaults to BrainConfig.recall.include_sources",
+    )
+
+
+class ProvenanceSource(BaseModel):
+    session_id: str | None = None
+    id: str
+    via: str
 
 
 class RecallResponse(BaseModel):
@@ -63,6 +75,10 @@ class RecallResponse(BaseModel):
     source: str = "live_db"
     session_chunks: list[SessionChunkResult] = Field(default_factory=list)
     intent: str | None = None
+    sources: dict[str, list[ProvenanceSource]] = Field(
+        default_factory=dict,
+        description="Optional provenance keyed by node_id when include_sources is on",
+    )
 
 
 class ContextPackRequest(BaseModel):
@@ -94,6 +110,10 @@ class ContextPackRequest(BaseModel):
             "truncation_followup. Defaults to BrainConfig.compression.summary_first."
         ),
     )
+    include_sources: bool | None = Field(
+        default=None,
+        description="Attach compact provenance; defaults to BrainConfig.recall.include_sources",
+    )
 
 
 class TruncationManifest(BaseModel):
@@ -111,6 +131,7 @@ class ContextPackResponse(BaseModel):
     truncation: TruncationManifest
     graph_available: bool = True
     graph_hint: str | None = None
+    sources: dict[str, list[ProvenanceSource]] = Field(default_factory=dict)
 
 
 class SessionStatusRequest(BaseModel):

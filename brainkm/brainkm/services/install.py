@@ -25,7 +25,8 @@ logger = get_logger("services.install")
 CURSOR_MIN_VERSION_NOTE = "0.46"
 BRAINKM_MCP_SERVER_KEY = "brainkm"
 # Cursor does not implement postCompact (use preCompact handover + sessionStart instead).
-CURSOR_UNSUPPORTED_HOOK_EVENTS = frozenset({"postCompact"})
+# postToolUseFailure is Claude-oriented; Cursor surfaces failures on postToolUse payloads.
+CURSOR_UNSUPPORTED_HOOK_EVENTS = frozenset({"postCompact", "postToolUseFailure"})
 GITIGNORE_ENTRIES = (
     ".brain/brain.db",
     ".brain/brain.db-wal",
@@ -119,8 +120,20 @@ def build_hooks_config(
             ],
             "postToolUse": [
                 {
-                    "matcher": "Write|Edit",
+                    "matcher": "Write|Edit|Shell",
                     "command": f"{brainkm_bin} post-tool --stdin",
+                    "timeout": 5,
+                }
+            ],
+            "userPromptSubmit": [
+                {
+                    "command": f"{brainkm_bin} user-prompt --stdin",
+                    "timeout": 5,
+                }
+            ],
+            "postToolUseFailure": [
+                {
+                    "command": f"{brainkm_bin} post-tool-failure --stdin",
                     "timeout": 5,
                 }
             ],
@@ -128,16 +141,16 @@ def build_hooks_config(
     }
 
 
-def build_mcp_config(*, dev: bool) -> dict[str, object]:
-    command, args = resolve_brainkm_command(dev=dev)
-    return {
-        "mcpServers": {
-            BRAINKM_MCP_SERVER_KEY: {
-                "command": command,
-                "args": args,
-            }
-        }
-    }
+def build_mcp_config(
+    *,
+    dev: bool,
+    transport: str = "stdio",
+    host: str = "127.0.0.1",
+    port: int = 8765,
+) -> dict[str, object]:
+    from brainkm.services.mcp_transport import build_mcp_config as _build
+
+    return _build(dev=dev, transport=transport, host=host, port=port)
 
 
 def _deep_merge_dict(base: dict[str, object], incoming: dict[str, object]) -> dict[str, object]:
@@ -312,29 +325,45 @@ def run_install(
     config: BrainConfig | None = None,
     no_graph: bool = False,
     client: str = "cursor",
+    http: bool = False,
+    host: str = "127.0.0.1",
+    port: int = 8765,
 ) -> InstallResult:
     """Install brainkm into a target project."""
     from brainkm.services.client_adapters import get_client_adapter
+    from brainkm.services.config_loader import save_brain_config
 
     root = resolve_project_dir(project_dir)
     cfg = config or BrainConfig()
+    if http:
+        cfg = cfg.model_copy(
+            update={
+                "mcp": cfg.mcp.model_copy(
+                    update={"transport": "http", "http_host": host, "http_port": port}
+                ),
+                "capture": cfg.capture.model_copy(update={"auto_observe": True}),
+            }
+        )
     result = InstallResult(project_dir=root)
     adapter = get_client_adapter(client)
 
     cursor_dir = root / ".cursor"
-    mcp_path = cursor_dir / "mcp.json"
-    hooks_path = cursor_dir / "hooks.json"
-    rule_path = cursor_dir / "rules" / "brainkm.mdc"
     brainkm_bin = resolve_hook_command(dev=dev)
 
-    mcp_payload = build_mcp_config(dev=dev)
+    transport = cfg.mcp.transport
+    mcp_payload = build_mcp_config(
+        dev=dev,
+        transport=transport,
+        host=cfg.mcp.http_host,
+        port=cfg.mcp.http_port,
+    )
     hooks_payload = build_hooks_config(brainkm_bin, config=cfg)
 
     cursor_dir.mkdir(parents=True, exist_ok=True)
     (cursor_dir / "rules").mkdir(parents=True, exist_ok=True)
 
-    # Always write MCP for Cursor-shaped clients; generic keeps MCP optional under .brain.
-    if adapter.kind in ("cursor", "claude"):
+    if adapter.kind == "cursor":
+        mcp_path = cursor_dir / "mcp.json"
         if mcp_path.is_file():
             existing_mcp = json.loads(mcp_path.read_text(encoding="utf-8"))
             merged_mcp = _deep_merge_dict(existing_mcp, mcp_payload)
@@ -344,43 +373,63 @@ def run_install(
             _write_json(mcp_path, mcp_payload)
             result.files_written.append(mcp_path)
 
-    if adapter.kind == "cursor":
+        hooks_path = cursor_dir / "hooks.json"
         if hooks_path.is_file():
             existing_hooks = json.loads(hooks_path.read_text(encoding="utf-8"))
             merged_hooks = merge_hooks_json(existing_hooks, hooks_payload)
             _write_json(hooks_path, merged_hooks)
             result.files_written.append(hooks_path)
         else:
-            _write_json(hooks_path, hooks_payload)
+            _write_json(hooks_path, merge_hooks_json({}, hooks_payload))
             result.files_written.append(hooks_path)
 
+        rule_path = cursor_dir / "rules" / "brainkm.mdc"
         if rule_path.is_file() and not force:
             result.files_skipped.append(rule_path)
         else:
             _write_text(rule_path, _load_package_rule_template())
             result.files_written.append(rule_path)
 
+        # Install brainkm routing skill for Cursor agents.
+        skill_src = (
+            Path(__file__).resolve().parents[1]
+            / "hooks"
+            / "cursor"
+            / "skills"
+            / "brainkm-routing"
+            / "SKILL.md"
+        )
+        if skill_src.is_file():
+            skill_dst = cursor_dir / "skills" / "brainkm-routing" / "SKILL.md"
+            if skill_dst.is_file() and not force:
+                result.files_skipped.append(skill_dst)
+            else:
+                _write_text(skill_dst, skill_src.read_text(encoding="utf-8"))
+                result.files_written.append(skill_dst)
+
     if adapter.kind == "claude":
+        mcp_path = root / ".mcp.json"
+        if mcp_path.is_file():
+            existing_mcp = json.loads(mcp_path.read_text(encoding="utf-8"))
+            merged_mcp = _deep_merge_dict(existing_mcp, mcp_payload)
+            _write_json(mcp_path, merged_mcp)
+        else:
+            _write_json(mcp_path, mcp_payload)
+        result.files_written.append(mcp_path)
+
         claude_dir = root / ".claude"
         claude_dir.mkdir(parents=True, exist_ok=True)
-        claude_hooks_src = resources.files("brainkm.hooks.claude") / "hooks.json"
         claude_hooks_dst = claude_dir / "hooks.json"
-        # Rewrite command paths for this install.
-        raw_hooks = json.loads(claude_hooks_src.read_text(encoding="utf-8"))
-        # Prefer built payload shaped like Cursor with Claude events allowed.
         claude_hooks = build_hooks_config(brainkm_bin, config=cfg)
-        # Restore postCompact for Claude.
-        if "postCompact" not in claude_hooks:
-            claude_hooks["postCompact"] = [
-                {
-                    "command": f"{brainkm_bin} post-compact --project-dir .",
-                }
+        hooks_dict = claude_hooks.get("hooks")
+        if isinstance(hooks_dict, dict) and "postCompact" not in hooks_dict:
+            hooks_dict["postCompact"] = [
+                {"command": f"{brainkm_bin} post-compact --project-dir ."}
             ]
         _write_json(claude_hooks_dst, claude_hooks)
         result.files_written.append(claude_hooks_dst)
         agents_path = root / "CLAUDE.md"
         if agents_path.is_file() and not force:
-            # Append snippet once.
             existing = agents_path.read_text(encoding="utf-8")
             if "brainkm — project memory routing" not in existing:
                 _write_text(agents_path, existing.rstrip() + "\n\n" + adapter.agents_snippet())
@@ -390,9 +439,23 @@ def run_install(
         else:
             _write_text(agents_path, adapter.agents_snippet())
             result.files_written.append(agents_path)
-        _ = raw_hooks
 
-    # Generic and all clients get AGENTS.md routing snippet.
+    if adapter.kind in ("codex", "generic"):
+        from brainkm.services.connect import run_connect
+
+        connect_result = run_connect(
+            adapter.kind,
+            root,
+            transport=transport if adapter.kind == "codex" else ("http" if http else transport),
+            hooks=adapter.kind == "codex",
+            host=cfg.mcp.http_host,
+            port=cfg.mcp.http_port,
+            dev=dev,
+            update_config=False,
+        )
+        result.files_written.extend(connect_result.files_written)
+        result.warnings.extend(connect_result.warnings)
+
     agents_md = root / "AGENTS.md"
     snippet = adapter.agents_snippet()
     if adapter.kind == "generic" or not agents_md.is_file():
@@ -417,10 +480,10 @@ def run_install(
     result.files_written.append(example_dst)
 
     config_dst = brain_root / "config.json"
-    if config_dst.is_file() and not force:
+    if config_dst.is_file() and not force and config is None and not http:
         result.files_skipped.append(config_dst)
     else:
-        _write_text(config_dst, example_src.read_text(encoding="utf-8"))
+        save_brain_config(root, cfg)
         result.files_written.append(config_dst)
 
     for entry in GITIGNORE_ENTRIES:
@@ -472,11 +535,13 @@ def run_install(
         except Exception as exc:
             result.warnings.append(f"graph import skipped: {exc}")
 
-    result.warnings.extend(probe_cursor_version())
+    if adapter.kind == "cursor":
+        result.warnings.extend(probe_cursor_version())
     result.warnings.extend(scan_rule_overlap(root))
 
     claude_hooks_src = resources.files("brainkm.hooks.claude") / "hooks.json"
     claude_dst = root / ".cursor" / "hooks.claude.example.json"
+    cursor_dir.mkdir(parents=True, exist_ok=True)
     _write_text(claude_dst, claude_hooks_src.read_text(encoding="utf-8"))
     result.files_written.append(claude_dst)
 
@@ -501,5 +566,18 @@ def run_install(
             "use --dev for local installs or ensure brainkm is on PATH."
         )
 
-    logger.info("install complete project_dir=%s dev=%s client=%s", root, dev, client)
+    if transport == "http":
+        result.warnings.append(
+            f"HTTP transport configured — run `brainkm serve --project-dir . "
+            f"--port {cfg.mcp.http_port}` then reconnect clients with "
+            "`brainkm connect <client> --http`."
+        )
+
+    logger.info(
+        "install complete project_dir=%s dev=%s client=%s transport=%s",
+        root,
+        dev,
+        client,
+        transport,
+    )
     return result

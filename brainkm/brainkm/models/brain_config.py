@@ -19,11 +19,21 @@ class PreToolBudget(BaseModel):
     graph_neighborhood: int = Field(default=400, ge=0)
 
 
+class PackQuotasConfig(BaseModel):
+    """Default channel shares for context_pack (~40/40/20 when quotas enabled)."""
+
+    enabled: bool = True
+    neurons_fraction: float = Field(default=0.40, ge=0.1, le=0.8)
+    graph_fraction: float = Field(default=0.40, ge=0.1, le=0.8)
+    procedures_fraction: float = Field(default=0.20, ge=0.05, le=0.5)
+
+
 class BudgetConfig(BaseModel):
     total_tokens: int = Field(default=1500, ge=100, le=8000)
     dynamic_reallocation: bool = True
     session_start: SessionStartBudget = Field(default_factory=SessionStartBudget)
     pre_tool: PreToolBudget = Field(default_factory=PreToolBudget)
+    pack_quotas: PackQuotasConfig = Field(default_factory=PackQuotasConfig)
 
 
 class CaptureConfig(BaseModel):
@@ -34,6 +44,17 @@ class CaptureConfig(BaseModel):
     max_auto_neurons_per_session: int = Field(default=50, ge=1, le=500)
     max_neurons_per_plan: int = Field(default=20, ge=1, le=200)
     auto_hygiene: bool = True
+    # Passive hook observations (default off for stdio/CI; http install enables).
+    auto_observe: bool = False
+    observe_max_per_session: int = Field(default=40, ge=1, le=200)
+    observe_dedup_window_seconds: int = Field(default=300, ge=30, le=3600)
+    observe_max_body_tokens: int = Field(default=80, ge=20, le=200)
+    observation_ttl_hours: int = Field(
+        default=72,
+        ge=0,
+        le=8760,
+        description="Soft-archive unpromoted observations older than this (0=disable)",
+    )
 
 
 class InjectionConfig(BaseModel):
@@ -68,6 +89,47 @@ class RecallConfig(BaseModel):
     rerank: bool = False
     decay_half_life_days: float = Field(default=30.0, ge=1.0, le=3650.0)
     feedback_boost: bool = True
+    max_per_session: int = Field(
+        default=3,
+        ge=1,
+        le=20,
+        description="Cap recall/pack hits sharing the same session_id",
+    )
+    max_per_kind: dict[str, int] = Field(
+        default_factory=lambda: {
+            "memory": 8,
+            "code": 12,
+            "procedure": 3,
+            "concept": 4,
+        },
+        description="Cap hits per node kind after score sort",
+    )
+    include_sources: bool = Field(
+        default=False,
+        description="Attach compact provenance sources on recall/context_pack",
+    )
+    expand_relationships: list[str] = Field(
+        default_factory=lambda: [
+            "about_file",
+            "about_symbol",
+            "mentions_concept",
+            "implements_concept",
+            "supersedes",
+            "calls",
+            "imports",
+            "imports_from",
+            "defines",
+            "contains",
+            "method",
+            "uses",
+            "inherits",
+            "co_activated",
+            "spawned",
+            "distilled_from",
+            "relates_to",
+        ],
+        description="Allowlisted edge types for PPR/BFS expand",
+    )
 
     @model_validator(mode="after")
     def absolute_mode_requires_threshold(self) -> RecallConfig:
@@ -159,6 +221,14 @@ class TeamConfig(BaseModel):
     team_dir: str = "team"
 
 
+class McpConfig(BaseModel):
+    """How clients reach the brainkm MCP server."""
+
+    transport: Literal["stdio", "http"] = "stdio"
+    http_host: str = "127.0.0.1"
+    http_port: int = Field(default=8765, ge=1, le=65535)
+
+
 class VizConfig(BaseModel):
     """Browser viz / WebLLM preferences (prefers local weight cache when present)."""
 
@@ -193,6 +263,7 @@ class BrainConfig(BaseModel):
     decay: DecayConfig = Field(default_factory=DecayConfig)
     git: GitConfig = Field(default_factory=GitConfig)
     team: TeamConfig = Field(default_factory=TeamConfig)
+    mcp: McpConfig = Field(default_factory=McpConfig)
 
     @field_validator("project_roots")
     @classmethod

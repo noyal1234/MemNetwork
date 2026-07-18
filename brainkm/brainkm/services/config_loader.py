@@ -38,6 +38,15 @@ def load_brain_config(project_dir: Path | None = None) -> BrainConfig:
     return cfg
 
 
+def save_brain_config(project_dir: Path | None, config: BrainConfig) -> Path:
+    """Write validated BrainConfig to ``.brain/config.json`` and clear cache."""
+    path = config_path(project_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(config.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    _cached_brain_config.cache_clear()
+    return path
+
+
 def validate_project_roots_exist(
     cfg: BrainConfig,
     project_dir: Path | None = None,

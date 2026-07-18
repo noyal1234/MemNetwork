@@ -45,7 +45,8 @@ logger = get_logger("server")
 TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
     (
         "remember",
-        "Store a project neuron (decision, fact, rule). Input is redacted before storage.",
+        "Pin durable project truth or correct a wrong auto-capture. "
+        "Hooks (not this tool) are the primary memory path.",
         RememberRequest,
         RememberResponse,
     ),
@@ -273,7 +274,11 @@ async def run_http_server(
     """Streamable HTTP transport — one server shared across local editors."""
     from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
     from starlette.applications import Starlette
-    from starlette.routing import Mount
+    from starlette.requests import Request
+    from starlette.responses import JSONResponse
+    from starlette.routing import Mount, Route
+
+    from brainkm import __version__
 
     settings = get_settings()
     root = (project_dir if project_dir is not None else settings.project_dir).resolve()
@@ -292,8 +297,20 @@ async def run_http_server(
         async with manager.run():
             yield
 
+    async def health(_request: Request) -> JSONResponse:
+        return JSONResponse(
+            {
+                "ok": True,
+                "project_dir": str(root),
+                "version": __version__,
+            }
+        )
+
     starlette_app = Starlette(
-        routes=[Mount("/mcp", app=manager.handle_request)],
+        routes=[
+            Route("/health", health, methods=["GET"]),
+            Mount("/mcp", app=manager.handle_request),
+        ],
         lifespan=lifespan,
     )
 

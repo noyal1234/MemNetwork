@@ -7,7 +7,7 @@
 | **Tokens** | Bounded `context_pack` (default ≤1500) with summary-first gists + adaptive intent budgets |
 | **Quality** | Hybrid FTS + vector RRF, weighted PPR graph activation, conflict/supersede, usage feedback |
 | **Speed** | Local retrieval latency targets (p95 ≤150ms recall without reranker) |
-| **Reach** | `brainkm install --client …` / TUI wizard Agent Client + Semantic Quality consent + optional HTTP MCP |
+| **Reach** | Guided TUI (`brainkm configure`): pick apps → auto stdio or shared brain; Semantic Quality consent; hooks fill memory |
 
 ## Docs
 
@@ -25,12 +25,13 @@
 ```bash
 bash brainkm/scripts/setup_dev.sh
 source .venv/bin/activate
-brainkm install --dev --client cursor
-# or: pip install -e "./brainkm[tui]" && brainkm configure  # Agent Client + Semantic Quality
+pip install -e "./brainkm[tui]"
+brainkm configure   # recommended: pick apps, silent memory, Start Brain if sharing
+# or: brainkm install --dev --client cursor
 brainkm version
 ```
 
-MCP config is written for the selected client (`cursor` / `claude` / `generic`). Use `--dev` while the repo is private.
+One app → Cursor/Claude starts the brain for you. Two+ apps → shared localhost brain (Start Brain once from the TUI). Use `--dev` while the repo is private.
 
 Optional semantic hybrid retrieval (wizard can recommend and enable with consent):
 
@@ -58,4 +59,4 @@ brainkm is **local-first**, **zero-LLM-default** (`rules` distill), and compleme
 
 ## Status
 
-**brainkm 0.3.2** — 8 MCP tools + typed `outputSchema` + resources, hybrid retrieval (real ONNX MiniLM when consented), weighted PPR, intent routing, compression/dedup/summary-first packs, feedback ranking, decay/consolidate, multi-client install + TUI Agent Client / Semantic Quality steps, Claude JSONL capture, optional HTTP transport, latency bench, team neuron layer, import `--replace`. See [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md) and [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+**brainkm 0.4.0** — 8 MCP tools + typed `outputSchema` + resources, shared localhost brain (`serve` / `connect` / `doctor` + TUI Start Brain), hook-first passive capture (`auto_observe`), hybrid retrieval (real ONNX MiniLM when consented), weighted PPR, intent routing, compression/dedup/summary-first packs, feedback ranking, decay/consolidate, multi-client install (Cursor / Claude / Codex / generic) + guided TUI (app checkboxes, Semantic Quality), Claude JSONL capture, optional HTTP transport, latency bench, team neuron layer, import `--replace`. `remember` is pin/correct only — hooks fill the brain. See [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md) and [docs/BENCHMARKS.md](docs/BENCHMARKS.md).

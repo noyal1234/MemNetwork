@@ -64,9 +64,9 @@ flowchart LR
 | **Memory** | SQLite FTS5 BM25 | Neurons (`kind=memory`) — facts, decisions, rules |
 | **Code graph** | Graphify AST adapter | `code` nodes, import/call edges |
 | **Temporal** | `valid_from` / `valid_until`, `supersedes` | Evolving facts without full GraphRAG |
-| **MCP** | `mcp` SDK stdio | 8 tools: remember, recall, context_pack, session_status, traverse, forget, brain_stats, graph_sync |
-| **CLI** | Typer | install, export, bench, repair, handover, review, hygiene, migrate, configure |
-| **TUI** | Textual (optional `[tui]` extra) | `brainkm configure` — dashboard, config editor, actions, wizard |
+| **MCP** | `mcp` SDK stdio **or** localhost HTTP (`brainkm serve`) | 8 tools: remember (pin/correct), recall, context_pack, session_status, traverse, forget, brain_stats, graph_sync |
+| **CLI** | Typer | install, serve, connect, doctor, export, bench, repair, handover, review, hygiene, migrate, configure |
+| **TUI** | Textual (optional `[tui]` extra) | `brainkm configure` — guided app checkboxes, Start Brain, dashboard, config editor, actions |
 | **Optional T1** | sqlite-vec + ONNX MiniLM | Semantic search when `semantic: true` |
 | **Optional T2** | Cursor / Ollama / Groq at SessionEnd | `distill_mode: cursor \| ollama \| groq` |
 
@@ -119,11 +119,11 @@ MemNetwork/
 
 ## 4. MCP tool contract (V1 / current)
 
-**Package version:** `0.3.2`
+**Package version:** `0.4.0`
 
 | Tool | Purpose |
 |------|---------|
-| `remember` | Store neuron; auto-link to code nodes by path mentions |
+| `remember` | **Pin** durable project truth or **correct** a wrong auto-capture (hooks are the primary capture path); auto-links path mentions |
 | `recall` | FTS5 + graph activation; abstain on low confidence (percentile default P10); bodies capped to `budget.total_tokens` |
 | `context_pack` | Task-specific compiled pack (graph + neurons + procedures). Prefer before 3+ file reads; for pure blast-radius use `traverse`. Default MCP payload is lean (`pack_text` + truncation IDs); pass `include_structured=true` for full neuron arrays |
 | `session_status` | Read/write session context neuron |
@@ -132,7 +132,9 @@ MemNetwork/
 | `brain_stats` | Health summary: neuron/graph counts, MCP usage (7d), abstention rate, dead-neuron count; optional `session_id` adds per-session MCP/hit/snapshot/distill fields |
 | `graph_sync` | Queue or force Graphify extract+import |
 
-CLI-only (not MCP): `install`, `export`, `bench`, `repair`, `handover`, `review`, `hygiene`, `migrate`, `configure`.
+CLI-only (not MCP): `install`, `serve`, `connect`, `doctor`, `export`, `bench`, `repair`, `handover`, `review`, `hygiene`, `migrate`, `configure`.
+
+Shared localhost brain: prefer **`brainkm configure`** (multi-app → Start Brain). Power path: `brainkm serve` + `brainkm connect <client> --http` so Cursor / Claude / Codex share one HTTP MCP process and `.brain/brain.db`. Hooks remain the primary memory writers (`capture.auto_observe`).
 
 ---
 
@@ -180,7 +182,7 @@ Controlled by `injection.frozen_snapshot: true` (default). PostCompact snapshot 
 - **Decision/pivot memory** — "why X not Y" from chat and plans
 - **Bounded `context_pack`** — path-labeled snippets under the 1500-token agent-facing cap (vs multi-file reads)
 - **Cross-session chat distill** — survives compaction via PreCompact handover
-- **Procedure learning** (V2) — tool chains that worked for this project
+- **Procedure learning** (V2) — promote repeated co-activated context + observed tool sequences into `kind=procedure` stubs (scaffolding; not Hermes-grade skill self-improvement)
 
 ---
 
@@ -227,8 +229,8 @@ flowchart TB
 |-------------|----------------------|---------------------|
 | Main context | Cursor chat + injected pack (≤1500 tokens) | Hooks + budget — **not LLM** |
 | Recall storage | `session_chunks` + `session_fts` | SessionEnd + PreCompact capture |
-| Archival storage | `nodes` where `kind=memory` | Rule/LLM distill + MCP `remember` |
-| Self-editing memory | `supersedes` edges, co-activation (V2), `remember` | Agent + learning loop |
+| Archival storage | `nodes` where `kind=memory` | Hooks + distill primary; MCP `remember` for pin/correct |
+| Self-editing memory | `supersedes` edges, co-activation (V2), pin via `remember` | Hooks + learning loop + agent corrections |
 
 **Adopt:** External store beats recursive summarization — DMR benchmark ~**93.4%** recall vs ~**35.3%** for lossy summarize.
 
@@ -253,7 +255,7 @@ flowchart TB
 |-------------------------|----------------------|
 | Compaction (lossy summarize) | Work **with** it — PreCompact `brainkm handover` captures before loss |
 | Tool-result clearing | `context_pack` delivers smallest verifiable pack upfront |
-| Built-in memory tool | `brain.db` neurons + MCP `remember` / `recall` |
+| Built-in memory tool | `brain.db` neurons + hooks / `recall` (+ `remember` pin) |
 | Post-compact amnesia | SessionStart frozen injection + live `recall` on demand |
 
 **Three-layer defense:** (1) SessionEnd continuous capture → (2) PreCompact handover → (3) SessionStart injection after compact.
@@ -322,18 +324,20 @@ All distill modes share Cursor chrome cleaning (`clean_cursor_text` / `is_distil
 | **V0** | Done | Scaffold, AGENTS.md, BrainConfig, tests, cursor rules |
 | **V1** | Done | SQLite brain, hooks, install, capture/handover, Graphify import + sync, frozen snapshot, MCP tools, adaptive abstention |
 | **V1.5** | Done | bench suites, repair + abstention recalibrate, export/import merge, PostCompact refresh |
-| **V2** | Done | Tool registry, review queue, confidence-gated review, PostToolUse learning loop, co-activation procedure promotion |
-| **TUI** | Done | `brainkm configure` Textual app (dashboard, config editor, actions, wizard); optional `[tui]` extra — see [TUI_APP_PLAN.md](TUI_APP_PLAN.md) |
+| **V2** | Done | Tool registry, review queue, confidence-gated review, PostToolUse learning loop, session-scoped co-activation procedure promotion (tool-sequence body + context seeds) |
+| **TUI** | Done | `brainkm configure` Textual app (guided multi-app wizard, Start Brain, dashboard, config editor, actions); optional `[tui]` extra — see [TUI_APP_PLAN.md](TUI_APP_PLAN.md) |
 | **0.2.0** | Done | End-to-end token cap on agent-facing packs; lean MCP payloads; MCP usage telemetry in `brain_stats`; distill cleaning parity + prompt fix; `brainkm hygiene`; injection-time noise gate; path-labeled code nodes |
 | **0.3.0** | Done | Redaction on all neuron write paths; SessionStart/snapshot total_tokens clamp; read-tool commits via WriteQueue; session-scoped `brain_stats`; TUI SVG snapshots + ANSI-16 fallback; version discipline; hybrid RRF retrieval + PPR; intent routing; conflict supersede; pack compression/summary-first; latency bench; usage feedback; decay/consolidate; multi-client install; MCP resources/HTTP; team neurons; import `--replace` |
 | **0.3.1** | Done | TUI wizard **Agent Client** step (`cursor` / `claude` / `generic`) wired to `run_install(--client)`; Cursor Agent CLI step gated on client+distill; docs/skill/CLI/TUI plan version sync |
 | **0.3.2** | Done | Real ONNX MiniLM + CE rerank (opt-in `[semantic]`); wizard **Semantic Quality** consent after Hardware Doctor; typed MCP `outputSchema`; Claude JSONL capture; MCP sampling callback hook; TUI knobs for semantic/rerank/decay; BENCHMARKS local latency numbers |
+| **0.4.0** | Done | Shared localhost brain: `serve` / `connect` / `doctor`, URL MCP, `/health`, TUI app checkboxes + Start Brain; Claude `.mcp.json` + Codex adapter; `capture.auto_observe` (PostToolUse / prompts / failures → capped observations → SessionEnd promote); `remember` demoted to pin/correct in rules/docs |
+| **Nodal adopt** | Done | Lifecycle ladder (observation TTL, episode, `distilled_from`); `about_file`/`about_symbol` + hook file seeds; concept materializer; Seed→Expand→Diversify→Budget→Abstain; pack quotas; `consolidate --llm`; temporal supersede meta; team tags; skill pack; scorecard bench; `file-history` / `provenance` / `demo` CLI |
 | **Public distribution** | **Deferred** | PyPI / `uvx` zero-clone install, trusted-publishing + public CI matrix, MCP Registry listing, Cursor deeplink — wait until repo is public and a stable version ships. Local path: `brainkm install --dev`. |
 | **V3+ polish** | Ongoing | Packaged ONNX MiniLM weights, cross-encoder reranker weights, refreshed public bench numbers after open-source |
 
 ### SQLite concurrency
 
-Single-writer queue (`services/write_queue.py`) serializes MCP writes (remember, forget, use_count flush) with SQLITE_BUSY retry. Scope: one brainkm MCP instance per project — not multi-user concurrent writes.
+Single-writer queue (`services/write_queue.py`) serializes MCP writes (remember, forget, use_count flush) with SQLITE_BUSY retry. Prefer **one** HTTP `brainkm serve` process per project when using shared multi-client; stdio remains for single-editor / CI.
 
 ---
 
@@ -380,7 +384,7 @@ pip install -e "./brainkm[tui]"
 brainkm configure [--project-dir PATH]
 ```
 
-Guided setup, live status (Ollama / Groq / graph / review), validated config editing, and in-process action runners. Design + acceptance notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md). Command catalog: [CLI_COMMANDS.md](CLI_COMMANDS.md).
+Guided setup (pick coding apps → silent stdio or shared brain + **Start Brain**), Semantic Quality consent, live status (Ollama / Groq / graph / review), validated config editing, and in-process action runners. Design + acceptance notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md). Command catalog: [CLI_COMMANDS.md](CLI_COMMANDS.md).
 
 ---
 

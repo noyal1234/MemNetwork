@@ -40,16 +40,20 @@ from brainkm.services.mcp_results import (
     trim_neurons_to_budget,
 )
 from brainkm.services.memory import forget_neuron, remember_neuron, token_count
+from brainkm.services.neuron_index import index_neuron_links
+from brainkm.services.provenance import compact_sources_for_node
 from brainkm.services.recall import recall_live
 from brainkm.services.recall_limit import get_recall_limit_state
-from brainkm.services.remember_links import detect_conflicts, link_code_nodes_by_path
+from brainkm.services.remember_links import detect_conflicts
 from brainkm.services.search import traverse
 from brainkm.services.session_activity import (
     flush_stale_session_hits,
+    load_file_seeds,
     prune_old_tool_use,
     record_mcp_tool_use,
 )
 from brainkm.services.session_status import get_session_status, set_session_status
+from brainkm.models.schemas import ProvenanceSource
 
 
 @dataclass(frozen=True)
@@ -86,11 +90,13 @@ def handle_remember(
         max_body_tokens=cfg.compression.max_body_tokens,
         semantic_enabled=cfg.semantic_enabled(),
     )
-    linked = link_code_nodes_by_path(
+    linked = index_neuron_links(
         conn,
         record.id,
         title=record.title,
         content=record.content or "",
+        tags=request.tags,
+        kind=request.kind,
     )
     suggestions = detect_conflicts(
         conn,
@@ -145,6 +151,7 @@ def handle_recall(
         semantic=config.semantic_config(),
         config=config,
         project_dir=project_dir,
+        extra_seed_ids=list(load_file_seeds(conn, request.session_id)),
     )
     nodes: list[NeuronResult] = []
     for ranked in result.nodes:
@@ -153,6 +160,18 @@ def handle_recall(
             nodes.append(neuron)
 
     nodes = trim_neurons_to_budget(nodes, budget=config.budget.total_tokens)
+
+    want_sources = (
+        request.include_sources
+        if request.include_sources is not None
+        else config.recall.include_sources
+    )
+    sources: dict[str, list[ProvenanceSource]] = {}
+    if want_sources:
+        for node in nodes[:8]:
+            compact = compact_sources_for_node(conn, node.node_id, max_links=3)
+            if compact:
+                sources[node.node_id] = [ProvenanceSource(**item) for item in compact]
 
     hit_ids = [node.node_id for node in nodes]
     persist_neuron_hits(
@@ -188,6 +207,7 @@ def handle_recall(
         source=result.source,
         session_chunks=chunks,
         intent=result.intent,
+        sources=sources,
     )
 
 
@@ -206,6 +226,8 @@ def handle_context_pack(
         seed_refs=request.seed_refs or None,
         include_structured=request.include_structured,
         summary_first=request.summary_first,
+        extra_seed_ids=list(load_file_seeds(conn, request.session_id)),
+        include_sources=request.include_sources,
     )
     hit_ids = filter_active_memory_ids(conn, list(result.truncation.included_ids))
     persist_neuron_hits(

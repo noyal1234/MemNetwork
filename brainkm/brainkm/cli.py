@@ -349,8 +349,15 @@ def install_cmd(
     client: str = typer.Option(
         "cursor",
         "--client",
-        help="Target agent client: cursor | claude | generic",
+        help="Target agent client: cursor | claude | codex | generic",
     ),
+    http: bool = typer.Option(
+        False,
+        "--http",
+        help="Configure shared HTTP MCP transport (enables auto_observe)",
+    ),
+    host: str = typer.Option("127.0.0.1", "--host", help="HTTP bind host when --http"),
+    port: int = typer.Option(8765, "--port", help="HTTP port when --http"),
 ) -> None:
     """Install MCP config, hooks, rule, and .brain scaffolding."""
     from brainkm.services.install import run_install
@@ -361,13 +368,16 @@ def install_cmd(
         force=force,
         no_graph=no_graph,
         client=client,
+        http=http,
+        host=host,
+        port=port,
     )
 
     typer.echo(f"Installed brainkm into {result.project_dir} (client={client})")
     for path in result.files_written:
         typer.echo(f"  wrote {path.relative_to(result.project_dir)}")
     for path in result.files_skipped:
-        typer.echo(f"  kept  {path.relative_to(result.project_dir)}")
+        typer.echo(f"  skip {path.relative_to(result.project_dir)}")
     for warning in result.warnings:
         typer.echo(f"  warning: {warning}", err=True)
 
@@ -465,7 +475,7 @@ def bench_run_cmd(
         ...,
         help=(
             "Suite: eval|retrieval|task|abstention|token|dmr|longmem|budget|"
-            "compaction|latency|compare"
+            "compaction|latency|compare|scorecard"
         ),
     ),
     project_dir: Path | None = typer.Option(None, "--project-dir"),
@@ -596,7 +606,7 @@ def post_tool_cmd(
     project_dir: Path | None = typer.Option(None, "--project-dir"),
     stdin: bool = typer.Option(True, "--stdin", help="Read hook payload JSON from stdin"),
 ) -> None:
-    """PostToolUse hook — graph sync request, co-activation learning, procedure promotion."""
+    """PostToolUse hook — observations, graph sync, co-activation learning."""
     from brainkm.services.hooks import run_post_tool_use
 
     if not stdin:
@@ -605,8 +615,46 @@ def post_tool_cmd(
 
     _run_stdin_hook(
         "PostToolUse",
-        lambda raw: run_post_tool_use(raw, project_dir=project_dir),
+        lambda raw: run_post_tool_use(raw, project_dir=project_dir, failed=False),
         cursor_event="postToolUse",
+    )
+
+
+@app.command("post-tool-failure")
+def post_tool_failure_cmd(
+    project_dir: Path | None = typer.Option(None, "--project-dir"),
+    stdin: bool = typer.Option(True, "--stdin", help="Read hook payload JSON from stdin"),
+) -> None:
+    """PostToolUseFailure hook — record failure observation."""
+    from brainkm.services.hooks import run_post_tool_use
+
+    if not stdin:
+        typer.echo("--stdin is required for post-tool-failure hook", err=True)
+        raise typer.Exit(code=1)
+
+    _run_stdin_hook(
+        "PostToolUseFailure",
+        lambda raw: run_post_tool_use(raw, project_dir=project_dir, failed=True),
+        cursor_event="postToolUseFailure",
+    )
+
+
+@app.command("user-prompt")
+def user_prompt_cmd(
+    project_dir: Path | None = typer.Option(None, "--project-dir"),
+    stdin: bool = typer.Option(True, "--stdin", help="Read hook payload JSON from stdin"),
+) -> None:
+    """UserPromptSubmit hook — capped prompt gist observation."""
+    from brainkm.services.hooks import run_user_prompt_submit
+
+    if not stdin:
+        typer.echo("--stdin is required for user-prompt hook", err=True)
+        raise typer.Exit(code=1)
+
+    _run_stdin_hook(
+        "UserPromptSubmit",
+        lambda raw: run_user_prompt_submit(raw, project_dir=project_dir),
+        cursor_event="userPromptSubmit",
     )
 
 
@@ -866,6 +914,9 @@ def hygiene_cmd(
 
     migrate(project_dir=project_dir, run_integrity_check=False)
     db = brain_db_path(project_dir)
+    from brainkm.services.config_loader import load_brain_config
+
+    cfg = load_brain_config(project_dir)
 
     def _purge():
         conn = connect(db)
@@ -876,6 +927,7 @@ def hygiene_cmd(
                 limit=limit,
                 decay=decay,
                 unused_days=unused_days,
+                config=cfg,
             )
         finally:
             conn.close()
@@ -897,20 +949,38 @@ def consolidate_cmd(
     project_dir: Path | None = typer.Option(None, "--project-dir"),
     dry_run: bool = typer.Option(False, "--dry-run"),
     limit: int = typer.Option(200, "--limit"),
+    llm: bool = typer.Option(
+        False,
+        "--llm",
+        help="Concept-cluster consolidate via configured distill provider",
+    ),
 ) -> None:
     """Merge near-duplicate neurons (sleep-time consolidation)."""
     from brainkm.db.connection import connect
     from brainkm.db.migrate import migrate
     from brainkm.db.paths import brain_db_path
-    from brainkm.services.consolidate import consolidate_neurons
+    from brainkm.services.config_loader import load_brain_config
+    from brainkm.services.consolidate import (
+        consolidate_concept_clusters_llm,
+        consolidate_neurons,
+    )
     from brainkm.services.write_queue import run_blocking
 
     migrate(project_dir=project_dir, run_integrity_check=False)
+    cfg = load_brain_config(project_dir)
 
     def _consolidate():
         conn = connect(brain_db_path(project_dir))
         try:
-            result = consolidate_neurons(conn, dry_run=dry_run, limit=limit)
+            if llm:
+                result = consolidate_concept_clusters_llm(
+                    conn,
+                    config=cfg,
+                    project_dir=project_dir,
+                    dry_run=dry_run,
+                )
+            else:
+                result = consolidate_neurons(conn, dry_run=dry_run, limit=limit)
             if not dry_run:
                 conn.commit()
             return result
@@ -920,6 +990,71 @@ def consolidate_cmd(
     result = run_blocking(_consolidate)
     typer.echo(
         f"scanned={result.scanned} merged={result.merged} archived={result.archived}"
+    )
+
+
+@app.command("provenance")
+def provenance_cmd(
+    node_id: str = typer.Argument(..., help="Neuron / node id"),
+    project_dir: Path | None = typer.Option(None, "--project-dir"),
+) -> None:
+    """Print provenance chain (distilled_from, chunks, spawned)."""
+    from brainkm.db.connection import connect
+    from brainkm.db.migrate import migrate
+    from brainkm.db.paths import brain_db_path
+    from brainkm.services.provenance import format_provenance_report
+
+    migrate(project_dir=project_dir, run_integrity_check=False)
+    conn = connect(brain_db_path(project_dir))
+    try:
+        typer.echo(format_provenance_report(conn, node_id))
+    finally:
+        conn.close()
+
+
+@app.command("file-history")
+def file_history_cmd(
+    path: str = typer.Argument(..., help="Source file path"),
+    project_dir: Path | None = typer.Option(None, "--project-dir"),
+    limit: int = typer.Option(20, "--limit"),
+) -> None:
+    """List memories/episodes linked to a code file via about_file / about_symbol."""
+    from brainkm.db.connection import connect
+    from brainkm.db.migrate import migrate
+    from brainkm.db.paths import brain_db_path
+    from brainkm.services.file_history import file_history
+
+    migrate(project_dir=project_dir, run_integrity_check=False)
+    conn = connect(brain_db_path(project_dir))
+    try:
+        code_id, items = file_history(conn, path, limit=limit)
+        if code_id is None:
+            typer.echo(f"No code node for path={path}")
+            raise typer.Exit(code=1)
+        typer.echo(f"code_node={code_id} links={len(items)}")
+        for item in items:
+            typer.echo(
+                f"  [{item.kind}/{item.subtype or '-'}] {item.title} "
+                f"via={item.relationship} use={item.use_count} id={item.node_id}"
+            )
+    finally:
+        conn.close()
+
+
+@app.command("demo")
+def demo_cmd(
+    project_dir: Path | None = typer.Option(None, "--project-dir"),
+    port: int = typer.Option(5757, "--port"),
+    no_open: bool = typer.Option(False, "--no-open"),
+) -> None:
+    """Alias for ``brainkm viz --demo`` — seed synthetic neurons and open Neural Cosmos."""
+    from brainkm.services.viz import run_viz_server
+
+    run_viz_server(
+        project_dir=project_dir,
+        port=port,
+        open_browser=not no_open,
+        demo=True,
     )
 
 
@@ -1023,6 +1158,79 @@ def team_import_cmd(
 
     count = import_team_neurons(project_dir or Path.cwd())
     typer.echo(f"Imported {count} team neuron(s)")
+
+
+@app.command("serve")
+def serve_cmd(
+    project_dir: Path | None = typer.Option(
+        None,
+        "--project-dir",
+        help="Target project root (defaults to cwd)",
+    ),
+    host: str = typer.Option("127.0.0.1", "--host"),
+    port: int = typer.Option(8765, "--port"),
+) -> None:
+    """Run shared HTTP MCP server (alias of ``mcp --http``)."""
+    from brainkm.server import main as run_mcp_server
+
+    run_mcp_server(project_dir=project_dir, http=True, host=host, port=port)
+
+
+@app.command("connect")
+def connect_cmd(
+    client: str = typer.Argument(..., help="cursor | claude | codex | generic"),
+    project_dir: Path | None = typer.Option(None, "--project-dir"),
+    http: bool = typer.Option(True, "--http/--stdio", help="Shared HTTP (default) or stdio"),
+    hooks: bool = typer.Option(True, "--hooks/--no-hooks"),
+    host: str = typer.Option("127.0.0.1", "--host"),
+    port: int = typer.Option(8765, "--port"),
+    dev: bool = typer.Option(False, "--dev"),
+) -> None:
+    """Wire one agent client to this project's brain (stdio or shared HTTP)."""
+    from brainkm.services.connect import run_connect
+
+    transport = "http" if http else "stdio"
+    try:
+        result = run_connect(
+            client,
+            project_dir,
+            transport=transport,
+            hooks=hooks,
+            host=host,
+            port=port,
+            dev=dev,
+        )
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(
+        f"Connected {result.client} via {result.transport}"
+        + (f" ({result.mcp_url})" if result.mcp_url else "")
+    )
+    for path in result.files_written:
+        typer.echo(f"  wrote {path}")
+    for warning in result.warnings:
+        typer.echo(f"  warning: {warning}", err=True)
+    if transport == "http":
+        typer.echo("Ensure the shared server is running: brainkm serve --project-dir .")
+
+
+@app.command("doctor")
+def doctor_cmd(
+    project_dir: Path | None = typer.Option(None, "--project-dir"),
+    host: str | None = typer.Option(None, "--host"),
+    port: int | None = typer.Option(None, "--port"),
+) -> None:
+    """Check shared MCP health, client wiring, and auto_observe."""
+    from brainkm.services.mcp_doctor import build_mcp_doctor_report, format_mcp_doctor_report
+
+    report = build_mcp_doctor_report(project_dir, host=host, port=port)
+    typer.echo(format_mcp_doctor_report(report))
+    if report.config_transport == "http" and not report.health_ok:
+        raise typer.Exit(code=1)
+    if report.dual_writer_warning:
+        raise typer.Exit(code=1)
 
 
 @app.command("mcp")

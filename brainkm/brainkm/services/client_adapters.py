@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
-ClientKind = Literal["cursor", "claude", "generic"]
+ClientKind = Literal["cursor", "claude", "codex", "generic"]
 
 
 @dataclass(frozen=True)
@@ -29,14 +29,17 @@ class ClientAdapter(Protocol):
 
 AGENTS_SNIPPET = """# brainkm — project memory routing
 
-Use the **brainkm** MCP tools for project memory:
+Memory accumulates from **hooks** (SessionStart injection, SessionEnd distill,
+PostToolUse observations). You do **not** need to call `remember` for ordinary learning.
+
+Use the **brainkm** MCP tools:
 
 | Question | Tool |
 |----------|------|
 | Why did we choose X? | `recall` |
 | What calls / imports X? Impact of changing Y? | `traverse` |
 | Bounded multi-file task context | `context_pack` (include a symbol or path) |
-| Store a decision | `remember` |
+| Pin durable truth or correct a wrong auto-capture | `remember` |
 
 Packs are hints — always verify in source before editing.
 Prefer `traverse` for blast-radius; `context_pack` before opening 3+ files.
@@ -48,7 +51,14 @@ class CursorClientAdapter:
     kind: ClientKind = "cursor"
 
     def hook_events(self) -> list[str]:
-        return ["sessionStart", "sessionEnd", "preCompact", "preToolUse", "postToolUse"]
+        return [
+            "sessionStart",
+            "sessionEnd",
+            "preCompact",
+            "preToolUse",
+            "postToolUse",
+            "userPromptSubmit",
+        ]
 
     def transcript_style(self) -> str:
         return "cursor_jsonl"
@@ -71,6 +81,8 @@ class ClaudeClientAdapter:
             "postCompact",
             "preToolUse",
             "postToolUse",
+            "userPromptSubmit",
+            "postToolUseFailure",
         ]
 
     def transcript_style(self) -> str:
@@ -81,6 +93,33 @@ class ClaudeClientAdapter:
 
     def config_dir_name(self) -> str:
         return ".claude"
+
+
+class CodexClientAdapter:
+    kind: ClientKind = "codex"
+
+    def hook_events(self) -> list[str]:
+        return [
+            "sessionStart",
+            "sessionEnd",
+            "preCompact",
+            "preToolUse",
+            "postToolUse",
+        ]
+
+    def transcript_style(self) -> str:
+        return "generic_jsonl"
+
+    def agents_snippet(self) -> str:
+        return (
+            AGENTS_SNIPPET
+            + "\nInstalled for Codex via `brainkm connect codex`. "
+            "Desktop plugin hooks may be silent — mirror hooks with "
+            "`brainkm connect codex --hooks` if needed.\n"
+        )
+
+    def config_dir_name(self) -> str:
+        return ".codex"
 
 
 class GenericClientAdapter:
@@ -96,6 +135,8 @@ class GenericClientAdapter:
         return (
             AGENTS_SNIPPET
             + "\nNo IDE hooks installed. Use `brainkm capture` / `brainkm handover` manually.\n"
+            + "Shared HTTP example: see `.brain/mcp.http.example.json` after "
+            "`brainkm connect generic --http`.\n"
         )
 
     def config_dir_name(self) -> str:
@@ -106,6 +147,7 @@ def get_client_adapter(kind: ClientKind | str) -> ClientAdapter:
     mapping: dict[str, ClientAdapter] = {
         "cursor": CursorClientAdapter(),
         "claude": ClaudeClientAdapter(),
+        "codex": CodexClientAdapter(),
         "generic": GenericClientAdapter(),
     }
     adapter = mapping.get(str(kind).lower())

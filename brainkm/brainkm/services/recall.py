@@ -32,6 +32,7 @@ def recall_live(
     config: BrainConfig | None = None,
     fts_limit: int = 20,
     project_dir: Path | None = None,
+    extra_seed_ids: list[str] | None = None,
 ) -> LiveRecallResult:
     """Query live brain.db — includes neurons written mid-session via remember."""
     if config is not None:
@@ -46,6 +47,7 @@ def recall_live(
         semantic=semantic,
         fts_limit=fts_limit,
         project_dir=project_dir,
+        extra_seed_ids=extra_seed_ids,
     )
     neuron_ids = {ranked.node_id for ranked in traversal.nodes}
     supplemental = deduped_session_chunks(conn, query, neuron_ids)

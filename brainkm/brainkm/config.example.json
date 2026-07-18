@@ -4,6 +4,12 @@
   "budget": {
     "total_tokens": 1500,
     "dynamic_reallocation": true,
+    "pack_quotas": {
+      "enabled": true,
+      "neurons_fraction": 0.4,
+      "graph_fraction": 0.4,
+      "procedures_fraction": 0.2
+    },
     "session_start": {
       "pinned_rules": 300,
       "session_status": 150,
@@ -26,7 +32,17 @@
     "plan_glob": ".cursor/plans/*.plan.md",
     "distill_mode": "cursor",
     "max_auto_neurons_per_session": 50,
-    "max_neurons_per_plan": 20
+    "max_neurons_per_plan": 20,
+    "auto_observe": false,
+    "observe_max_per_session": 40,
+    "observe_dedup_window_seconds": 300,
+    "observe_max_body_tokens": 80,
+    "observation_ttl_hours": 72
+  },
+  "mcp": {
+    "transport": "stdio",
+    "http_host": "127.0.0.1",
+    "http_port": 8765
   },
   "ollama": {
     "base_url": "http://127.0.0.1:11434",
@@ -54,7 +70,10 @@
     "abstain_on_low_confidence": true,
     "abstain_mode": "percentile",
     "abstain_percentile": 0.10,
-    "min_recall_score": null
+    "min_recall_score": null,
+    "max_per_session": 3,
+    "include_sources": false,
+    "activation": "ppr"
   },
   "handover": {
     "precompact_enabled": true,

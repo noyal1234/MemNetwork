@@ -19,14 +19,17 @@ When working in this repository, read **`docs/AI_PROJECT_BRIEF.md`** first for p
 - **Tokens:** Hard 1500-token cap on agent-facing packs (`pack_text` + compact MCP JSON; `include_structured` is opt-in).
 - **Security:** Never store secrets in neurons; use `adapters/redaction.py` (V1).
 - **Compaction:** Architectural truth lives in `brain.db`, not the chat window — PreCompact handover before Cursor compacts.
+- **Capture:** Hooks + `capture.auto_observe` fill the brain; MCP `remember` is **pin/correct only**.
 - **Hygiene:** Prefer `brainkm hygiene` (or injection noise gate) over injecting junk; packs are hints — always verify in source.
+- **Setup:** Prefer `brainkm configure` (TUI) over memorizing `serve` / `connect`.
 
 ## Local development
 
 ```bash
 bash brainkm/scripts/setup_dev.sh
 source .venv/bin/activate
-brainkm install --dev
+pip install -e "./brainkm[tui]"
+brainkm configure   # or: brainkm install --dev
 pytest
 brainkm version
 ```
@@ -44,7 +47,7 @@ Full clone setup: [docs/INSTALL.md](docs/INSTALL.md).
 | `.cursor/*.example` | Yes | MCP/hooks config shape before install |
 | `.cursor/rules/` | No | Policy rules + `brainkm.mdc` (local only) |
 
-Cursor rules in target projects are installed by `brainkm install` (V1).
+Cursor rules in target projects are installed by `brainkm install` / `brainkm configure` (V1).
 
 ## Release checklist (version bump)
 
@@ -53,5 +56,6 @@ When shipping a release, keep these in lockstep:
 1. `brainkm/pyproject.toml` → `version`
 2. `brainkm/brainkm/__init__.py` → `__version__`
 3. Docs status tables / expect strings: `docs/AI_PROJECT_BRIEF.md`, `docs/INSTALL.md`, `README.md`, `brainkm/README.md`, `.cursor/skills/memnetwork-backend/SKILL.md`
-4. `pytest tests/test_version.py` (asserts pyproject == `__version__`)
-5. Prefer adding a brief row to the Implementation status table in `AI_PROJECT_BRIEF.md`
+4. Hook/rule templates: `brainkm/brainkm/hooks/cursor/brainkm.mdc` (and sync workspace `.cursor/rules/brainkm.mdc` if present)
+5. `pytest tests/test_version.py` (asserts pyproject == `__version__`)
+6. Prefer adding a brief row to the Implementation status table in `AI_PROJECT_BRIEF.md`

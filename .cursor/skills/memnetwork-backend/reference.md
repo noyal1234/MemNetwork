@@ -15,9 +15,9 @@
 
 | Subtype | Use |
 |---------|-----|
-| `tool_chain` | Learned sequence of tools + recalled neurons that worked together |
+| `tool_chain` | Ordered external tool sequence observed in-session, plus related context seeds |
 
-Promoted automatically when co-activation edges exceed `learning.co_activation_threshold` and the session used ≥2 external tools. Source: `learning:proc:<hash>`. Included in SessionStart snapshot and `context_pack`.
+Promoted when a **session-scoped** `co_activated` pair (both ends in the current session’s `neuron_hit` set) reaches `learning.co_activation_threshold` and the session used ≥2 external tools. Body stores `Tools: A → B` + numbered steps; context neuron titles are secondary. Dedup source: `learning:proc:<hash(tools::neurons)>`. Included in SessionStart snapshot and `context_pack`.
 
 ## Tool nodes (`kind=tool`)
 
@@ -64,7 +64,7 @@ On Write/Edit: touch `.brain/graph_sync.requested` for debounced MCP background 
 | Neuron hits | MCP `recall`, `context_pack`; PreToolUse pack | `record_neuron_hits` → session window |
 | Tool use | PostToolUse hook | `record_tool_use` → tool registry |
 | Co-activation | Pairs of neurons in window | `co_activated` edge weight +1 |
-| Procedure | Edge weight ≥ threshold + ≥2 external tools | New `kind=procedure` neuron |
+| Procedure | Session hit-pair weight ≥ threshold + ≥2 external tools | New `kind=procedure` with tool-sequence body |
 
 Config (`learning` in `.brain/config.json`):
 

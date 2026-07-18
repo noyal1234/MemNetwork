@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "description": "Decision vs structure scorecard — prove unified brain axes",
+  "decision": [
+    {
+      "id": "jwt-decision",
+      "query": "why did we choose JWT over session cookies",
+      "gold_titles": ["JWT over sessions"]
+    },
+    {
+      "id": "sqlite-decision",
+      "query": "why SQLite for the project brain",
+      "gold_titles": ["SQLite local brain"]
+    }
+  ],
+  "structure": [
+    {
+      "id": "recall-callers",
+      "from_ref": "recall_live",
+      "expect_neighbor_substring": "recall"
+    },
+    {
+      "id": "dispatch-path",
+      "from_ref": "brainkm/brainkm/tools/dispatch.py",
+      "expect_min_neighbors": 1
+    }
+  ],
+  "seed_neurons": [
+    {
+      "title": "JWT over sessions",
+      "content": "We chose JWT bearer tokens instead of session cookies for Edge compatibility.",
+      "subtype": "decision",
+      "tags": ["jwt", "auth"]
+    },
+    {
+      "title": "SQLite local brain",
+      "content": "Project brain stays in local SQLite FTS5 — no cloud vector DB by default.",
+      "subtype": "decision",
+      "tags": ["sqlite", "brain"]
+    }
+  ]
+}

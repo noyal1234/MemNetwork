@@ -25,7 +25,7 @@ Eight tools the agent (or you) can call. Typed `outputSchema` so clients know th
 
 | Tool | What it does |
 |------|----------------|
-| **`remember`** | Store a decision, rule, fact, or error as a neuron. Auto-links to code nodes when you mention file paths. |
+| **`remember`** | **Pin** durable project truth or **correct** a wrong auto-capture. Hooks are the primary capture path — do not rely on the agent calling this for ordinary learning. |
 | **`recall`** | Search project memory (FTS + graph). Returns nothing when confidence is too low — so weak noise does not pollute the chat. |
 | **`context_pack`** | Compile a task pack: relevant neurons + code neighborhood + procedures, under a hard token cap. Prefer before opening 3+ files (not for pure blast-radius — use `traverse`). |
 | **`traverse`** | Focused AST neighborhood for one symbol/path: callers, callees, imports. Prefer for blast-radius; defaults to `direction=both` and structural edges. |
@@ -52,7 +52,36 @@ Hooks wire brainkm into the agent lifecycle so memory keeps working while you vi
 | **PreCompact** | Runs handover *before* Cursor’s lossy summarize — architectural truth is saved first. |
 | **PostCompact** | Refreshes the frozen injection snapshot after compaction so the next turns still see the brain. |
 | **PreToolUse** | Injects a bounded `context_pack` before matched write/edit/shell tools — less blind editing. |
-| **PostToolUse** | Requests graph sync after Write/Edit and runs the learning loop (co-activation / procedures). |
+| **PostToolUse** | Records capped observations when `capture.auto_observe` is on; requests graph sync after Write/Edit; runs the learning loop (co-activation / procedures). |
+| **PostToolUseFailure** | Failure observation (Claude / hosts that support it). |
+| **UserPromptSubmit** | Capped prompt gist observation (where the host supports it). |
+
+### Hook parity (auto-capture)
+
+| Event | Cursor | Claude | Codex | Notes |
+|-------|--------|--------|-------|-------|
+| SessionStart injection | yes | yes | yes | Frozen pack; no MCP required |
+| SessionEnd distill + observe promote | yes | yes | yes | Primary memory path |
+| PreCompact handover | yes | yes | yes | |
+| PostToolUse observe | yes | yes | yes | Needs `capture.auto_observe` |
+| UserPromptSubmit | yes | yes | — | Gist only |
+| PostToolUseFailure | — | yes | — | Cursor: failure payload on PostToolUse |
+
+### Shared localhost brain
+
+**Easiest:** `brainkm configure` → check the apps you use → on Done, click **Start Brain** when sharing across two or more. One app needs no serve step.
+
+Advanced / scripts:
+
+```bash
+brainkm serve --project-dir .
+brainkm connect cursor --http
+brainkm connect claude --http --hooks
+brainkm connect codex --http
+brainkm doctor
+```
+
+One HTTP process + one `.brain/brain.db`. `install --http` (or multi-app wizard) enables `mcp.transport=http` and `capture.auto_observe`.
 
 Manual fallbacks when hooks are unavailable: `brainkm handover`, `brainkm capture`.
 
@@ -62,9 +91,14 @@ Manual fallbacks when hooks are unavailable: `brainkm handover`, `brainkm captur
 
 | Feature | Benefit |
 |---------|---------|
-| **Neurons** | Project facts, decisions, rules, and known errors — searchable, inspectable rows, not chat sludge. |
+| **Hooks + `auto_observe`** | Primary fill path: SessionEnd distill, capped PostToolUse / prompt / failure observations → promote. Agents do not need to call `remember` every turn. |
+| **Neurons** | Project facts, decisions, rules, and known errors — searchable, inspectable rows, not chat sludge. Lifecycle: observation → episode → semantic memory → procedure. |
+| **File / symbol links** | `about_file` / `about_symbol` edges attach memories to code nodes; `brainkm file-history` lists them. |
+| **Concepts** | Deterministic `kind=concept` nodes from tags/paths/symbols (LLM distill enriches tags only). |
+| **Provenance** | `distilled_from` edges + optional MCP `include_sources`; `brainkm provenance <id>`. |
 | **Transcript distill** | Session JSONL → chunks → neurons. Chat becomes durable memory instead of a disposable scrollback. |
 | **Plan-file ingest** | Pulls `.cursor/plans/*.plan.md` so plan changes become recallable context. |
+| **`remember` (pin/correct)** | Explicit durable pin or fix a wrong auto-capture — not the everyday store path. |
 | **Supersede / conflict** | New truth can replace old (“we switched off Redis”) instead of stacking contradictory ADD-only facts. |
 | **Confidence + review queue** | Low-confidence auto-captures wait for `brainkm review approve` / `reject` — you gate what the agent trusts. |
 
@@ -132,8 +166,9 @@ Optional semantic stack: `pip install -e "./brainkm[semantic]"` + `brainkm seman
 
 | Feature | Benefit |
 |---------|---------|
-| **`brainkm install`** | Scaffolds `.brain/`, MCP config, hooks, and rules for **Cursor**, **Claude Code**, or **generic** MCP clients. |
-| **`brainkm configure` TUI** | Guided dashboard: Agent Client step, Semantic Quality consent, live status, validated config edits. |
+| **`brainkm configure` TUI** | **Recommended setup:** pick coding apps (checkboxes), Semantic Quality consent, Start Brain for shared mode, live status, validated config edits. |
+| **`brainkm install`** | Scaffolds `.brain/`, MCP config, hooks, and rules for **Cursor**, **Claude Code**, **Codex**, or **generic** MCP clients (`--http` for shared). |
+| **`serve` / `connect` / `doctor`** | Shared HTTP brain wiring and health checks (TUI Start/Stop wraps serve). |
 | **`migrate`** | Applies pending SQLite migrations when the package advances. |
 | **Multi-root config** | Point `project_roots` at monorepo packages so one brain spans related trees. |
 
@@ -160,7 +195,8 @@ Optional semantic stack: `pip install -e "./brainkm[semantic]"` + `brainkm seman
 | **Local-first SQLite** | Project brain stays under `.brain/` on disk — default path never phones home. |
 | **Redaction + injection scan** | Secrets and prompt-injection patterns are blocked or stripped on write *and* before pack injection. |
 | **No secrets in neurons / config** | API keys live in env / `.env` only — never in `.brain/config.json` or memory bodies. |
-| **HTTP MCP on localhost** | Optional `--http` transport binds to `127.0.0.1` by default. |
+| **HTTP MCP on localhost** | `brainkm serve` / `mcp --http` binds to `127.0.0.1` by default; `/health` for doctor. |
+| **`connect` / `doctor`** | Wire Cursor / Claude / Codex to stdio or shared URL; detect dual writers + auto_observe. |
 
 Details: [SECURITY.md](SECURITY.md).
 
@@ -188,6 +224,7 @@ Headline targets (see [BENCHMARKS.md](BENCHMARKS.md)): **`bench run eval`** repo
 | Understand one module (would open 3+ files) | **`context_pack`**, then verify in source |
 | Cross-project personal prefs | Cursor Memories (not brainkm) |
 | Static team policy | `.cursor/rules/` — brainkm stores *learned* project context |
+| Pin a decision / correct bad auto-memory | MCP **`remember`** (hooks fill ordinary learning) |
 
 Always verify packs in source before editing. Empty or wrong graph? Check `brain_stats` / `graph status`, then `graph_sync`.
 
@@ -202,7 +239,8 @@ Clone-local setup and MCP wiring:
 ```bash
 bash brainkm/scripts/setup_dev.sh
 source .venv/bin/activate
-brainkm install --dev --client cursor
-# optional: pip install -e "./brainkm[tui]" && brainkm configure
+pip install -e "./brainkm[tui]"
+brainkm configure   # recommended
+# or: brainkm install --dev --client cursor
 brainkm version
 ```

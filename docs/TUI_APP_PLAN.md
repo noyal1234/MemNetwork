@@ -428,34 +428,31 @@ Each action is a button that spawns a Textual `Worker`. Output is captured line-
 
 **Purpose:** Guided alternative to manually running `brainkm install --client …` + doctor commands. Activated automatically when `.brain/` does not exist, or via the `w` keybinding.
 
-**Steps (sequential screens) — as of 0.3.2:**
+**Steps (sequential screens) — as of 0.4.0:**
 
 ```mermaid
 flowchart LR
-    A["1. Project dir"] --> B["2. Agent client"]
-    B --> C["3. Install scaffolding"]
-    C --> D["4. Hardware doctor Ollama"]
+    A["1. Project dir"] --> B["2. Which apps"]
+    B --> C["3. Set up brain"]
+    C --> D["4. Hardware doctor"]
     D --> E["5. Semantic Quality"]
     E --> F["6. Distill mode"]
     F --> G["7. Cursor Agent CLI optional"]
     G --> H["8. API key optional"]
     H --> I["9. Graph sync optional"]
     I --> J["10. Viz WebLLM optional"]
-    J --> K["Done"]
+    J --> K["Done + Start Brain if shared"]
 ```
 
 | Step | What happens | Service call |
 |------|-------------|-------------|
 | **1. Project dir** | Confirm `--project-dir` or `cwd`. Warn if `.brain/` already exists. Auto-advances. | — |
-| **2. Agent client** | Radio: `cursor` / `claude` / `generic`. Chooses hooks / MCP / `CLAUDE.md` / `AGENTS.md` layout. | `client_adapters.get_client_adapter()` |
-| **3. Install** | Run `run_install(project_dir, dev=True, client=…)` and list files written/skipped. | `install.run_install(..., client=)` |
-| **4. Hardware doctor** | Ollama/hardware recommendation (chat/distill models — not retrieval embeddings). | `ollama_advisor.build_doctor_report()` |
-| **5. Semantic Quality** | Recommend MiniLM from RAM; user consents. Optional CE checkbox (default off). Skip keeps hashing. | `semantic_advisor` + `onnx_models.ensure_semantic_models` |
-| **6. Distill mode** | Radio: `cursor` / `ollama` / `groq` / `mcp` (rules is advanced fallback). | config write |
-| **7. Cursor Agent CLI** | Only when **client=cursor** and **distill=cursor**; otherwise auto-skipped. | `cursor_advisor` |
-| **8. API key** | Optional `GROQ_API_KEY` → `.env` when using groq. | `groq_advisor` |
-| **9. Graph sync** | Optional Graphify extract+import. | `graphify_sync.sync_graph()` |
-| **10. Viz WebLLM** | Optional local model prefetch for `brainkm viz`. | `webllm_prefetch` |
+| **2. Which apps** | Checkboxes: Cursor / Claude / Codex. One app = simple stdio; two+ = shared HTTP. | checkboxes → `shared_mode` |
+| **3. Set up brain** | `run_install` (+ `connect` for extra apps); always enables `auto_observe`. Plain-language copy. | `install` / `connect` |
+| **4–10** | Same as before (doctor, semantic, distill, …). | — |
+| **Done** | Plain next steps. Shared mode: **Start Brain** button (background `serve`). | `serve_helper.start_serve_background` |
+
+Dashboard shows **Shared Brain** panel with Start/Stop for HTTP mode; simple mode says “no serve needed”.
 
 ---
 

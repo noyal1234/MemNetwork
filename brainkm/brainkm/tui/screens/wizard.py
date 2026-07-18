@@ -55,23 +55,22 @@ STEPS = [
     STEP_DONE,
 ]
 
-CLIENT_LABELS: dict[str, str] = {
-    "cursor": "cursor — Cursor IDE (MCP + hooks + rules)",
-    "claude": "claude — Claude Code (MCP + .claude hooks + CLAUDE.md)",
-    "generic": "generic — any MCP client (AGENTS.md + manual capture/handover)",
-}
+# Plain-language app picker (checkboxes). Primary install client = first selected.
+APP_CHECKBOXES: list[tuple[str, str, str]] = [
+    ("cursor", "wizard-app-cursor", "Cursor (recommended)"),
+    ("claude", "wizard-app-claude", "Claude Code"),
+    ("codex", "wizard-app-codex", "Codex"),
+]
 
-INSTALL_DESCRIPTIONS: dict[str, str] = {
-    "cursor": (
-        "Creates .brain/, config.json, Cursor MCP config, hooks, and brainkm.mdc rule."
+INSTALL_PLAIN: dict[str, str] = {
+    "single": (
+        "We'll set up silent memory for one app. You won't need an extra terminal — "
+        "your coding app starts the brain automatically. Silent capture stays on."
     ),
-    "claude": (
-        "Creates .brain/, config.json, Cursor-shaped MCP entry, .claude/hooks.json, "
-        "and CLAUDE.md routing snippet."
-    ),
-    "generic": (
-        "Creates .brain/, config.json, and an AGENTS.md tool-routing snippet "
-        "(no IDE hooks — use brainkm capture / handover manually)."
+    "shared": (
+        "You use more than one coding app. We'll share one brain across them.\n"
+        "Later you'll click Start Brain (or leave one small terminal open while you code). "
+        "You only do that once per day — not for every chat."
     ),
 }
 
@@ -95,6 +94,8 @@ class WizardScreen(Screen):
         self._current_step = 0
         self._distill_mode = "cursor"
         self._client = "cursor"
+        self._selected_apps: list[str] = ["cursor"]
+        self._shared_mode = False
         self._semantic_enable = False
         self._semantic_rerank = False
 
@@ -119,35 +120,28 @@ class WizardScreen(Screen):
                 )
                 yield Static("", id="wizard-project-status")
 
-            # --- Step 2: Agent client ---
+            # --- Step 2: Which apps (plain language) ---
             with Vertical(classes="wizard-step", id=STEP_CLIENT):
-                yield Static("2 ─ Agent Client", classes="step-title")
+                yield Static("2 ─ Which coding apps do you use?", classes="step-title")
                 yield Static(
-                    "Which coding agent will use this project brain?\n"
-                    "This chooses hooks / MCP / AGENTS.md scaffolding on install.",
+                    "Tick every app you code with on this project.\n"
+                    "One app = simplest setup (no extra terminal).\n"
+                    "Two or more = shared memory across them (best if you switch apps).",
                     classes="step-description",
                 )
-                with RadioSet(id="wizard-client-radio"):
-                    yield RadioButton(
-                        CLIENT_LABELS["cursor"],
-                        value=True,
-                        id="radio-client-cursor",
-                    )
-                    yield RadioButton(
-                        CLIENT_LABELS["claude"],
-                        id="radio-client-claude",
-                    )
-                    yield RadioButton(
-                        CLIENT_LABELS["generic"],
-                        id="radio-client-generic",
+                for _kind, widget_id, label in APP_CHECKBOXES:
+                    yield Checkbox(
+                        label,
+                        id=widget_id,
+                        value=(_kind == "cursor"),
                     )
                 yield Static("", id="wizard-client-status")
 
             # --- Step 3: Install scaffolding ---
             with Vertical(classes="wizard-step", id=STEP_INSTALL):
-                yield Static("3 ─ Install Scaffolding", classes="step-title")
+                yield Static("3 ─ Set up your project brain", classes="step-title")
                 yield Static(
-                    INSTALL_DESCRIPTIONS["cursor"],
+                    INSTALL_PLAIN["single"],
                     id="wizard-install-description",
                     classes="step-description",
                 )
@@ -281,13 +275,22 @@ class WizardScreen(Screen):
 
             # --- Done ---
             with Vertical(classes="wizard-step", id=STEP_DONE):
-                yield Static("✓ Setup Complete!", classes="step-title")
+                yield Static("✓ You're ready", classes="step-title")
                 yield Static(
-                    "Your project brain is ready. Switch to the Dashboard to see the status.\n"
-                    "Open viz with: brainkm viz  ·  Ask chat uses your prefetched model if cached.",
+                    "Your project brain is set up. Open your coding app and start working —\n"
+                    "memory fills in quietly in the background.",
                     id="wizard-done-description",
                     classes="step-description",
                 )
+                yield Static("", id="wizard-done-next-steps")
+                with Horizontal(id="wizard-done-actions"):
+                    yield Button(
+                        bracket_label("Start Brain"),
+                        id="btn-wizard-start-serve",
+                        classes="-primary",
+                        disabled=True,
+                    )
+                yield Static("", id="wizard-done-serve-status")
 
             # --- Log panel ---
             yield RichLogPanel(title="[ WIZARD LOG ]", id="wizard-log")
@@ -347,6 +350,34 @@ class WizardScreen(Screen):
 
         if not is_done and STEPS[self._current_step] == STEP_SEMANTIC:
             self._refresh_semantic_step()
+        if is_done:
+            self._refresh_done_step()
+
+    def _refresh_done_step(self) -> None:
+        """Plain-language next steps + enable Start Brain when shared mode."""
+        shared = self._shared_mode
+        try:
+            next_el = self.query_one("#wizard-done-next-steps", Static)
+            start_btn = self.query_one("#btn-wizard-start-serve", Button)
+            if shared:
+                next_el.update(
+                    "[bold]What to do when you code[/]\n"
+                    "1. Click [Start Brain] below (or once a day open a terminal and leave "
+                    "`brainkm serve` running).\n"
+                    "2. Open Cursor / Claude / Codex as usual — they share the same memory.\n"
+                    "You do [not] need to start the brain for every chat — only once while you work."
+                )
+                start_btn.disabled = False
+            else:
+                next_el.update(
+                    "[bold]What to do when you code[/]\n"
+                    "Just open your coding app and work. Memory starts automatically — "
+                    "no extra terminals, no serve command.\n"
+                    "Silent capture is on: useful decisions stick around without you clicking Remember."
+                )
+                start_btn.disabled = True
+        except Exception:
+            pass
 
     def _refresh_semantic_step(self) -> None:
         """Populate recommendation labels and default radio for Semantic Quality."""
@@ -421,6 +452,27 @@ class WizardScreen(Screen):
             self._skip_current_step()
         elif btn_id == "btn-wizard-finish":
             self.action_switch_dashboard()
+        elif btn_id == "btn-wizard-start-serve":
+            self._start_shared_brain()
+
+    def _start_shared_brain(self) -> None:
+        self.log_panel.log_info("Starting shared brain in the background…")
+        self._do_start_serve()
+
+    @work(thread=True, group="wizard", exit_on_error=False)
+    def _do_start_serve(self) -> dict[str, Any]:
+        from brainkm.services.serve_helper import start_serve_background
+
+        try:
+            status = start_serve_background(self._project_dir, dev=True)
+            return {
+                "step": "start_serve",
+                "running": status.running,
+                "detail": status.detail,
+                "url": status.health_url,
+            }
+        except Exception as exc:
+            return {"step": "start_serve", "error": str(exc)}
 
     def _skip_current_step(self) -> None:
         step = STEPS[self._current_step]
@@ -500,51 +552,119 @@ class WizardScreen(Screen):
         self._advance()
 
     def _apply_client(self) -> None:
-        """Step 2: Persist agent-client choice for install."""
-        mode_map = {0: "cursor", 1: "claude", 2: "generic"}
-        try:
-            radio_set = self.query_one("#wizard-client-radio", RadioSet)
-            self._client = mode_map.get(radio_set.pressed_index, "cursor")
-        except Exception:
-            self._client = "cursor"
+        """Step 2: Which coding apps — checkboxes; shared mode if 2+."""
+        selected: list[str] = []
+        for kind, widget_id, _label in APP_CHECKBOXES:
+            try:
+                box = self.query_one(f"#{widget_id}", Checkbox)
+                if box.value:
+                    selected.append(kind)
+            except Exception:
+                continue
+        if not selected:
+            selected = ["cursor"]
+            try:
+                self.query_one("#wizard-app-cursor", Checkbox).value = True
+            except Exception:
+                pass
+
+        self._selected_apps = selected
+        self._client = selected[0]
+        self._shared_mode = len(selected) > 1
 
         try:
             status = self.query_one("#wizard-client-status", Static)
-            status.update(
-                f"[bold green]● Client: {self._client}[/]"
-            )
+            apps = ", ".join(selected)
+            mode = "shared brain" if self._shared_mode else "simple (one app)"
+            status.update(f"[bold green]● Apps: {apps}[/] — {mode}")
             desc = self.query_one("#wizard-install-description", Static)
-            desc.update(INSTALL_DESCRIPTIONS.get(self._client, INSTALL_DESCRIPTIONS["cursor"]))
+            desc.update(
+                INSTALL_PLAIN["shared"] if self._shared_mode else INSTALL_PLAIN["single"]
+            )
         except Exception:
             pass
-        self.log_panel.log_info(f"Selected agent client: {self._client}")
+        self.log_panel.log_info(
+            f"Apps={selected} shared_mode={self._shared_mode}"
+        )
         self._advance()
 
     def _run_install(self) -> None:
+        mode = "shared HTTP" if self._shared_mode else "simple"
         self.log_panel.log_info(
-            f"Running brainkm install --dev --client {self._client}…"
+            f"Setting up brain ({mode}) for {', '.join(self._selected_apps)}…"
         )
         self._do_install()
 
     @work(thread=True, group="wizard", exit_on_error=False)
     def _do_install(self) -> dict[str, Any]:
+        from brainkm.services.config_loader import load_brain_config, save_brain_config
+        from brainkm.services.connect import run_connect
         from brainkm.services.install import run_install
 
+        apps = list(self._selected_apps) or ["cursor"]
+        primary = apps[0]
+        shared = len(apps) > 1
         try:
             result = run_install(
                 project_dir=self._project_dir,
                 dev=True,
                 force=False,
                 no_graph=True,
-                client=self._client,
+                client=primary,
+                http=shared,
             )
+            # Always enable silent capture for max efficiency.
+            cfg = load_brain_config(self._project_dir)
+            cfg = cfg.model_copy(
+                update={
+                    "capture": cfg.capture.model_copy(update={"auto_observe": True}),
+                }
+            )
+            if shared:
+                cfg = cfg.model_copy(
+                    update={
+                        "mcp": cfg.mcp.model_copy(update={"transport": "http"}),
+                    }
+                )
+            save_brain_config(self._project_dir, cfg)
+
+            connect_notes: list[str] = []
+            transport = "http" if shared else "stdio"
+            for app in apps[1:]:
+                cr = run_connect(
+                    app,
+                    self._project_dir,
+                    transport=transport,
+                    hooks=True,
+                    dev=True,
+                    update_config=True,
+                )
+                connect_notes.extend(str(p) for p in cr.files_written)
+                connect_notes.extend(cr.warnings)
+            # Re-wire primary for http URL when shared (install already wrote it).
+            if shared:
+                run_connect(
+                    primary,
+                    self._project_dir,
+                    transport="http",
+                    hooks=True,
+                    dev=True,
+                    update_config=True,
+                )
         except Exception as exc:
-            return {"step": STEP_INSTALL, "error": str(exc), "client": self._client}
+            return {
+                "step": STEP_INSTALL,
+                "error": str(exc),
+                "client": primary,
+                "shared": shared,
+            }
         return {
             "step": STEP_INSTALL,
-            "client": self._client,
+            "client": primary,
+            "apps": apps,
+            "shared": shared,
             "project_dir": str(result.project_dir),
-            "files_written": [str(p) for p in result.files_written],
+            "files_written": [str(p) for p in result.files_written] + connect_notes,
             "files_skipped": [str(p) for p in result.files_skipped],
             "warnings": list(result.warnings),
         }
@@ -957,6 +1077,10 @@ class WizardScreen(Screen):
                 status = self.query_one("#wizard-install-status", Static)
                 status.update(f"[bold red]✗ {escape_markup(str(result['error']))}[/]")
                 return
+            self._shared_mode = bool(result.get("shared", self._shared_mode))
+            if result.get("apps"):
+                self._selected_apps = list(result["apps"])
+                self._client = self._selected_apps[0]
             for path in result.get("files_written", []):
                 self.log_panel.log_plain(f"  wrote {path}")
             for path in result.get("files_skipped", []):
@@ -964,9 +1088,31 @@ class WizardScreen(Screen):
             for warning in result.get("warnings", []):
                 self.log_panel.log_warning(warning)
             status = self.query_one("#wizard-install-status", Static)
-            client = result.get("client", self._client)
-            status.update(f"[bold green]✓ Install complete (client={client})[/]")
+            apps = ", ".join(result.get("apps") or [result.get("client", self._client)])
+            mode = "shared" if self._shared_mode else "simple"
+            status.update(f"[bold green]✓ Brain ready[/] ({mode}: {apps})")
             self._advance()
+
+        elif step == "start_serve":
+            status = self.query_one("#wizard-done-serve-status", Static)
+            if result.get("error"):
+                self.log_panel.log_error(str(result["error"]))
+                status.update(f"[bold red]✗ {escape_markup(str(result['error']))}[/]")
+                return
+            if result.get("running"):
+                self.log_panel.log_success("Shared brain is running")
+                status.update(
+                    f"[bold green]✓ Brain running[/] ({escape_markup(str(result.get('url', '')))})"
+                )
+            else:
+                self.log_panel.log_warning(
+                    f"Brain not reachable yet: {result.get('detail', '')}"
+                )
+                status.update(
+                    "[bold yellow]● Started but not healthy yet — wait a few seconds "
+                    "or check Dashboard[/]"
+                )
+            return
 
         elif step == STEP_DOCTOR:
             if result.get("error"):

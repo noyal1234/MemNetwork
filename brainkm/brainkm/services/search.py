@@ -23,11 +23,16 @@ TYPE_MULTIPLIERS: dict[tuple[str, str | None], float] = {
     ("memory", "error"): 1.5,
     ("memory", "pattern"): 1.2,
     ("memory", "context"): 0.9,
+    ("memory", "observation"): 0.4,
+    ("memory", "episode"): 0.75,
     ("procedure", None): 1.6,
     ("procedure", "workflow"): 1.7,
+    ("procedure", "tool_chain"): 1.6,
     ("code", "file"): 0.8,
     ("code", "function"): 0.85,
     ("code", "class"): 0.85,
+    ("concept", None): 1.1,
+    ("concept", "tag"): 1.1,
     ("tool", None): 1.0,
     ("session", None): 0.7,
 }
@@ -45,6 +50,29 @@ FLOW_RELATIONSHIPS = frozenset(
         "method",
         "uses",
         "inherits",
+    }
+)
+
+# Default expand allowlist for recall PPR/BFS (typed nodal neighborhood).
+EXPAND_RELATIONSHIPS = frozenset(
+    {
+        "about_file",
+        "about_symbol",
+        "mentions_concept",
+        "implements_concept",
+        "supersedes",
+        "calls",
+        "imports",
+        "imports_from",
+        "defines",
+        "contains",
+        "method",
+        "uses",
+        "inherits",
+        "co_activated",
+        "spawned",
+        "distilled_from",
+        "relates_to",
     }
 )
 
@@ -167,6 +195,7 @@ class RankedNode:
     via: str | None = None
     content: str | None = None
     updated_at: str | None = None
+    session_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -464,7 +493,7 @@ def rank_activated_nodes(
     placeholders = ",".join("?" for _ in activations)
     rows = conn.execute(
         f"""
-        SELECT id, kind, subtype, title, content, confidence, path, use_count, updated_at
+        SELECT id, kind, subtype, title, content, confidence, path, use_count, updated_at, session_id
         FROM nodes
         WHERE id IN ({placeholders})
           AND (valid_until IS NULL)
@@ -490,11 +519,17 @@ def rank_activated_nodes(
         path,
         use_count,
         updated_at,
+        session_id,
     ) in rows:
         info = activations[node_id]
         multiplier = type_multiplier(kind, subtype)
         if subtype in boost_subtypes:
             multiplier *= 1.35
+        # Prefer semantic memory over raw observations/episodes in ranking.
+        if kind == "memory" and subtype == "observation":
+            multiplier *= 0.45
+        elif kind == "memory" and subtype == "episode":
+            multiplier *= 0.7
         score = info.activation * float(confidence) * multiplier
         score *= _decay_multiplier(
             updated_at,
@@ -516,6 +551,7 @@ def rank_activated_nodes(
                 via=info.via,
                 content=content,
                 updated_at=updated_at,
+                session_id=session_id,
             )
         )
 
@@ -559,8 +595,13 @@ def recall_with_bfs(
     semantic: SemanticConfig | None = None,
     fts_limit: int = 20,
     project_dir: Path | None = None,
+    extra_seed_ids: list[str] | None = None,
 ) -> TraversalResult:
-    """Seed from hybrid retrieval, activate via PPR (default) or BFS, return ranked nodes."""
+    """Seed → Expand (typed) → Diversify pipeline for live recall."""
+    from brainkm.services.diversify import diversify_ranked
+    from brainkm.services.file_history import seed_ids_for_path
+    from brainkm.services.remember_links import extract_path_mentions
+
     graph_cfg = graph or GraphConfig()
     recall_cfg = recall or RecallConfig()
     semantic_cfg = semantic or SemanticConfig()
@@ -573,11 +614,26 @@ def recall_with_bfs(
         semantic=semantic_cfg,
         prefer_vector=routing.prefer_vector or semantic_cfg.enabled,
     )
-    # Abstain on FTS BM25 distribution when available.
+
+    # Path / hook seeds (file-centric neighborhood).
+    path_seeds: list[str] = []
+    for path in extract_path_mentions(query):
+        path_seeds.extend(seed_ids_for_path(conn, path, limit=6))
+    if extra_seed_ids:
+        path_seeds.extend(extra_seed_ids)
+    seed_map = {node_id: max(0.1, float(score)) for node_id, score in seeds}
+    for sid in path_seeds:
+        seed_map.setdefault(sid, 0.85)
+    seeds = list(seed_map.items())
+
+    # Abstain on FTS BM25 distribution when available — skip when path seeds rescue.
     fts_only = fts_search_nodes(conn, query, limit=fts_limit)
     seed_scores = [score for _, score in fts_only] if fts_only else [s for _, s in seeds]
 
-    if should_abstain_for_query(
+    if path_seeds:
+        # File-centric seeding is an explicit signal; do not abstain solely on weak BM25.
+        pass
+    elif should_abstain_for_query(
         conn,
         seed_scores,
         recall_cfg,
@@ -593,6 +649,7 @@ def recall_with_bfs(
         )
 
     seed_activations = {node_id: max(0.1, float(score)) for node_id, score in seeds}
+    expand_rels = frozenset(recall_cfg.expand_relationships) or EXPAND_RELATIONSHIPS
 
     max_hops = routing.graph_hops if routing.prefer_graph else min(2, routing.graph_hops)
     if recall_cfg.activation == "ppr":
@@ -604,6 +661,7 @@ def recall_with_bfs(
             max_activation_nodes=graph_cfg.max_activation_nodes,
             min_weight=graph_cfg.min_edge_weight_to_traverse,
             direction="both",
+            relationships=expand_rels,
         )
     else:
         activations, hops = bfs_activate(
@@ -614,9 +672,9 @@ def recall_with_bfs(
             max_activation_nodes=graph_cfg.max_activation_nodes,
             min_weight=graph_cfg.min_edge_weight_to_traverse,
             direction="both",
+            relationships=expand_rels,
         )
 
-    # Temporal intent: prefer nodes still valid and recently updated (already in decay).
     ranked = rank_activated_nodes(
         conn,
         activations,
@@ -630,12 +688,17 @@ def recall_with_bfs(
         ranked = rerank_nodes(query, ranked, enabled=True)
 
     if routing.time_filter:
-        # Soft temporal preference: keep score primary, prefer fresher ties.
         ranked = sorted(
             ranked,
             key=lambda item: (item.score, item.updated_at or ""),
             reverse=True,
         )
+
+    ranked = diversify_ranked(
+        ranked,
+        max_per_session=recall_cfg.max_per_session,
+        max_per_kind=dict(recall_cfg.max_per_kind),
+    )
 
     return TraversalResult(
         nodes=ranked,

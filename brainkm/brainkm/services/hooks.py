@@ -199,7 +199,28 @@ def run_session_end(
 
     conn = connect(brain_db_path(project_dir))
     try:
+        if cfg.capture.auto_observe and result.session_id:
+            from brainkm.services.observe import promote_session_observations
+
+            promo = promote_session_observations(
+                conn,
+                session_id=result.session_id,
+                config=cfg,
+                project_dir=project_dir,
+            )
+            logger.info(
+                "hook=SessionEnd session_id=%s observe_promoted=%d archived=%d",
+                result.session_id,
+                promo.promoted,
+                promo.archived,
+            )
         flushed = flush_use_counts(conn, result.session_id)
+        from brainkm.services.session_activity import clear_file_seeds
+
+        clear_file_seeds(conn, result.session_id)
+        from brainkm.services.lifecycle import archive_expired_observations
+
+        archive_expired_observations(conn, config=cfg, dry_run=False)
         wal_checkpoint(conn)
         conn.commit()
         if flushed:
@@ -373,8 +394,9 @@ def run_post_tool_use(
     *,
     project_dir: Path | None = None,
     config: BrainConfig | None = None,
+    failed: bool = False,
 ) -> HookRunResult:
-    """PostToolUse — debounced graph sync flag, co-activation edges, procedure promotion."""
+    """PostToolUse — observations, graph sync, co-activation / procedure promotion."""
     cfg = config or load_brain_config(project_dir)
     data = _parse_hook_object(raw)
     session_id = _session_id_from_payload(data)
@@ -385,6 +407,7 @@ def run_post_tool_use(
         and cfg.graphify.auto_sync.enabled
         and cfg.graphify.auto_sync.trigger_on_post_tool
         and tool_name
+        and not failed
     ):
         matched = any(
             _pattern_matches_tool(pattern, tool_name)
@@ -400,16 +423,45 @@ def run_post_tool_use(
                 tool_name,
             )
 
-    if tool_name:
+    if tool_name or cfg.capture.auto_observe:
         conn = connect(brain_db_path(project_dir))
         try:
-            process_post_tool(
-                conn,
-                session_id,
-                tool_name,
-                data,
-                config=cfg,
-            )
+            if (
+                tool_name
+                and not failed
+                and any(_pattern_matches_tool(p, tool_name) for p in ("write", "edit"))
+            ):
+                from brainkm.services.observe import extract_observation_path
+                from brainkm.services.session_activity import record_file_seed
+
+                path = extract_observation_path(data)
+                if path and session_id:
+                    record_file_seed(conn, session_id, path)
+            if cfg.capture.auto_observe and tool_name:
+                from brainkm.services.observe import record_observation
+
+                obs = record_observation(
+                    conn,
+                    session_id=session_id,
+                    tool_name=tool_name,
+                    payload=data,
+                    config=cfg,
+                    failed=failed,
+                )
+                if obs.stored:
+                    logger.debug(
+                        "hook=PostToolUse observe_stored node_id=%s failed=%s",
+                        obs.node_id,
+                        failed,
+                    )
+            if tool_name and not failed:
+                process_post_tool(
+                    conn,
+                    session_id,
+                    tool_name,
+                    data,
+                    config=cfg,
+                )
             conn.commit()
         except Exception as exc:  # pragma: no cover - defensive hook fallback
             logger.warning("hook=PostToolUse learning_error=%s", exc)
@@ -417,10 +469,61 @@ def run_post_tool_use(
             conn.close()
 
     return HookRunResult(
-        hook="PostToolUse",
+        hook="PostToolUseFailure" if failed else "PostToolUse",
         session_id=session_id,
         skipped=False,
         reason=None,
+    )
+
+
+def run_user_prompt_submit(
+    raw: str,
+    *,
+    project_dir: Path | None = None,
+    config: BrainConfig | None = None,
+) -> HookRunResult:
+    """UserPromptSubmit — store a capped prompt gist when auto_observe is on."""
+    cfg = config or load_brain_config(project_dir)
+    data = _parse_hook_object(raw)
+    session_id = _session_id_from_payload(data)
+    if not cfg.capture.auto_observe:
+        return HookRunResult(
+            hook="UserPromptSubmit",
+            session_id=session_id,
+            skipped=True,
+            reason="auto_observe disabled",
+        )
+    prompt = ""
+    for key in ("prompt", "user_prompt", "message", "text"):
+        value = data.get(key)
+        if isinstance(value, str) and value.strip():
+            prompt = value
+            break
+    if not prompt:
+        return HookRunResult(
+            hook="UserPromptSubmit",
+            session_id=session_id,
+            skipped=True,
+            reason="missing prompt",
+        )
+    conn = connect(brain_db_path(project_dir))
+    try:
+        from brainkm.services.observe import record_prompt_observation
+
+        obs = record_prompt_observation(
+            conn,
+            session_id=session_id,
+            prompt=prompt,
+            config=cfg,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return HookRunResult(
+        hook="UserPromptSubmit",
+        session_id=session_id,
+        skipped=not obs.stored,
+        reason=obs.skipped_reason,
     )
 
 

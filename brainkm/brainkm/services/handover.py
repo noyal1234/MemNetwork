@@ -247,6 +247,21 @@ def run_handover(
     conn = connect(resolved_db)
     export_path: Path | None = None
     try:
+        if cfg.capture.auto_observe:
+            from brainkm.services.observe import promote_session_observations
+
+            promo = promote_session_observations(
+                conn,
+                session_id=capture_result.session_id,
+                config=cfg,
+                project_dir=project_dir,
+            )
+            logger.info(
+                "hook=PreCompact session_id=%s observe_promoted=%d",
+                capture_result.session_id,
+                promo.promoted,
+            )
+
         extra_neurons = 0
         if capture_result.neuron_count == 0:
             extra_neurons = _maybe_add_context_neuron(

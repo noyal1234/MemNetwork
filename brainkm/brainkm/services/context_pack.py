@@ -509,12 +509,16 @@ def compile_context_pack(
     slots: dict[str, int] | None = None,
     include_structured: bool = False,
     summary_first: bool | None = None,
+    extra_seed_ids: list[str] | None = None,
+    include_sources: bool | None = None,
 ) -> ContextPackResponse:
     """Compile a bounded task pack from live brain.db."""
     from brainkm.adapters.redaction import sanitize_for_storage
     from brainkm.services.budget import adaptive_token_budget
     from brainkm.services.compress import dedup_budget_lines, mmr_diversify
     from brainkm.services.feedback import record_injected
+    from brainkm.models.schemas import ProvenanceSource
+    from brainkm.services.provenance import compact_sources_for_node
 
     use_summary = (
         config.compression.summary_first if summary_first is None else summary_first
@@ -537,6 +541,7 @@ def compile_context_pack(
         recall=config.recall,
         semantic=config.semantic_config(),
         project_dir=project_dir,
+        extra_seed_ids=extra_seed_ids,
     )
     code_seed_refs: list[str] = []
     for ranked in recall.nodes:
@@ -716,6 +721,18 @@ def compile_context_pack(
             }
         )
 
+    sources: dict[str, list[ProvenanceSource]] = {}
+    want_sources = (
+        include_sources
+        if include_sources is not None
+        else config.recall.include_sources
+    )
+    if want_sources:
+        for line in neuron_kept[:8]:
+            compact = compact_sources_for_node(conn, line.node_id, max_links=3)
+            if compact:
+                sources[line.node_id] = [ProvenanceSource(**item) for item in compact]
+
     return ContextPackResponse(
         query=query_echo,
         pack_text=pack_text,
@@ -724,6 +741,7 @@ def compile_context_pack(
         truncation=manifest,
         graph_available=graph_ok,
         graph_hint=graph_hint,
+        sources=sources,
     )
 
 

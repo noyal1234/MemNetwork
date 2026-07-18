@@ -19,19 +19,24 @@ brainkm install --dev
 brainkm graph sync          # optional: first code graph
 brainkm graph status
 pytest
-brainkm version   # expect 0.3.2
+brainkm version   # expect 0.4.0
 ```
 
 Restart Cursor or reload MCP servers after `brainkm install --dev`.
 
-> **Private repo note:** PyPI / `uvx brainkm install`, MCP Registry, and Cursor deeplinks are deferred until this project is public and stable. Use `brainkm install --dev` from a local clone for now.
-
-### Optional: Textual configure UI
+### Easiest path: guided setup (recommended)
 
 ```bash
 pip install -e "./brainkm[tui]"
 brainkm configure
 ```
+
+The wizard asks **which coding apps you use** in plain language:
+
+- **One app** → silent memory, no extra terminal (Cursor starts the brain for you).
+- **Two or more** → shared brain across apps; on the last screen click **Start Brain** (or use Dashboard → Start Brain). You only start it once while you work — not every chat.
+
+You do **not** need to memorize `serve` / `connect` commands.
 
 Opens the dashboard (or first-run wizard if `.brain/` is missing). See [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
 
@@ -101,7 +106,23 @@ brainkm install --dev --project-dir /path/to/other-project
 
 That project gets its own `.brain/` and `.cursor/` wiring.
 
+### Shared multi-agent brain (same machine)
+
+Prefer `brainkm configure` in that project (check two+ apps → **Start Brain**). Power path:
+
+```bash
+brainkm install --dev --http --project-dir /path/to/other-project
+# terminal 1 (or TUI Start Brain)
+brainkm serve --project-dir /path/to/other-project
+# wire additional clients
+brainkm connect claude --http --project-dir /path/to/other-project
+brainkm connect codex --http --project-dir /path/to/other-project
+brainkm doctor --project-dir /path/to/other-project
+```
+
 ## MCP config reference (after `install --dev`)
+
+Stdio (default):
 
 ```json
 {
@@ -109,6 +130,18 @@ That project gets its own `.brain/` and `.cursor/` wiring.
     "brainkm": {
       "command": "<venv>/bin/brainkm",
       "args": ["mcp", "--project-dir", "."]
+    }
+  }
+}
+```
+
+Shared HTTP (after `serve` + `connect --http`):
+
+```json
+{
+  "mcpServers": {
+    "brainkm": {
+      "url": "http://127.0.0.1:8765/mcp"
     }
   }
 }

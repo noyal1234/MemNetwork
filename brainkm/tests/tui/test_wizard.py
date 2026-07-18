@@ -48,6 +48,9 @@ async def test_wizard_client_then_install_scaffolds_project(tmp_path: Path) -> N
         assert STEPS[screen._current_step] == "step-doctor"
         assert (tmp_path / ".brain").is_dir()
         assert (tmp_path / ".cursor" / "hooks.json").is_file()
+        cfg = json.loads((tmp_path / ".brain" / "config.json").read_text(encoding="utf-8"))
+        assert cfg["capture"]["auto_observe"] is True
+        assert cfg["mcp"]["transport"] == "stdio"
 
 
 async def test_wizard_claude_client_install(tmp_path: Path) -> None:
@@ -57,12 +60,11 @@ async def test_wizard_claude_client_install(tmp_path: Path) -> None:
         screen = app.screen
         assert STEPS[screen._current_step] == STEP_CLIENT
 
-        from textual.widgets import RadioSet
+        from textual.widgets import Checkbox
 
-        radio_set = screen.query_one("#wizard-client-radio", RadioSet)
-        radio_set.focus()
-        radio_set.action_next_button()  # cursor -> claude
-        radio_set.action_toggle_button()
+        # Switch from Cursor-only to Claude-only via checkboxes.
+        screen.query_one("#wizard-app-cursor", Checkbox).value = False
+        screen.query_one("#wizard-app-claude", Checkbox).value = True
         await pilot.pause(0.1)
 
         await pilot.click("#btn-wizard-run")
@@ -76,6 +78,31 @@ async def test_wizard_claude_client_install(tmp_path: Path) -> None:
         assert (tmp_path / ".brain").is_dir()
         assert (tmp_path / ".claude" / "hooks.json").is_file()
         assert (tmp_path / "CLAUDE.md").is_file()
+        cfg = json.loads((tmp_path / ".brain" / "config.json").read_text(encoding="utf-8"))
+        assert cfg["capture"]["auto_observe"] is True
+
+
+async def test_wizard_multi_app_uses_shared_http(tmp_path: Path) -> None:
+    app = BrainkmConfigureApp(project_dir=tmp_path)
+    async with app.run_test(size=(140, 70)) as pilot:
+        await pilot.pause(0.3)
+        screen = app.screen
+        from textual.widgets import Checkbox
+
+        screen.query_one("#wizard-app-claude", Checkbox).value = True
+        await pilot.click("#btn-wizard-run")
+        await pilot.pause(0.3)
+        assert screen._shared_mode is True
+        assert screen._selected_apps == ["cursor", "claude"]
+
+        await pilot.click("#btn-wizard-run")
+        await pilot.pause(2.5)
+
+        cfg = json.loads((tmp_path / ".brain" / "config.json").read_text(encoding="utf-8"))
+        assert cfg["mcp"]["transport"] == "http"
+        assert cfg["capture"]["auto_observe"] is True
+        assert (tmp_path / ".cursor" / "mcp.json").is_file()
+        assert (tmp_path / ".mcp.json").is_file()
 
 
 async def test_wizard_distill_mode_selection_writes_config(tmp_path: Path) -> None:

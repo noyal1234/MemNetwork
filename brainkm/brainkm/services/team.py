@@ -11,7 +11,6 @@ from brainkm.db.paths import brain_db_path, brain_dir
 from brainkm.logging_config import get_logger
 from brainkm.models.brain_config import BrainConfig
 from brainkm.services.export import export_markdown
-from brainkm.services.import_merge import import_json_merge
 
 logger = get_logger("services.team")
 
@@ -80,7 +79,28 @@ def import_team_neurons(project_dir: Path, *, config: BrainConfig | None = None)
     path = team_dir(project_dir, config) / "neurons.json"
     if not path.is_file():
         return 0
-    result = import_json_merge(path, project_dir=project_dir)
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    records = raw if isinstance(raw, list) else raw.get("neurons", [])
+    # Tag team-sourced neurons for diversify/budget.
+    for item in records:
+        if isinstance(item, dict):
+            tags = item.get("tags") if isinstance(item.get("tags"), list) else []
+            tags = [str(t) for t in tags]
+            if "team:" not in tags and "team" not in tags:
+                tags.append("team:")
+            item["tags"] = tags
+    from brainkm.services.import_merge import import_neurons_merge
+    from brainkm.db.connection import connect
+    from brainkm.db.migrate import migrate
+    from brainkm.db.paths import brain_db_path
+
+    migrate(project_dir=project_dir, run_integrity_check=False)
+    conn = connect(brain_db_path(project_dir))
+    try:
+        result = import_neurons_merge(conn, records if isinstance(records, list) else [])
+        conn.commit()
+    finally:
+        conn.close()
     logger.info("team import: imported=%s skipped=%s", result.imported, result.skipped)
     return result.imported
 

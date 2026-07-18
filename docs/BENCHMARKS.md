@@ -21,6 +21,8 @@ Optional LLM judge (Ollama): `brainkm bench run task --judge`
 
 ## Headline results (MemNetwork project brain, brainkm 0.3.2)
 
+> Measured on **0.3.2**; retrieval/latency methodology unchanged in **0.4.0** (shared brain / `auto_observe` do not alter these suites). Re-run `bench run eval` after major retrieval changes.
+
 Hardware / corpus: macOS (darwin), hashing embedder (semantic off), **populated** `.brain/brain.db` (~1483 code nodes + project neurons), measured **2026-07-16**.
 
 ### Product-grade (`bench run eval`)

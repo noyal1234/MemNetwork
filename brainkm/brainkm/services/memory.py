@@ -217,6 +217,9 @@ def supersede_neuron(
     subtype: str | None = "fact",
     session_id: str | None = None,
     effective_at: str | None = None,
+    reasoning: str | None = None,
+    rejected_alternatives: list[str] | None = None,
+    valid_from_meta: str | None = None,
 ) -> tuple[NeuronRecord, NeuronRecord]:
     """Retire old neuron via audit_log `superseded`; valid_until set by trigger only."""
     old = get_node(conn, old_node_id)
@@ -255,19 +258,40 @@ def supersede_neuron(
 
     now = effective_at or utc_now_iso()
     edge_id = new_ulid()
-    conn.execute(
-        """
-        INSERT INTO edges (id, from_id, to_id, relationship, weight, created_at, updated_at)
-        VALUES (?, ?, ?, 'supersedes', 1.0, ?, ?)
-        """,
-        (edge_id, new_id, old_node_id, now, now),
-    )
+    meta: dict[str, Any] = {}
+    if valid_from_meta:
+        meta["valid_from"] = valid_from_meta
+    if reasoning:
+        meta["reasoning"] = reasoning
+    if rejected_alternatives:
+        meta["rejected_alternatives"] = rejected_alternatives[:8]
+    meta_json = json.dumps(meta, separators=(",", ":")) if meta else None
+    # meta_json column added in migration 007 — tolerate older DBs.
+    try:
+        conn.execute(
+            """
+            INSERT INTO edges (id, from_id, to_id, relationship, weight, created_at, updated_at, meta_json)
+            VALUES (?, ?, ?, 'supersedes', 1.0, ?, ?, ?)
+            """,
+            (edge_id, new_id, old_node_id, now, now, meta_json),
+        )
+    except sqlite3.OperationalError:
+        conn.execute(
+            """
+            INSERT INTO edges (id, from_id, to_id, relationship, weight, created_at, updated_at)
+            VALUES (?, ?, ?, 'supersedes', 1.0, ?, ?)
+            """,
+            (edge_id, new_id, old_node_id, now, now),
+        )
 
+    payload: dict[str, Any] = {"valid_until": now, "superseded_by": new_id}
+    if meta:
+        payload.update(meta)
     append_event(
         conn,
         "superseded",
         node_id=old_node_id,
-        payload={"valid_until": now, "superseded_by": new_id},
+        payload=payload,
         ts=now,
     )
 

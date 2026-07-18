@@ -15,11 +15,16 @@ SUBTYPE_PRIORITY: dict[tuple[str, str | None], int] = {
     ("memory", "fact"): 3,
     ("memory", "pattern"): 4,
     ("memory", "context"): 5,
+    ("memory", "episode"): 5,
+    ("memory", "observation"): 11,
     ("procedure", None): 6,
     ("procedure", "workflow"): 6,
+    ("procedure", "tool_chain"): 6,
     ("code", "file"): 7,
     ("code", "class"): 8,
     ("code", "function"): 9,
+    ("concept", None): 10,
+    ("concept", "tag"): 10,
     ("tool", None): 10,
     ("session", None): 11,
 }
@@ -85,6 +90,17 @@ def context_pack_slots(config: BrainConfig, query: str | None = None) -> dict[st
     total = adaptive_token_budget(config, query or "") if query else config.budget.total_tokens
     pre = config.budget.pre_tool
     query_type = classify_query_type(query or "")
+    quotas = config.budget.pack_quotas
+
+    if quotas.enabled and query_type == "general":
+        neurons = min(total, int(total * quotas.neurons_fraction))
+        graph = min(total - neurons, int(total * quotas.graph_fraction))
+        procedures = max(0, total - neurons - graph)
+        # Normalize fractions if they overrun due to rounding.
+        used = neurons + graph + procedures
+        if used > total:
+            procedures = max(0, procedures - (used - total))
+        return {"neurons": neurons, "graph": graph, "procedures": procedures}
 
     if config.budget.dynamic_reallocation:
         if query_type == "code":

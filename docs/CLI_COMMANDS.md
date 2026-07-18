@@ -17,11 +17,14 @@ brainkm --help
 | Command | Purpose | Key flags | Example |
 |---------|---------|-----------|---------|
 | `brainkm version` | Print installed package version | — | `brainkm version` |
-| `brainkm install` | Scaffold `.brain/`, MCP config, hooks, rule | `--project-dir`, `--dev`, `--force`, `--no-graph`, `--client cursor\|claude\|generic` | `brainkm install --dev --client cursor` |
+| `brainkm install` | Scaffold `.brain/`, MCP config, hooks, rule | `--project-dir`, `--dev`, `--force`, `--no-graph`, `--client cursor\|claude\|codex\|generic`, `--http`, `--host`, `--port` | `brainkm install --dev --client cursor` |
+| `brainkm serve` | Shared HTTP MCP server (alias of `mcp --http`) | `--project-dir`, `--host`, `--port` | `brainkm serve --project-dir .` |
+| `brainkm connect` | Wire a client to stdio or shared HTTP | `--project-dir`, `--http/--stdio`, `--hooks/--no-hooks`, `--host`, `--port`, `--dev` | `brainkm connect claude --http` |
+| `brainkm doctor` | Health + client wiring + auto_observe / dual-writer checks | `--project-dir`, `--host`, `--port` | `brainkm doctor` |
 | `brainkm migrate` | Apply pending SQLite migrations | `--project-dir` | `brainkm migrate` |
 | `brainkm configure` | Launch Textual config dashboard (wizard / status / forms / actions) | `--project-dir` | `brainkm configure` |
 
-> **Tip:** `brainkm configure` wizard includes **Agent Client** and **Semantic Quality** consent steps (0.3.2+). Requires `pip install -e "./brainkm[tui]"`. Semantic weights: `pip install -e "./brainkm[semantic]"`. Design notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
+> **Tip:** Prefer `brainkm configure` (0.4.0+): app checkboxes → one app = silent stdio; two+ = shared HTTP + **Start Brain**. Semantic Quality consent is separate. Power users: `serve` + `connect --http`. Requires `pip install -e "./brainkm[tui]"`. Semantic weights: `pip install -e "./brainkm[semantic]"`. Design notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
 
 ---
 
@@ -81,8 +84,11 @@ Multi-IDE opt-in: set `graphify.auto_sync.watch_filesystem: true` in `.brain/con
 
 | Command | Purpose | Key flags | Example |
 |---------|---------|-----------|---------|
-| `brainkm hygiene` | Soft-archive noisy (and optionally decayed) neurons | `--project-dir`, `--dry-run`, `--limit`, `--decay`, `--unused-days` | `brainkm hygiene --decay` |
-| `brainkm consolidate` | Merge near-duplicate neurons (sleep-time pass) | `--project-dir`, `--dry-run`, `--limit` | `brainkm consolidate` |
+| `brainkm hygiene` | Soft-archive noisy (and optionally decayed) neurons; sweeps observation TTL | `--project-dir`, `--dry-run`, `--limit`, `--decay`, `--unused-days` | `brainkm hygiene --decay` |
+| `brainkm consolidate` | Merge near-duplicate neurons (sleep-time pass) | `--project-dir`, `--dry-run`, `--limit`, `--llm` | `brainkm consolidate --llm` |
+| `brainkm provenance` | Print provenance chain for a node | `node_id`, `--project-dir` | `brainkm provenance <id>` |
+| `brainkm file-history` | Memories linked to a code path via about_file/about_symbol | `path`, `--project-dir`, `--limit` | `brainkm file-history src/auth.py` |
+| `brainkm demo` | Alias for `brainkm viz --demo` | `--project-dir`, `--port`, `--no-open` | `brainkm demo` |
 
 Safe to re-run; archives via `forget` (reversible with audit log). SessionStart/context packs also skip noisy neurons at injection time.
 
@@ -114,7 +120,7 @@ Safe to re-run; archives via `forget` (reversible with audit log). SessionStart/
 
 | Command | Purpose | Key flags | Example |
 |---------|---------|-----------|---------|
-| `brainkm viz` | Launch 3D neuron graph in the browser | `--project-dir`, `--port`, `--no-open`, `--demo` | `brainkm viz --port 5757` |
+| `brainkm viz` | Launch 3D neuron graph in the browser (Neural Cosmos) | `--project-dir`, `--port`, `--no-open`, `--demo` | `brainkm viz --port 5757` |
 | `brainkm mcp` | Run MCP server (stdio or HTTP) | `--project-dir`, `--http`, `--host`, `--port` | `brainkm mcp --http --port 8765` |
 
 ---
@@ -126,10 +132,12 @@ These commands expect hook payload JSON on stdin (`--stdin`). Cursor hooks call 
 | Command | Cursor event | Purpose |
 |---------|--------------|---------|
 | `brainkm session-start` | SessionStart | Migrate brain.db; prepare frozen injection |
-| `brainkm session-end` | SessionEnd | Capture transcript into neurons |
-| `brainkm pre-tool` | PreToolUse | Inject bounded `context_pack` for matched tools |
-| `brainkm post-compact` | PostCompact | Refresh frozen injection snapshot |
-| `brainkm post-tool` | PostToolUse | Graph sync request + learning loop |
+| `brainkm session-end` | SessionEnd | Capture + promote observations |
+| `brainkm pre-tool` | PreToolUse | Bounded context_pack injection |
+| `brainkm post-tool` | PostToolUse | Observations + graph sync + learning |
+| `brainkm post-tool-failure` | PostToolUseFailure | Failure observation |
+| `brainkm user-prompt` | UserPromptSubmit | Prompt gist observation |
+| `brainkm post-compact` | PostCompact | Refresh frozen snapshot (Claude) |
 
 Example debug:
 

@@ -141,6 +141,7 @@ def capture_transcript_file(
         )
 
         neuron_count = 0
+        neuron_ids: list[str] = []
         for item in distilled:
             if allowed_subtypes is not None and item.subtype not in allowed_subtypes:
                 continue
@@ -164,9 +165,45 @@ def capture_transcript_file(
                 continue
 
             link_chunk_sources(conn, chunk_ids=item.chunk_ids, neuron_id=record.id)
+            from brainkm.services.neuron_index import index_neuron_links
+
+            index_neuron_links(
+                conn,
+                record.id,
+                title=record.title,
+                content=record.content,
+                tags=item.tags,
+                kind="memory",
+            )
             if item.confidence < cfg.learning.auto_capture_confidence:
                 enqueue_for_review(conn, record.id, project_dir=review_project_dir)
+            neuron_ids.append(record.id)
             neuron_count += 1
+
+        # Episodic digest for the session (one short "what happened" neuron).
+        if neuron_count > 0:
+            from brainkm.services.lifecycle import create_episode_neuron, insert_distilled_from_edge
+
+            titles = []
+            for nid in neuron_ids[:8]:
+                row = conn.execute(
+                    "SELECT title FROM nodes WHERE id = ?", (nid,)
+                ).fetchone()
+                if row:
+                    titles.append(row[0])
+            episode = create_episode_neuron(
+                conn,
+                session_id=parsed.session_id,
+                title=f"Episode: session {parsed.session_id[:12]}",
+                content=(
+                    f"Captured {neuron_count} neurons via {distill_mode}.\n"
+                    + "\n".join(f"- {t}" for t in titles)
+                ),
+                source=f"capture_episode:{distill_mode}",
+                confidence=0.55,
+            )
+            for nid in neuron_ids[:12]:
+                insert_distilled_from_edge(conn, from_id=episode.id, to_id=nid)
 
         mark_session_ingested(
             conn,

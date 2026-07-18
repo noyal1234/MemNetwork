@@ -48,6 +48,17 @@ class DashboardScreen(Screen):
             with Horizontal(id="dashboard-body"):
                 with Vertical(id="status-sidebar"):
                     yield StatusPanel(title="[ STATUS ]", id="brain-status")
+                    yield StatusPanel(title="[ SHARED BRAIN ]", id="serve-status")
+                    with Horizontal(classes="panel-actions"):
+                        yield Button(
+                            bracket_label("Start Brain"),
+                            id="btn-start-serve",
+                            classes="-primary",
+                        )
+                        yield Button(
+                            bracket_label("Stop"),
+                            id="btn-stop-serve",
+                        )
 
                 with Vertical(id="dashboard-main"):
                     with Horizontal(id="doctor-row"):
@@ -115,6 +126,7 @@ class DashboardScreen(Screen):
     def action_refresh(self) -> None:
         """Refresh all dashboard panels."""
         self._load_brain_status()
+        self._load_serve_status()
         self._load_ollama_status()
         self._load_groq_status()
         self._load_graph_status()
@@ -257,6 +269,55 @@ class DashboardScreen(Screen):
 
         items.append(("brain.db", str(brain.get("db_size", "?")), "ok"))
         panel.set_items(items)
+
+    @work(thread=True, group="serve-status", exit_on_error=False)
+    def _load_serve_status(self) -> dict[str, Any]:
+        try:
+            from brainkm.services.config_loader import load_brain_config
+            from brainkm.services.serve_helper import get_serve_status
+
+            cfg = load_brain_config(self._project_dir)
+            status = get_serve_status(self._project_dir)
+            return {
+                "running": status.running,
+                "transport": cfg.mcp.transport,
+                "auto_observe": cfg.capture.auto_observe,
+                "url": status.health_url,
+                "detail": status.detail,
+            }
+        except Exception as exc:
+            return {"error": str(exc), "running": False, "transport": "?"}
+
+    def _render_serve_status(self, data: dict[str, Any]) -> None:
+        panel = self.query_one("#serve-status", StatusPanel)
+        start_btn = self.query_one("#btn-start-serve", Button)
+        stop_btn = self.query_one("#btn-stop-serve", Button)
+        if data.get("error"):
+            panel.set_items([("Status", "error", "error"), ("Detail", str(data["error"])[:40], "muted")])
+            return
+        transport = str(data.get("transport", "?"))
+        running = bool(data.get("running"))
+        if transport == "stdio":
+            panel.set_items(
+                [
+                    ("Mode", "simple (auto)", "ok"),
+                    ("Observe", "on" if data.get("auto_observe") else "off", "ok"),
+                    ("Note", "no serve needed", "muted"),
+                ]
+            )
+            start_btn.disabled = True
+            stop_btn.disabled = True
+            return
+        panel.set_items(
+            [
+                ("Mode", "shared HTTP", "accent"),
+                ("Server", "running" if running else "stopped", "ok" if running else "warning"),
+                ("Observe", "on" if data.get("auto_observe") else "off", "ok"),
+                ("URL", str(data.get("url", ""))[:48], "muted"),
+            ]
+        )
+        start_btn.disabled = running
+        stop_btn.disabled = not running
 
     # --- Ollama ---
 
@@ -489,10 +550,45 @@ class DashboardScreen(Screen):
             "btn-graph-sync": self._run_graph_sync,
             "btn-graph-extract": self._run_graph_extract,
             "btn-graph-status": self._run_graph_status_action,
+            "btn-start-serve": self._run_start_serve,
+            "btn-stop-serve": self._run_stop_serve,
         }
         handler = handlers.get(event.button.id or "")
         if handler:
             handler()
+
+    def _run_start_serve(self) -> None:
+        self.notify("Starting shared brain…", severity="information")
+        self._do_start_serve()
+
+    def _run_stop_serve(self) -> None:
+        self.notify("Stopping shared brain…", severity="information")
+        self._do_stop_serve()
+
+    @work(thread=True, group="dashboard-action", exit_on_error=False)
+    def _do_start_serve(self) -> dict[str, Any]:
+        from brainkm.services.serve_helper import start_serve_background
+
+        try:
+            status = start_serve_background(self._project_dir, dev=True)
+            return {
+                "action": "start_serve",
+                "ok": status.running,
+                "url": status.health_url,
+                "error": None if status.running else status.detail,
+            }
+        except Exception as exc:
+            return {"action": "start_serve", "ok": False, "error": str(exc)}
+
+    @work(thread=True, group="dashboard-action", exit_on_error=False)
+    def _do_stop_serve(self) -> dict[str, Any]:
+        from brainkm.services.serve_helper import stop_serve_background
+
+        try:
+            stop_serve_background(self._project_dir)
+            return {"action": "stop_serve", "ok": True}
+        except Exception as exc:
+            return {"action": "stop_serve", "ok": False, "error": str(exc)}
 
     def _run_groq_refresh(self) -> None:
         self.notify("Refreshing Groq status…", severity="information")
@@ -627,6 +723,8 @@ class DashboardScreen(Screen):
             self._render_groq_status(worker.result)
         elif worker.group == "graph-status":
             self._render_graph_status(worker.result)
+        elif worker.group == "serve-status":
+            self._render_serve_status(worker.result)
         elif worker.group == "review-status":
             self._render_review_status(worker.result)
         elif worker.group == "review-action":
@@ -644,12 +742,20 @@ class DashboardScreen(Screen):
         if not result.get("ok"):
             detail = result.get("error") or result.get("message") or "failed"
             self.notify(escape_markup(f"{action}: {detail}"), severity="error")
+            if action in {"start_serve", "stop_serve"}:
+                self._load_serve_status()
             return
 
         if action == "ollama_apply":
             self.notify("Ollama model applied", severity="information")
             self._load_ollama_status()
             self._load_brain_status()
+        elif action == "start_serve":
+            self.notify("Shared brain running", severity="information")
+            self._load_serve_status()
+        elif action == "stop_serve":
+            self.notify("Shared brain stopped", severity="information")
+            self._load_serve_status()
         elif action == "graph_sync":
             self.notify(
                 escape_markup(
