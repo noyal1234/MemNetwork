@@ -518,7 +518,7 @@ def bench_run_cmd(
         ...,
         help=(
             "Suite: eval|retrieval|task|abstention|token|dmr|longmem|budget|"
-            "compaction|latency|compare|scorecard"
+            "compaction|latency|compare|scorecard|cma|longmemeval"
         ),
     ),
     project_dir: Path | None = typer.Option(None, "--project-dir"),
@@ -542,6 +542,21 @@ def bench_run_cmd(
         "--judge",
         help="Task/eval: optional Ollama LLM judge (soft metric; skips if unreachable)",
     ),
+    write_scorecard: Path | None = typer.Option(
+        None,
+        "--write-scorecard",
+        help="CMA only: write dated markdown scorecard to this path",
+    ),
+    stratify: int | None = typer.Option(
+        None,
+        "--stratify",
+        help="LongMemEval-S: sample N per question_type (default 10; 0 = full set)",
+    ),
+    dataset: Path | None = typer.Option(
+        None,
+        "--dataset",
+        help="LongMemEval-S: path to cleaned JSON (else LONGMEMEVAL_PATH / cache)",
+    ),
 ) -> None:
     """Run a bench suite."""
     from brainkm.db.paths import brain_db_path
@@ -552,15 +567,49 @@ def bench_run_cmd(
         raise typer.Exit(code=2)
 
     db_path = brain_db_path(project_dir)
-    result = run_bench_suite(
-        suite,
-        db_path,
-        live=live,
-        profile=profile,
-        fixture_only=fixture_only,
-        judge=judge,
-    )
+    if suite == "longmemeval":
+        from brainkm.services.longmemeval_bench import run_longmemeval_suite
+
+        result = run_longmemeval_suite(db_path, dataset=dataset, stratify=stratify)
+    else:
+        result = run_bench_suite(
+            suite,
+            db_path,
+            live=live,
+            profile=profile,
+            fixture_only=fixture_only,
+            judge=judge,
+        )
     typer.echo(format_suite_result(result))
+    if suite == "cma" and write_scorecard is not None:
+        import platform
+
+        from brainkm import __version__
+        from brainkm.services.cma_bench import render_cma_scorecard_markdown
+
+        commit = None
+        try:
+            import subprocess
+
+            commit = subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"],
+                text=True,
+                cwd=str(project_dir or Path.cwd()),
+                stderr=subprocess.DEVNULL,
+            ).strip()
+        except Exception:
+            commit = None
+        md = render_cma_scorecard_markdown(
+            result,
+            version=__version__,
+            commit=commit,
+            machine=platform.platform(),
+            semantic=False,
+            command="brainkm bench run cma",
+        )
+        write_scorecard.parent.mkdir(parents=True, exist_ok=True)
+        write_scorecard.write_text(md, encoding="utf-8")
+        typer.echo(f"Wrote scorecard: {write_scorecard}")
     if result.passed < result.total:
         raise typer.Exit(code=1)
 

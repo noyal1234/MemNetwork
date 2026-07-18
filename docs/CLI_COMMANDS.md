@@ -98,7 +98,7 @@ Safe to re-run; archives via `forget` (reversible with audit log). SessionStart/
 
 | Command | Purpose | Key flags | Example |
 |---------|---------|-----------|---------|
-| `brainkm bench run` | Run suite: `eval\|retrieval\|task\|abstention\|token\|dmr\|longmem\|budget\|compaction\|latency\|compare` | `--project-dir`, `--live` (token), `--profile` (latency/eval), `--fixture-only` (task), `--judge` (task) | `brainkm bench run eval` |
+| `brainkm bench run` | Run suite: `eval\|retrieval\|task\|abstention\|token\|dmr\|longmem\|budget\|compaction\|latency\|compare\|scorecard\|cma\|longmemeval` | `--project-dir`, `--live` (token), `--profile` (latency/eval), `--fixture-only` (task), `--judge` (task), `--write-scorecard` (cma), `--dataset`/`--stratify` (longmemeval) | `brainkm bench run cma` |
 | `brainkm bench probe` | Live `context_pack` size for one query | `--project-dir`, `--baseline` | `brainkm bench probe "how does token budget greedy truncation work" --baseline brainkm/brainkm/services/budget.py` |
 | `brainkm bench calibrate` | Calibrate recall abstention thresholds | `--project-dir`, `--reference`, `--seed-reference-corpus` | `brainkm bench calibrate` |
 

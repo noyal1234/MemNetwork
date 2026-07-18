@@ -15,7 +15,7 @@
 - [docs/FEATURES.md](docs/FEATURES.md) — product feature catalog (what brainkm does and why)
 - [docs/INSTALL.md](docs/INSTALL.md) — clone + local editable setup
 - [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md) — architecture + roadmap
-- [docs/BENCHMARKS.md](docs/BENCHMARKS.md) — bench targets
+- [docs/BENCHMARKS.md](docs/BENCHMARKS.md) — CMA public scorecard + product eval targets
 - [docs/SECURITY.md](docs/SECURITY.md) — inbound/outbound redaction posture
 - [docs/CLI_COMMANDS.md](docs/CLI_COMMANDS.md) — CLI catalog
 - [docs/TUI_APP_PLAN.md](docs/TUI_APP_PLAN.md) — `brainkm configure` TUI

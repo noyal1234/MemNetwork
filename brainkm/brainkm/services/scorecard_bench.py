@@ -46,7 +46,7 @@ def run_scorecard_suite(_db_path: Path | None = None) -> BenchSuiteResult:
         # Minimal code graph for structure axis
         from brainkm.services.memory import create_neuron, new_ulid
 
-        file_node = create_neuron(
+        file_recall = create_neuron(
             conn,
             title="recall.py",
             content="brainkm/brainkm/services/recall.py",
@@ -55,7 +55,7 @@ def run_scorecard_suite(_db_path: Path | None = None) -> BenchSuiteResult:
             path="brainkm/brainkm/services/recall.py",
             source="scorecard_seed",
         )
-        fn_node = create_neuron(
+        fn_recall = create_neuron(
             conn,
             title="recall_live",
             content="def recall_live(...)",
@@ -73,10 +73,49 @@ def run_scorecard_suite(_db_path: Path | None = None) -> BenchSuiteResult:
             path="brainkm/brainkm/tools/dispatch.py",
             source="scorecard_seed",
         )
+        file_budget = create_neuron(
+            conn,
+            title="budget.py",
+            content="brainkm/brainkm/services/budget.py",
+            kind="code",
+            subtype="file",
+            path="brainkm/brainkm/services/budget.py",
+            source="scorecard_seed",
+        )
+        fn_budget = create_neuron(
+            conn,
+            title="truncate_by_channels",
+            content="def truncate_by_channels(...)",
+            kind="code",
+            subtype="function",
+            path="brainkm/brainkm/services/budget.py",
+            source="scorecard_seed",
+        )
+        file_pack = create_neuron(
+            conn,
+            title="context_pack.py",
+            content="brainkm/brainkm/services/context_pack.py",
+            kind="code",
+            subtype="file",
+            path="brainkm/brainkm/services/context_pack.py",
+            source="scorecard_seed",
+        )
+        fn_pack = create_neuron(
+            conn,
+            title="compile_context_pack",
+            content="def compile_context_pack(...)",
+            kind="code",
+            subtype="function",
+            path="brainkm/brainkm/services/context_pack.py",
+            source="scorecard_seed",
+        )
         now = "2026-01-01T00:00:00"
         for from_id, to_id, rel in (
-            (file_node.id, fn_node.id, "contains"),
-            (dispatch.id, fn_node.id, "calls"),
+            (file_recall.id, fn_recall.id, "contains"),
+            (dispatch.id, fn_recall.id, "calls"),
+            (file_budget.id, fn_budget.id, "contains"),
+            (file_pack.id, fn_pack.id, "contains"),
+            (fn_pack.id, fn_budget.id, "calls"),
         ):
             conn.execute(
                 """
@@ -114,13 +153,14 @@ def run_scorecard_suite(_db_path: Path | None = None) -> BenchSuiteResult:
                     for n in neighbors
                 )
             # Structure arm may be empty on ephemeral brains without graph import —
-            # still pass if we at least resolved a seed or explicitly expect emptiness.
+            # still pass if we explicitly allow emptiness. Do NOT soft-pass on
+            # resolved_id alone — neighbor checks must hold for a real structure hit.
             if not neighbors and item.get("allow_empty"):
                 ok = True
             cases.append(
                 BenchCaseResult(
                     name=f"structure:{item['id']}",
-                    passed=ok or bool(traversal.resolved_id),
+                    passed=ok,
                     detail=detail + f" resolved={traversal.resolved_id}",
                 )
             )

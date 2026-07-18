@@ -219,11 +219,11 @@ Details: [SECURITY.md](SECURITY.md).
 
 | Feature | Benefit |
 |---------|---------|
-| **`bench run`** | **`eval`** runs product-grade suites (retrieval IR metrics, task success, latency smoke/loaded) plus regression canaries. Also: `retrieval`, `task`, `compare` (token proxy), and legacy canaries. |
+| **`bench run`** | **`eval`** runs product-grade suites (retrieval IR metrics, task success, latency smoke/loaded) plus regression canaries. **`cma`** is the public Common Memory Axes scorecard (abilities + tokens + latency). Also: `retrieval`, `task`, `compare` (token proxy), `scorecard`, `longmemeval` (optional footnote), and legacy canaries. |
 | **`bench probe`** | Live `context_pack` size for one query vs a naive multi-file baseline. |
 | **Abstention calibrate** | Tune recall thresholds from fixtures so silence vs noise matches your corpus. |
 
-Headline targets (see [BENCHMARKS.md](BENCHMARKS.md)): **`bench run eval`** reports Recall@5 ~0.98, task gold coverage **with 97% / selective-without 83%**, and loaded latency p95 within corpus-scaled SLOs. `compare` remains a token-savings proxy only.
+Headline targets (see [BENCHMARKS.md](BENCHMARKS.md)): **`bench run cma`** for public agentic-memory comparison (ability accuracy + ≤1500 pack tokens + latency); **`bench run eval`** for product IR/task/latency gates. `compare` remains a token-savings proxy only.
 
 ---
 

@@ -110,6 +110,12 @@ SUITE_RUNNERS = {
     "scorecard": lambda _db: __import__(
         "brainkm.services.scorecard_bench", fromlist=["run_scorecard_suite"]
     ).run_scorecard_suite(_db),
+    "cma": lambda _db: __import__(
+        "brainkm.services.cma_bench", fromlist=["run_cma_suite"]
+    ).run_cma_suite(_db),
+    "longmemeval": lambda _db: __import__(
+        "brainkm.services.longmemeval_bench", fromlist=["run_longmemeval_suite"]
+    ).run_longmemeval_suite(_db),
 }
 
 
@@ -202,6 +208,28 @@ def format_suite_result(result: BenchSuiteResult) -> str:
         from brainkm.services.scorecard_bench import format_scorecard_summary
 
         return format_scorecard_summary(result)
+    if result.suite == "cma":
+        from brainkm.services.cma_bench import format_cma_summary
+
+        lines = [f"Suite {result.suite}: {result.passed}/{result.total} ({result.pass_rate:.0%})"]
+        for case in result.cases:
+            status = "PASS" if case.passed else "FAIL"
+            lines.append(f"  [{status}] {case.name}: {case.detail}")
+        lines.append(format_cma_summary(result))
+        lines.append(
+            "CMA = Common Memory Axes (coding-agent corpus). "
+            "Not a LongMemEval-S leaderboard claim — see docs/BENCHMARKS.md."
+        )
+        return "\n".join(lines)
+    if result.suite == "longmemeval":
+        from brainkm.services.longmemeval_bench import format_longmemeval_summary
+
+        lines = [f"Suite {result.suite}: {result.passed}/{result.total} ({result.pass_rate:.0%})"]
+        for case in result.cases:
+            status = "PASS" if case.passed else "FAIL"
+            lines.append(f"  [{status}] {case.name}: {case.detail}")
+        lines.append(format_longmemeval_summary(result))
+        return "\n".join(lines)
     lines = [f"Suite {result.suite}: {result.passed}/{result.total} ({result.pass_rate:.0%})"]
     for case in result.cases:
         status = "PASS" if case.passed else "FAIL"

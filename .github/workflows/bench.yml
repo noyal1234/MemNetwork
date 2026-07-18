@@ -1,0 +1,85 @@
+# Bench / CMA — enable when the repo is public.
+#
+# Default PR CI should stay light: CMA + unit tests (no LongMemEval-S download).
+# LongMemEval-S is manual / nightly only (see workflow_dispatch input).
+
+name: bench
+
+on:
+  workflow_dispatch:
+    inputs:
+      longmemeval:
+        description: "Also run LongMemEval-S retrieval footnote (requires cached dataset)"
+        type: boolean
+        default: false
+  push:
+    branches: [main, master]
+    paths:
+      - "brainkm/**"
+      - "docs/BENCHMARKS.md"
+      - ".github/workflows/bench.yml"
+  pull_request:
+    paths:
+      - "brainkm/**"
+      - "docs/BENCHMARKS.md"
+      - ".github/workflows/bench.yml"
+
+jobs:
+  cma:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install brainkm
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -U pip
+          pip install -e "./brainkm[dev]"
+      - name: CMA + scorecard unit tests
+        run: |
+          source .venv/bin/activate
+          export PYTHONPATH="${GITHUB_WORKSPACE}/brainkm${PYTHONPATH:+:$PYTHONPATH}"
+          pytest brainkm/tests/test_cma_bench.py brainkm/tests/test_bench_suites.py -q
+      - name: Run CMA scorecard
+        run: |
+          source .venv/bin/activate
+          export PYTHONPATH="${GITHUB_WORKSPACE}/brainkm${PYTHONPATH:+:$PYTHONPATH}"
+          bash brainkm/scripts/run_cma.sh
+      - name: Upload CMA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cma-scorecard
+          path: docs/benchmarks/*-cma.md
+          if-no-files-found: warn
+
+  longmemeval:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.longmemeval }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install brainkm + huggingface_hub
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -U pip
+          pip install -e "./brainkm[dev]" huggingface_hub
+      - name: Download LongMemEval-S cleaned
+        run: |
+          source .venv/bin/activate
+          mkdir -p "$HOME/.cache/brainkm"
+          python -c "from huggingface_hub import hf_hub_download; print(hf_hub_download(repo_id='xiaowu0162/longmemeval-cleaned', filename='longmemeval_s_cleaned.json', repo_type='dataset', local_dir='$HOME/.cache/brainkm'))"
+      - name: Stratified LongMemEval-S retrieval footnote
+        run: |
+          source .venv/bin/activate
+          export PYTHONPATH="${GITHUB_WORKSPACE}/brainkm${PYTHONPATH:+:$PYTHONPATH}"
+          export LONGMEMEVAL_PATH="$HOME/.cache/brainkm/longmemeval_s_cleaned.json"
+          brainkm bench run longmemeval --stratify 10 --project-dir .

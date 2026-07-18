@@ -8,6 +8,13 @@ brainkm bench run eval --project-dir .
 # or: bash brainkm/scripts/run_eval.sh
 ```
 
+**Public comparison claim (architecture-aware):** use **Common Memory Axes (CMA)**, not LongMemEval-S as the headline:
+
+```bash
+bash brainkm/scripts/run_cma.sh
+# or: brainkm bench run cma --write-scorecard docs/benchmarks/YYYY-MM-DD-cma.md
+```
+
 Individual suites:
 
 ```bash
@@ -15,13 +22,77 @@ brainkm bench run retrieval
 brainkm bench run task
 brainkm bench run latency --profile both
 brainkm bench run compare   # token proxy only (generous baseline)
+brainkm bench run cma       # Common Memory Axes (abilities + tokens + latency)
+brainkm bench run scorecard # decision vs structure differentiator
+brainkm bench run longmemeval  # optional LongMemEval-S retrieval footnote
 ```
 
 Optional LLM judge (Ollama): `brainkm bench run task --judge`
 
+## Common Memory Axes (CMA) — primary public scorecard
+
+Chat-memory vendors (Mem0, Zep, agentmemory) often cite **LoCoMo**, **LongMemEval**, or **BEAM**. Those corpora are multi-session **chat** haystacks. brainkm is a **coding-agent project brain** (neurons + code graph + ≤1500-token packs).
+
+CMA reuses LongMemEval’s *ability language* on a coding-agent fixture so numbers are comparable in spirit without pretending to be a chat-assistant leaderboard score:
+
+| Ability | What we measure |
+|---------|-----------------|
+| `extraction` | Gold neuron in top-5 |
+| `knowledge_update` | After `supersedes`, top hit is the **new** fact |
+| `abstention` | Off-topic queries abstain / empty |
+| `multi_hop` | `traverse` / graph-aware recall |
+| `multi_session` | Facts evolving across seeded sessions |
+| `procedure` | Procedure neuron ranked for how-to queries |
+
+**Always reported as a triple:** ability micro-average + mean pack tokens (≤1500) + recall/pack p95 latency.
+
+**Baselines (same gold):** BM25/FTS-only and naive title/content token scan.
+
+Latest published artifact: [docs/benchmarks/2026-07-18-cma-v2.md](benchmarks/2026-07-18-cma-v2.md) (brainkm **0.4.1**, CMA **v2**, semantic off):
+
+| Metric | Result |
+|--------|--------|
+| Ability micro-avg | **97.9%** (hard subset **94.7%**) |
+| Mean pack tokens | **~307** / 1500 |
+| Recall / pack p95 | **~7 / 12 ms** |
+| Baselines | brain **1.00** vs BM25 **1.00** / title-scan **0.97** (keyword-heavy fixture) |
+| Decision+structure scorecard | **8/8** |
+| Theme-leak (report-only) | 0/1 clean — known gap on neo4j-adjacent queries |
+
+### LongMemEval-S retrieval footnote (measured)
+
+[docs/benchmarks/2026-07-18-longmemeval-s.md](benchmarks/2026-07-18-longmemeval-s.md) — stratified 60-Q sample, FTS default:
+
+| Metric | Result |
+|--------|--------|
+| **R@5** | **0.917** |
+| **R@10** | **0.950** |
+| **MRR** | **0.847** |
+
+Compare carefully to agentmemory’s **95.2% R@5** (full 500-Q, BM25+MiniLM). Ours is a smaller sample, semantic off, retrieval-only — a footnote, not the lead claim.
+
+### What we refuse to claim
+
+- CMA is **not** “LongMemEval-S R@5”. Different protocol and corpus.
+- Official LongMemEval **QA + LLM judge** is out of scope for v1.
+- LoCoMo / BEAM are deferred (wrong shape / scale).
+
+### Optional LongMemEval-S retrieval footnote
+
+For an apples-to-apples *retrieval* footnote against agentmemory’s protocol:
+
+```bash
+# Download cleaned JSON (~264MB), then:
+export LONGMEMEVAL_PATH=~/.cache/brainkm/longmemeval_s_cleaned.json
+brainkm bench run longmemeval --stratify 10   # fast sample
+brainkm bench run longmemeval --stratify 0    # full 500 (slow)
+```
+
+Without a dataset the suite **skips cleanly** (PASS with instructions). Default FTS+graph; optional `[semantic]` is a separate future side-by-side.
+
 ## Headline results (MemNetwork project brain, brainkm 0.3.2)
 
-> Measured on **0.3.2**; retrieval/latency methodology unchanged in **0.4.0** (shared brain / `auto_observe` do not alter these suites). Re-run `bench run eval` after major retrieval changes.
+> Measured on **0.3.2**; retrieval/latency methodology unchanged in **0.4.x**. Re-run `bench run eval` after major retrieval changes. Prefer **CMA** for public agentic-memory comparison.
 
 Hardware / corpus: macOS (darwin), hashing embedder (semantic off), **populated** `.brain/brain.db` (~1483 code nodes + project neurons), measured **2026-07-16**.
 
@@ -67,11 +138,14 @@ Average **~94% reduction (~15.7×)** across 4 scenarios.
 
 | Suite | Brain | Standard metric |
 |-------|-------|-----------------|
+| `cma` | Ephemeral coding-agent corpus | Ability micro-avg + mean pack tokens + latency p95 |
+| `scorecard` | Ephemeral | Decision recall + structure traverse |
+| `longmemeval` | Ephemeral per question | Optional LongMemEval-S recall_any@K (skips without dataset) |
 | `retrieval` | Ephemeral gold corpus | Recall@k, MRR, nDCG@5, theme-leak + abstain accuracy |
 | `task` | Live project brain | `answer_facts` answerability + gold coverage vs selective-read |
 | `latency` | Smoke ephemeral + loaded live | Cold/warm p50/p95, mean±stdev |
 | `compare` | Live | Token savings vs naive file dump (proxy) |
-| `eval` | Mixed | All of the above + canaries |
+| `eval` | Mixed | All of the above product suites + canaries |
 
 **Fixture vs live:** `retrieval` uses isolated gold neurons (ranking science). `task` and `latency --profile loaded` use the real project brain. Canaries are tiny regression fixtures.
 
@@ -129,4 +203,4 @@ Product fixes behind the split retrieval metrics and redaction task pass:
 | Adoption story | `compare` file-dump proxy | `task` primary; `compare` labeled proxy |
 | Judge | None | Optional Ollama `--judge` (soft) |
 
-Exact numbers are environment-dependent; refresh from `bench run eval` on each release. Not CI-regenerated while public workflows are deferred.
+Exact numbers are environment-dependent; refresh from `bench run eval` / `bench run cma` on each release. Product eval CI remains deferred while the repo is private; [`.github/workflows/bench.yml`](../.github/workflows/bench.yml) is ready for public CMA gates (LongMemEval-S is `workflow_dispatch` only).

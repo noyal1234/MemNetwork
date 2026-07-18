@@ -173,6 +173,9 @@ Local dev of brainkm:
 | `token` | 10 queries | tokens saved vs file-read |
 | `dmr` | 5 multi-session | recall@1 vs summarize baseline |
 | `longmem` | 10 questions (2 per ability) | accuracy + abstention rate |
+| `cma` | coding-agent corpus (~97 nodes, 28 ability queries) | ability micro-avg + mean pack tokens + latency p95 |
+| `scorecard` | decision + structure seeds | decision recall + traverse neighbor checks |
+| `longmemeval` | optional LongMemEval-S JSON | retrieval-only recall_any@K footnote (skips if no dataset) |
 | `abstention` | calibration fixture | pass rate vs expected recall/abstain |
 | `budget` | pack profiles | token allocation per task type |
 | `compaction` | 3 scenarios | neuron survival across compact cycle |
@@ -183,6 +186,7 @@ Local dev of brainkm:
 
 ```bash
 brainkm bench run eval
+brainkm bench run cma --write-scorecard docs/benchmarks/YYYY-MM-DD-cma.md
 brainkm bench run retrieval
 brainkm bench run task
 brainkm bench run compare

@@ -1,0 +1,2500 @@
+{
+  "version": 2,
+  "id": "cma_v2",
+  "description": "CMA v2 \u2014 harder coding-agent corpus with paraphrase queries, multi-session facts, theme noise, extra supersede pairs, and BM25/title-scan baselines.",
+  "corpus": [
+    {
+      "id": "cma_mem_auth_0",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Auth: JWT",
+      "content": "Project brain decision/fact about auth: JWT. Related keywords: JWT, middleware, token TTL, jose. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "auth",
+        "jwt"
+      ]
+    },
+    {
+      "id": "cma_mem_auth_1",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Auth: middleware",
+      "content": "Project brain decision/fact about auth: middleware. Related keywords: JWT, middleware, token TTL, jose. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "auth",
+        "middleware"
+      ]
+    },
+    {
+      "id": "cma_mem_auth_2",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "Auth: token TTL",
+      "content": "Project brain decision/fact about auth: token TTL. Related keywords: JWT, middleware, token TTL, jose. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "auth",
+        "token"
+      ]
+    },
+    {
+      "id": "cma_mem_auth_3",
+      "kind": "memory",
+      "subtype": "error",
+      "title": "Auth: jose",
+      "content": "Project brain decision/fact about auth: jose. Related keywords: JWT, middleware, token TTL, jose. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "auth",
+        "jose"
+      ]
+    },
+    {
+      "id": "cma_mem_budget_0",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Budget: 1500 tokens",
+      "content": "Project brain decision/fact about budget: 1500 tokens. Related keywords: 1500 tokens, greedy truncation, slots, pack framing. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "budget",
+        "1500"
+      ]
+    },
+    {
+      "id": "cma_mem_budget_1",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Budget: greedy truncation",
+      "content": "Project brain decision/fact about budget: greedy truncation. Related keywords: 1500 tokens, greedy truncation, slots, pack framing. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "budget",
+        "greedy"
+      ]
+    },
+    {
+      "id": "cma_mem_budget_2",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "Budget: slots",
+      "content": "Project brain decision/fact about budget: slots. Related keywords: 1500 tokens, greedy truncation, slots, pack framing. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "budget",
+        "slots"
+      ]
+    },
+    {
+      "id": "cma_mem_budget_3",
+      "kind": "memory",
+      "subtype": "error",
+      "title": "Budget: pack framing",
+      "content": "Project brain decision/fact about budget: pack framing. Related keywords: 1500 tokens, greedy truncation, slots, pack framing. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "budget",
+        "pack"
+      ]
+    },
+    {
+      "id": "cma_mem_graph_0",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Graph: Graphify",
+      "content": "Project brain decision/fact about graph: Graphify. Related keywords: Graphify, auto sync, AST nodes, traverse. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "graph",
+        "graphify"
+      ]
+    },
+    {
+      "id": "cma_mem_graph_1",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Graph: auto sync",
+      "content": "Project brain decision/fact about graph: auto sync. Related keywords: Graphify, auto sync, AST nodes, traverse. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "graph",
+        "auto"
+      ]
+    },
+    {
+      "id": "cma_mem_graph_2",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "Graph: AST nodes",
+      "content": "Project brain decision/fact about graph: AST nodes. Related keywords: Graphify, auto sync, AST nodes, traverse. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "graph",
+        "ast"
+      ]
+    },
+    {
+      "id": "cma_mem_graph_3",
+      "kind": "memory",
+      "subtype": "error",
+      "title": "Graph: traverse",
+      "content": "Project brain decision/fact about graph: traverse. Related keywords: Graphify, auto sync, AST nodes, traverse. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "graph",
+        "traverse"
+      ]
+    },
+    {
+      "id": "cma_mem_hooks_0",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Hooks: SessionEnd",
+      "content": "Project brain decision/fact about hooks: SessionEnd. Related keywords: SessionEnd, PreCompact, SessionStart, auto_observe. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "hooks",
+        "sessionend"
+      ]
+    },
+    {
+      "id": "cma_mem_hooks_1",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Hooks: PreCompact",
+      "content": "Project brain decision/fact about hooks: PreCompact. Related keywords: SessionEnd, PreCompact, SessionStart, auto_observe. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "hooks",
+        "precompact"
+      ]
+    },
+    {
+      "id": "cma_mem_hooks_2",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "Hooks: SessionStart",
+      "content": "Project brain decision/fact about hooks: SessionStart. Related keywords: SessionEnd, PreCompact, SessionStart, auto_observe. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "hooks",
+        "sessionstart"
+      ]
+    },
+    {
+      "id": "cma_mem_hooks_3",
+      "kind": "memory",
+      "subtype": "error",
+      "title": "Hooks: auto_observe",
+      "content": "Project brain decision/fact about hooks: auto_observe. Related keywords: SessionEnd, PreCompact, SessionStart, auto_observe. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "hooks",
+        "auto_observe"
+      ]
+    },
+    {
+      "id": "cma_mem_distill_0",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Distill: rules mode",
+      "content": "Project brain decision/fact about distill: rules mode. Related keywords: rules mode, ollama, groq, cursor distill. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "distill",
+        "rules"
+      ]
+    },
+    {
+      "id": "cma_mem_distill_1",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Distill: ollama",
+      "content": "Project brain decision/fact about distill: ollama. Related keywords: rules mode, ollama, groq, cursor distill. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "distill",
+        "ollama"
+      ]
+    },
+    {
+      "id": "cma_mem_distill_2",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "Distill: groq",
+      "content": "Project brain decision/fact about distill: groq. Related keywords: rules mode, ollama, groq, cursor distill. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "distill",
+        "groq"
+      ]
+    },
+    {
+      "id": "cma_mem_distill_3",
+      "kind": "memory",
+      "subtype": "error",
+      "title": "Distill: cursor distill",
+      "content": "Project brain decision/fact about distill: cursor distill. Related keywords: rules mode, ollama, groq, cursor distill. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "distill",
+        "cursor"
+      ]
+    },
+    {
+      "id": "cma_mem_redaction_0",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Redaction: API keys",
+      "content": "Project brain decision/fact about redaction: API keys. Related keywords: API keys, injection scan, remember_neuron, secrets. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "redaction",
+        "api"
+      ]
+    },
+    {
+      "id": "cma_mem_redaction_1",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Redaction: injection scan",
+      "content": "Project brain decision/fact about redaction: injection scan. Related keywords: API keys, injection scan, remember_neuron, secrets. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "redaction",
+        "injection"
+      ]
+    },
+    {
+      "id": "cma_mem_redaction_2",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "Redaction: remember_neuron",
+      "content": "Project brain decision/fact about redaction: remember_neuron. Related keywords: API keys, injection scan, remember_neuron, secrets. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "redaction",
+        "remember_neuron"
+      ]
+    },
+    {
+      "id": "cma_mem_redaction_3",
+      "kind": "memory",
+      "subtype": "error",
+      "title": "Redaction: secrets",
+      "content": "Project brain decision/fact about redaction: secrets. Related keywords: API keys, injection scan, remember_neuron, secrets. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "redaction",
+        "secrets"
+      ]
+    },
+    {
+      "id": "cma_mem_queue_0",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Queue: WriteQueue",
+      "content": "Project brain decision/fact about queue: WriteQueue. Related keywords: WriteQueue, SQLITE_BUSY, single writer, WAL. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "queue",
+        "writequeue"
+      ]
+    },
+    {
+      "id": "cma_mem_queue_1",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Queue: SQLITE_BUSY",
+      "content": "Project brain decision/fact about queue: SQLITE_BUSY. Related keywords: WriteQueue, SQLITE_BUSY, single writer, WAL. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "queue",
+        "sqlite_busy"
+      ]
+    },
+    {
+      "id": "cma_mem_queue_2",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "Queue: single writer",
+      "content": "Project brain decision/fact about queue: single writer. Related keywords: WriteQueue, SQLITE_BUSY, single writer, WAL. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "queue",
+        "single"
+      ]
+    },
+    {
+      "id": "cma_mem_queue_3",
+      "kind": "memory",
+      "subtype": "error",
+      "title": "Queue: WAL",
+      "content": "Project brain decision/fact about queue: WAL. Related keywords: WriteQueue, SQLITE_BUSY, single writer, WAL. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "queue",
+        "wal"
+      ]
+    },
+    {
+      "id": "cma_mem_handover_0",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Handover: compaction",
+      "content": "Project brain decision/fact about handover: compaction. Related keywords: compaction, frozen snapshot, injection, amnesia. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "handover",
+        "compaction"
+      ]
+    },
+    {
+      "id": "cma_mem_handover_1",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Handover: frozen snapshot",
+      "content": "Project brain decision/fact about handover: frozen snapshot. Related keywords: compaction, frozen snapshot, injection, amnesia. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "handover",
+        "frozen"
+      ]
+    },
+    {
+      "id": "cma_mem_handover_2",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "Handover: injection",
+      "content": "Project brain decision/fact about handover: injection. Related keywords: compaction, frozen snapshot, injection, amnesia. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "handover",
+        "injection"
+      ]
+    },
+    {
+      "id": "cma_mem_handover_3",
+      "kind": "memory",
+      "subtype": "error",
+      "title": "Handover: amnesia",
+      "content": "Project brain decision/fact about handover: amnesia. Related keywords: compaction, frozen snapshot, injection, amnesia. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "handover",
+        "amnesia"
+      ]
+    },
+    {
+      "id": "cma_mem_mcp_0",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Mcp: stdio",
+      "content": "Project brain decision/fact about mcp: stdio. Related keywords: stdio, HTTP serve, connect, doctor. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "mcp",
+        "stdio"
+      ]
+    },
+    {
+      "id": "cma_mem_mcp_1",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Mcp: HTTP serve",
+      "content": "Project brain decision/fact about mcp: HTTP serve. Related keywords: stdio, HTTP serve, connect, doctor. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "mcp",
+        "http"
+      ]
+    },
+    {
+      "id": "cma_mem_mcp_2",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "Mcp: connect",
+      "content": "Project brain decision/fact about mcp: connect. Related keywords: stdio, HTTP serve, connect, doctor. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "mcp",
+        "connect"
+      ]
+    },
+    {
+      "id": "cma_mem_mcp_3",
+      "kind": "memory",
+      "subtype": "error",
+      "title": "Mcp: doctor",
+      "content": "Project brain decision/fact about mcp: doctor. Related keywords: stdio, HTTP serve, connect, doctor. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "mcp",
+        "doctor"
+      ]
+    },
+    {
+      "id": "cma_mem_fts_0",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Fts: BM25",
+      "content": "Project brain decision/fact about fts: BM25. Related keywords: BM25, overlap filter, abstention, percentile. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "fts",
+        "bm25"
+      ]
+    },
+    {
+      "id": "cma_mem_fts_1",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Fts: overlap filter",
+      "content": "Project brain decision/fact about fts: overlap filter. Related keywords: BM25, overlap filter, abstention, percentile. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "fts",
+        "overlap"
+      ]
+    },
+    {
+      "id": "cma_mem_fts_2",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "Fts: abstention",
+      "content": "Project brain decision/fact about fts: abstention. Related keywords: BM25, overlap filter, abstention, percentile. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "fts",
+        "abstention"
+      ]
+    },
+    {
+      "id": "cma_mem_fts_3",
+      "kind": "memory",
+      "subtype": "error",
+      "title": "Fts: percentile",
+      "content": "Project brain decision/fact about fts: percentile. Related keywords: BM25, overlap filter, abstention, percentile. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "fts",
+        "percentile"
+      ]
+    },
+    {
+      "id": "cma_mem_semantic_0",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Semantic: MiniLM",
+      "content": "Project brain decision/fact about semantic: MiniLM. Related keywords: MiniLM, sqlite-vec, RRF, rerank. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "semantic",
+        "minilm"
+      ]
+    },
+    {
+      "id": "cma_mem_semantic_1",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Semantic: sqlite-vec",
+      "content": "Project brain decision/fact about semantic: sqlite-vec. Related keywords: MiniLM, sqlite-vec, RRF, rerank. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "semantic",
+        "sqlite-vec"
+      ]
+    },
+    {
+      "id": "cma_mem_semantic_2",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "Semantic: RRF",
+      "content": "Project brain decision/fact about semantic: RRF. Related keywords: MiniLM, sqlite-vec, RRF, rerank. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "semantic",
+        "rrf"
+      ]
+    },
+    {
+      "id": "cma_mem_semantic_3",
+      "kind": "memory",
+      "subtype": "error",
+      "title": "Semantic: rerank",
+      "content": "Project brain decision/fact about semantic: rerank. Related keywords: MiniLM, sqlite-vec, RRF, rerank. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "semantic",
+        "rerank"
+      ]
+    },
+    {
+      "id": "cma_mem_install_0",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Install: configure TUI",
+      "content": "Project brain decision/fact about install: configure TUI. Related keywords: configure TUI, Claude mcp.json, Codex, generic agents. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "install",
+        "configure"
+      ]
+    },
+    {
+      "id": "cma_mem_install_1",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Install: Claude mcp.json",
+      "content": "Project brain decision/fact about install: Claude mcp.json. Related keywords: configure TUI, Claude mcp.json, Codex, generic agents. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "install",
+        "claude"
+      ]
+    },
+    {
+      "id": "cma_mem_install_2",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "Install: Codex",
+      "content": "Project brain decision/fact about install: Codex. Related keywords: configure TUI, Claude mcp.json, Codex, generic agents. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "install",
+        "codex"
+      ]
+    },
+    {
+      "id": "cma_mem_install_3",
+      "kind": "memory",
+      "subtype": "error",
+      "title": "Install: generic agents",
+      "content": "Project brain decision/fact about install: generic agents. Related keywords: configure TUI, Claude mcp.json, Codex, generic agents. Used by coding agents via recall and context_pack.",
+      "tags": [
+        "install",
+        "generic"
+      ]
+    },
+    {
+      "id": "cma_ttl_old",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "JWT access token TTL legacy",
+      "content": "JWT access token TTL was 60 minutes in v1 policy.",
+      "tags": [
+        "auth",
+        "ttl",
+        "legacy"
+      ]
+    },
+    {
+      "id": "cma_ttl_new",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "JWT access token TTL current",
+      "content": "JWT access token TTL is 15 minutes in v2 policy after security review.",
+      "tags": [
+        "auth",
+        "ttl",
+        "current"
+      ]
+    },
+    {
+      "id": "cma_budget_old",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Token budget legacy 4k",
+      "content": "Early prototypes used a 4000 token injection budget.",
+      "tags": [
+        "budget",
+        "legacy"
+      ]
+    },
+    {
+      "id": "cma_budget_new",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Token budget current 1500",
+      "content": "Hard agent-facing pack budget is 1500 tokens by default.",
+      "tags": [
+        "budget",
+        "current"
+      ]
+    },
+    {
+      "id": "cma_file_recall_py",
+      "kind": "code",
+      "subtype": "file",
+      "title": "recall.py",
+      "content": "brainkm/brainkm/services/recall.py",
+      "path": "brainkm/brainkm/services/recall.py",
+      "tags": [
+        "code",
+        "file"
+      ]
+    },
+    {
+      "id": "cma_fn_recall_live",
+      "kind": "code",
+      "subtype": "function",
+      "title": "recall_live",
+      "content": "def recall_live(...)",
+      "path": "brainkm/brainkm/services/recall.py",
+      "tags": [
+        "code",
+        "function"
+      ]
+    },
+    {
+      "id": "cma_file_context_pack_py",
+      "kind": "code",
+      "subtype": "file",
+      "title": "context_pack.py",
+      "content": "brainkm/brainkm/services/context_pack.py",
+      "path": "brainkm/brainkm/services/context_pack.py",
+      "tags": [
+        "code",
+        "file"
+      ]
+    },
+    {
+      "id": "cma_fn_compile_context_pack",
+      "kind": "code",
+      "subtype": "function",
+      "title": "compile_context_pack",
+      "content": "def compile_context_pack(...)",
+      "path": "brainkm/brainkm/services/context_pack.py",
+      "tags": [
+        "code",
+        "function"
+      ]
+    },
+    {
+      "id": "cma_file_dispatch_py",
+      "kind": "code",
+      "subtype": "file",
+      "title": "dispatch.py",
+      "content": "brainkm/brainkm/tools/dispatch.py",
+      "path": "brainkm/brainkm/tools/dispatch.py",
+      "tags": [
+        "code",
+        "file"
+      ]
+    },
+    {
+      "id": "cma_fn_dispatch_tool",
+      "kind": "code",
+      "subtype": "function",
+      "title": "dispatch_tool",
+      "content": "def dispatch_tool(...)",
+      "path": "brainkm/brainkm/tools/dispatch.py",
+      "tags": [
+        "code",
+        "function"
+      ]
+    },
+    {
+      "id": "cma_file_budget_py",
+      "kind": "code",
+      "subtype": "file",
+      "title": "budget.py",
+      "content": "brainkm/brainkm/services/budget.py",
+      "path": "brainkm/brainkm/services/budget.py",
+      "tags": [
+        "code",
+        "file"
+      ]
+    },
+    {
+      "id": "cma_fn_truncate_by_channels",
+      "kind": "code",
+      "subtype": "function",
+      "title": "truncate_by_channels",
+      "content": "def truncate_by_channels(...)",
+      "path": "brainkm/brainkm/services/budget.py",
+      "tags": [
+        "code",
+        "function"
+      ]
+    },
+    {
+      "id": "cma_file_search_py",
+      "kind": "code",
+      "subtype": "file",
+      "title": "search.py",
+      "content": "brainkm/brainkm/services/search.py",
+      "path": "brainkm/brainkm/services/search.py",
+      "tags": [
+        "code",
+        "file"
+      ]
+    },
+    {
+      "id": "cma_fn_traverse",
+      "kind": "code",
+      "subtype": "function",
+      "title": "traverse",
+      "content": "def traverse(...)",
+      "path": "brainkm/brainkm/services/search.py",
+      "tags": [
+        "code",
+        "function"
+      ]
+    },
+    {
+      "id": "cma_file_memory_py",
+      "kind": "code",
+      "subtype": "file",
+      "title": "memory.py",
+      "content": "brainkm/brainkm/services/memory.py",
+      "path": "brainkm/brainkm/services/memory.py",
+      "tags": [
+        "code",
+        "file"
+      ]
+    },
+    {
+      "id": "cma_fn_remember_neuron",
+      "kind": "code",
+      "subtype": "function",
+      "title": "remember_neuron",
+      "content": "def remember_neuron(...)",
+      "path": "brainkm/brainkm/services/memory.py",
+      "tags": [
+        "code",
+        "function"
+      ]
+    },
+    {
+      "id": "cma_file_hooks_py",
+      "kind": "code",
+      "subtype": "file",
+      "title": "hooks.py",
+      "content": "brainkm/brainkm/services/hooks.py",
+      "path": "brainkm/brainkm/services/hooks.py",
+      "tags": [
+        "code",
+        "file"
+      ]
+    },
+    {
+      "id": "cma_fn_run_session_end",
+      "kind": "code",
+      "subtype": "function",
+      "title": "run_session_end",
+      "content": "def run_session_end(...)",
+      "path": "brainkm/brainkm/services/hooks.py",
+      "tags": [
+        "code",
+        "function"
+      ]
+    },
+    {
+      "id": "cma_file_capture_py",
+      "kind": "code",
+      "subtype": "file",
+      "title": "capture.py",
+      "content": "brainkm/brainkm/services/capture.py",
+      "path": "brainkm/brainkm/services/capture.py",
+      "tags": [
+        "code",
+        "file"
+      ]
+    },
+    {
+      "id": "cma_fn_auto_observe",
+      "kind": "code",
+      "subtype": "function",
+      "title": "auto_observe",
+      "content": "def auto_observe(...)",
+      "path": "brainkm/brainkm/services/capture.py",
+      "tags": [
+        "code",
+        "function"
+      ]
+    },
+    {
+      "id": "cma_file_handover_py",
+      "kind": "code",
+      "subtype": "file",
+      "title": "handover.py",
+      "content": "brainkm/brainkm/services/handover.py",
+      "path": "brainkm/brainkm/services/handover.py",
+      "tags": [
+        "code",
+        "file"
+      ]
+    },
+    {
+      "id": "cma_fn_run_handover",
+      "kind": "code",
+      "subtype": "function",
+      "title": "run_handover",
+      "content": "def run_handover(...)",
+      "path": "brainkm/brainkm/services/handover.py",
+      "tags": [
+        "code",
+        "function"
+      ]
+    },
+    {
+      "id": "cma_file_server_py",
+      "kind": "code",
+      "subtype": "file",
+      "title": "server.py",
+      "content": "brainkm/brainkm/server.py",
+      "path": "brainkm/brainkm/server.py",
+      "tags": [
+        "code",
+        "file"
+      ]
+    },
+    {
+      "id": "cma_fn_create_mcp_server",
+      "kind": "code",
+      "subtype": "function",
+      "title": "create_mcp_server",
+      "content": "def create_mcp_server(...)",
+      "path": "brainkm/brainkm/server.py",
+      "tags": [
+        "code",
+        "function"
+      ]
+    },
+    {
+      "id": "cma_proc_auth",
+      "kind": "procedure",
+      "subtype": "tool_chain",
+      "title": "Fix auth middleware path",
+      "content": "1. Recall JWT policy\n2. Edit middleware\n3. Run pytest auth tests",
+      "tags": [
+        "procedure"
+      ]
+    },
+    {
+      "id": "cma_proc_graph",
+      "kind": "procedure",
+      "subtype": "tool_chain",
+      "title": "Refresh code graph",
+      "content": "1. brainkm graph sync\n2. Check brain_stats\n3. Retry traverse",
+      "tags": [
+        "procedure"
+      ]
+    },
+    {
+      "id": "cma_proc_compact",
+      "kind": "procedure",
+      "subtype": "tool_chain",
+      "title": "Survive compaction",
+      "content": "1. PreCompact handover\n2. SessionEnd capture\n3. SessionStart inject",
+      "tags": [
+        "procedure"
+      ]
+    },
+    {
+      "id": "cma_proc_hygiene",
+      "kind": "procedure",
+      "subtype": "tool_chain",
+      "title": "Reduce injection noise",
+      "content": "1. brainkm hygiene\n2. Recalibrate abstention\n3. Re-run recall",
+      "tags": [
+        "procedure"
+      ]
+    },
+    {
+      "id": "cma_proc_serve",
+      "kind": "procedure",
+      "subtype": "tool_chain",
+      "title": "Share brain across apps",
+      "content": "1. brainkm serve\n2. connect --http\n3. doctor health",
+      "tags": [
+        "procedure"
+      ]
+    },
+    {
+      "id": "cma_fill_00",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Project context note 0",
+      "content": "Auxiliary context neuron 0 about local SQLite project brain workflows and coding agents.",
+      "tags": [
+        "context",
+        "fill0"
+      ]
+    },
+    {
+      "id": "cma_fill_01",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Project context note 1",
+      "content": "Auxiliary context neuron 1 about local SQLite project brain workflows and coding agents.",
+      "tags": [
+        "context",
+        "fill1"
+      ]
+    },
+    {
+      "id": "cma_fill_02",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Project context note 2",
+      "content": "Auxiliary context neuron 2 about local SQLite project brain workflows and coding agents.",
+      "tags": [
+        "context",
+        "fill2"
+      ]
+    },
+    {
+      "id": "cma_fill_03",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Project context note 3",
+      "content": "Auxiliary context neuron 3 about local SQLite project brain workflows and coding agents.",
+      "tags": [
+        "context",
+        "fill3"
+      ]
+    },
+    {
+      "id": "cma_fill_04",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Project context note 4",
+      "content": "Auxiliary context neuron 4 about local SQLite project brain workflows and coding agents.",
+      "tags": [
+        "context",
+        "fill4"
+      ]
+    },
+    {
+      "id": "cma_fill_05",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Project context note 5",
+      "content": "Auxiliary context neuron 5 about local SQLite project brain workflows and coding agents.",
+      "tags": [
+        "context",
+        "fill5"
+      ]
+    },
+    {
+      "id": "cma_fill_06",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Project context note 6",
+      "content": "Auxiliary context neuron 6 about local SQLite project brain workflows and coding agents.",
+      "tags": [
+        "context",
+        "fill6"
+      ]
+    },
+    {
+      "id": "cma_fill_07",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Project context note 7",
+      "content": "Auxiliary context neuron 7 about local SQLite project brain workflows and coding agents.",
+      "tags": [
+        "context",
+        "fill7"
+      ]
+    },
+    {
+      "id": "cma_fill_08",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Project context note 8",
+      "content": "Auxiliary context neuron 8 about local SQLite project brain workflows and coding agents.",
+      "tags": [
+        "context",
+        "fill8"
+      ]
+    },
+    {
+      "id": "cma_fill_09",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Project context note 9",
+      "content": "Auxiliary context neuron 9 about local SQLite project brain workflows and coding agents.",
+      "tags": [
+        "context",
+        "fill9"
+      ]
+    },
+    {
+      "id": "cma_fill_10",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Project context note 10",
+      "content": "Auxiliary context neuron 10 about local SQLite project brain workflows and coding agents.",
+      "tags": [
+        "context",
+        "fill10"
+      ]
+    },
+    {
+      "id": "cma_fill_11",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Project context note 11",
+      "content": "Auxiliary context neuron 11 about local SQLite project brain workflows and coding agents.",
+      "tags": [
+        "context",
+        "fill11"
+      ]
+    },
+    {
+      "id": "cma_fill_12",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Project context note 12",
+      "content": "Auxiliary context neuron 12 about local SQLite project brain workflows and coding agents.",
+      "tags": [
+        "context",
+        "fill12"
+      ]
+    },
+    {
+      "id": "cma_fill_13",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Project context note 13",
+      "content": "Auxiliary context neuron 13 about local SQLite project brain workflows and coding agents.",
+      "tags": [
+        "context",
+        "fill13"
+      ]
+    },
+    {
+      "id": "cma_fill_14",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Project context note 14",
+      "content": "Auxiliary context neuron 14 about local SQLite project brain workflows and coding agents.",
+      "tags": [
+        "context",
+        "fill14"
+      ]
+    },
+    {
+      "id": "cma_fill_15",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Project context note 15",
+      "content": "Auxiliary context neuron 15 about local SQLite project brain workflows and coding agents.",
+      "tags": [
+        "context",
+        "fill15"
+      ]
+    },
+    {
+      "id": "cma_fill_16",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Project context note 16",
+      "content": "Auxiliary context neuron 16 about local SQLite project brain workflows and coding agents.",
+      "tags": [
+        "context",
+        "fill16"
+      ]
+    },
+    {
+      "id": "cma_fill_17",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Project context note 17",
+      "content": "Auxiliary context neuron 17 about local SQLite project brain workflows and coding agents.",
+      "tags": [
+        "context",
+        "fill17"
+      ]
+    },
+    {
+      "id": "cma_fill_18",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Project context note 18",
+      "content": "Auxiliary context neuron 18 about local SQLite project brain workflows and coding agents.",
+      "tags": [
+        "context",
+        "fill18"
+      ]
+    },
+    {
+      "id": "cma_fill_19",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Project context note 19",
+      "content": "Auxiliary context neuron 19 about local SQLite project brain workflows and coding agents.",
+      "tags": [
+        "context",
+        "fill19"
+      ]
+    },
+    {
+      "id": "cma_noise_jwt_cookie",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Cookie sessions for admin UI",
+      "content": "Admin console still uses cookie sessions; APIs use JWT. Do not confuse scopes.",
+      "tags": [
+        "noise",
+        "auth"
+      ]
+    },
+    {
+      "id": "cma_noise_budget_8k",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Claude context window 8k myth",
+      "content": "Some docs mention 8k windows; brainkm pack budget is unrelated at 1500 tokens.",
+      "tags": [
+        "noise",
+        "budget"
+      ]
+    },
+    {
+      "id": "cma_noise_neo4j",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Neo4j deferred",
+      "content": "Neo4j was considered and rejected for V1; SQLite remains default.",
+      "tags": [
+        "noise",
+        "graph"
+      ]
+    },
+    {
+      "id": "cma_noise_pinecone",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Pinecone not used",
+      "content": "No Pinecone or cloud vector DB in default install.",
+      "tags": [
+        "noise",
+        "semantic"
+      ]
+    },
+    {
+      "id": "cma_noise_mem0",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Mem0 not stacked",
+      "content": "Do not stack Mem0 on top of brainkm for this project.",
+      "tags": [
+        "noise",
+        "mcp"
+      ]
+    },
+    {
+      "id": "cma_noise_postgres",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Postgres deferred",
+      "content": "Postgres brain backend is deferred; SQLite WAL is the V1 store.",
+      "tags": [
+        "noise",
+        "queue"
+      ]
+    },
+    {
+      "id": "cma_ms_s1_auth",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Session1 auth discovery",
+      "content": "In session 1 we found auth middleware lives under src/auth/middleware.py.",
+      "tags": [
+        "session1",
+        "auth",
+        "sess_cma_1"
+      ]
+    },
+    {
+      "id": "cma_ms_s2_auth",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Session2 auth pivot to jose",
+      "content": "In session 2 we pivoted from jsonwebtoken to jose for Edge runtime compatibility.",
+      "tags": [
+        "session2",
+        "auth",
+        "jose",
+        "sess_cma_2"
+      ]
+    },
+    {
+      "id": "cma_ms_s1_graph",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Session1 graph empty",
+      "content": "In session 1 traverse returned empty; graph had not been synced yet.",
+      "tags": [
+        "session1",
+        "graph",
+        "sess_cma_1"
+      ]
+    },
+    {
+      "id": "cma_ms_s2_graph",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "Session2 always graph sync first",
+      "content": "In session 2 we agreed: run brainkm graph sync before trusting traverse.",
+      "tags": [
+        "session2",
+        "graph",
+        "sess_cma_2"
+      ]
+    },
+    {
+      "id": "cma_ms_s1_budget",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Session1 pack overflow",
+      "content": "In session 1 packs overflowed when dumping whole files into context.",
+      "tags": [
+        "session1",
+        "budget",
+        "sess_cma_1"
+      ]
+    },
+    {
+      "id": "cma_ms_s2_budget",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Session2 enforce 1500",
+      "content": "In session 2 we enforced the 1500 token pack cap as a hard gate.",
+      "tags": [
+        "session2",
+        "budget",
+        "sess_cma_2"
+      ]
+    },
+    {
+      "id": "cma_ms_s3_hooks",
+      "kind": "memory",
+      "subtype": "fact",
+      "title": "Session3 remember misuse",
+      "content": "In session 3 agents overused MCP remember for ordinary learning.",
+      "tags": [
+        "session3",
+        "hooks",
+        "sess_cma_3"
+      ]
+    },
+    {
+      "id": "cma_ms_s4_hooks",
+      "kind": "memory",
+      "subtype": "rule",
+      "title": "Session4 hooks primary",
+      "content": "In session 4 policy: hooks and auto_observe fill the brain; remember is pin/correct only.",
+      "tags": [
+        "session4",
+        "hooks",
+        "sess_cma_4"
+      ]
+    },
+    {
+      "id": "cma_distill_old",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Distill mode legacy rules-only",
+      "content": "Distill defaulted to rules-only with no LLM path.",
+      "tags": [
+        "distill",
+        "legacy"
+      ]
+    },
+    {
+      "id": "cma_distill_new",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Distill mode cursor default",
+      "content": "Distill mode defaults to cursor with rules fallback on failure.",
+      "tags": [
+        "distill",
+        "current"
+      ]
+    },
+    {
+      "id": "cma_obs_old",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Observations uncapped legacy",
+      "content": "Early auto_observe wrote unlimited observations per session.",
+      "tags": [
+        "observe",
+        "legacy"
+      ]
+    },
+    {
+      "id": "cma_obs_new",
+      "kind": "memory",
+      "subtype": "decision",
+      "title": "Observations capped per session",
+      "content": "auto_observe is capped per session before SessionEnd promotion.",
+      "tags": [
+        "observe",
+        "current"
+      ]
+    },
+    {
+      "id": "cma_file_install_py",
+      "kind": "code",
+      "subtype": "file",
+      "title": "install.py",
+      "content": "brainkm/brainkm/services/install.py",
+      "path": "brainkm/brainkm/services/install.py",
+      "tags": [
+        "code",
+        "file"
+      ]
+    },
+    {
+      "id": "cma_fn_run_install",
+      "kind": "code",
+      "subtype": "function",
+      "title": "run_install",
+      "content": "def run_install(...)",
+      "path": "brainkm/brainkm/services/install.py",
+      "tags": [
+        "code",
+        "function"
+      ]
+    },
+    {
+      "id": "cma_file_connect_py",
+      "kind": "code",
+      "subtype": "file",
+      "title": "connect.py",
+      "content": "brainkm/brainkm/services/connect.py",
+      "path": "brainkm/brainkm/services/connect.py",
+      "tags": [
+        "code",
+        "file"
+      ]
+    },
+    {
+      "id": "cma_fn_connect_client",
+      "kind": "code",
+      "subtype": "function",
+      "title": "connect_client",
+      "content": "def connect_client(...)",
+      "path": "brainkm/brainkm/services/connect.py",
+      "tags": [
+        "code",
+        "function"
+      ]
+    },
+    {
+      "id": "cma_file_diversify_py",
+      "kind": "code",
+      "subtype": "file",
+      "title": "diversify.py",
+      "content": "brainkm/brainkm/services/diversify.py",
+      "path": "brainkm/brainkm/services/diversify.py",
+      "tags": [
+        "code",
+        "file"
+      ]
+    },
+    {
+      "id": "cma_fn_diversify_hits",
+      "kind": "code",
+      "subtype": "function",
+      "title": "diversify_hits",
+      "content": "def diversify_hits(...)",
+      "path": "brainkm/brainkm/services/diversify.py",
+      "tags": [
+        "code",
+        "function"
+      ]
+    },
+    {
+      "id": "cma_file_lifecycle_py",
+      "kind": "code",
+      "subtype": "file",
+      "title": "lifecycle.py",
+      "content": "brainkm/brainkm/services/lifecycle.py",
+      "path": "brainkm/brainkm/services/lifecycle.py",
+      "tags": [
+        "code",
+        "file"
+      ]
+    },
+    {
+      "id": "cma_fn_promote_observation",
+      "kind": "code",
+      "subtype": "function",
+      "title": "promote_observation",
+      "content": "def promote_observation(...)",
+      "path": "brainkm/brainkm/services/lifecycle.py",
+      "tags": [
+        "code",
+        "function"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_00",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 0",
+      "content": "Unrelated distractor context 0 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d0"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_01",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 1",
+      "content": "Unrelated distractor context 1 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d1"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_02",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 2",
+      "content": "Unrelated distractor context 2 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d2"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_03",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 3",
+      "content": "Unrelated distractor context 3 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d3"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_04",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 4",
+      "content": "Unrelated distractor context 4 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d4"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_05",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 5",
+      "content": "Unrelated distractor context 5 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d5"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_06",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 6",
+      "content": "Unrelated distractor context 6 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d6"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_07",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 7",
+      "content": "Unrelated distractor context 7 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d7"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_08",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 8",
+      "content": "Unrelated distractor context 8 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d8"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_09",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 9",
+      "content": "Unrelated distractor context 9 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d9"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_10",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 10",
+      "content": "Unrelated distractor context 10 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d10"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_11",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 11",
+      "content": "Unrelated distractor context 11 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d11"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_12",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 12",
+      "content": "Unrelated distractor context 12 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d12"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_13",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 13",
+      "content": "Unrelated distractor context 13 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d13"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_14",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 14",
+      "content": "Unrelated distractor context 14 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d14"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_15",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 15",
+      "content": "Unrelated distractor context 15 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d15"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_16",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 16",
+      "content": "Unrelated distractor context 16 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d16"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_17",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 17",
+      "content": "Unrelated distractor context 17 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d17"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_18",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 18",
+      "content": "Unrelated distractor context 18 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d18"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_19",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 19",
+      "content": "Unrelated distractor context 19 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d19"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_20",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 20",
+      "content": "Unrelated distractor context 20 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d20"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_21",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 21",
+      "content": "Unrelated distractor context 21 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d21"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_22",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 22",
+      "content": "Unrelated distractor context 22 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d22"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_23",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 23",
+      "content": "Unrelated distractor context 23 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d23"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_24",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 24",
+      "content": "Unrelated distractor context 24 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d24"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_25",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 25",
+      "content": "Unrelated distractor context 25 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d25"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_26",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 26",
+      "content": "Unrelated distractor context 26 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d26"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_27",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 27",
+      "content": "Unrelated distractor context 27 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d27"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_28",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 28",
+      "content": "Unrelated distractor context 28 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d28"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_29",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 29",
+      "content": "Unrelated distractor context 29 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d29"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_30",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 30",
+      "content": "Unrelated distractor context 30 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d30"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_31",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 31",
+      "content": "Unrelated distractor context 31 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d31"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_32",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 32",
+      "content": "Unrelated distractor context 32 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d32"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_33",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 33",
+      "content": "Unrelated distractor context 33 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d33"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_34",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 34",
+      "content": "Unrelated distractor context 34 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d34"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_35",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 35",
+      "content": "Unrelated distractor context 35 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d35"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_36",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 36",
+      "content": "Unrelated distractor context 36 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d36"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_37",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 37",
+      "content": "Unrelated distractor context 37 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d37"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_38",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 38",
+      "content": "Unrelated distractor context 38 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d38"
+      ]
+    },
+    {
+      "id": "cma_noise_fill_39",
+      "kind": "memory",
+      "subtype": "context",
+      "title": "Distractor note 39",
+      "content": "Unrelated distractor context 39 about weather sports cooking travel unrelated to brainkm.",
+      "tags": [
+        "noise",
+        "d39"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from_id": "cma_file_recall_py",
+      "to_id": "cma_fn_recall_live",
+      "relationship": "contains"
+    },
+    {
+      "from_id": "cma_file_context_pack_py",
+      "to_id": "cma_fn_compile_context_pack",
+      "relationship": "contains"
+    },
+    {
+      "from_id": "cma_file_dispatch_py",
+      "to_id": "cma_fn_dispatch_tool",
+      "relationship": "contains"
+    },
+    {
+      "from_id": "cma_file_budget_py",
+      "to_id": "cma_fn_truncate_by_channels",
+      "relationship": "contains"
+    },
+    {
+      "from_id": "cma_file_search_py",
+      "to_id": "cma_fn_traverse",
+      "relationship": "contains"
+    },
+    {
+      "from_id": "cma_file_memory_py",
+      "to_id": "cma_fn_remember_neuron",
+      "relationship": "contains"
+    },
+    {
+      "from_id": "cma_file_hooks_py",
+      "to_id": "cma_fn_run_session_end",
+      "relationship": "contains"
+    },
+    {
+      "from_id": "cma_file_capture_py",
+      "to_id": "cma_fn_auto_observe",
+      "relationship": "contains"
+    },
+    {
+      "from_id": "cma_file_handover_py",
+      "to_id": "cma_fn_run_handover",
+      "relationship": "contains"
+    },
+    {
+      "from_id": "cma_file_server_py",
+      "to_id": "cma_fn_create_mcp_server",
+      "relationship": "contains"
+    },
+    {
+      "from_id": "cma_fn_dispatch_tool",
+      "to_id": "cma_fn_recall_live",
+      "relationship": "calls"
+    },
+    {
+      "from_id": "cma_fn_dispatch_tool",
+      "to_id": "cma_fn_compile_context_pack",
+      "relationship": "calls"
+    },
+    {
+      "from_id": "cma_fn_compile_context_pack",
+      "to_id": "cma_fn_truncate_by_channels",
+      "relationship": "calls"
+    },
+    {
+      "from_id": "cma_fn_compile_context_pack",
+      "to_id": "cma_fn_traverse",
+      "relationship": "calls"
+    },
+    {
+      "from_id": "cma_fn_recall_live",
+      "to_id": "cma_fn_traverse",
+      "relationship": "calls"
+    },
+    {
+      "from_id": "cma_fn_run_session_end",
+      "to_id": "cma_fn_auto_observe",
+      "relationship": "calls"
+    },
+    {
+      "from_id": "cma_fn_run_handover",
+      "to_id": "cma_fn_remember_neuron",
+      "relationship": "calls"
+    },
+    {
+      "from_id": "cma_fn_create_mcp_server",
+      "to_id": "cma_fn_dispatch_tool",
+      "relationship": "calls"
+    },
+    {
+      "from_id": "cma_file_install_py",
+      "to_id": "cma_fn_run_install",
+      "relationship": "contains"
+    },
+    {
+      "from_id": "cma_file_connect_py",
+      "to_id": "cma_fn_connect_client",
+      "relationship": "contains"
+    },
+    {
+      "from_id": "cma_file_diversify_py",
+      "to_id": "cma_fn_diversify_hits",
+      "relationship": "contains"
+    },
+    {
+      "from_id": "cma_file_lifecycle_py",
+      "to_id": "cma_fn_promote_observation",
+      "relationship": "contains"
+    },
+    {
+      "from_id": "cma_fn_run_install",
+      "to_id": "cma_fn_connect_client",
+      "relationship": "calls"
+    },
+    {
+      "from_id": "cma_fn_compile_context_pack",
+      "to_id": "cma_fn_diversify_hits",
+      "relationship": "calls"
+    },
+    {
+      "from_id": "cma_fn_auto_observe",
+      "to_id": "cma_fn_promote_observation",
+      "relationship": "calls"
+    }
+  ],
+  "supersede": [
+    {
+      "old_id": "cma_ttl_old",
+      "new_id": "cma_ttl_new"
+    },
+    {
+      "old_id": "cma_budget_old",
+      "new_id": "cma_budget_new"
+    },
+    {
+      "old_id": "cma_distill_old",
+      "new_id": "cma_distill_new"
+    },
+    {
+      "old_id": "cma_obs_old",
+      "new_id": "cma_obs_new"
+    }
+  ],
+  "queries": [
+    {
+      "id": "cma_q_ext_jwt",
+      "ability": "extraction",
+      "query": "why jwt bearer tokens jose edge",
+      "expected_node_ids": [
+        "cma_mem_auth_3"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true
+    },
+    {
+      "id": "cma_q_ext_budget",
+      "ability": "extraction",
+      "query": "hard 1500 token pack budget default",
+      "expected_node_ids": [
+        "cma_mem_budget_0",
+        "cma_budget_new",
+        "cma_ms_s2_budget"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true
+    },
+    {
+      "id": "cma_q_ext_graphify",
+      "ability": "extraction",
+      "query": "graphify auto sync AST nodes",
+      "expected_node_ids": [
+        "cma_mem_graph_1"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true
+    },
+    {
+      "id": "cma_q_ext_precompact",
+      "ability": "extraction",
+      "query": "PreCompact handover SessionEnd hooks compaction defense",
+      "expected_node_ids": [
+        "cma_mem_hooks_1",
+        "cma_mem_handover_0",
+        "cma_proc_compact"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true
+    },
+    {
+      "id": "cma_q_ext_redact",
+      "ability": "extraction",
+      "query": "never store API keys in neurons",
+      "expected_node_ids": [
+        "cma_mem_redaction_0"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true
+    },
+    {
+      "id": "cma_q_ext_writequeue",
+      "ability": "extraction",
+      "query": "WriteQueue SQLITE_BUSY single writer",
+      "expected_node_ids": [
+        "cma_mem_queue_0"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true
+    },
+    {
+      "id": "cma_q_ext_frozen",
+      "ability": "extraction",
+      "query": "frozen snapshot SessionStart injection",
+      "expected_node_ids": [
+        "cma_mem_handover_1"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true
+    },
+    {
+      "id": "cma_q_ext_http",
+      "ability": "extraction",
+      "query": "brainkm serve HTTP connect doctor",
+      "expected_node_ids": [
+        "cma_mem_mcp_1"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true
+    },
+    {
+      "id": "cma_q_ext_bm25",
+      "ability": "extraction",
+      "query": "BM25 overlap filter abstention percentile",
+      "expected_node_ids": [
+        "cma_mem_fts_0"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true
+    },
+    {
+      "id": "cma_q_ext_minilm",
+      "ability": "extraction",
+      "query": "optional MiniLM sqlite-vec RRF semantic",
+      "expected_node_ids": [
+        "cma_mem_semantic_0"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true
+    },
+    {
+      "id": "cma_q_ext_tui",
+      "ability": "extraction",
+      "query": "brainkm configure TUI multi app",
+      "expected_node_ids": [
+        "cma_mem_install_0"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true
+    },
+    {
+      "id": "cma_q_ext_ollama",
+      "ability": "extraction",
+      "query": "ollama distill mode local model",
+      "expected_node_ids": [
+        "cma_mem_distill_1"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true
+    },
+    {
+      "id": "cma_q_upd_ttl",
+      "ability": "knowledge_update",
+      "query": "current jwt access token ttl minutes policy",
+      "expected_node_ids": [
+        "cma_ttl_new"
+      ],
+      "forbidden_top1": "cma_ttl_old",
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true
+    },
+    {
+      "id": "cma_q_upd_budget",
+      "ability": "knowledge_update",
+      "query": "current default token budget for agent packs",
+      "expected_node_ids": [
+        "cma_budget_new"
+      ],
+      "forbidden_top1": "cma_budget_old",
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true
+    },
+    {
+      "id": "cma_q_abs_0",
+      "ability": "abstention",
+      "query": "capital city of france population",
+      "should_recall": false,
+      "measure_pack": false
+    },
+    {
+      "id": "cma_q_abs_1",
+      "ability": "abstention",
+      "query": "best pizza toppings in naples",
+      "should_recall": false,
+      "measure_pack": false
+    },
+    {
+      "id": "cma_q_abs_2",
+      "ability": "abstention",
+      "query": "weather forecast tomorrow rainfall mumbai",
+      "should_recall": false,
+      "measure_pack": false
+    },
+    {
+      "id": "cma_q_abs_3",
+      "ability": "abstention",
+      "query": "kubernetes ingress nginx tls certificate",
+      "should_recall": false,
+      "measure_pack": false
+    },
+    {
+      "id": "cma_q_abs_4",
+      "ability": "abstention",
+      "query": "quantum banana reactor flux capacitor",
+      "should_recall": false,
+      "measure_pack": false
+    },
+    {
+      "id": "cma_q_abs_5",
+      "ability": "abstention",
+      "query": "nba finals mvp winner last year",
+      "should_recall": false,
+      "measure_pack": false
+    },
+    {
+      "id": "cma_q_hop_dispatch",
+      "ability": "multi_hop",
+      "mode": "traverse",
+      "from_ref": "dispatch_tool",
+      "expect_neighbor_substring": "recall",
+      "expect_min_neighbors": 1
+    },
+    {
+      "id": "cma_q_hop_pack",
+      "ability": "multi_hop",
+      "mode": "traverse",
+      "from_ref": "compile_context_pack",
+      "expect_neighbor_substring": "budget",
+      "expect_min_neighbors": 1
+    },
+    {
+      "id": "cma_q_hop_path",
+      "ability": "multi_hop",
+      "mode": "traverse",
+      "from_ref": "brainkm/brainkm/services/recall.py",
+      "expect_neighbor_substring": "recall_live",
+      "expect_min_neighbors": 1
+    },
+    {
+      "id": "cma_q_hop_recall_q",
+      "ability": "multi_hop",
+      "mode": "recall",
+      "query": "function that compiles bounded context pack",
+      "expected_node_ids": [
+        "cma_fn_compile_context_pack"
+      ],
+      "k": 5,
+      "measure_pack": true
+    },
+    {
+      "id": "cma_q_proc_auth",
+      "ability": "procedure",
+      "query": "steps to fix auth middleware path",
+      "expected_node_ids": [
+        "cma_proc_auth"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true
+    },
+    {
+      "id": "cma_q_proc_graph",
+      "ability": "procedure",
+      "query": "how to refresh code graph sync",
+      "expected_node_ids": [
+        "cma_proc_graph"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true
+    },
+    {
+      "id": "cma_q_proc_compact",
+      "ability": "procedure",
+      "query": "procedure to survive chat compaction",
+      "expected_node_ids": [
+        "cma_proc_compact"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true
+    },
+    {
+      "id": "cma_q_proc_serve",
+      "ability": "procedure",
+      "query": "share brain across cursor claude serve connect",
+      "expected_node_ids": [
+        "cma_proc_serve"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true
+    },
+    {
+      "id": "cma_q_ext_para_jwt",
+      "ability": "extraction",
+      "query": "which library did we pick for signing tokens on the edge runtime",
+      "expected_node_ids": [
+        "cma_ms_s2_auth",
+        "cma_mem_auth_3"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true,
+      "hard": true
+    },
+    {
+      "id": "cma_q_ext_para_budget",
+      "ability": "extraction",
+      "query": "what hard token budget cap stops dumping whole files into agent prompts",
+      "expected_node_ids": [
+        "cma_ms_s2_budget",
+        "cma_budget_new",
+        "cma_mem_budget_0",
+        "cma_ms_s1_budget"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true,
+      "hard": true
+    },
+    {
+      "id": "cma_q_ext_para_graph",
+      "ability": "extraction",
+      "query": "what must we run before trusting call-graph traversal answers",
+      "expected_node_ids": [
+        "cma_ms_s2_graph",
+        "cma_proc_graph"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true,
+      "hard": true
+    },
+    {
+      "id": "cma_q_ext_para_remember",
+      "ability": "extraction",
+      "query": "when should the agent call remember versus relying on hooks",
+      "expected_node_ids": [
+        "cma_ms_s4_hooks",
+        "cma_mem_hooks_3"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true,
+      "hard": true
+    },
+    {
+      "id": "cma_q_ext_para_redact",
+      "ability": "extraction",
+      "query": "never store API keys or credentials in memory neurons policy",
+      "expected_node_ids": [
+        "cma_mem_redaction_0",
+        "cma_mem_redaction_1"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true,
+      "hard": true
+    },
+    {
+      "id": "cma_q_ext_para_wal",
+      "ability": "extraction",
+      "query": "how do we serialize writers when sqlite is busy",
+      "expected_node_ids": [
+        "cma_mem_queue_0",
+        "cma_mem_queue_1"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true,
+      "hard": true
+    },
+    {
+      "id": "cma_q_ms_auth",
+      "ability": "multi_session",
+      "query": "Across early sessions how did auth library choice evolve to jose",
+      "expected_node_ids": [
+        "cma_ms_s2_auth",
+        "cma_ms_s1_auth"
+      ],
+      "prefer_node_ids": [
+        "cma_ms_s2_auth"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true,
+      "hard": true
+    },
+    {
+      "id": "cma_q_ms_graph",
+      "ability": "multi_session",
+      "query": "After empty traverse what operating rule did later sessions adopt",
+      "expected_node_ids": [
+        "cma_ms_s2_graph",
+        "cma_ms_s1_graph"
+      ],
+      "prefer_node_ids": [
+        "cma_ms_s2_graph"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true,
+      "hard": true
+    },
+    {
+      "id": "cma_q_ms_budget",
+      "ability": "multi_session",
+      "query": "How did pack overflow in early sessions change the budget policy later",
+      "expected_node_ids": [
+        "cma_ms_s2_budget",
+        "cma_ms_s1_budget"
+      ],
+      "prefer_node_ids": [
+        "cma_ms_s2_budget"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true,
+      "hard": true
+    },
+    {
+      "id": "cma_q_ms_hooks",
+      "ability": "multi_session",
+      "query": "What final policy replaced overusing remember for ordinary learning",
+      "expected_node_ids": [
+        "cma_ms_s4_hooks",
+        "cma_ms_s3_hooks"
+      ],
+      "prefer_node_ids": [
+        "cma_ms_s4_hooks"
+      ],
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true,
+      "hard": true
+    },
+    {
+      "id": "cma_q_upd_distill",
+      "ability": "knowledge_update",
+      "query": "current default distill mode for capture",
+      "expected_node_ids": [
+        "cma_distill_new"
+      ],
+      "forbidden_top1": "cma_distill_old",
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true,
+      "hard": true
+    },
+    {
+      "id": "cma_q_upd_observe",
+      "ability": "knowledge_update",
+      "query": "is auto_observe unlimited or capped per session now",
+      "expected_node_ids": [
+        "cma_obs_new"
+      ],
+      "forbidden_top1": "cma_obs_old",
+      "k": 5,
+      "measure_pack": true,
+      "baseline": true,
+      "hard": true
+    },
+    {
+      "id": "cma_q_theme_neo4j",
+      "ability": "theme_leak",
+      "query": "should we deploy neo4j in production for this brain tomorrow",
+      "should_recall": false,
+      "measure_pack": false,
+      "hard": true,
+      "report_only": true
+    },
+    {
+      "id": "cma_q_abs_leak_pinecone_key",
+      "ability": "abstention",
+      "query": "what is our pinecone api key for staging",
+      "should_recall": false,
+      "measure_pack": false,
+      "hard": true
+    },
+    {
+      "id": "cma_q_abs_leak_nba",
+      "ability": "abstention",
+      "query": "who won the nba finals last season",
+      "should_recall": false,
+      "measure_pack": false,
+      "hard": true
+    },
+    {
+      "id": "cma_q_abs_leak_weather",
+      "ability": "abstention",
+      "query": "will it rain in mumbai tomorrow afternoon",
+      "should_recall": false,
+      "measure_pack": false,
+      "hard": true
+    },
+    {
+      "id": "cma_q_hop_diversify",
+      "ability": "multi_hop",
+      "mode": "traverse",
+      "from_ref": "compile_context_pack",
+      "expect_neighbor_substring": "diversify",
+      "expect_min_neighbors": 1,
+      "hard": true
+    },
+    {
+      "id": "cma_q_hop_promote",
+      "ability": "multi_hop",
+      "mode": "traverse",
+      "from_ref": "auto_observe",
+      "expect_neighbor_substring": "promote",
+      "expect_min_neighbors": 1,
+      "hard": true
+    },
+    {
+      "id": "cma_q_abs_cassandra",
+      "ability": "abstention",
+      "query": "capital of mars colony golf tournament winner 2099",
+      "should_recall": false,
+      "measure_pack": false,
+      "hard": true
+    }
+  ],
+  "floors": {
+    "ability_micro_avg": 0.7,
+    "hard_micro_avg": 0.55,
+    "mean_pack_tokens_max": 1500,
+    "recall_p95_ms": 800.0,
+    "pack_p95_ms": 1200.0,
+    "baseline_lift_min": -0.05
+  },
+  "latency_warm_repeats": 3
+}

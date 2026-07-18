@@ -37,6 +37,14 @@ class Settings(BaseSettings):
         ),
         validation_alias="BRAINKM_SKIP_ROLLING_SCORES",
     )
+    longmemeval_path: Path | None = Field(
+        default=None,
+        description=(
+            "Optional path to LongMemEval-S cleaned JSON for the retrieval footnote suite "
+            "(env: LONGMEMEVAL_PATH)."
+        ),
+        validation_alias="LONGMEMEVAL_PATH",
+    )
 
 
 @lru_cache

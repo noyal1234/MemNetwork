@@ -11,17 +11,41 @@
       "id": "sqlite-decision",
       "query": "why SQLite for the project brain",
       "gold_titles": ["SQLite local brain"]
+    },
+    {
+      "id": "budget-decision",
+      "query": "why 1500 token pack budget for agents",
+      "gold_titles": ["1500 token budget"]
+    },
+    {
+      "id": "hooks-decision",
+      "query": "why hooks capture instead of manual remember",
+      "gold_titles": ["Hooks primary capture"]
     }
   ],
   "structure": [
     {
       "id": "recall-callers",
       "from_ref": "recall_live",
-      "expect_neighbor_substring": "recall"
+      "expect_neighbor_substring": "recall",
+      "expect_min_neighbors": 1
     },
     {
       "id": "dispatch-path",
       "from_ref": "brainkm/brainkm/tools/dispatch.py",
+      "expect_min_neighbors": 1,
+      "expect_neighbor_substring": "recall"
+    },
+    {
+      "id": "budget-fn",
+      "from_ref": "truncate_by_channels",
+      "expect_neighbor_substring": "budget",
+      "expect_min_neighbors": 1
+    },
+    {
+      "id": "pack-path",
+      "from_ref": "brainkm/brainkm/services/context_pack.py",
+      "expect_neighbor_substring": "compile_context_pack",
       "expect_min_neighbors": 1
     }
   ],
@@ -37,6 +61,18 @@
       "content": "Project brain stays in local SQLite FTS5 — no cloud vector DB by default.",
       "subtype": "decision",
       "tags": ["sqlite", "brain"]
+    },
+    {
+      "title": "1500 token budget",
+      "content": "Agent-facing packs are capped at 1500 tokens so injection stays lean.",
+      "subtype": "decision",
+      "tags": ["budget", "tokens"]
+    },
+    {
+      "title": "Hooks primary capture",
+      "content": "Hooks and auto_observe fill the brain; MCP remember is pin/correct only.",
+      "subtype": "decision",
+      "tags": ["hooks", "capture"]
     }
   ]
 }
