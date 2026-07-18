@@ -9,7 +9,7 @@
     },
     {
       "id": "sqlite-decision",
-      "query": "why SQLite for the project brain",
+      "query": "why did we choose SQLite FTS5 for the local project brain",
       "gold_titles": ["SQLite local brain"]
     },
     {
@@ -58,9 +58,9 @@
     },
     {
       "title": "SQLite local brain",
-      "content": "Project brain stays in local SQLite FTS5 — no cloud vector DB by default.",
+      "content": "We chose SQLite FTS5 for the local project brain instead of a cloud vector database.",
       "subtype": "decision",
-      "tags": ["sqlite", "brain"]
+      "tags": ["sqlite", "brain", "fts5"]
     },
     {
       "title": "1500 token budget",

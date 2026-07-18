@@ -22,12 +22,16 @@ from brainkm.services.scorecard_bench import run_scorecard_suite
 def test_cma_suite_passes_floors(tmp_path: Path) -> None:
     result = run_cma_suite(tmp_path / ".brain" / "brain.db")
     assert result.suite == "cma"
-    assert result.total >= 40
+    assert result.total >= 50
     assert result.passed == result.total
     summary = format_cma_summary(result)
     assert "micro=" in summary
     assert "pack=" in summary
     assert "baselines:" in summary
+    assert "hard_slice_lift:" in summary
+    # v3 hard slice should beat BM25
+    hard = next(c for c in result.cases if c.name == "baseline/hard_slice_brain_vs_bm25")
+    assert hard.passed
 
 
 def test_cma_scorecard_markdown_render(tmp_path: Path) -> None:

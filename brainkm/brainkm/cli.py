@@ -557,6 +557,11 @@ def bench_run_cmd(
         "--dataset",
         help="LongMemEval-S: path to cleaned JSON (else LONGMEMEVAL_PATH / cache)",
     ),
+    semantic: bool = typer.Option(
+        False,
+        "--semantic",
+        help="LongMemEval-S: enable MiniLM hybrid retrieval (requires [semantic] extra)",
+    ),
 ) -> None:
     """Run a bench suite."""
     from brainkm.db.paths import brain_db_path
@@ -570,7 +575,9 @@ def bench_run_cmd(
     if suite == "longmemeval":
         from brainkm.services.longmemeval_bench import run_longmemeval_suite
 
-        result = run_longmemeval_suite(db_path, dataset=dataset, stratify=stratify)
+        result = run_longmemeval_suite(
+            db_path, dataset=dataset, stratify=stratify, semantic=semantic
+        )
     else:
         result = run_bench_suite(
             suite,

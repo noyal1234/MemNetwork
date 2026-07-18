@@ -116,6 +116,7 @@ def run_longmemeval_suite(
     dataset: Path | None = None,
     stratify: int | None = None,
     limit: int | None = None,
+    semantic: bool = False,
 ) -> BenchSuiteResult:
     """Retrieval-only LongMemEval-S footnote (skip cleanly when dataset absent)."""
     del _db_path
@@ -144,6 +145,10 @@ def run_longmemeval_suite(
         if limit is not None:
             sampled = sampled[:limit]
 
+    from brainkm.models.brain_config import SemanticConfig
+
+    semantic_cfg = SemanticConfig(enabled=True) if semantic else SemanticConfig(enabled=False)
+
     set_skip_rolling_scores(True)
     r_at_5: list[float] = []
     r_at_10: list[float] = []
@@ -168,11 +173,24 @@ def run_longmemeval_suite(
                         subtype="context",
                     )
                 conn.commit()
+                if semantic:
+                    from brainkm.services.semantic import embed_neuron_if_enabled
+
+                    for session in q["haystack"]:
+                        embed_neuron_if_enabled(
+                            conn,
+                            session["id"],
+                            title=f"session {session['id']}",
+                            content=session["content"],
+                            semantic_enabled=True,
+                        )
+                    conn.commit()
                 result = recall_live(
                     conn,
                     q["question"],
                     limit=10,
                     recall=RecallConfig(abstain_on_low_confidence=False),
+                    semantic=semantic_cfg,
                     project_dir=project,
                 )
                 ranked = [n.node_id for n in result.nodes]
@@ -199,14 +217,14 @@ def run_longmemeval_suite(
     mean_r5 = sum(r_at_5) / n if r_at_5 else 0.0
     mean_r10 = sum(r_at_10) / n if r_at_10 else 0.0
     mean_mrr = sum(mrrs) / n if mrrs else 0.0
+    mode = "semantic" if semantic else "fts"
 
-    # Aggregate metric cases (floors are soft documentation gates, not agentmemory parity).
     cases.insert(
         0,
         BenchCaseResult(
             name="aggregate/recall_at_5",
             passed=True,
-            detail=f"{mean_r5:.3f} (n={len(r_at_5)}, dataset={path.name})",
+            detail=f"{mean_r5:.3f} (n={len(r_at_5)}, dataset={path.name}, mode={mode})",
         ),
     )
     cases.insert(
@@ -235,8 +253,6 @@ def run_longmemeval_suite(
             )
         )
 
-    # Suite "pass" = ran successfully; per-question misses are reported but do not
-    # fail the suite gate (footnote / measurement, not product regression gate).
     return BenchSuiteResult(
         suite="longmemeval",
         passed=len(cases),
@@ -256,6 +272,7 @@ def format_longmemeval_summary(result: BenchSuiteResult) -> str:
     mrr = next((c.detail for c in result.cases if c.name == "aggregate/mrr"), "?")
     return (
         f"LongMemEval-S retrieval footnote: R@5={r5} R@10={r10} MRR={mrr}\n"
-        "  Protocol: recall_any@K on session haystacks (FTS default). "
+        "  Protocol: recall_any@K on session haystacks "
+        "(FTS default; --semantic for MiniLM hybrid side-by-side). "
         "Not official LongMemEval QA accuracy."
     )

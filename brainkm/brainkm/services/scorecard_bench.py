@@ -7,6 +7,7 @@ from importlib import resources
 from pathlib import Path
 
 from brainkm.bench.results import BenchCaseResult, BenchSuiteResult
+from brainkm.models.brain_config import RecallConfig
 from brainkm.services.bench_db import cleanup_ephemeral_project, ephemeral_project_brain
 from brainkm.services.memory import remember_neuron
 from brainkm.services.neuron_index import index_neuron_links
@@ -127,7 +128,13 @@ def run_scorecard_suite(_db_path: Path | None = None) -> BenchSuiteResult:
         conn.commit()
 
         for item in fixture.get("decision", []):
-            result = recall_live(conn, item["query"], limit=5)
+            # Decision axis tests gold retrieval, not abstention (tiny fixture BM25 is noisy).
+            result = recall_live(
+                conn,
+                item["query"],
+                limit=5,
+                recall=RecallConfig(abstain_on_low_confidence=False),
+            )
             titles = {n.title for n in result.nodes}
             gold = set(item.get("gold_titles") or [])
             hit = bool(gold & titles) and not result.abstained

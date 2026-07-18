@@ -27,11 +27,11 @@ def _load_fixture(path: Path | None = None) -> dict:
     if path is not None:
         return json.loads(path.read_text(encoding="utf-8"))
     fixtures = resources.files("brainkm.bench.fixtures")
-    for name in ("cma_v2.json", "cma_v1.json"):
+    for name in ("cma_v3.json", "cma_v2.json", "cma_v1.json"):
         candidate = fixtures.joinpath(name)
         if candidate.is_file():
             return json.loads(candidate.read_text(encoding="utf-8"))
-    msg = "CMA fixture not found (expected cma_v2.json or cma_v1.json)"
+    msg = "CMA fixture not found (expected cma_v3.json, cma_v2.json, or cma_v1.json)"
     raise FileNotFoundError(msg)
 
 
@@ -151,6 +151,8 @@ def run_cma_suite(
     brain_hits: list[bool] = []
     bm25_hits: list[bool] = []
     title_hits: list[bool] = []
+    hard_brain: list[bool] = []
+    hard_bm25: list[bool] = []
 
     try:
         _seed_corpus(conn, fixture)
@@ -261,6 +263,10 @@ def run_cma_suite(
                     bm25_hits.append(b_ok)
                     title_hits.append(t_ok)
                     detail += f" bm25={int(b_ok)} title={int(t_ok)}"
+                    if query.get("hard_slice"):
+                        hard_brain.append(hit)
+                        hard_bm25.append(b_ok)
+                        detail += " hard_slice=1"
 
                 if query.get("measure_pack"):
                     t1 = time.perf_counter()
@@ -325,6 +331,14 @@ def run_cma_suite(
         )
         lift_vs_bm25 = brain_rate - bm25_rate
         lift_vs_title = brain_rate - title_rate
+        hard_brain_rate = (
+            sum(1 for x in hard_brain if x) / len(hard_brain) if hard_brain else 0.0
+        )
+        hard_bm25_rate = (
+            sum(1 for x in hard_bm25 if x) / len(hard_bm25) if hard_bm25 else 0.0
+        )
+        hard_lift = hard_brain_rate - hard_bm25_rate
+        floor_hard_lift = float(floors.get("hard_slice_lift_min", 0.10))
 
         cases.append(
             BenchCaseResult(
@@ -390,6 +404,17 @@ def run_cma_suite(
                 ),
             )
         )
+        cases.append(
+            BenchCaseResult(
+                name="baseline/hard_slice_brain_vs_bm25",
+                passed=(not hard_brain) or hard_lift >= floor_hard_lift,
+                detail=(
+                    f"brain={hard_brain_rate:.3f} bm25={hard_bm25_rate:.3f} "
+                    f"lift={hard_lift:+.3f} n={len(hard_brain)} "
+                    f"(floor>={floor_hard_lift:.2f})"
+                ),
+            )
+        )
 
         for ability, vals in sorted(ability_pass.items()):
             rate = sum(1 for p in vals if p) / len(vals) if vals else 1.0
@@ -422,7 +447,7 @@ def run_cma_suite(
 def format_cma_summary(result: BenchSuiteResult) -> str:
     """Compact CMA headline for CLI / dated scorecards."""
     by_ability: dict[str, str] = {}
-    micro = hard = mean_pack = recall_p95 = pack_p95 = bm25 = title = fixture = ""
+    micro = hard = mean_pack = recall_p95 = pack_p95 = bm25 = title = hard_lift = fixture = ""
     for case in result.cases:
         if case.name.startswith("ability/"):
             parts = case.detail.split()
@@ -441,6 +466,8 @@ def format_cma_summary(result: BenchSuiteResult) -> str:
             bm25 = case.detail
         elif case.name == "baseline/brain_vs_title_scan":
             title = case.detail
+        elif case.name == "baseline/hard_slice_brain_vs_bm25":
+            hard_lift = case.detail
         elif case.name == "meta/fixture":
             fixture = case.detail
 
@@ -450,6 +477,7 @@ def format_cma_summary(result: BenchSuiteResult) -> str:
         f"  micro={micro} hard={hard}",
         f"  pack={mean_pack} recall_p95={recall_p95} pack_p95={pack_p95}",
         f"  baselines: {bm25} | {title}",
+        f"  hard_slice_lift: {hard_lift}",
         f"  abilities: {ability_bits}",
     ]
     return "\n".join(lines)

@@ -48,28 +48,40 @@ CMA reuses LongMemEval’s *ability language* on a coding-agent fixture so numbe
 
 **Baselines (same gold):** BM25/FTS-only and naive title/content token scan.
 
-Latest published artifact: [docs/benchmarks/2026-07-18-cma-v2.md](benchmarks/2026-07-18-cma-v2.md) (brainkm **0.4.1**, CMA **v2**, semantic off):
+Latest published artifact: [docs/benchmarks/2026-07-18-cma-v3.md](benchmarks/2026-07-18-cma-v3.md) (brainkm **0.4.1**, CMA **v3**, semantic off):
 
 | Metric | Result |
 |--------|--------|
-| Ability micro-avg | **97.9%** (hard subset **94.7%**) |
-| Mean pack tokens | **~307** / 1500 |
-| Recall / pack p95 | **~7 / 12 ms** |
-| Baselines | brain **1.00** vs BM25 **1.00** / title-scan **0.97** (keyword-heavy fixture) |
+| Ability micro-avg | **96.7%** (hard subset **93.8%**) |
+| Mean pack tokens | **~322** / 1500 |
+| Recall / pack p95 | **~8 / 14 ms** |
+| Baselines (full) | brain **1.00** vs BM25 **0.88** / title-scan **0.83** |
+| Hard-slice lift | brain **1.00** vs BM25 **0.55** (**+0.45**, n=11 paraphrase/bridge) |
 | Decision+structure scorecard | **8/8** |
-| Theme-leak (report-only) | 0/1 clean — known gap on neo4j-adjacent queries |
+| Theme-leak (report-only) | 0/2 clean — known gap |
+
+Prior: [cma-v2](benchmarks/2026-07-18-cma-v2.md), [cma-v1](benchmarks/2026-07-18-cma.md).
 
 ### LongMemEval-S retrieval footnote (measured)
 
-[docs/benchmarks/2026-07-18-longmemeval-s.md](benchmarks/2026-07-18-longmemeval-s.md) — stratified 60-Q sample, FTS default:
+**Full 500** — [docs/benchmarks/2026-07-18-longmemeval-s-full.md](benchmarks/2026-07-18-longmemeval-s-full.md) (FTS default):
 
-| Metric | Result |
-|--------|--------|
-| **R@5** | **0.917** |
-| **R@10** | **0.950** |
-| **MRR** | **0.847** |
+| Metric | brainkm (FTS) | agentmemory (published) |
+|--------|---------------|-------------------------|
+| **R@5** | **0.934** | **0.952** (BM25+MiniLM) |
+| **R@10** | **0.962** | 0.986 |
+| **MRR** | **0.861** | 0.882 |
 
-Compare carefully to agentmemory’s **95.2% R@5** (full 500-Q, BM25+MiniLM). Ours is a smaller sample, semantic off, retrieval-only — a footnote, not the lead claim.
+**Stratified 60** FTS vs MiniLM hybrid — [docs/benchmarks/2026-07-18-longmemeval-s-semantic.md](benchmarks/2026-07-18-longmemeval-s-semantic.md):
+
+| Mode | R@5 | R@10 | MRR |
+|------|-----|------|-----|
+| FTS | **0.917** | **0.950** | **0.847** |
+| `--semantic` (MiniLM RRF) | 0.367 | 0.500 | 0.250 |
+
+On this protocol (long truncated session blobs), FTS remains the published footnote; MiniLM hybrid is not a free win. Primary public claim stays **CMA v3**.
+
+Also: [stratified FTS-only](benchmarks/2026-07-18-longmemeval-s.md).
 
 ### What we refuse to claim
 
@@ -84,11 +96,12 @@ For an apples-to-apples *retrieval* footnote against agentmemory’s protocol:
 ```bash
 # Download cleaned JSON (~264MB), then:
 export LONGMEMEVAL_PATH=~/.cache/brainkm/longmemeval_s_cleaned.json
-brainkm bench run longmemeval --stratify 10   # fast sample
-brainkm bench run longmemeval --stratify 0    # full 500 (slow)
+brainkm bench run longmemeval --stratify 10          # fast sample (FTS)
+brainkm bench run longmemeval --stratify 10 --semantic  # MiniLM hybrid side-by-side
+brainkm bench run longmemeval --stratify 0           # full 500 (slow; FTS published)
 ```
 
-Without a dataset the suite **skips cleanly** (PASS with instructions). Default FTS+graph; optional `[semantic]` is a separate future side-by-side.
+Without a dataset the suite **skips cleanly** (PASS with instructions). Requires `pip install -e "./brainkm[semantic]"` for `--semantic`.
 
 ## Headline results (MemNetwork project brain, brainkm 0.3.2)
 
