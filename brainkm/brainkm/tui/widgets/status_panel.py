@@ -50,7 +50,7 @@ class StatusPanel(Static):
     }
 
     StatusPanel .status-label {
-        width: 12;
+        width: 15;
         color: $text-muted;
         text-wrap: nowrap;
         overflow-x: hidden;
@@ -70,6 +70,10 @@ class StatusPanel(Static):
         overflow-x: hidden;
         text-overflow: ellipsis;
     }
+
+    StatusPanel.-loading {
+        opacity: 0.75;
+    }
     """
 
     def __init__(
@@ -82,6 +86,7 @@ class StatusPanel(Static):
         super().__init__(id=id, classes=f"status-panel {classes or ''}".strip())
         self._title = title
         self._items: list[tuple[str, str, str]] = []
+        self._render_generation = 0
 
     def compose(self) -> ComposeResult:
         if self._title:
@@ -104,22 +109,54 @@ class StatusPanel(Static):
                    state is one of: "ok", "warning", "error", "muted", "accent".
         """
         self._items = [(label, str(value or ""), state) for label, value, state in items]
-        self._render_items()
+        self.remove_class("-loading")
+        self._schedule_render()
 
-    def _render_items(self) -> None:
+    def set_loading(self, message: str = "Loading…") -> None:
+        """Show a loading state in the panel body."""
+        self.add_class("-loading")
+        self._items = [("Status", message, "muted")]
+        self._schedule_render()
+
+    def set_error(self, message: str) -> None:
+        """Show a panel-level error state."""
+        self.remove_class("-loading")
+        self._items = [
+            ("Status", "error", "error"),
+            ("Detail", message[:72], "muted"),
+        ]
+        self._schedule_render()
+
+    def _schedule_render(self) -> None:
+        """Queue an awaited DOM rebuild on the main loop (Textual 8-safe)."""
+        if not self.is_mounted:
+            return
+        self._render_generation += 1
+        generation = self._render_generation
+        group = f"status-render-{self.id or id(self)}"
+        self.run_worker(
+            self._render_items_async(generation),
+            exclusive=True,
+            group=group,
+            exit_on_error=False,
+        )
+
+    async def _render_items_async(self, generation: int) -> None:
+        if generation != self._render_generation:
+            return
         body_id = f"#{self.id}-body" if self.id else "#panel-body"
         try:
             body = self.query_one(body_id)
         except Exception:
             return
-        body.remove_children()
-        for label, value, state in self._items:
+        await body.remove_children()
+        if generation != self._render_generation:
+            return
+        items = list(self._items)
+        children: list[Horizontal] = []
+        for label, value, state in items:
             glyph = self._state_glyph(state)
-            # Three columns so glyphs and values share a vertical baseline.
-            # markup=False on values: Rich silently drops unknown [...] tags.
-            row = Horizontal(classes="status-row")
-            body.mount(row)
-            row.mount(
+            row = Horizontal(
                 Static(f"{escape_markup(label)}:", classes="status-label"),
                 Static(
                     glyph,
@@ -131,7 +168,11 @@ class StatusPanel(Static):
                     classes=f"status-value value--{state}",
                     markup=False,
                 ),
+                classes="status-row",
             )
+            children.append(row)
+        if children:
+            await body.mount(*children)
 
     def _state_glyph(self, state: str) -> str:
         return {
@@ -141,7 +182,3 @@ class StatusPanel(Static):
             "muted": "○",
             "accent": "◆",
         }.get(state, "○")
-
-    def set_loading(self, message: str = "Loading…") -> None:
-        """Show a loading state in the panel body."""
-        self.set_items([("Status", message, "muted")])

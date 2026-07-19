@@ -94,8 +94,11 @@ def count_code_nodes(conn: sqlite3.Connection) -> int:
 
 
 def _insert_code_graph(conn: sqlite3.Connection, graph: ParsedGraphifyGraph) -> tuple[int, int]:
+    from brainkm.adapters.redaction import sanitize_for_storage
+
     now = utc_now_iso()
     node_rows: list[tuple[object, ...]] = []
+    skipped_secret = 0
 
     for node in graph.nodes:
         subtype = infer_code_subtype(node.label, node.graph_id)
@@ -116,6 +119,17 @@ def _insert_code_graph(conn: sqlite3.Connection, graph: ParsedGraphifyGraph) -> 
             body_parts.append(signature)
         content = " — ".join(body_parts) if body_parts else None
         title = node.label
+        cleaned = sanitize_for_storage(title, content or "", source="graphify:import")
+        if cleaned.blocked:
+            skipped_secret += 1
+            logger.warning(
+                "Skipping code node %s during graph import: %s",
+                node.graph_id,
+                cleaned.block_reason,
+            )
+            continue
+        title = cleaned.title
+        content = cleaned.content or None
         tokens = token_count(f"{title}\n{content or ''}")
 
         node_rows.append(
@@ -136,6 +150,15 @@ def _insert_code_graph(conn: sqlite3.Connection, graph: ParsedGraphifyGraph) -> 
             )
         )
 
+    if skipped_secret:
+        logger.warning(
+            "Graph import skipped %d code node(s) due to redaction policy",
+            skipped_secret,
+        )
+
+    if not node_rows:
+        return 0, 0
+
     conn.executemany(
         """
         INSERT INTO nodes (
@@ -146,8 +169,11 @@ def _insert_code_graph(conn: sqlite3.Connection, graph: ParsedGraphifyGraph) -> 
         node_rows,
     )
 
+    kept_ids = {row[0] for row in node_rows}
     edge_rows: list[tuple[object, ...]] = []
     for link in graph.links:
+        if link.source not in kept_ids or link.target not in kept_ids:
+            continue
         edge_rows.append(
             (
                 _edge_id(link.source, link.relation, link.target),
@@ -160,13 +186,14 @@ def _insert_code_graph(conn: sqlite3.Connection, graph: ParsedGraphifyGraph) -> 
             )
         )
 
-    conn.executemany(
-        """
-        INSERT INTO edges (id, from_id, to_id, relationship, weight, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        """,
-        edge_rows,
-    )
+    if edge_rows:
+        conn.executemany(
+            """
+            INSERT INTO edges (id, from_id, to_id, relationship, weight, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            edge_rows,
+        )
     return len(node_rows), len(edge_rows)
 
 

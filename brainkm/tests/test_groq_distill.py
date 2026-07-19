@@ -61,7 +61,9 @@ def _fake_httpx_module(*, get_response=None, post_response=None, post_capture: l
 
 
 def test_adapter_falls_back_without_api_key() -> None:
-    cfg = BrainConfig(capture={"distill_mode": "groq"})
+    cfg = BrainConfig(
+        capture={"distill_mode": "groq", "cloud_distill_acknowledged": True}
+    )
     # Empty string (not None) so env/.env GROQ_API_KEY cannot bypass the fallback path.
     adapter = GroqDistillAdapter(cfg, conn=None, api_key="")
     round_ = _make_round(
@@ -72,6 +74,23 @@ def test_adapter_falls_back_without_api_key() -> None:
         round_chunk_ids={0: ["chunk-1"]},
         max_total=10,
     )
+    assert any(n.subtype == "decision" for n in neurons)
+
+
+def test_adapter_falls_back_without_cloud_ack() -> None:
+    cfg = BrainConfig(
+        capture={"distill_mode": "groq", "cloud_distill_acknowledged": False}
+    )
+    adapter = GroqDistillAdapter(cfg, conn=None, api_key="gsk_test_key_should_not_upload")
+    round_ = _make_round(
+        "USER: We decided to use JWT instead of session cookies for API auth."
+    )
+    neurons = adapter.distill_rounds(
+        (round_,),
+        round_chunk_ids={0: ["chunk-1"]},
+        max_total=10,
+    )
+    # Rules fallback still produces decision neurons; no cloud call needed.
     assert any(n.subtype == "decision" for n in neurons)
 
 
@@ -87,7 +106,7 @@ def test_adapter_includes_context_in_chat_payload(brain_db: Path) -> None:
         )
         conn.commit()
 
-        cfg = BrainConfig(capture={"distill_mode": "groq"})
+        cfg = BrainConfig(capture={"distill_mode": "groq", "cloud_distill_acknowledged": True})
         adapter = GroqDistillAdapter(cfg, conn=conn, api_key="gsk_test_key")
 
         captured: list[dict] = []
@@ -118,7 +137,7 @@ def test_adapter_includes_context_in_chat_payload(brain_db: Path) -> None:
 
 
 def test_adapter_parses_openai_style_response() -> None:
-    cfg = BrainConfig(capture={"distill_mode": "groq"})
+    cfg = BrainConfig(capture={"distill_mode": "groq", "cloud_distill_acknowledged": True})
     adapter = GroqDistillAdapter(cfg, conn=None, api_key="gsk_test_key")
 
     response_content = json.dumps(
@@ -154,7 +173,7 @@ def test_adapter_parses_openai_style_response() -> None:
 
 
 def test_adapter_falls_back_when_unreachable() -> None:
-    cfg = BrainConfig(capture={"distill_mode": "groq"})
+    cfg = BrainConfig(capture={"distill_mode": "groq", "cloud_distill_acknowledged": True})
     adapter = GroqDistillAdapter(cfg, conn=None, api_key="gsk_test_key")
     # Preflight is now chat/completions — a 500 on POST forces rules fallback.
     fake_httpx = _fake_httpx_module(post_response=_FakeResponse(status_code=500))
@@ -173,7 +192,7 @@ def test_adapter_falls_back_when_unreachable() -> None:
 
 
 def test_adapter_falls_back_on_rate_limit() -> None:
-    cfg = BrainConfig(capture={"distill_mode": "groq"})
+    cfg = BrainConfig(capture={"distill_mode": "groq", "cloud_distill_acknowledged": True})
     adapter = GroqDistillAdapter(cfg, conn=None, api_key="gsk_test_key")
     fake_httpx = _fake_httpx_module(post_response=_FakeResponse(status_code=429))
     round_ = _make_round(
@@ -191,7 +210,7 @@ def test_adapter_falls_back_on_rate_limit() -> None:
 
 
 def test_adapter_falls_back_on_http_error() -> None:
-    cfg = BrainConfig(capture={"distill_mode": "groq"})
+    cfg = BrainConfig(capture={"distill_mode": "groq", "cloud_distill_acknowledged": True})
     adapter = GroqDistillAdapter(cfg, conn=None, api_key="gsk_test_key")
     fake_httpx = _fake_httpx_module(post_response=RuntimeError("connection reset"))
     round_ = _make_round(

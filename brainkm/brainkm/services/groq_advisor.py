@@ -35,6 +35,8 @@ class GroqDoctorReport:
     config_model: str | None
     config_base_url: str | None
     config_path: Path | None
+    cloud_distill_acknowledged: bool = False
+    distill_mode: str | None = None
     free_tier_hint: str = FREE_TIER_HINT
 
 
@@ -159,10 +161,14 @@ def build_groq_report(
     cfg_path = config_path(project_dir)
     config_model: str | None = None
     base_url = "https://api.groq.com/openai/v1"
+    cloud_ack = False
+    distill_mode: str | None = None
     if cfg_path.is_file():
         cfg = load_brain_config(project_dir)
         config_model = cfg.groq.model
         base_url = cfg.groq.base_url
+        cloud_ack = bool(cfg.capture.cloud_distill_acknowledged)
+        distill_mode = cfg.capture.distill_mode
 
     status = probe_groq(base_url, resolved_key, model=config_model)
     return GroqDoctorReport(
@@ -172,6 +178,8 @@ def build_groq_report(
         config_model=config_model,
         config_base_url=base_url if cfg_path.is_file() else None,
         config_path=cfg_path if cfg_path.is_file() else None,
+        cloud_distill_acknowledged=cloud_ack,
+        distill_mode=distill_mode,
     )
 
 
@@ -202,8 +210,23 @@ def format_groq_report(report: GroqDoctorReport) -> str:
         if report.config_base_url:
             lines.append(f"Config base_url: {report.config_base_url}")
 
+    if report.distill_mode == "groq":
+        if report.cloud_distill_acknowledged:
+            lines.append("Cloud distill consent: acknowledged")
+        else:
+            lines.append(
+                "Cloud distill consent: MISSING — set "
+                "capture.cloud_distill_acknowledged=true (or re-run wizard) "
+                "before transcripts leave the machine"
+            )
+    else:
+        lines.append(
+            f"Cloud distill consent: n/a (distill_mode={report.distill_mode or 'unset'})"
+        )
+
     lines.append(f"Hint: {report.free_tier_hint}")
     lines.append(
-        "To use cloud distill: set capture.distill_mode to \"groq\" in .brain/config.json"
+        "To use cloud distill: set capture.distill_mode to \"groq\" and "
+        "capture.cloud_distill_acknowledged to true in .brain/config.json"
     )
     return "\n".join(lines)

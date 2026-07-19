@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hmac
 import json
 import mimetypes
+import secrets
 import sqlite3
 import threading
 import time
@@ -20,6 +22,7 @@ from brainkm.logging_config import get_logger
 logger = get_logger("viz")
 
 _STATIC_DIR = Path(__file__).resolve().parent / "viz_static"
+_VIZ_COOKIE = "brainkm_viz"
 
 # ---------------------------------------------------------------------------
 # Demo seed data
@@ -370,6 +373,8 @@ class _VizHandler(BaseHTTPRequestHandler):
     demo_conn: sqlite3.Connection | None = None
     demo: bool = False
     project_dir: Path | None = None
+    access_token: str = ""
+    bound_port: int = 5757
 
     def log_message(self, fmt: str, *args: object) -> None:  # type: ignore[override]
         logger.debug(fmt, *args)
@@ -382,32 +387,72 @@ class _VizHandler(BaseHTTPRequestHandler):
             raise FileNotFoundError("viz server has no database")
         return _open_live_connection(self.__class__.db_path), True
 
+    def _request_token(self) -> str | None:
+        params = parse_qs(urlparse(self.path).query)
+        q_token = (params.get("token") or [None])[0]
+        if q_token:
+            return q_token
+        cookie = self.headers.get("Cookie") or ""
+        for part in cookie.split(";"):
+            piece = part.strip()
+            if piece.startswith(f"{_VIZ_COOKIE}="):
+                return piece.split("=", 1)[1].strip() or None
+        return None
+
+    def _token_ok(self) -> bool:
+        expected = self.__class__.access_token
+        provided = self._request_token()
+        if not expected or not provided:
+            return False
+        return hmac.compare_digest(
+            provided.encode("utf-8"),
+            expected.encode("utf-8"),
+        )
+
+    def _require_api_auth(self) -> bool:
+        """Return True when authorized; otherwise send 401 and return False."""
+        if self._token_ok():
+            return True
+        self._send_json({"error": "unauthorized"}, 401)
+        return False
+
     def _send_json(self, data: dict | list, status: int = 200) -> None:
         body = json.dumps(data, default=str).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
 
-    def _send_bytes(self, body: bytes, content_type: str, status: int = 200) -> None:
+    def _send_bytes(
+        self,
+        body: bytes,
+        content_type: str,
+        status: int = 200,
+        *,
+        set_auth_cookie: bool = False,
+    ) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-cache")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        if set_auth_cookie and self.__class__.access_token:
+            self.send_header(
+                "Set-Cookie",
+                (
+                    f"{_VIZ_COOKIE}={self.__class__.access_token}; "
+                    "Path=/; HttpOnly; SameSite=Strict"
+                ),
+            )
         self.end_headers()
         self.wfile.write(body)
 
-    def _send_static(self, rel: str) -> None:
+    def _send_static(self, rel: str, *, set_auth_cookie: bool = False) -> None:
         # Prevent path traversal
-        candidate = (_STATIC_DIR / rel).resolve()
-        if not str(candidate).startswith(str(_STATIC_DIR.resolve())):
-            self._send_json({"error": "not found"}, 404)
-            return
-        if not candidate.is_file():
+        root = _STATIC_DIR.resolve()
+        candidate = (root / rel).resolve()
+        if not candidate.is_relative_to(root) or not candidate.is_file():
             self._send_json({"error": "not found"}, 404)
             return
         mime, _ = mimetypes.guess_type(str(candidate))
@@ -417,7 +462,11 @@ class _VizHandler(BaseHTTPRequestHandler):
             mime = "text/css; charset=utf-8"
         elif candidate.suffix == ".html":
             mime = "text/html; charset=utf-8"
-        self._send_bytes(candidate.read_bytes(), mime or "application/octet-stream")
+        self._send_bytes(
+            candidate.read_bytes(),
+            mime or "application/octet-stream",
+            set_auth_cookie=set_auth_cookie,
+        )
 
     def _send_model_file(self, model_id: str, rel: str) -> None:
         from brainkm.services.webllm_prefetch import WEBLLM_MODELS, model_cache_dir
@@ -427,7 +476,7 @@ class _VizHandler(BaseHTTPRequestHandler):
             return
         root = model_cache_dir(model_id).resolve()
         candidate = (root / rel).resolve()
-        if not str(candidate).startswith(str(root)) or not candidate.is_file():
+        if not candidate.is_relative_to(root) or not candidate.is_file():
             self._send_json({"error": "not found"}, 404)
             return
         mime, _ = mimetypes.guess_type(str(candidate))
@@ -474,9 +523,9 @@ class _VizHandler(BaseHTTPRequestHandler):
                     )
                 ]
             }
-            # Absolute URL so workers resolve correctly
-            host = self.headers.get("Host") or "127.0.0.1"
-            base = f"http://{host}/models/{preferred}/"
+            # Always use loopback + bound port (never trust Host header).
+            port = self.__class__.bound_port
+            base = f"http://127.0.0.1:{port}/models/{preferred}/"
             payload["app_config"]["model_list"][0]["model"] = base
             payload["model_lib"] = model_lib_url(preferred)
         return payload
@@ -484,6 +533,10 @@ class _VizHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path
+
+        if path.startswith("/api/") or path.startswith("/models/"):
+            if not self._require_api_auth():
+                return
 
         if path == "/api/graph":
             try:
@@ -550,7 +603,8 @@ class _VizHandler(BaseHTTPRequestHandler):
             return
 
         if path in ("/", "/index.html"):
-            self._send_static("index.html")
+            # Set auth cookie when opened with ?token= so /models fetches work.
+            self._send_static("index.html", set_auth_cookie=self._token_ok())
             return
 
         # Static assets: /styles.css, /app.js, /chat.js, ...
@@ -605,6 +659,8 @@ def _prepare_handler_state(
     _VizHandler.demo_conn = None
     _VizHandler.db_path = None
     _VizHandler.project_dir = project_dir
+    if not _VizHandler.access_token:
+        _VizHandler.access_token = secrets.token_urlsafe(24)
 
     if demo:
         _VizHandler.demo_conn = _open_demo_connection()
@@ -647,11 +703,15 @@ def start_viz_server(
     Used by the Textual TUI so the dashboard stays interactive while the
     neuron graph is served in the browser.
     """
+    # Fresh token per server start.
+    _VizHandler.access_token = secrets.token_urlsafe(24)
     version = _prepare_handler_state(project_dir, demo=demo)
     node_count = int(version["node_count"])
     edge_count = int(version["edge_count"])
     server, bound_port = _bind_viz_server(port)
-    url = f"http://127.0.0.1:{bound_port}"
+    _VizHandler.bound_port = bound_port
+    token = _VizHandler.access_token
+    url = f"http://127.0.0.1:{bound_port}/?token={token}"
 
     thread = threading.Thread(target=server.serve_forever, daemon=True, name="brainkm-viz")
     thread.start()

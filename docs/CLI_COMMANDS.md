@@ -18,13 +18,15 @@ brainkm --help
 |---------|---------|-----------|---------|
 | `brainkm version` | Print installed package version | — | `brainkm version` |
 | `brainkm install` | Scaffold `.brain/`, MCP config, hooks, rule | `--project-dir`, `--dev`, `--force`, `--no-graph`, `--client cursor\|claude\|antigravity\|codex\|generic`, `--http`, `--host`, `--port` | `brainkm install --dev --client antigravity` |
-| `brainkm serve` | Shared HTTP MCP server (alias of `mcp --http`) | `--project-dir`, `--host`, `--port` | `brainkm serve --project-dir .` |
-| `brainkm connect` | Wire a client to stdio or shared HTTP | `--project-dir`, `--http/--stdio`, `--hooks/--no-hooks`, `--host`, `--port`, `--dev`, `--mirror-global` (Antigravity) | `brainkm connect antigravity --http` |
-| `brainkm doctor` | Health + client wiring + auto_observe / dual-writer checks | `--project-dir`, `--host`, `--port` | `brainkm doctor` |
+| `brainkm serve` | Shared HTTP MCP server (alias of `mcp --http`) | `--project-dir`, `--host`, `--port`, `--allow-remote` | `brainkm serve --project-dir .` |
+| `brainkm connect` | Wire a client to stdio or shared HTTP (writes Bearer token into client MCP config) | `--project-dir`, `--http/--stdio`, `--hooks/--no-hooks`, `--host`, `--port`, `--dev`, `--mirror-global` (Antigravity) | `brainkm connect antigravity --http` |
+| `brainkm doctor` | Health + client wiring + auto_observe / dual-writer / missing Bearer checks | `--project-dir`, `--host`, `--port` | `brainkm doctor` |
 | `brainkm migrate` | Apply pending SQLite migrations | `--project-dir` | `brainkm migrate` |
 | `brainkm configure` | Launch Textual config dashboard (wizard / status / forms / actions) | `--project-dir` | `brainkm configure` |
 
-> **Tip:** Prefer `brainkm configure` (0.4.2): app checkboxes (Cursor / Claude / Antigravity / Codex) → one app = silent stdio; two+ = shared HTTP + **Start Brain**. Semantic Quality consent is separate. Power users: `serve` + `connect --http`. Requires `pip install -e "./brainkm[tui]"`. Semantic weights: `pip install -e "./brainkm[semantic]"`. Design notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
+> **Tip:** Prefer `brainkm configure` (0.5.0): app checkboxes (Cursor / Claude / Antigravity / Codex) → one app = silent stdio; two+ = shared HTTP + **Start Brain**. Semantic Quality consent is separate. Power users: `serve` + `connect --http`. Requires `pip install -e "./brainkm[tui]"`. Semantic weights: `pip install -e "./brainkm[semantic]"`. Design notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
+>
+> **Dashboard:** the **MCP Doctor** panel shows the same wiring report as `brainkm doctor` (color-coded). **Review Queue** lists low-confidence auto-captures for `y` approve / `n` reject.
 
 ---
 
@@ -36,6 +38,8 @@ brainkm --help
 | `brainkm handover` | PreCompact durable distill + WAL checkpoint | `--project-dir`, `--session-id`, `--stdin` | `brainkm handover --stdin` |
 
 Distill backend is selected by `capture.distill_mode` in `.brain/config.json`: `rules` \| `cursor` \| `claude` \| `antigravity` \| `ollama` \| `groq` (legacy `mcp` coerces to `claude`).
+
+**Groq (cloud):** also set `capture.cloud_distill_acknowledged: true` (wizard sets this when you pick groq). Without consent, Groq mode falls back to `rules` and never uploads transcripts.
 
 All modes clean host chrome before extract. PreCompact / synthetic-precompact handover allows up to `handover.precompact_distill_timeout_seconds` (default **30s**) before falling back to `rules`. `claude` uses live MCP sampling when registered, else `claude -p`; `antigravity` uses `agy -p`.
 
@@ -120,8 +124,15 @@ Safe to re-run; archives via `forget` (reversible with audit log). SessionStart/
 
 | Command | Purpose | Key flags | Example |
 |---------|---------|-----------|---------|
-| `brainkm viz` | Launch 3D neuron graph in the browser (Neural Cosmos) | `--project-dir`, `--port`, `--no-open`, `--demo` | `brainkm viz --port 5757` |
-| `brainkm mcp` | Run MCP server (stdio or HTTP) | `--project-dir`, `--http`, `--host`, `--port` | `brainkm mcp --http --port 8765` |
+| `brainkm viz` | Launch 3D neuron graph in the browser (Neural Cosmos); opens with a per-run access token | `--project-dir`, `--port`, `--no-open`, `--demo` | `brainkm viz --port 5757` |
+| `brainkm mcp` | Run MCP server (stdio or HTTP) | `--project-dir`, `--http`, `--host`, `--port`, `--allow-remote` | `brainkm mcp --http --port 8765` |
+
+### HTTP MCP security
+
+- Default bind is **loopback only** (`127.0.0.1`). Non-loopback hosts require `--allow-remote` or `mcp.allow_remote: true`.
+- `/mcp` requires `Authorization: Bearer <token>`. Token is auto-created at `.brain/mcp_http_token` (gitignored); `connect` / `install` write it into client MCP `headers`.
+- Anonymous `/health` returns `{ok, version}` only; `project_dir` is included when the Bearer token is present.
+- After first `serve`, re-run `brainkm connect <client> --http` so clients pick up the token.
 
 ---
 

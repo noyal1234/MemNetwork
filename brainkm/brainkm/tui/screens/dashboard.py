@@ -104,14 +104,31 @@ class DashboardScreen(Screen):
                                 )
                         yield StatusPanel(title="", id="graph-panel")
 
-                    with Vertical(id="review-section"):
+                    with Vertical(id="mcp-doctor-section"):
+                        with Horizontal(classes="section-header"):
+                            yield Static(
+                                escape_markup("[ MCP DOCTOR ]"),
+                                classes="section-title",
+                            )
+                            with Horizontal(classes="graph-actions"):
+                                yield Button(
+                                    bracket_label("Refresh"),
+                                    id="btn-mcp-doctor-refresh",
+                                )
+                        yield StatusPanel(title="", id="mcp-doctor-panel")
+
+                    with Vertical(id="review-section", classes="review-section--empty"):
                         with Horizontal(classes="review-header"):
                             yield Static(
                                 "REVIEW QUEUE (0)",
                                 id="review-title",
                                 classes="review-title",
                             )
-                            yield Static("", id="review-hint", classes="review-hint")
+                            yield Static(
+                                "Low-confidence auto-captures wait here — y approve / n reject",
+                                id="review-hint",
+                                classes="review-hint",
+                            )
                         yield ReviewTable(id="review-table")
         yield Footer()
 
@@ -123,64 +140,41 @@ class DashboardScreen(Screen):
     # Refresh actions — each runs in a worker thread
     # ------------------------------------------------------------------
 
+    def _set_panels_loading(self) -> None:
+        """Dim empty panels with a Loading row (skip panels that already have data)."""
+        for panel_id, has_data in (
+            ("#brain-status", bool(self._last_brain_data)),
+            ("#serve-status", False),
+            ("#ollama-panel", bool(self._last_ollama_data)),
+            ("#groq-panel", bool(self._last_groq_data)),
+            ("#graph-panel", bool(self._last_graph_data)),
+            ("#mcp-doctor-panel", False),
+        ):
+            if has_data:
+                continue
+            try:
+                self.query_one(panel_id, StatusPanel).set_loading()
+            except Exception:
+                pass
+
     def action_refresh(self) -> None:
         """Refresh all dashboard panels."""
+        self._set_panels_loading()
         self._load_brain_status()
         self._load_serve_status()
         self._load_ollama_status()
         self._load_groq_status()
         self._load_graph_status()
+        self._load_mcp_doctor()
         self._load_review_status()
 
     # --- Brain status (sidebar: brain + channels merged) ---
 
     @work(thread=True, group="brain-status", exit_on_error=False)
     def _load_brain_status(self) -> dict[str, Any]:
-        from brainkm.db.connection import connect
-        from brainkm.db.paths import brain_db_path
+        from brainkm.services.brain_status import build_brain_status_summary
 
-        result: dict[str, Any] = {}
-        try:
-            from brainkm.services.config_loader import load_brain_config
-            from brainkm.services.distill_status import (
-                active_distill_display,
-                build_distill_status,
-            )
-
-            cfg = load_brain_config(self._project_dir)
-            result["distill_mode"] = cfg.capture.distill_mode
-            statuses = build_distill_status(project_dir=self._project_dir)
-            _mode, display, color = active_distill_display(statuses)
-            result["distill_display"] = display
-            result["distill_color"] = color
-        except Exception:
-            result["distill_mode"] = "unknown"
-            result["distill_display"] = "unknown"
-            result["distill_color"] = "muted"
-
-        try:
-            db_path = brain_db_path(self._project_dir)
-            size_kb = db_path.stat().st_size / 1024
-            if size_kb >= 1024:
-                result["db_size"] = f"{size_kb / 1024:.1f} MB"
-            else:
-                result["db_size"] = f"{size_kb:.0f} KB"
-            conn = connect(db_path)
-            row = conn.execute(
-                "SELECT COUNT(*) as c FROM nodes WHERE kind='memory' AND valid_until IS NULL"
-            ).fetchone()
-            result["neuron_count"] = row["c"] if row else 0
-            code_row = conn.execute(
-                "SELECT COUNT(*) as c FROM nodes WHERE kind='code'"
-            ).fetchone()
-            result["code_node_count"] = code_row["c"] if code_row else 0
-            conn.close()
-        except Exception:
-            result["db_size"] = "n/a"
-            result["neuron_count"] = 0
-            result["code_node_count"] = 0
-
-        return result
+        return build_brain_status_summary(self._project_dir)
 
     def _render_brain_status(self, data: dict[str, Any] | None = None) -> None:
         if data is not None:
@@ -386,7 +380,7 @@ class DashboardScreen(Screen):
             ("RAM", data.get("ram", "?"), "muted"),
             ("GPU", data.get("gpu", "?"), "muted"),
             ("Tier", data.get("tier", "?"), "muted"),
-            ("Recommend", recommended, "accent"),
+            ("Model", recommended, "accent"),
             ("Config", config_model, "accent"),
             (
                 "Match",
@@ -522,8 +516,30 @@ class DashboardScreen(Screen):
                 str(data.get("watch_filesystem_enabled", False)),
                 "muted",
             ),
-            ("Last import", str(data.get("last_import_status", "none")), "muted"),
+            ("Last", str(data.get("last_import_status", "none")), "muted"),
         ])
+
+    # --- MCP doctor (shared brain wiring) ---
+
+    @work(thread=True, group="mcp-doctor", exit_on_error=False)
+    def _load_mcp_doctor(self) -> dict[str, Any]:
+        try:
+            from brainkm.services.mcp_doctor import build_mcp_doctor_report
+            from brainkm.tui.mcp_doctor_view import mcp_doctor_panel_items
+
+            report = build_mcp_doctor_report(self._project_dir)
+            return {"items": mcp_doctor_panel_items(report)}
+        except Exception as exc:
+            return {"error": str(exc), "items": [("Status", str(exc)[:60], "error")]}
+
+    def _render_mcp_doctor(self, data: dict[str, Any]) -> None:
+        panel = self.query_one("#mcp-doctor-panel", StatusPanel)
+        items = data.get("items")
+        if isinstance(items, list) and items:
+            panel.set_items([(str(a), str(b), str(c)) for a, b, c in items])
+            return
+        err = data.get("error") or "doctor unavailable"
+        panel.set_items([("Status", str(err)[:60], "error")])
 
     # --- Review ---
 
@@ -542,16 +558,37 @@ class DashboardScreen(Screen):
                 }
                 for item in items
             ]
-        except Exception:
-            return []
+        except Exception as exc:
+            return [{"__error__": str(exc)}]
 
     def _render_review_status(self, items: list[dict]) -> None:
+        if items and isinstance(items[0], dict) and items[0].get("__error__"):
+            err = str(items[0]["__error__"])
+            self.notify(
+                escape_markup(f"Review queue unavailable: {err}"),
+                severity="warning",
+                timeout=5,
+            )
+            items = []
         self._pending_review_count = len(items)
         self._render_brain_status()
         title = self.query_one("#review-title", Static)
         hint = self.query_one("#review-hint", Static)
         title.update(escape_markup(f"REVIEW QUEUE ({len(items)})"))
-        hint.update(escape_markup("! ACTION REQUIRED") if items else "")
+        if items:
+            hint.update(escape_markup("! ACTION REQUIRED — y approve / n reject"))
+        else:
+            hint.update(
+                escape_markup(
+                    "Low-confidence auto-captures wait here — y approve / n reject"
+                )
+            )
+
+        section = self.query_one("#review-section")
+        if items:
+            section.remove_class("review-section--empty")
+        else:
+            section.add_class("review-section--empty")
 
         table = self.query_one("#review-table", ReviewTable)
         if items:
@@ -570,6 +607,7 @@ class DashboardScreen(Screen):
             "btn-graph-sync": self._run_graph_sync,
             "btn-graph-extract": self._run_graph_extract,
             "btn-graph-status": self._run_graph_status_action,
+            "btn-mcp-doctor-refresh": self._load_mcp_doctor,
             "btn-start-serve": self._run_start_serve,
             "btn-stop-serve": self._run_stop_serve,
         }
@@ -730,21 +768,52 @@ class DashboardScreen(Screen):
         finally:
             conn.close()
 
+    _PANEL_FOR_GROUP: dict[str, str] = {
+        "brain-status": "#brain-status",
+        "ollama-status": "#ollama-panel",
+        "groq-status": "#groq-panel",
+        "graph-status": "#graph-panel",
+        "serve-status": "#serve-status",
+        "mcp-doctor": "#mcp-doctor-panel",
+    }
+
     def _on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Handle worker completion for all status loads and actions."""
+        worker = event.worker
+        if event.state == WorkerState.ERROR:
+            err = event.worker.error
+            msg = escape_markup(str(err) if err else "unknown error")
+            panel_id = self._PANEL_FOR_GROUP.get(worker.group or "")
+            if panel_id:
+                try:
+                    self.query_one(panel_id, StatusPanel).set_error(str(err)[:72])
+                except Exception:
+                    pass
+            if worker.group == "review-status":
+                self.notify(f"Review load failed: {msg}", severity="error", timeout=6)
+            elif worker.group in {"review-action", "dashboard-action"}:
+                self.notify(f"Action failed: {msg}", severity="error", timeout=6)
+            elif panel_id:
+                self.notify(f"Status load failed: {msg}", severity="warning", timeout=5)
+            return
         if event.state != WorkerState.SUCCESS:
             return
-        worker = event.worker
         if worker.group == "brain-status":
             self._render_brain_status(worker.result)
+            self._update_header_health()
         elif worker.group == "ollama-status":
             self._render_ollama_status(worker.result)
+            self._update_header_health()
         elif worker.group == "groq-status":
             self._render_groq_status(worker.result)
+            self._update_header_health()
         elif worker.group == "graph-status":
             self._render_graph_status(worker.result)
+            self._update_header_health()
         elif worker.group == "serve-status":
             self._render_serve_status(worker.result)
+        elif worker.group == "mcp-doctor":
+            self._render_mcp_doctor(worker.result)
         elif worker.group == "review-status":
             self._render_review_status(worker.result)
         elif worker.group == "review-action":
@@ -756,6 +825,33 @@ class DashboardScreen(Screen):
             self._load_review_status()
         elif worker.group == "dashboard-action":
             self._handle_dashboard_action(worker.result)
+
+    def _update_header_health(self) -> None:
+        """Compact glyph in the Header subtitle: brain health at a glance."""
+        app = self.app
+        update = getattr(app, "update_header_subtitle", None)
+        if not callable(update):
+            return
+        parts: list[str] = []
+        neurons = self._last_brain_data.get("neuron_count")
+        if neurons is not None:
+            parts.append(f"{neurons}n")
+        code = self._last_brain_data.get("code_node_count")
+        if code is not None:
+            parts.append(f"{code}c")
+        ollama = self._last_ollama_data
+        if ollama:
+            parts.append("O✓" if ollama.get("reachable") else "Ox")
+        groq = self._last_groq_data
+        if groq:
+            if groq.get("rate_limited"):
+                parts.append("Q!")
+            else:
+                parts.append("Q✓" if groq.get("reachable") else "Qx")
+        graph = self._last_graph_data
+        if graph and not graph.get("error"):
+            parts.append("◆!" if graph.get("graph_stale") else "◆")
+        update(" ".join(parts) if parts else None)
 
     def _handle_dashboard_action(self, result: dict[str, Any]) -> None:
         action = result.get("action", "")

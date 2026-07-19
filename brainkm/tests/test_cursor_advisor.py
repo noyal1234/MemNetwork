@@ -160,7 +160,7 @@ def test_install_runs_script_and_reprobes() -> None:
         stderr = ""
 
     with (
-        patch("brainkm.services.cursor_advisor.shutil.which", return_value="/bin/curl"),
+        patch("brainkm.services.cursor_advisor.shutil.which", return_value="/bin/bash"),
         patch(
             "brainkm.services.cursor_advisor.probe_cursor_agent",
             side_effect=[
@@ -171,6 +171,9 @@ def test_install_runs_script_and_reprobes() -> None:
             ],
         ),
         patch(
+            "brainkm.services.cursor_advisor._download_cursor_install_script",
+        ) as download_mock,
+        patch(
             "brainkm.services.cursor_advisor.subprocess.run",
             return_value=_Completed(),
         ) as run_mock,
@@ -178,8 +181,11 @@ def test_install_runs_script_and_reprobes() -> None:
         result = install_cursor_agent_cli()
     assert result.ok is True
     assert result.found is True
+    download_mock.assert_called_once()
     run_mock.assert_called_once()
-    assert "cursor.com/install" in run_mock.call_args[0][0]
+    argv = run_mock.call_args[0][0]
+    assert argv[0] == "bash"
+    assert run_mock.call_args.kwargs.get("shell") in (None, False)
 
 
 def test_cli_cursor_install(tmp_path: Path) -> None:

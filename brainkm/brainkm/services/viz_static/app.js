@@ -3,6 +3,15 @@
  */
 import { createChatController } from './chat.js';
 
+/** Append ?token= from the page URL so /api calls pass viz auth. */
+function withAuth(path) {
+  const token = new URLSearchParams(window.location.search).get('token');
+  if (!token) return path;
+  const url = new URL(path, window.location.origin);
+  url.searchParams.set('token', token);
+  return url.pathname + url.search;
+}
+
 const KIND_COLORS = {
   memory: '#8b5cf6',
   code: '#06b6d4',
@@ -865,13 +874,13 @@ function ingestGraphData(data, { merge = false } = {}) {
 }
 
 async function fetchGraph() {
-  const res = await fetch('/api/graph');
+  const res = await fetch(withAuth('/api/graph'));
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
 async function fetchVersion() {
-  const res = await fetch('/api/version');
+  const res = await fetch(withAuth('/api/version'));
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }

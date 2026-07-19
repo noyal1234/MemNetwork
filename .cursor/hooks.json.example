@@ -29,8 +29,14 @@
     ],
     "postToolUse": [
       {
-        "matcher": "Write|Edit",
+        "matcher": "Write|Edit|Shell",
         "command": "brainkm post-tool --stdin",
+        "timeout": 5
+      }
+    ],
+    "userPromptSubmit": [
+      {
+        "command": "brainkm user-prompt --stdin",
         "timeout": 5
       }
     ]

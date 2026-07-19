@@ -4,14 +4,14 @@
     "SessionStart": [
       {
         "type": "command",
-        "command": "brainkm pre-invocation --stdin --client antigravity --event SessionStart",
+        "command": "brainkm pre-invocation --stdin --event SessionStart --client antigravity",
         "timeout": 30
       }
     ],
     "PreInvocation": [
       {
         "type": "command",
-        "command": "brainkm pre-invocation --stdin --client antigravity --event PreInvocation",
+        "command": "brainkm pre-invocation --stdin --event PreInvocation --client antigravity",
         "timeout": 30
       }
     ],
@@ -21,7 +21,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "brainkm pre-tool --stdin --client antigravity --event PreToolUse",
+            "command": "brainkm pre-tool --stdin --event PreToolUse --client antigravity",
             "timeout": 15
           }
         ]
@@ -33,7 +33,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "brainkm post-tool --stdin --client antigravity --event PostToolUse",
+            "command": "brainkm post-tool --stdin --event PostToolUse --client antigravity",
             "timeout": 5
           }
         ]
@@ -42,7 +42,7 @@
     "Stop": [
       {
         "type": "command",
-        "command": "brainkm agent-stop --stdin --client antigravity --event Stop",
+        "command": "brainkm agent-stop --stdin --event Stop --client antigravity",
         "timeout": 120
       }
     ]

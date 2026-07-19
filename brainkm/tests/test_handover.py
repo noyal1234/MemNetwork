@@ -161,6 +161,49 @@ def test_handover_cli_exits_nonzero_on_checkpoint_failure(
     assert "WAL checkpoint failed" in result.output
 
 
+def test_handover_hook_mode_failsoft_on_checkpoint_failure(
+    brain_db, tmp_path: Path, monkeypatch
+) -> None:
+    """Cursor PreCompact (--stdin) must exit 0 even when WAL checkpoint fails."""
+    transcript = tmp_path / "hook-session.jsonl"
+    _write_handover_transcript(transcript)
+
+    def _fail_checkpoint(conn):  # noqa: ANN001
+        from brainkm.services.handover import CheckpointResult
+
+        return CheckpointResult(
+            ok=False,
+            log_frames=3,
+            checkpointed_frames=1,
+            attempts=10,
+        )
+
+    monkeypatch.setattr("brainkm.services.handover.wal_checkpoint", _fail_checkpoint)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "handover",
+            "--stdin",
+            "--client",
+            "cursor",
+            "--project-dir",
+            str(tmp_path),
+        ],
+        input=json.dumps(
+            {
+                "session_id": "hook-session",
+                "transcript_path": str(transcript),
+            }
+        )
+        + "\n",
+    )
+
+    assert result.exit_code == 0
+    assert (result.stdout or "").strip() == ""
+
+
 def test_handover_respects_precompact_disabled(brain_db, tmp_path: Path) -> None:
     transcript = tmp_path / "disabled.jsonl"
     _write_handover_transcript(transcript)

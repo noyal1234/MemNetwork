@@ -62,8 +62,44 @@ SECRET_BLOCK_RULES: tuple[_PatternRule, ...] = (
     ),
     _PatternRule(
         "secret",
+        "anthropic_api_key",
+        re.compile(r"\bsk-ant-[A-Za-z0-9\-_]{20,}\b"),
+        ScanAction.BLOCK,
+    ),
+    _PatternRule(
+        "secret",
         "generic_sk_prefix",
         re.compile(r"\bsk-[A-Za-z0-9]{20,}\b"),
+        ScanAction.BLOCK,
+    ),
+    _PatternRule(
+        "secret",
+        "groq_api_key",
+        re.compile(r"\bgsk_[A-Za-z0-9]{20,}\b"),
+        ScanAction.BLOCK,
+    ),
+    _PatternRule(
+        "secret",
+        "github_pat",
+        re.compile(r"\b(?:ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b"),
+        ScanAction.BLOCK,
+    ),
+    _PatternRule(
+        "secret",
+        "slack_token",
+        re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"),
+        ScanAction.BLOCK,
+    ),
+    _PatternRule(
+        "secret",
+        "google_api_key",
+        re.compile(r"\bAIza[0-9A-Za-z\-_]{35}\b"),
+        ScanAction.BLOCK,
+    ),
+    _PatternRule(
+        "secret",
+        "pem_private_key",
+        re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
         ScanAction.BLOCK,
     ),
     _PatternRule(

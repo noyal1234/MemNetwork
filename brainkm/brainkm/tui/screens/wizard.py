@@ -113,8 +113,9 @@ class WizardScreen(Screen):
                 classes="panel-title",
             )
             yield Static(
-                "Set up your project brain step by step",
-                classes="value--muted",
+                "Step 1 of 11 — Set up your project brain",
+                id="wizard-progress",
+                classes="wizard-progress",
             )
 
             # --- Step 1: Project directory ---
@@ -221,7 +222,7 @@ class WizardScreen(Screen):
                     classes="step-description",
                 )
                 yield Static(
-                    "1. Install: curl https://cursor.com/install -fsS | bash\n"
+                    "1. Install: brainkm cursor install (downloads official script, runs bash safely)\n"
                     "2. PATH: ensure ~/.local/bin is on PATH\n"
                     "3. Verify: which agent  ·  brainkm cursor doctor",
                     id="wizard-cursor-cli-checklist",
@@ -233,7 +234,9 @@ class WizardScreen(Screen):
             with Vertical(classes="wizard-step", id=STEP_APIKEY):
                 yield Static("8 ─ API Key (Optional)", classes="step-title")
                 yield Static(
-                    "If you chose 'groq', paste your GROQ_API_KEY below.",
+                    "If you chose 'groq', paste your GROQ_API_KEY below.\n"
+                    "Cloud distill uploads transcript excerpts off this machine — "
+                    "continuing with a key confirms capture.cloud_distill_acknowledged.",
                     classes="step-description",
                 )
                 with Horizontal(classes="config-field"):
@@ -326,6 +329,15 @@ class WizardScreen(Screen):
 
     def _update_step_visibility(self) -> None:
         """Show only the active step; hide the rest."""
+        try:
+            progress = self.query_one("#wizard-progress", Static)
+            n = self._current_step + 1
+            progress.update(
+                escape_markup(f"Step {n} of {len(STEPS)} — Set up your project brain")
+            )
+        except Exception:
+            pass
+
         for i, step_id in enumerate(STEPS):
             try:
                 step = self.query_one(f"#{step_id}")
@@ -336,11 +348,13 @@ class WizardScreen(Screen):
                 step.styles.opacity = 1.0
                 active, _inactive = border_color_pair()
                 step.styles.border = ("solid", active)
+                step.add_class("wizard-step--active")
             else:
                 step.display = False
                 step.styles.opacity = 1.0
                 _active, inactive = border_color_pair()
                 step.styles.border = ("solid", inactive)
+                step.remove_class("wizard-step--active")
 
         # Update nav buttons
         back_btn = self.query_one("#btn-wizard-back", Button)
@@ -395,35 +409,53 @@ class WizardScreen(Screen):
             pass
 
     def _refresh_semantic_step(self) -> None:
-        """Populate recommendation labels and default radio for Semantic Quality."""
+        """Kick off a threaded Semantic Quality probe (never blocks the UI)."""
         try:
-            from brainkm.services.semantic import semantic_ready
-            from brainkm.services.semantic_advisor import (
-                format_semantic_recommend,
-                recommend_semantic_profile,
-            )
+            recommend_el = self.query_one("#wizard-semantic-recommend", Static)
+            recommend_el.update("Checking hardware / deps…")
+            deps_el = self.query_one("#wizard-semantic-deps", Static)
+            deps_el.update("Loading…")
+        except Exception:
+            pass
+        self._do_refresh_semantic_step()
 
+    @work(thread=True, group="wizard-semantic", exclusive=True, exit_on_error=False)
+    def _do_refresh_semantic_step(self) -> dict[str, Any]:
+        from brainkm.services.semantic import semantic_ready
+        from brainkm.services.semantic_advisor import (
+            format_semantic_recommend,
+            recommend_semantic_profile,
+        )
+
+        try:
             rec = recommend_semantic_profile()
             ready = semantic_ready(self._project_dir)
-            recommend_el = self.query_one("#wizard-semantic-recommend", Static)
-            recommend_el.update(escape_markup(format_semantic_recommend(rec)))
-            deps_el = self.query_one("#wizard-semantic-deps", Static)
-            deps_el.update(
-                escape_markup(
-                    f"Deps: onnx={ready.get('onnxruntime')} tokenizers={ready.get('tokenizers')} "
+            return {
+                "recommend_text": format_semantic_recommend(rec),
+                "recommend_enable": bool(rec.recommend_enable),
+                "deps_text": (
+                    f"Deps: onnx={ready.get('onnxruntime')} "
+                    f"tokenizers={ready.get('tokenizers')} "
                     f"hf={ready.get('huggingface_hub')} | "
-                    f"cached MiniLM={ready.get('biencoder_cached')} CE={ready.get('cross_encoder_cached')}\n"
+                    f"cached MiniLM={ready.get('biencoder_cached')} "
+                    f"CE={ready.get('cross_encoder_cached')}\n"
                     f"If deps missing: {ready.get('deps_install_hint')}"
-                )
-            )
-            radio = self.query_one("#wizard-semantic-radio", RadioSet)
-            # pressed_index: 0=enable, 1=skip — match recommendation.
-            if rec.recommend_enable:
-                radio.action_first_button()
-                # ensure enable selected
-                for i, _child in enumerate(radio.children):
-                    pass
-                # Textual: set via pressing enable button id
+                ),
+            }
+        except Exception as exc:
+            return {"error": str(exc)}
+
+    def _apply_semantic_step(self, result: dict[str, Any]) -> None:
+        if result.get("error"):
+            self.log_panel.log_warning(f"Semantic recommend failed: {result['error']}")
+            return
+        try:
+            recommend_el = self.query_one("#wizard-semantic-recommend", Static)
+            recommend_el.update(escape_markup(result.get("recommend_text", "")))
+            deps_el = self.query_one("#wizard-semantic-deps", Static)
+            deps_el.update(escape_markup(result.get("deps_text", "")))
+            recommend_enable = bool(result.get("recommend_enable"))
+            if recommend_enable:
                 try:
                     enable_btn = self.query_one("#radio-semantic-enable", RadioButton)
                     enable_btn.value = True
@@ -438,11 +470,11 @@ class WizardScreen(Screen):
             try:
                 check = self.query_one("#wizard-rerank-check", Checkbox)
                 check.value = False
-                check.disabled = not rec.recommend_enable
+                check.disabled = not recommend_enable
             except Exception:
                 pass
         except Exception as exc:
-            self.log_panel.log_warning(f"Semantic recommend failed: {exc}")
+            self.log_panel.log_warning(f"Semantic UI update failed: {exc}")
 
     def on_radio_set_changed(self, event: RadioSet.Changed) -> None:
         if event.radio_set.id != "wizard-semantic-radio":
@@ -892,12 +924,16 @@ class WizardScreen(Screen):
             cfg = json.loads(cp.read_text(encoding="utf-8"))
         else:
             cfg = {}
-        cfg.setdefault("capture", {})["distill_mode"] = self._distill_mode
+        capture = cfg.setdefault("capture", {})
+        capture["distill_mode"] = self._distill_mode
+        if self._distill_mode == "groq":
+            # Wizard selection is explicit consent that transcripts may leave the machine.
+            capture["cloud_distill_acknowledged"] = True
         cp.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
         return {"step": STEP_DISTILL, "mode": self._distill_mode}
 
     def _apply_api_key(self) -> None:
-        """Step 5: Write GROQ_API_KEY to .env."""
+        """API key step: Write GROQ_API_KEY to .env."""
         try:
             key_input = self.query_one("#wizard-groq-key", Input)
         except Exception:
@@ -985,6 +1021,10 @@ class WizardScreen(Screen):
         self.log_panel.log_plain("  (large download — progress appears below)")
         self._do_viz_llm_prefetch(model_id)
 
+    def _log_prefetch_progress(self, line: str) -> None:
+        """UI-thread callback for live WebLLM download progress."""
+        self.log_panel.log_plain(line)
+
     @work(thread=True, group="wizard", exit_on_error=False)
     def _do_viz_llm_prefetch(self, model_id: str) -> dict[str, Any]:
         import json
@@ -992,13 +1032,17 @@ class WizardScreen(Screen):
         from brainkm.services.config_loader import config_path
         from brainkm.services.webllm_prefetch import prefetch_webllm_model
 
-        progress_lines: list[str] = []
-
         def progress(name: str, done: int, total: int) -> None:
             if name == "done":
-                progress_lines.append(f"  finished {total} files")
+                line = f"  finished {total} files"
             elif done == 0 or done % 5 == 0 or done + 1 == total:
-                progress_lines.append(f"  [{done}/{total}] {name}")
+                line = f"  [{done}/{total}] {name}"
+            else:
+                return
+            try:
+                self.app.call_from_thread(self._log_prefetch_progress, line)
+            except Exception:
+                pass
 
         result = prefetch_webllm_model(model_id, progress=progress)
 
@@ -1021,7 +1065,6 @@ class WizardScreen(Screen):
             "files_skipped": result.files_skipped,
             "bytes_downloaded": result.bytes_downloaded,
             "already_cached": result.already_cached,
-            "progress": progress_lines,
         }
         if result.error:
             out["error"] = result.error
@@ -1033,13 +1076,17 @@ class WizardScreen(Screen):
 
     def _on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         if event.state == WorkerState.ERROR:
-            if event.worker.group == "wizard":
+            group = event.worker.group or ""
+            if group in {"wizard", "wizard-semantic"}:
                 self.log_panel.log_error(f"Step failed: {event.worker.error}")
             return
         if event.state != WorkerState.SUCCESS:
             return
         if event.worker.group == "wizard-annotate":
             self._handle_annotate_result(event.worker.result)
+            return
+        if event.worker.group == "wizard-semantic":
+            self._apply_semantic_step(event.worker.result)
             return
         if event.worker.group == "wizard":
             self._handle_wizard_result(event.worker.result)
@@ -1240,8 +1287,6 @@ class WizardScreen(Screen):
             self._advance()
 
         elif step == STEP_VIZ_LLM:
-            for line in result.get("progress") or []:
-                self.log_panel.log_plain(line)
             status = self.query_one("#wizard-viz-llm-status", Static)
             model_id = escape_markup(str(result.get("model_id", "?")))
             if result.get("error"):

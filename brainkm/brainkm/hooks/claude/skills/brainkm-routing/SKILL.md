@@ -30,6 +30,8 @@ brainkm is this project's brain (`.brain/brain.db`). It complements Claude Code 
 
 Do **not** copy brainkm packs into Auto Memory. Do **not** call `remember` for ordinary session learning — hooks capture silently when `auto_observe` is on.
 
+Do **not** treat brainkm as a second search index. Use Grep to locate; use `traverse` / `context_pack` for structure.
+
 ## Rules
 
 1. Include a **file path or symbol** in `context_pack` / `recall` queries when possible.
@@ -37,7 +39,18 @@ Do **not** copy brainkm packs into Auto Memory. Do **not** call `remember` for o
 3. Prefer fewer injected tokens over trusting noise; `recall` abstains on weak matches.
 4. Optional provenance: pass `include_sources=true` on recall/context_pack when debugging trust.
 5. If graph looks empty/wrong, check `brain_stats` then `graph_sync`.
+6. Soft-archive noisy auto-captures with `brainkm hygiene` rather than injecting junk.
+
+## What lives in the brain
+
+| Store | Contents |
+|-------|----------|
+| Neurons (`memory`) | Decisions, rules, facts, errors, context |
+| Code graph (`code`) | Graphify AST nodes — files, classes, functions, edges |
+| Session chunks | Raw transcript search index (distilled into neurons) |
 
 ## Lifecycle (mental model)
 
 `observation` → `episode` → semantic `memory` → `procedure`, with `about_file` / `about_symbol` / `mentions_concept` edges linking chat truth to code.
+
+Hooks: SessionStart inject → PostToolUse observe → PreCompact handover → PostCompact refresh → SessionEnd distill. SubagentStart injects a frozen pack into subagents.

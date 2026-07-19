@@ -57,7 +57,7 @@ async def test_save_writes_edited_value_to_the_right_project(tui_project: Path) 
         await pilot.pause(0.3)
 
         screen._save_config()
-        await pilot.pause(0.2)
+        await pilot.pause(0.8)
 
         cfg_path = tui_project / ".brain" / "config.json"
         saved = json.loads(cfg_path.read_text())
@@ -93,7 +93,7 @@ async def test_groq_api_key_written_to_env_not_config(tui_project: Path) -> None
         await pilot.pause(0.1)
 
         screen._save_config()
-        await pilot.pause(0.2)
+        await pilot.pause(0.8)
 
         env_path = tui_project / ".env"
         assert env_path.is_file()
@@ -184,6 +184,39 @@ async def test_all_config_sections_sized_in_compact_terminal(tui_project: Path) 
         scroll = screen.query_one("#config-container")
         # Content taller than the viewport ⇒ VerticalScroll can reveal Ollama+.
         assert forms_container.virtual_size.height > scroll.size.height
+
+
+async def test_dirty_navigation_shows_confirm_modal(tui_project: Path) -> None:
+    """Leaving a dirty Config editor must ask before discarding edits."""
+    from brainkm.tui.screens.dashboard import DashboardScreen
+    from brainkm.tui.widgets.confirm_modal import ConfirmDiscardModal
+
+    app = BrainkmConfigureApp(project_dir=tui_project)
+    async with app.run_test(size=(120, 60)) as pilot:
+        app.switch_screen("config")
+        await pilot.pause(0.6)
+        screen = app.screen
+        switch = screen.query_one("#field-ollama-auto_select_model", Switch)
+        switch.toggle()
+        await pilot.pause(0.2)
+        assert screen.is_dirty
+
+        app.switch_screen("dashboard")
+        await pilot.pause(0.3)
+        assert any(isinstance(s, ConfirmDiscardModal) for s in app.screen_stack)
+
+        # Cancel — stay on config
+        await pilot.press("escape")
+        await pilot.pause(0.3)
+        assert isinstance(app.screen, type(screen))
+        assert screen.is_dirty
+
+        app.switch_screen("dashboard")
+        await pilot.pause(0.3)
+        # Discard via button
+        await pilot.click("#btn-discard")
+        await pilot.pause(0.5)
+        assert isinstance(app.screen, DashboardScreen)
 
 
 async def test_save_row_visible_above_footer_in_short_terminal(

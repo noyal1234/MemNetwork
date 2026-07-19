@@ -60,6 +60,7 @@ def start_serve_background(
     if current.running:
         return current
 
+    allow_remote = bool(cfg.mcp.allow_remote)
     brainkm_bin = resolve_hook_command(dev=dev)
     cmd = [
         brainkm_bin,
@@ -71,6 +72,8 @@ def start_serve_background(
         "--port",
         str(resolved_port),
     ]
+    if allow_remote:
+        cmd.append("--allow-remote")
     # Fall back to python -m if binary missing.
     if not Path(brainkm_bin).exists() and brainkm_bin == "brainkm":
         cmd = [
@@ -85,6 +88,8 @@ def start_serve_background(
             "--port",
             str(resolved_port),
         ]
+        if allow_remote:
+            cmd.append("--allow-remote")
 
     log_path = root / ".brain" / "serve.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)

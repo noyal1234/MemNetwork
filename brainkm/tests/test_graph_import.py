@@ -152,3 +152,56 @@ def test_import_skipped_empty_preserves_code_nodes(brain_db, tmp_path: Path) -> 
         assert conn.execute("SELECT COUNT(*) FROM nodes WHERE kind = 'code'").fetchone()[0] == 3
     finally:
         conn.close()
+
+
+def test_import_skips_nodes_with_secret_content(brain_db, tmp_path: Path) -> None:
+    secret_graph = tmp_path / "secret-graph.json"
+    secret_graph.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {
+                        "id": "clean",
+                        "label": "clean.py",
+                        "file_type": "code",
+                        "source_file": "clean.py",
+                    },
+                    {
+                        "id": "leak",
+                        "label": "leak.py",
+                        "file_type": "code",
+                        "source_file": "leak.py",
+                        "signature": "sk-live-abcdefghijklmnopqrstuvwxyz123456",
+                    },
+                ],
+                "links": [
+                    {
+                        "source": "clean",
+                        "target": "leak",
+                        "relation": "imports_from",
+                        "confidence": "high",
+                        "weight": 1.0,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = import_graph_json(
+        secret_graph,
+        db_path=brain_db,
+        config=BrainConfig(graphify={"code_only": True}),
+    )
+    assert result.status == "completed"
+    assert result.node_count == 1
+    assert result.edge_count == 0
+
+    conn = connect(brain_db)
+    try:
+        ids = {
+            row[0]
+            for row in conn.execute("SELECT id FROM nodes WHERE kind = 'code'").fetchall()
+        }
+        assert ids == {"clean"}
+    finally:
+        conn.close()

@@ -24,8 +24,11 @@ a neuron body is included in an agent-facing pack (outbound injection gate).
 ## Network
 
 - Default distill mode is offline (`rules`) or local (`ollama` / hashing embeddings).
-- Optional Groq / MCP sampling require explicit config.
-- MCP HTTP transport binds to `127.0.0.1` by default.
+- Optional Groq requires `GROQ_API_KEY` **and** `capture.cloud_distill_acknowledged: true` (otherwise falls back to `rules`).
+- MCP HTTP (`brainkm serve`) binds to `127.0.0.1` by default; non-loopback needs `--allow-remote` / `mcp.allow_remote`.
+- `/mcp` requires `Authorization: Bearer <token>` from `.brain/mcp_http_token` (gitignored; written by `connect` / `install --http`).
+- Anonymous `/health` returns `{ok, version}` only; `project_dir` needs the Bearer token.
+- `brainkm viz` serves APIs with a per-process access token (`?token=` + HttpOnly cookie); no wildcard CORS.
 
 ## Supply chain
 

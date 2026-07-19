@@ -18,6 +18,7 @@ from brainkm.services.install import (
     write_antigravity_hooks,
     write_claude_settings_hooks,
 )
+from brainkm.services.mcp_http_auth import ensure_mcp_http_token
 from brainkm.services.mcp_transport import (
     BRAINKM_MCP_SERVER_KEY,
     DEFAULT_HTTP_PORT,
@@ -125,12 +126,14 @@ def run_connect(
         mcp_url=mcp_http_url(host=host, port=port) if transport == "http" else None,
     )
 
+    http_token = ensure_mcp_http_token(root) if transport == "http" else None
     payload = build_mcp_config(
         dev=dev,
         transport=transport,
         host=host,
         port=port,
         client=kind,
+        http_token=http_token,
     )
     mcp_path = mcp_config_path_for_client(root, kind)
     _merge_mcp_file(mcp_path, payload)
@@ -193,6 +196,7 @@ def run_connect(
             "transport": transport,
             "http_host": host,
             "http_port": port,
+            "allow_remote": bool(getattr(cfg.mcp, "allow_remote", False)),
         }
         if transport == "http" or kind in ("claude", "antigravity"):
             capture = data.setdefault("capture", {})

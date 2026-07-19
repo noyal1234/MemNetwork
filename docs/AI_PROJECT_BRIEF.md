@@ -119,7 +119,7 @@ MemNetwork/
 
 ## 4. MCP tool contract (V1 / current)
 
-**Package version:** `0.4.2`
+**Package version:** `0.5.0`
 
 | Tool | Purpose |
 |------|---------|
@@ -314,12 +314,19 @@ Key fields:
 |------|----------------|--------------|
 | `rules` | Zero-dependency default; offline; no API key | None |
 | `ollama` | Privacy / offline LLM distill on your machine | Ollama daemon + model (`brainkm ollama doctor`) |
-| `groq` | Higher quality / speed without local GPU/CPU load | `GROQ_API_KEY` + network (`brainkm groq doctor`) |
+| `groq` | Higher quality / speed without local GPU/CPU load | `GROQ_API_KEY` + network + `capture.cloud_distill_acknowledged: true` (`brainkm groq doctor`) |
 | `cursor` | Cursor agent CLI (`agent -p`) when available; else Cursor-aware heuristic distill of cleaned transcripts | Cursor session hooks; optional `agent` CLI |
 
-T0 remains **rules** — cloud and local LLM distill are opt-in. Never put API keys in `.brain/config.json` or neurons.
+T0 remains **rules** — cloud and local LLM distill are opt-in. Never put API keys in `.brain/config.json` or neurons. Groq refuses upload until `cloud_distill_acknowledged` is set (wizard sets it when you pick groq).
 
 All distill modes share Cursor chrome cleaning (`clean_cursor_text` / `is_distill_noise`) before extraction. LLM modes return `{"neurons":[...]}`; subtypes are validated in code. Capture fingerprints title+body to skip duplicates; SessionStart/PreTool injection re-runs a noise gate so junk never reaches the agent.
+
+### Security notes (local threat model)
+
+- **Neuron / chunk writes** go through `adapters/redaction.py` (secrets + prompt-injection regexes). Injection filters are defense-in-depth only — recalled memories remain untrusted agent input.
+- **HTTP MCP** (`brainkm serve`): loopback bind by default; Bearer token in `.brain/mcp_http_token`; non-loopback requires `--allow-remote` / `mcp.allow_remote`.
+- **Viz** serves APIs with a per-process `?token=` (and HttpOnly cookie); no wildcard CORS.
+- **Graphify** `extract_extra_args` is allowlisted; code-graph import skips redaction-blocked nodes.
 
 ---
 
@@ -340,9 +347,11 @@ All distill modes share Cursor chrome cleaning (`clean_cursor_text` / `is_distil
 | **Nodal adopt** | Done | Lifecycle ladder (observation TTL, episode, `distilled_from`); `about_file`/`about_symbol` + hook file seeds; concept materializer; Seed→Expand→Diversify→Budget→Abstain; pack quotas; `consolidate --llm`; temporal supersede meta; team tags; skill pack; scorecard bench; `file-history` / `provenance` / `demo` CLI |
 | **0.4.1** | Done | Claude Code silent memory parity: `.claude/settings.json` hooks + `hookSpecificOutput`; SubagentStart/Stop + Stop; Claude-default `auto_observe`; `.claude/rules` + routing skill; doctor dry-run; TUI copy/dashboard Claude hooks status; coexistence with CLAUDE.md / Auto Memory |
 | **0.4.2** | Done | Antigravity first-class client (`.agents/` MCP `serverUrl` + named hooks, PreInvocation inject, synthetic precompact, idle Stop distill, AGY transcript JSONL); `distill_mode` peers `claude` (`claude -p` + live sampling) + `antigravity` (`agy -p`); legacy `mcp`→`claude`; TUI Antigravity checkbox + dashboard AGY hooks; doctor multi-path probes + `--mirror-global` |
+| **0.5.0** | Done | Shared-brain security + ops polish: HTTP MCP loopback guard + Bearer token (`.brain/mcp_http_token`, `connect` headers); viz per-run `?token=` / no wildcard CORS; expanded redaction; Groq `cloud_distill_acknowledged`; graphify `extract_extra_args` allowlist + graph-import sanitize; install curl\|bash → download+bash; TUI MCP Doctor panel + Review Queue (`y`/`n`) + brain-status sidebar; client routing skill / hook parity |
 | **CMA scorecard** | Done | Common Memory Axes public scorecard (`bench run cma`): **v3** paraphrase/noise hard slice (brain **1.00** vs BM25 **0.55**); decision/structure scorecard; LongMemEval-S footnote (full-500 FTS R@5 **0.934**; stratified MiniLM side-by-side shows FTS wins); `run_cma.sh` + dated `docs/benchmarks/` artifacts |
 | **License** | Done | Apache-2.0 ([LICENSE](../LICENSE), [NOTICE](../NOTICE)); copyright Noyal Bastin Benny; [CLA](../CLA.md) + [CONTRIBUTING](../CONTRIBUTING.md) for future relicense option |
 | **Public distribution** | **Deferred** | PyPI / `uvx` one-liner, MCP Registry, Cursor deeplink — wait until repo is public, installable name is finalized (may rename from `brainkm`), and a stable version ships. Trusted-publishing workflow prepared under `.github/workflows/publish.yml`. Local path: `brainkm install --dev`. See [PUBLIC_RELEASE_CHECKLIST.md](PUBLIC_RELEASE_CHECKLIST.md). |
+| **Client uninstall** | **Deferred** | `brainkm uninstall --client <name>` to remove brainkm MCP/hooks/rules entries from `.cursor/`, `.claude/`, `.agents/`, `.mcp.json` without wiping user content. Install/connect currently merge-only. |
 | **V3+ polish** | Ongoing | Packaged ONNX MiniLM weights, cross-encoder reranker weights, refreshed public bench numbers after open-source |
 
 ### SQLite concurrency

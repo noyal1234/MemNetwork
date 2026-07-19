@@ -1,4 +1,4 @@
-"""MCP wiring doctor — health, client configs, dual-writer warnings, Claude hooks."""
+"""MCP wiring doctor — health, client configs, dual-writer warnings, client hooks."""
 
 from __future__ import annotations
 
@@ -14,7 +14,16 @@ from brainkm import __version__
 from brainkm.services.config_loader import load_brain_config
 from brainkm.services.connect import hooks_path_for_client, mcp_config_path_for_client
 from brainkm.services.install import BRAINKM_MCP_SERVER_KEY, resolve_hook_command, resolve_project_dir
-from brainkm.services.mcp_transport import mcp_health_url
+from brainkm.services.mcp_transport import mcp_entry_has_bearer_header, mcp_health_url
+
+_CURSOR_EXPECTED_HOOK_EVENTS = (
+    "sessionStart",
+    "sessionEnd",
+    "preCompact",
+    "preToolUse",
+    "postToolUse",
+    "userPromptSubmit",
+)
 
 
 @dataclass
@@ -25,6 +34,7 @@ class ClientWireStatus:
     transport: str | None  # "http" | "stdio" | None
     url: str | None = None
     hooks_present: bool = False
+    has_bearer: bool = False
     notes: list[str] = field(default_factory=list)
 
 
@@ -38,8 +48,14 @@ class McpDoctorReport:
     auto_observe: bool
     clients: list[ClientWireStatus]
     dual_writer_warning: str | None = None
+    missing_auth_warning: str | None = None
     version: str = __version__
-    claude_notes: list[str] = field(default_factory=list)
+    client_notes: list[str] = field(default_factory=list)
+
+    @property
+    def claude_notes(self) -> list[str]:
+        """Backward-compatible alias for :attr:`client_notes`."""
+        return self.client_notes
 
 
 def _inspect_mcp_entry(entry: object) -> tuple[str | None, str | None]:
@@ -250,6 +266,120 @@ def antigravity_hooks_wired(project_dir: Path) -> bool:
     )
 
 
+def _cursor_hooks_have_brainkm(hooks_path: Path) -> bool:
+    if not hooks_path.is_file():
+        return False
+    try:
+        data = json.loads(hooks_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return False
+    hooks = data.get("hooks") if isinstance(data, dict) else None
+    if not isinstance(hooks, dict):
+        return False
+    for entries in hooks.values():
+        if not isinstance(entries, list):
+            continue
+        for item in entries:
+            if isinstance(item, dict) and "brainkm" in str(item.get("command", "")):
+                return True
+    return False
+
+
+def _first_cursor_brainkm_hook_command(hooks_path: Path) -> str | None:
+    if not hooks_path.is_file():
+        return None
+    try:
+        data = json.loads(hooks_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    hooks = data.get("hooks") if isinstance(data, dict) else None
+    if not isinstance(hooks, dict):
+        return None
+    for entries in hooks.values():
+        if not isinstance(entries, list):
+            continue
+        for item in entries:
+            if not isinstance(item, dict):
+                continue
+            command = str(item.get("command", ""))
+            if "brainkm" in command:
+                return command
+    return None
+
+
+def inspect_cursor_wiring(project_dir: Path) -> list[str]:
+    """Extra Cursor MCP + hooks checks for doctor."""
+    notes: list[str] = []
+    root = resolve_project_dir(project_dir)
+    hooks_path = root / ".cursor" / "hooks.json"
+    mcp_path = root / ".cursor" / "mcp.json"
+
+    if not mcp_path.is_file():
+        notes.append(
+            "Cursor .cursor/mcp.json missing — run `brainkm install` or `brainkm connect cursor`"
+        )
+    else:
+        try:
+            data = json.loads(mcp_path.read_text(encoding="utf-8"))
+            servers = data.get("mcpServers") if isinstance(data, dict) else None
+            if not isinstance(servers, dict) or BRAINKM_MCP_SERVER_KEY not in servers:
+                notes.append("Cursor .cursor/mcp.json has no brainkm server entry")
+            else:
+                entry = servers.get(BRAINKM_MCP_SERVER_KEY)
+                if isinstance(entry, dict) and (
+                    ("url" in entry or "serverUrl" in entry)
+                    and ("command" in entry or "args" in entry)
+                ):
+                    notes.append(
+                        "Cursor MCP entry mixes HTTP and stdio fields — "
+                        "re-run `brainkm connect cursor --http` (or install --http)"
+                    )
+        except json.JSONDecodeError:
+            notes.append("Cursor .cursor/mcp.json is not valid JSON")
+
+    if not _cursor_hooks_have_brainkm(hooks_path):
+        notes.append(
+            "No brainkm hooks in .cursor/hooks.json — run "
+            "`brainkm install` or `brainkm connect cursor --hooks`"
+        )
+        return notes
+
+    try:
+        data = json.loads(hooks_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        notes.append("Cursor .cursor/hooks.json is not valid JSON")
+        return notes
+    hooks = data.get("hooks") if isinstance(data, dict) else None
+    if isinstance(hooks, dict):
+        missing = [ev for ev in _CURSOR_EXPECTED_HOOK_EVENTS if ev not in hooks]
+        if missing:
+            notes.append(
+                "Cursor hooks missing events: "
+                + ", ".join(missing)
+                + " — re-run `brainkm connect cursor --hooks`"
+            )
+        post_entries = hooks.get("postToolUse")
+        if isinstance(post_entries, list):
+            matcher_blob = " ".join(
+                str(item.get("matcher", ""))
+                for item in post_entries
+                if isinstance(item, dict)
+            )
+            if matcher_blob and "Shell" not in matcher_blob:
+                notes.append(
+                    "Cursor postToolUse matcher lacks Shell — "
+                    "re-run `brainkm connect cursor --hooks`"
+                )
+
+    command = _first_cursor_brainkm_hook_command(hooks_path)
+    if command:
+        binary = command.split()[0]
+        if binary not in ("brainkm",) and not Path(binary).is_file() and not shutil.which(binary):
+            notes.append(f"Hook binary not found: {binary}")
+
+    return notes
+
+
 def inspect_antigravity_wiring(project_dir: Path) -> list[str]:
     """Doctor notes for Antigravity MCP + hooks."""
     from brainkm.services.connect import antigravity_global_mcp_paths
@@ -317,6 +447,10 @@ def _client_status(project_dir: Path, client: str) -> ClientWireStatus:
         hooks_present = _antigravity_hooks_wired(
             project_dir / ".agents" / "hooks.json"
         )
+    elif client == "cursor":
+        hooks_present = _cursor_hooks_have_brainkm(
+            project_dir / ".cursor" / "hooks.json"
+        )
     else:
         hooks_present = bool(hooks_path and hooks_path.is_file())
     status = ClientWireStatus(
@@ -339,8 +473,14 @@ def _client_status(project_dir: Path, client: str) -> ClientWireStatus:
     transport, url = _inspect_mcp_entry(entry)
     status.transport = transport
     status.url = url
+    status.has_bearer = mcp_entry_has_bearer_header(entry)
     if transport is None:
         status.notes.append("brainkm server entry missing or incomplete")
+    if transport == "http" and not status.has_bearer:
+        status.notes.append(
+            "HTTP MCP entry missing Authorization Bearer header — "
+            "run `brainkm connect <client> --http`"
+        )
     if client == "antigravity" and isinstance(entry, dict):
         if "url" in entry and "serverUrl" not in entry:
             status.notes.append("HTTP field should be serverUrl for Antigravity")
@@ -378,6 +518,7 @@ def build_mcp_doctor_report(
     ]
 
     dual: str | None = None
+    missing_auth: str | None = None
     if cfg.mcp.transport == "http":
         stdio_clients = [c.client for c in clients if c.transport == "stdio"]
         if stdio_clients:
@@ -386,18 +527,31 @@ def build_mcp_doctor_report(
                 f"use stdio spawn: {', '.join(stdio_clients)}. "
                 "Run `brainkm connect <client> --http` or remove stale command/args."
             )
+        http_no_auth = [
+            c.client for c in clients if c.transport == "http" and not c.has_bearer
+        ]
+        if http_no_auth:
+            missing_auth = (
+                "HTTP MCP clients missing Authorization Bearer header: "
+                f"{', '.join(http_no_auth)}. "
+                "Run `brainkm connect <client> --http` so configs include the token."
+            )
 
-    claude_notes: list[str] = []
+    client_notes: list[str] = []
+    cursor_status = next((c for c in clients if c.client == "cursor"), None)
+    if cursor_status and (cursor_status.present or (root / ".cursor").is_dir()):
+        client_notes.extend(inspect_cursor_wiring(root))
+
     claude_status = next((c for c in clients if c.client == "claude"), None)
     if claude_status and (claude_status.present or (root / ".claude").is_dir()):
-        claude_notes = inspect_claude_wiring(root)
+        client_notes.extend(inspect_claude_wiring(root))
 
     agy_status = next((c for c in clients if c.client == "antigravity"), None)
     if agy_status and (agy_status.present or (root / ".agents").is_dir()):
-        claude_notes.extend(inspect_antigravity_wiring(root))
+        client_notes.extend(inspect_antigravity_wiring(root))
 
     if cfg.capture.distill_mode == "mcp":
-        claude_notes.append(
+        client_notes.append(
             "Legacy distill_mode=mcp coerced to claude on load — "
             "re-save config to persist distill_mode=claude"
         )
@@ -411,7 +565,8 @@ def build_mcp_doctor_report(
         auto_observe=cfg.capture.auto_observe,
         clients=clients,
         dual_writer_warning=dual,
-        claude_notes=claude_notes,
+        missing_auth_warning=missing_auth,
+        client_notes=client_notes,
     )
 
 
@@ -433,12 +588,14 @@ def format_mcp_doctor_report(report: McpDoctorReport) -> str:
         )
         for note in client.notes:
             lines.append(f"    note: {note}")
-    if report.claude_notes:
-        lines.append("claude silent-memory:")
-        for note in report.claude_notes:
+    if report.client_notes:
+        lines.append("client notes:")
+        for note in report.client_notes:
             lines.append(f"  - {note}")
     if report.dual_writer_warning:
         lines.append(f"WARNING: {report.dual_writer_warning}")
+    if report.missing_auth_warning:
+        lines.append(f"WARNING: {report.missing_auth_warning}")
     if report.config_transport == "http" and not report.health_ok:
         lines.append("HINT: start the shared server with `brainkm serve --project-dir .`")
     return "\n".join(lines)

@@ -14,8 +14,9 @@ from brainkm.tui.screens.actions import ActionsScreen
 from brainkm.tui.screens.config_editor import ConfigEditorScreen
 from brainkm.tui.screens.dashboard import DashboardScreen
 from brainkm.tui.screens.wizard import WizardScreen
-from brainkm.tui.theme import ansi16_css_overrides, use_ansi16_palette
+from brainkm.tui.theme import ansi16_css_overrides, markup_color, use_ansi16_palette
 from brainkm.tui.widgets.command_palette import BrainkmCommandProvider
+from brainkm.tui.widgets.confirm_modal import ConfirmDiscardModal
 
 _CSS_PATH = Path(__file__).resolve().parent / "styles" / "app.tcss"
 
@@ -79,13 +80,23 @@ class BrainkmConfigureApp(App):
 
         project = self._project_dir or Path.cwd()
         brain_dir = project / ".brain"
-        self.sub_title = str(project)
+        self.update_header_subtitle()
 
         if brain_dir.is_dir():
             self.push_screen("dashboard")
         else:
             # No .brain/ — start with wizard
             self.push_screen("wizard")
+
+    def update_header_subtitle(self, health: str | None = None) -> None:
+        """Set Header subtitle to project path (+ optional compact health glyph)."""
+        project = self._project_dir or Path.cwd()
+        name = project.name or str(project)
+        base = f"{name} — {project}"
+        if health:
+            self.sub_title = f"{base}  ·  {health}"
+        else:
+            self.sub_title = base
 
     def on_unmount(self) -> None:
         set_tui_log_sink(None)
@@ -136,13 +147,34 @@ class BrainkmConfigureApp(App):
         ]
 
         # Use notify for quick help — a full overlay would be more complex
-        lines = ["[bold]Keybindings:[/]"]
+        key_style = markup_color("primary", "{key}", bold=True)
+        lines = [markup_color("text", "Keybindings:", bold=True)]
         for key, desc in help_content:
-            lines.append(f"  [bold cyan]{key:>8}[/]  {desc}")
+            lines.append(f"  {key_style.format(key=f'{key:>8}')}  {desc}")
         self.notify("\n".join(lines), title="Help", severity="information", timeout=10)
 
     def switch_screen(self, screen_name: str) -> None:
-        """Switch to a named screen, creating it if needed."""
+        """Switch to a named screen, creating it if needed.
+
+        Intercepts navigation away from a dirty Config editor with a confirm
+        dialog so unsaved edits are not silently discarded.
+        """
+        current = self.screen
+        if (
+            isinstance(current, ConfigEditorScreen)
+            and current.is_dirty
+            and screen_name != "config"
+        ):
+            def _after(discard: bool | None) -> None:
+                if discard:
+                    current.mark_clean()
+                    self._do_switch_screen(screen_name)
+
+            self.push_screen(ConfirmDiscardModal(), _after)
+            return
+        self._do_switch_screen(screen_name)
+
+    def _do_switch_screen(self, screen_name: str) -> None:
         try:
             self.pop_screen()
         except Exception:

@@ -8,6 +8,7 @@ from brainkm.tui.app import BrainkmConfigureApp
 from brainkm.tui.screens.config_editor import ConfigEditorScreen
 from brainkm.tui.widgets.command_palette import (
     BrainkmCommandProvider,
+    _COMMAND_TO_SCREEN,
     enumerate_cli_commands,
 )
 
@@ -65,3 +66,10 @@ async def test_command_palette_navigation_hit_switches_screen(tui_project: Path)
         await pilot.pause(0.5)
 
         assert isinstance(app.screen, ConfigEditorScreen)
+
+
+def test_review_cli_commands_route_to_dashboard() -> None:
+    """Review queue lives on the Dashboard, not Actions."""
+    assert _COMMAND_TO_SCREEN["review list"] == "dashboard"
+    assert _COMMAND_TO_SCREEN["review approve"] == "dashboard"
+    assert _COMMAND_TO_SCREEN["review reject"] == "dashboard"

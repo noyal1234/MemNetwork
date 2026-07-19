@@ -14,7 +14,7 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Input, Label, Static
-from textual.worker import Worker
+from textual.worker import Worker, WorkerState
 
 from brainkm.tui.theme import bracket_label, escape_markup
 from brainkm.tui.widgets.config_form import SECTION_FIELDS, ConfigForm
@@ -34,8 +34,19 @@ class ConfigEditorScreen(Screen):
         super().__init__()
         self._project_dir = project_dir
         self._config_dict: dict[str, Any] = {}
+        self._raw_config: dict[str, Any] = {}
         self._dirty = False
         self._validation_error: str | None = None
+        self._api_key_dirty = False
+
+    @property
+    def is_dirty(self) -> bool:
+        """True when config forms or the Groq key field have unsaved edits."""
+        return bool(self._dirty or self._api_key_dirty)
+
+    def mark_clean(self) -> None:
+        """Clear dirty flags (used after discard confirm before leaving)."""
+        self._dirty = False
         self._api_key_dirty = False
 
     def compose(self) -> ComposeResult:
@@ -114,8 +125,21 @@ class ConfigEditorScreen(Screen):
             return {"error": str(exc)}
 
     def _on_worker_state_changed(self, event: Worker.StateChanged) -> None:
-        from textual.worker import WorkerState
-
+        if event.state == WorkerState.ERROR:
+            err = escape_markup(str(event.worker.error or "unknown"))
+            group = event.worker.group or ""
+            if group == "config-save":
+                self.notify(f"Save failed: {err}", severity="error")
+            elif group == "api-key-status":
+                try:
+                    status = self.query_one("#groq-api-key-status", Static)
+                    status.update(f"Current key: unknown ({err})")
+                    status.set_classes("api-key-status value--muted")
+                except Exception:
+                    pass
+            elif group == "config-load":
+                self.notify(f"Config load failed: {err}", severity="error")
+            return
         if event.state != WorkerState.SUCCESS:
             return
         worker = event.worker
@@ -132,6 +156,10 @@ class ConfigEditorScreen(Screen):
             )
         elif worker.group == "distill-status":
             self._apply_distill_status(worker.result)
+        elif worker.group == "api-key-status":
+            self._apply_api_key_status(worker.result)
+        elif worker.group == "config-save":
+            self._apply_save_result(worker.result)
 
     def _apply_distill_status(self, result: dict[str, Any]) -> None:
         try:
@@ -142,6 +170,37 @@ class ConfigEditorScreen(Screen):
             line.update(escape_markup(f"Distill readiness: unknown ({result['error']})"))
             return
         line.update(escape_markup(result.get("line", "Distill readiness: unknown")))
+
+    def _apply_api_key_status(self, result: dict[str, Any]) -> None:
+        status = self.query_one("#groq-api-key-status", Static)
+        if result.get("error"):
+            status.update(escape_markup(f"Current key: unknown ({result['error']})"))
+            status.set_classes("api-key-status value--muted")
+            return
+        if result.get("present") and result.get("masked"):
+            status.update(f"Current key: {result['masked']}")
+            status.set_classes("api-key-status value--ok")
+        else:
+            status.update("Current key: not set")
+            status.set_classes("api-key-status value--warning")
+
+    def _apply_save_result(self, result: dict[str, Any]) -> None:
+        if result.get("error"):
+            self.notify(escape_markup(f"Save failed: {result['error']}"), severity="error")
+            return
+        if result.get("config_saved"):
+            self._raw_config = result.get("raw") or self._raw_config
+            self._dirty = False
+            self.notify("✓ Config saved", severity="information")
+        if result.get("api_key_saved"):
+            self._api_key_dirty = False
+            try:
+                self.query_one("#field-groq-api-key", Input).value = ""
+            except Exception:
+                pass
+            self.notify("✓ GROQ_API_KEY written to .env", severity="information")
+            self._update_api_key_status()
+        self._update_save_button()
 
     async def _apply_loaded_config(self, result: dict) -> None:
         if result.get("error"):
@@ -179,6 +238,7 @@ class ConfigEditorScreen(Screen):
             await forms_container.mount(*forms)
 
         self._dirty = False
+        self._api_key_dirty = False
         self._validation_error = None
         status = self.query_one("#validation-status", Static)
         status.update("")
@@ -187,21 +247,27 @@ class ConfigEditorScreen(Screen):
         self._load_distill_status()
 
     def _update_api_key_status(self) -> None:
-        """Show the currently configured (masked) Groq API key."""
+        """Kick off a threaded Groq key probe (never blocks the UI)."""
+        try:
+            status = self.query_one("#groq-api-key-status", Static)
+            status.update("Current key: Checking…")
+            status.set_classes("api-key-status value--muted")
+        except Exception:
+            pass
+        self._do_api_key_status()
+
+    @work(thread=True, group="api-key-status", exclusive=True, exit_on_error=False)
+    def _do_api_key_status(self) -> dict[str, Any]:
         from brainkm.services.groq_advisor import build_groq_report
 
-        status = self.query_one("#groq-api-key-status", Static)
         try:
             report = build_groq_report(project_dir=self._project_dir)
-            if report.api_key_present and report.api_key_masked:
-                status.update(f"Current key: {report.api_key_masked}")
-                status.set_classes("api-key-status value--ok")
-            else:
-                status.update("Current key: not set")
-                status.set_classes("api-key-status value--warning")
+            return {
+                "present": report.api_key_present,
+                "masked": report.api_key_masked or "",
+            }
         except Exception as exc:
-            status.update(escape_markup(f"Current key: unknown ({exc})"))
-            status.set_classes("api-key-status value--muted")
+            return {"error": str(exc)}
 
     def on_config_form_changed(self, event: ConfigForm.Changed) -> None:
         """A config field was edited — update our dict and validate."""
@@ -285,27 +351,36 @@ class ConfigEditorScreen(Screen):
             self.action_switch_dashboard()
 
     def _save_config(self) -> None:
-        """Atomically write the validated config to .brain/config.json."""
+        """Validate on the UI thread, then write config/.env in a worker."""
         from brainkm.models.brain_config import BrainConfig
-        from brainkm.services.config_loader import config_path
 
         merged = dict(self._raw_config)
         for section in SECTION_FIELDS:
             if section in self._config_dict:
                 merged[section] = self._config_dict[section]
 
-        # Final validation gate
         try:
             validated = BrainConfig.model_validate(merged)
         except ValidationError as exc:
             self.notify(escape_markup(f"Cannot save: {exc}"), severity="error")
             return
 
-        cfg_path = config_path(self._project_dir)
         output = validated.model_dump(mode="json")
-
-        # Atomic write: temp file → os.replace
         try:
+            api_key = self.query_one("#field-groq-api-key", Input).value.strip()
+        except Exception:
+            api_key = ""
+
+        self.notify("Saving…", severity="information")
+        self._do_save(output, api_key)
+
+    @work(thread=True, group="config-save", exclusive=True, exit_on_error=False)
+    def _do_save(self, output: dict[str, Any], api_key: str) -> dict[str, Any]:
+        from brainkm.services.config_loader import config_path
+
+        result: dict[str, Any] = {"config_saved": False, "api_key_saved": False}
+        try:
+            cfg_path = config_path(self._project_dir)
             fd, tmp_path = tempfile.mkstemp(
                 dir=str(cfg_path.parent),
                 suffix=".json.tmp",
@@ -314,49 +389,35 @@ class ConfigEditorScreen(Screen):
                 json.dump(output, f, indent=2)
                 f.write("\n")
             os.replace(tmp_path, str(cfg_path))
-            self._raw_config = output
-            self._dirty = False
-            self._api_key_dirty = False
-            self._update_save_button()
-            self.notify("✓ Config saved", severity="information")
+            result["config_saved"] = True
+            result["raw"] = output
         except Exception as exc:
-            self.notify(escape_markup(f"Save failed: {exc}"), severity="error")
+            return {"error": str(exc)}
 
-        # Also handle Groq API key → .env
-        self._save_api_key()
-
-    def _save_api_key(self) -> None:
-        """Write GROQ_API_KEY to project .env if the user entered one."""
-        try:
-            api_key_input = self.query_one("#field-groq-api-key", Input)
-        except Exception:
-            return
-        api_key = api_key_input.value.strip()
-        if not api_key:
-            return
-
-        project = self._project_dir or Path.cwd()
-        env_path = project / ".env"
-
-        # Read existing .env lines, replace or append GROQ_API_KEY
-        lines: list[str] = []
-        found = False
-        if env_path.is_file():
-            for line in env_path.read_text(encoding="utf-8").splitlines():
-                if line.startswith("GROQ_API_KEY="):
+        if api_key:
+            try:
+                project = self._project_dir or Path.cwd()
+                env_path = project / ".env"
+                lines: list[str] = []
+                found = False
+                if env_path.is_file():
+                    for line in env_path.read_text(encoding="utf-8").splitlines():
+                        if line.startswith("GROQ_API_KEY="):
+                            lines.append(f"GROQ_API_KEY={api_key}")
+                            found = True
+                        else:
+                            lines.append(line)
+                if not found:
                     lines.append(f"GROQ_API_KEY={api_key}")
-                    found = True
-                else:
-                    lines.append(line)
-        if not found:
-            lines.append(f"GROQ_API_KEY={api_key}")
+                env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                result["api_key_saved"] = True
+            except Exception as exc:
+                return {
+                    **result,
+                    "error": f"Config saved but .env write failed: {exc}",
+                }
 
-        env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        api_key_input.value = ""
-        self._api_key_dirty = False
-        self._update_api_key_status()
-        self._update_save_button()
-        self.notify("✓ GROQ_API_KEY written to .env", severity="information")
+        return result
 
     # ------------------------------------------------------------------
     # Screen switching

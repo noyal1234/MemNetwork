@@ -28,6 +28,60 @@ def test_blocks_aws_access_key() -> None:
     assert result.blocked is True
 
 
+def test_blocks_groq_api_key() -> None:
+    result = sanitize_for_storage(
+        "Groq",
+        "Key gsk_abcdefghijklmnopqrstuvwxyz0123456789",
+    )
+    assert result.blocked is True
+    assert any(f.label == "groq_api_key" for f in result.findings)
+
+
+def test_blocks_github_pat() -> None:
+    result = sanitize_for_storage(
+        "GitHub",
+        "token ghp_abcdefghijklmnopqrstuvwxyz012345",
+    )
+    assert result.blocked is True
+    assert any(f.label == "github_pat" for f in result.findings)
+
+
+def test_blocks_slack_token() -> None:
+    result = sanitize_for_storage(
+        "Slack",
+        "bot xoxb-1234567890-abcdefghijklmnop",
+    )
+    assert result.blocked is True
+    assert any(f.label == "slack_token" for f in result.findings)
+
+
+def test_blocks_pem_private_key() -> None:
+    result = sanitize_for_storage(
+        "Key",
+        "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA\n-----END RSA PRIVATE KEY-----",
+    )
+    assert result.blocked is True
+    assert any(f.label == "pem_private_key" for f in result.findings)
+
+
+def test_blocks_google_api_key() -> None:
+    result = sanitize_for_storage(
+        "Google",
+        "AIzaSyAabcdefghijklmnopqrstuvwxyz012345",
+    )
+    assert result.blocked is True
+    assert any(f.label == "google_api_key" for f in result.findings)
+
+
+def test_blocks_anthropic_api_key() -> None:
+    result = sanitize_for_storage(
+        "Anthropic",
+        "sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789",
+    )
+    assert result.blocked is True
+    assert any(f.label == "anthropic_api_key" for f in result.findings)
+
+
 def test_strips_bearer_token() -> None:
     result = sanitize_for_storage(
         "Auth header",

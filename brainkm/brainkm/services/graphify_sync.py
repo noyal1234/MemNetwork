@@ -34,6 +34,59 @@ STALE_LOCK_SECONDS = 30 * 60  # 30 minutes
 POLL_INTERVAL_SECONDS = 5.0
 STOP_JOIN_TIMEOUT_SECONDS = 330.0
 
+# Flags allowed in graphify.extract_extra_args (no shell interpolation).
+_GRAPHIFY_ALLOWED_FLAGS = frozenset(
+    {
+        "--no-cluster",
+        "--force",
+        "--verbose",
+        "-v",
+        "--quiet",
+        "-q",
+        "--json",
+        "--no-viz",
+        "--skip-git",
+    }
+)
+_GRAPHIFY_ALLOWED_PREFIXES = (
+    "--lang=",
+    "--languages=",
+    "--output=",
+    "--exclude=",
+)
+
+
+class GraphifyArgsError(ValueError):
+    """Raised when extract_extra_args contains disallowed tokens."""
+
+
+def validate_graphify_extra_args(args: list[str]) -> list[str]:
+    """Return *args* if every entry is an allowlisted graphify flag.
+
+    Rejects path-like tokens, shell metacharacters, and unknown flags.
+    """
+    cleaned: list[str] = []
+    for raw in args:
+        arg = str(raw).strip()
+        if not arg:
+            continue
+        if any(ch in arg for ch in ("\n", "\r", ";", "|", "&", "`", "$", "(", ")")):
+            raise GraphifyArgsError(f"Rejected unsafe graphify arg: {arg!r}")
+        if arg.startswith("-"):
+            if arg in _GRAPHIFY_ALLOWED_FLAGS or any(
+                arg.startswith(prefix) for prefix in _GRAPHIFY_ALLOWED_PREFIXES
+            ):
+                cleaned.append(arg)
+                continue
+            raise GraphifyArgsError(f"Unsupported graphify extract_extra_args flag: {arg!r}")
+        # Positional path targets come from resolve_extract_targets, not config.
+        if ".." in arg or arg.startswith("/") or arg.startswith("~"):
+            raise GraphifyArgsError(f"Rejected path-like graphify arg: {arg!r}")
+        raise GraphifyArgsError(
+            f"Unsupported graphify extract_extra_args token (use flags only): {arg!r}"
+        )
+    return cleaned
+
 
 def resolve_graphify_binary(config: GraphifyConfig) -> Path | None:
     """Resolve graphify CLI: absolute path, same venv as brainkm, then PATH."""
@@ -163,10 +216,19 @@ def run_graphify_extract(
     targets = resolve_extract_targets(project_dir, config)
     # code_only: graphify update is AST-only (no LLM). extract scans docs and requires API keys.
     subcommand = "update" if config.graphify.code_only else "extract"
-    cmd: list[str] = [str(binary), subcommand, *targets, *config.graphify.extract_extra_args]
+    try:
+        extra_args = validate_graphify_extra_args(list(config.graphify.extract_extra_args))
+    except GraphifyArgsError as exc:
+        logger.warning("graphify extract_extra_args rejected: %s", exc)
+        return GraphifyExtractResult(
+            ok=False,
+            graph_path=str(graph_path),
+            stderr_snippet=str(exc),
+        )
+    cmd: list[str] = [str(binary), subcommand, *targets, *extra_args]
     if force:
         cmd.append("--force")
-    if config.graphify.code_only and "--no-cluster" not in config.graphify.extract_extra_args:
+    if config.graphify.code_only and "--no-cluster" not in extra_args:
         cmd.append("--no-cluster")
 
     logger.info("graphify %s starting cmd=%s cwd=%s", subcommand, " ".join(cmd), project_dir)

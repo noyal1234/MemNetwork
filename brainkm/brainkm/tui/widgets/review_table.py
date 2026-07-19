@@ -12,6 +12,9 @@ class ReviewTable(Static):
 
     Emits ``ReviewTable.Approved`` and ``ReviewTable.Rejected`` messages
     when the user presses ``y`` or ``n`` on a selected row.
+
+    Empty state uses a muted non-selectable Static so the DataTable cursor
+    highlight does not paint a full-width purple bar over the placeholder.
     """
 
     class Approved(Message):
@@ -38,7 +41,12 @@ class ReviewTable(Static):
         self._items: list[dict] = []
 
     def compose(self) -> ComposeResult:
-        table = DataTable(id="review-data-table", cursor_type="row")
+        yield Static(
+            "No pending review items.",
+            id="review-empty",
+            classes="review-empty",
+        )
+        table = DataTable(id="review-data-table", cursor_type="row", classes="hidden")
         table.add_columns("ID", "Subtype", "Confidence", "Title")
         yield table
 
@@ -54,6 +62,13 @@ class ReviewTable(Static):
         self._items = items
         table = self.table
         table.clear()
+        empty = self.query_one("#review-empty", Static)
+        if not items:
+            self.set_empty()
+            return
+        empty.display = False
+        table.remove_class("hidden")
+        table.display = True
         for item in items:
             node_id = item.get("node_id", "")
             # Truncate ID for display
@@ -65,14 +80,19 @@ class ReviewTable(Static):
                 self._truncate(item.get("title", ""), 40),
                 key=node_id,
             )
+        if items:
+            table.move_cursor(row=0)
 
     def set_empty(self, message: str = "No pending review items.") -> None:
-        """Show an empty state."""
+        """Show a muted empty state (no selectable DataTable cursor)."""
         table = self.table
         table.clear()
+        table.add_class("hidden")
+        table.display = False
         self._items = []
-        # Add a single row with the message
-        table.add_row(message, "", "", "", key="__empty__")
+        empty = self.query_one("#review-empty", Static)
+        empty.update(message)
+        empty.display = True
 
     def _truncate(self, text: str, max_len: int) -> str:
         if len(text) <= max_len:
@@ -82,6 +102,8 @@ class ReviewTable(Static):
     def get_selected_node_id(self) -> str | None:
         """Return the node_id of the currently selected row."""
         table = self.table
+        if not self._items:
+            return None
         if table.cursor_row is not None and table.cursor_row < len(self._items):
             return self._items[table.cursor_row].get("node_id")
         return None

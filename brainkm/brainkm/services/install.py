@@ -55,6 +55,13 @@ def resolve_project_dir(project_dir: Path | None) -> Path:
     return (project_dir if project_dir is not None else Path.cwd()).resolve()
 
 
+def _venv_brainkm_bin() -> Path:
+    """``brainkm`` next to the running interpreter's bin dir (do not follow python → Cellar)."""
+    # ``Path(sys.executable).resolve()`` follows the venv python symlink into Homebrew
+    # Cellar, which yields a fragile absolute path. Keep the venv bin directory.
+    return Path(sys.executable).parent / "brainkm"
+
+
 def resolve_brainkm_command(*, dev: bool) -> tuple[str, list[str]]:
     """Return MCP (command, args) for mcp.json.
 
@@ -63,7 +70,7 @@ def resolve_brainkm_command(*, dev: bool) -> tuple[str, list[str]]:
     a placeholder for the future public zero-clone path.
     """
     if dev:
-        brainkm_bin = Path(sys.executable).resolve().parent / "brainkm"
+        brainkm_bin = _venv_brainkm_bin()
         return str(brainkm_bin), ["mcp", "--project-dir", "."]
     found = shutil.which("brainkm")
     if found:
@@ -75,7 +82,7 @@ def resolve_brainkm_command(*, dev: bool) -> tuple[str, list[str]]:
 def resolve_hook_command(*, dev: bool) -> str:
     """Absolute or PATH-resolved brainkm binary for hook subprocesses."""
     if dev:
-        return str(Path(sys.executable).resolve().parent / "brainkm")
+        return str(_venv_brainkm_bin())
     found = shutil.which("brainkm")
     if found:
         return found
@@ -128,12 +135,6 @@ def build_hooks_config(
             "userPromptSubmit": [
                 {
                     "command": f"{brainkm_bin} user-prompt --stdin",
-                    "timeout": 5,
-                }
-            ],
-            "postToolUseFailure": [
-                {
-                    "command": f"{brainkm_bin} post-tool-failure --stdin",
                     "timeout": 5,
                 }
             ],
@@ -407,10 +408,18 @@ def build_mcp_config(
     host: str = "127.0.0.1",
     port: int = 8765,
     client: str | None = None,
+    http_token: str | None = None,
 ) -> dict[str, object]:
     from brainkm.services.mcp_transport import build_mcp_config as _build
 
-    return _build(dev=dev, transport=transport, host=host, port=port, client=client)
+    return _build(
+        dev=dev,
+        transport=transport,
+        host=host,
+        port=port,
+        client=client,
+        http_token=http_token,
+    )
 
 
 def _cli_on_path(name: str) -> bool:
@@ -504,6 +513,50 @@ def _write_json(path: Path, data: dict[str, object]) -> None:
 def _write_text(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
+
+
+_PROJECT_MD_SNIPPET_MARKER = "# brainkm — project memory routing"
+
+
+def upsert_project_md_snippet(
+    path: Path,
+    snippet: str,
+    *,
+    force: bool,
+) -> str:
+    """Append or replace the brainkm routing section in CLAUDE.md / AGENTS.md.
+
+    Never clobbers user content outside the brainkm snippet. Returns one of:
+    ``written``, ``appended``, ``replaced``, ``skipped``.
+    """
+    cleaned = snippet.rstrip() + "\n"
+    if not path.is_file():
+        _write_text(path, cleaned)
+        return "written"
+    existing = path.read_text(encoding="utf-8")
+    if _PROJECT_MD_SNIPPET_MARKER not in existing:
+        _write_text(path, existing.rstrip() + "\n\n" + cleaned)
+        return "appended"
+    if not force:
+        return "skipped"
+    start = existing.index(_PROJECT_MD_SNIPPET_MARKER)
+    line_start = existing.rfind("\n", 0, start) + 1
+    prefix = existing[:line_start].rstrip()
+    new_content = (prefix + "\n\n" + cleaned) if prefix else cleaned
+    _write_text(path, new_content)
+    return "replaced"
+
+
+def _normalize_merged_mcp_payload(merged_mcp: dict[str, object]) -> dict[str, object]:
+    """Drop stale stdio/HTTP fields on the brainkm MCP entry after a deep merge."""
+    from brainkm.services.mcp_transport import normalize_mcp_entry_transport_fields
+
+    servers = merged_mcp.get("mcpServers")
+    if isinstance(servers, dict) and isinstance(servers.get(BRAINKM_MCP_SERVER_KEY), dict):
+        servers[BRAINKM_MCP_SERVER_KEY] = normalize_mcp_entry_transport_fields(
+            servers[BRAINKM_MCP_SERVER_KEY]  # type: ignore[arg-type]
+        )
+    return merged_mcp
 
 
 def _load_package_rule_template() -> str:
@@ -663,12 +716,18 @@ def run_install(
     brainkm_bin = resolve_hook_command(dev=dev)
 
     transport = cfg.mcp.transport
+    http_token = None
+    if transport == "http":
+        from brainkm.services.mcp_http_auth import ensure_mcp_http_token
+
+        http_token = ensure_mcp_http_token(root)
     mcp_payload = build_mcp_config(
         dev=dev,
         transport=transport,
         host=cfg.mcp.http_host,
         port=cfg.mcp.http_port,
         client=adapter.kind,
+        http_token=http_token,
     )
     hooks_payload = build_hooks_config(brainkm_bin, config=cfg)
 
@@ -680,7 +739,9 @@ def run_install(
         mcp_path = cursor_dir / "mcp.json"
         if mcp_path.is_file():
             existing_mcp = json.loads(mcp_path.read_text(encoding="utf-8"))
-            merged_mcp = _deep_merge_dict(existing_mcp, mcp_payload)
+            merged_mcp = _normalize_merged_mcp_payload(
+                _deep_merge_dict(existing_mcp, mcp_payload)
+            )
             _write_json(mcp_path, merged_mcp)
             result.files_written.append(mcp_path)
         else:
@@ -728,15 +789,9 @@ def run_install(
         mcp_path = agents_dir / "mcp_config.json"
         if mcp_path.is_file():
             existing_mcp = json.loads(mcp_path.read_text(encoding="utf-8"))
-            merged_mcp = _deep_merge_dict(existing_mcp, mcp_payload)
-            from brainkm.services.mcp_transport import (
-                BRAINKM_MCP_SERVER_KEY as _KEY,
-                normalize_mcp_entry_transport_fields,
+            merged_mcp = _normalize_merged_mcp_payload(
+                _deep_merge_dict(existing_mcp, mcp_payload)
             )
-
-            servers = merged_mcp.get("mcpServers")
-            if isinstance(servers, dict) and isinstance(servers.get(_KEY), dict):
-                servers[_KEY] = normalize_mcp_entry_transport_fields(servers[_KEY])  # type: ignore[arg-type]
             _write_json(mcp_path, merged_mcp)
         else:
             _write_json(mcp_path, mcp_payload)
@@ -777,25 +832,23 @@ def run_install(
                 _write_text(skill_dst, skill_src.read_text(encoding="utf-8"))
                 result.files_written.append(skill_dst)
 
-        # Always refresh AGENTS.md snippet for Antigravity.
+        # Upsert AGENTS.md snippet for Antigravity (skip unless --force when present).
         agents_path = root / "AGENTS.md"
-        snippet = adapter.agents_snippet()
-        if agents_path.is_file() and not force:
-            existing = agents_path.read_text(encoding="utf-8")
-            if "brainkm — project memory routing" not in existing:
-                _write_text(agents_path, existing.rstrip() + "\n\n" + snippet)
-                result.files_written.append(agents_path)
-            else:
-                result.files_skipped.append(agents_path)
+        action = upsert_project_md_snippet(
+            agents_path, adapter.agents_snippet(), force=force
+        )
+        if action == "skipped":
+            result.files_skipped.append(agents_path)
         else:
-            _write_text(agents_path, snippet)
             result.files_written.append(agents_path)
 
     if adapter.kind == "claude":
         mcp_path = root / ".mcp.json"
         if mcp_path.is_file():
             existing_mcp = json.loads(mcp_path.read_text(encoding="utf-8"))
-            merged_mcp = _deep_merge_dict(existing_mcp, mcp_payload)
+            merged_mcp = _normalize_merged_mcp_payload(
+                _deep_merge_dict(existing_mcp, mcp_payload)
+            )
             _write_json(mcp_path, merged_mcp)
         else:
             _write_json(mcp_path, mcp_payload)
@@ -844,15 +897,12 @@ def run_install(
                 result.files_written.append(skill_dst)
 
         agents_path = root / "CLAUDE.md"
-        if agents_path.is_file() and not force:
-            existing = agents_path.read_text(encoding="utf-8")
-            if "brainkm — project memory routing" not in existing:
-                _write_text(agents_path, existing.rstrip() + "\n\n" + adapter.agents_snippet())
-                result.files_written.append(agents_path)
-            else:
-                result.files_skipped.append(agents_path)
+        action = upsert_project_md_snippet(
+            agents_path, adapter.agents_snippet(), force=force
+        )
+        if action == "skipped":
+            result.files_skipped.append(agents_path)
         else:
-            _write_text(agents_path, adapter.agents_snippet())
             result.files_written.append(agents_path)
 
     if adapter.kind in ("codex", "generic"):

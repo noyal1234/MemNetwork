@@ -188,6 +188,52 @@ async def test_dashboard_refresh_does_not_crash(tui_project: Path) -> None:
         assert app.screen is not None
 
 
+async def test_dashboard_mcp_doctor_panel_and_empty_review_hint(
+    tui_project: Path,
+    monkeypatch,
+) -> None:
+    """MCP Doctor fills on refresh; empty Review Queue explains approve/reject."""
+    from brainkm.services.mcp_doctor import ClientWireStatus, McpDoctorReport
+
+    fake = McpDoctorReport(
+        project_dir=tui_project,
+        health_ok=True,
+        health_url="http://127.0.0.1:8765/health",
+        health_detail="ok",
+        config_transport="stdio",
+        auto_observe=False,
+        clients=[
+            ClientWireStatus(
+                client="cursor",
+                mcp_path=tui_project / ".cursor" / "mcp.json",
+                present=True,
+                transport="stdio",
+                hooks_present=True,
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        "brainkm.services.mcp_doctor.build_mcp_doctor_report",
+        lambda *_a, **_k: fake,
+    )
+
+    app = BrainkmConfigureApp(project_dir=tui_project)
+    async with app.run_test(size=(140, 60)) as pilot:
+        await pilot.pause(0.8)
+        panel = app.screen.query_one("#mcp-doctor-panel", StatusPanel)
+        assert panel._items, "mcp-doctor-panel should populate after mount"
+        labels = [item[0] for item in panel._items]
+        assert "Overall" in labels
+        assert "Transport" in labels
+        assert any(item[2] in ("ok", "warning", "error", "muted") for item in panel._items)
+
+        hint = app.screen.query_one("#review-hint")
+        hint_text = str(hint.render())
+        assert "approve" in hint_text.lower()
+        section = app.screen.query_one("#review-section")
+        assert "review-section--empty" in section.classes
+
+
 async def test_dashboard_status_panel_renders_without_markup_tags(tui_project: Path) -> None:
     """Status values must use CSS classes, not raw [value--ok] markup tags."""
     app = BrainkmConfigureApp(project_dir=tui_project)
@@ -231,3 +277,66 @@ async def test_review_queue_reject_flow(tui_project: Path) -> None:
 
         pending_path = tui_project / ".brain" / "pending" / f"{node_id}.json"
         assert not pending_path.exists()
+
+
+async def test_dashboard_worker_error_renders_panel_error(tui_project: Path) -> None:
+    """Worker ERROR must toast and paint an error state — not leave panels stuck."""
+    from textual.worker import WorkerState
+
+    app = BrainkmConfigureApp(project_dir=tui_project)
+    async with app.run_test(size=(140, 60)) as pilot:
+        await pilot.pause(0.5)
+        screen = app.screen
+
+        class _FakeWorker:
+            group = "ollama-status"
+            error = RuntimeError("probe boom")
+            result = None
+
+        class _FakeEvent:
+            state = WorkerState.ERROR
+            worker = _FakeWorker()
+
+        screen._on_worker_state_changed(_FakeEvent())  # type: ignore[arg-type]
+        await pilot.pause(0.3)
+
+        panel = screen.query_one("#ollama-panel", StatusPanel)
+        assert any(item[2] == "error" for item in panel._items)
+        assert any("probe boom" in item[1] for item in panel._items)
+
+
+async def test_review_empty_state_uses_static_not_datatable_row(
+    tui_project: Path,
+) -> None:
+    """Empty review queue must not paint a purple selected DataTable row."""
+    from textual.widgets import Static
+
+    app = BrainkmConfigureApp(project_dir=tui_project)
+    async with app.run_test(size=(140, 60)) as pilot:
+        await pilot.pause(0.6)
+        table = app.screen.query_one("#review-table", ReviewTable)
+        empty = table.query_one("#review-empty", Static)
+        assert empty.display is True
+        assert table.table.display is False
+        assert table.get_selected_node_id() is None
+
+
+async def test_status_panel_rapid_refresh_does_not_duplicate_rows(
+    tui_project: Path,
+) -> None:
+    """Textual 8 awaited remove/mount — rapid set_items must not leave dupes."""
+    app = BrainkmConfigureApp(project_dir=tui_project)
+    async with app.run_test(size=(140, 60)) as pilot:
+        await pilot.pause(0.4)
+        panel = app.screen.query_one("#brain-status", StatusPanel)
+        for i in range(5):
+            panel.set_items(
+                [
+                    ("distill", f"mode-{i}", "muted"),
+                    ("neurons", str(i), "ok"),
+                ]
+            )
+        await pilot.pause(0.5)
+        rows = list(panel.query(".status-row"))
+        assert len(rows) == 2
+        assert panel._items[0][1] == "mode-4"

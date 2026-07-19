@@ -43,6 +43,17 @@ class GroqDistillAdapter:
         round_chunk_ids: dict[int, list[str]],
         max_total: int,
     ) -> list[DistilledNeuron]:
+        if not self._config.capture.cloud_distill_acknowledged:
+            logger.warning(
+                "capture.cloud_distill_acknowledged is false; "
+                "refusing Groq upload — falling back to rules distill"
+            )
+            return self._fallback.distill_rounds(
+                rounds,
+                round_chunk_ids=round_chunk_ids,
+                max_total=max_total,
+            )
+
         if not self._api_key:
             logger.warning("GROQ_API_KEY not set; falling back to rules distill")
             return self._fallback.distill_rounds(

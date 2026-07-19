@@ -57,8 +57,13 @@ class CaptureConfig(BaseModel):
         le=8760,
         description="Soft-archive unpromoted observations older than this (0=disable)",
     )
-
-
+    cloud_distill_acknowledged: bool = Field(
+        default=False,
+        description=(
+            "User consent that transcript content may leave the machine when "
+            "distill_mode is groq (required before cloud upload)"
+        ),
+    )
 
     @field_validator("distill_mode", mode="before")
     @classmethod
@@ -238,6 +243,10 @@ class McpConfig(BaseModel):
     transport: Literal["stdio", "http"] = "stdio"
     http_host: str = "127.0.0.1"
     http_port: int = Field(default=8765, ge=1, le=65535)
+    allow_remote: bool = Field(
+        default=False,
+        description="Permit binding MCP HTTP outside loopback (requires explicit opt-in)",
+    )
 
 
 class VizConfig(BaseModel):

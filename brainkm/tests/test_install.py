@@ -18,6 +18,22 @@ def test_build_mcp_config_dev_uses_local_binary() -> None:
     assert str(server["command"]).endswith("brainkm")
 
 
+def test_resolve_hook_command_dev_stays_in_venv_bin(tmp_path, monkeypatch) -> None:
+    """Do not follow the venv python symlink into Homebrew Cellar."""
+    from brainkm.services.install import resolve_hook_command
+
+    venv_bin = tmp_path / ".venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    python = venv_bin / "python"
+    brainkm = venv_bin / "brainkm"
+    python.write_text("#!/bin/sh\n", encoding="utf-8")
+    brainkm.write_text("#!/bin/sh\n", encoding="utf-8")
+    monkeypatch.setattr("brainkm.services.install.sys.executable", str(python))
+    resolved = resolve_hook_command(dev=True)
+    assert resolved == str(brainkm)
+    assert "Cellar" not in resolved
+
+
 def test_build_mcp_config_prod_prefers_path_brainkm(monkeypatch) -> None:
     monkeypatch.setattr(
         "brainkm.services.install.shutil.which",
@@ -45,7 +61,11 @@ def test_build_hooks_config_includes_all_events() -> None:
     assert "sessionEnd" in events
     assert "preCompact" in events
     assert "preToolUse" in events
+    assert "postToolUse" in events
+    assert "userPromptSubmit" in events
+    assert "postToolUseFailure" not in events
     assert "handover --stdin" in str(events["preCompact"])
+    assert events["postToolUse"][0]["matcher"] == "Write|Edit|Shell"
 
 
 def test_merge_hooks_json_replaces_brainkm_commands() -> None:

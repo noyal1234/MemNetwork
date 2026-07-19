@@ -8,7 +8,7 @@ from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widgets import RichLog, Static
 
-from brainkm.tui.theme import escape_markup
+from brainkm.tui.theme import escape_markup, markup_color
 
 
 class RichLogPanel(Vertical):
@@ -66,25 +66,26 @@ class RichLogPanel(Vertical):
 
     def log_info(self, message: str) -> None:
         """Write an informational line with timestamp."""
-        self.rich_log.write(f"[dim]{self._timestamp()}[/] {escape_markup(message)}")
+        ts = markup_color("outline", self._timestamp())
+        self.rich_log.write(f"{ts} {escape_markup(message)}")
 
     def log_success(self, message: str) -> None:
         """Write a success line with green checkmark."""
-        self.rich_log.write(
-            f"[dim]{self._timestamp()}[/] [bold green]✓[/] {escape_markup(message)}"
-        )
+        ts = markup_color("outline", self._timestamp())
+        mark = markup_color("success", "✓", bold=True)
+        self.rich_log.write(f"{ts} {mark} {escape_markup(message)}")
 
     def log_error(self, message: str) -> None:
         """Write an error line with red cross."""
-        self.rich_log.write(
-            f"[dim]{self._timestamp()}[/] [bold red]✗[/] {escape_markup(message)}"
-        )
+        ts = markup_color("outline", self._timestamp())
+        mark = markup_color("error", "✗", bold=True)
+        self.rich_log.write(f"{ts} {mark} {escape_markup(message)}")
 
     def log_warning(self, message: str) -> None:
         """Write a warning line."""
-        self.rich_log.write(
-            f"[dim]{self._timestamp()}[/] [bold yellow]●[/] {escape_markup(message)}"
-        )
+        ts = markup_color("outline", self._timestamp())
+        mark = markup_color("warning", "●", bold=True)
+        self.rich_log.write(f"{ts} {mark} {escape_markup(message)}")
 
     def log_plain(self, message: str) -> None:
         """Write a plain line (no timestamp)."""

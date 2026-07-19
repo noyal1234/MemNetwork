@@ -271,20 +271,36 @@ async def run_http_server(
     *,
     host: str = "127.0.0.1",
     port: int = 8765,
+    allow_remote: bool = False,
 ) -> None:
     """Streamable HTTP transport — one server shared across local editors."""
     from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
     from starlette.applications import Starlette
+    from starlette.middleware.base import BaseHTTPMiddleware
     from starlette.requests import Request
-    from starlette.responses import JSONResponse
+    from starlette.responses import JSONResponse, Response
     from starlette.routing import Mount, Route
 
     from brainkm import __version__
+    from brainkm.services.mcp_http_auth import (
+        RemoteBindDeniedError,
+        assert_bind_allowed,
+        ensure_mcp_http_token,
+        extract_bearer_token,
+        token_matches,
+    )
 
     settings = get_settings()
     root = (project_dir if project_dir is not None else settings.project_dir).resolve()
     migrate(project_dir=root, run_integrity_check=True)
     brain_config = load_brain_config(root)
+    allow = allow_remote or brain_config.mcp.allow_remote
+    try:
+        assert_bind_allowed(host, allow_remote=allow)
+    except RemoteBindDeniedError:
+        raise
+    http_token = ensure_mcp_http_token(root)
+
     runtime = BrainRuntime(project_dir=root)
     server = create_server(runtime)
     _register_sampling_callback(server)
@@ -298,14 +314,24 @@ async def run_http_server(
         async with manager.run():
             yield
 
-    async def health(_request: Request) -> JSONResponse:
-        return JSONResponse(
-            {
-                "ok": True,
-                "project_dir": str(root),
-                "version": __version__,
-            }
-        )
+    async def health(request: Request) -> JSONResponse:
+        payload: dict[str, object] = {
+            "ok": True,
+            "version": __version__,
+        }
+        provided = extract_bearer_token(request.headers.get("Authorization"))
+        if token_matches(provided, http_token):
+            payload["project_dir"] = str(root)
+        return JSONResponse(payload)
+
+    class _McpBearerMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next):  # noqa: ANN001
+            path = request.url.path
+            if path == "/mcp" or path.startswith("/mcp/"):
+                provided = extract_bearer_token(request.headers.get("Authorization"))
+                if not token_matches(provided, http_token):
+                    return Response("Unauthorized", status_code=401, media_type="text/plain")
+            return await call_next(request)
 
     starlette_app = Starlette(
         routes=[
@@ -314,12 +340,17 @@ async def run_http_server(
         ],
         lifespan=lifespan,
     )
+    starlette_app.add_middleware(_McpBearerMiddleware)
 
     import uvicorn
 
     config = uvicorn.Config(starlette_app, host=host, port=port, log_level="info")
     http_server = uvicorn.Server(config)
-    logger.info("brainkm MCP HTTP listening on http://%s:%s/mcp", host, port)
+    logger.info(
+        "brainkm MCP HTTP listening on http://%s:%s/mcp (bearer auth required)",
+        host,
+        port,
+    )
     try:
         await http_server.serve()
     finally:
@@ -336,11 +367,17 @@ def main(
     http: bool = False,
     host: str = "127.0.0.1",
     port: int = 8765,
+    allow_remote: bool = False,
 ) -> None:
     if http:
 
         async def _run() -> None:
-            await run_http_server(project_dir, host=host, port=port)
+            await run_http_server(
+                project_dir,
+                host=host,
+                port=port,
+                allow_remote=allow_remote,
+            )
 
         anyio.run(_run)
     else:

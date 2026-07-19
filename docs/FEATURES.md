@@ -72,7 +72,7 @@ Shipped adapters below. **Cursor is deepest today** (dogfood); others are first-
 | PostToolUse observe | yes | yes | yes (AGY tool names) | yes | Claude/AGY install enable `auto_observe` |
 | UserPromptSubmit | yes | yes | — | — | Gist only |
 | PostToolUseFailure | — | yes | — | — | Cursor: failure on PostToolUse |
-| SubagentStart / SubagentStop | — | yes | — | — | Multi-agent silent path |
+| SubagentStart / SubagentStop | — | yes | — | — | Claude: SubagentStart injects frozen pack; SubagentStop promotes |
 | Stop | — | yes | yes (tiered) | — | AGY: distill only when `fullyIdle` |
 
 | Host | Hooks / rules | MCP config |
@@ -134,7 +134,7 @@ Manual fallbacks when hooks are unavailable: `brainkm handover`, `brainkm captur
 | **Plan-file ingest** | Pulls `.cursor/plans/*.plan.md` so plan changes become recallable context. |
 | **`remember` (pin/correct)** | Explicit durable pin or fix a wrong auto-capture — not the everyday store path. |
 | **Supersede / conflict** | New truth can replace old (“we switched off Redis”) instead of stacking contradictory ADD-only facts. |
-| **Confidence + review queue** | Low-confidence auto-captures wait for `brainkm review approve` / `reject` — you gate what the agent trusts. |
+| **Confidence + review queue** | Low-confidence auto-captures wait for `brainkm review approve` / `reject` (also on the configure Dashboard Review Queue — `y` / `n`) — you gate what the agent trusts. |
 
 ---
 
@@ -200,7 +200,7 @@ Optional semantic stack: `pip install -e "./brainkm[semantic]"` + `brainkm seman
 
 | Feature | Benefit |
 |---------|---------|
-| **`brainkm configure` TUI** | **Recommended setup:** pick coding apps (checkboxes), Semantic Quality consent, Start Brain for shared mode, live status, validated config edits. |
+| **`brainkm configure` TUI** | **Recommended setup:** pick coding apps (checkboxes), Semantic Quality consent, Start Brain for shared mode, live status (incl. MCP Doctor), validated config edits. |
 | **`brainkm install`** | Scaffolds `.brain/`, MCP config, hooks, and rules for **Cursor**, **Claude Code**, **Antigravity**, **Codex**, or **generic** MCP hosts (`--http` for shared). |
 | **`serve` / `connect` / `doctor`** | Shared HTTP brain wiring and health checks (TUI Start/Stop wraps serve) — one brain for every connected IDE. |
 | **`migrate`** | Applies pending SQLite migrations when the package advances. |
@@ -217,7 +217,7 @@ Optional semantic stack: `pip install -e "./brainkm[semantic]"` + `brainkm seman
 | **`export`** | Markdown dump of neurons under `.brain/exports/` — readable, greppable, backup-friendly. |
 | **`import`** | Merge or `--replace` neurons from JSON — move brains between machines or reset cleanly. |
 | **`team-export` / `team-import`** | Curated high-confidence neurons for shared project conventions (confidence-aware merge). |
-| **`viz`** | 3D neuron graph in the browser — see how memories connect. |
+| **`viz`** | 3D neuron graph in the browser — opens with a per-run access token; APIs require `?token=` (HttpOnly cookie). |
 | **Inspectable SQLite** | Every memory is a row you can query, export, or forget. No black-box cloud store. |
 
 ---
@@ -229,8 +229,10 @@ Optional semantic stack: `pip install -e "./brainkm[semantic]"` + `brainkm seman
 | **Local-first SQLite** | Project brain stays under `.brain/` on disk — default path never phones home. |
 | **Redaction + injection scan** | Secrets and prompt-injection patterns are blocked or stripped on write *and* before pack injection. |
 | **No secrets in neurons / config** | API keys live in env / `.env` only — never in `.brain/config.json` or memory bodies. |
-| **HTTP MCP on localhost** | `brainkm serve` / `mcp --http` binds to `127.0.0.1` by default; `/health` for doctor. |
-| **`connect` / `doctor`** | Wire any supported host to stdio or shared URL (`serverUrl` for AGY HTTP); detect dual writers + auto_observe. |
+| **HTTP MCP Bearer + loopback** | `serve` / `mcp --http` binds `127.0.0.1` by default; `/mcp` requires Bearer from `.brain/mcp_http_token`; non-loopback needs `--allow-remote`. |
+| **Groq cloud consent** | `capture.cloud_distill_acknowledged` required before Groq uploads transcripts (wizard sets it). |
+| **Graphify harden** | `extract_extra_args` allowlisted; code-graph import skips redaction-blocked nodes. |
+| **`connect` / `doctor`** | Wire any supported host to stdio or shared URL (`serverUrl` for AGY HTTP); detect dual writers, auto_observe, missing Bearer. |
 
 Details: [SECURITY.md](SECURITY.md).
 

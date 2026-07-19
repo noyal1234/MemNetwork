@@ -50,7 +50,9 @@ _CLAUDE_EVENT_NAMES: dict[str, str] = {
 }
 
 # Events that may emit Claude context / permission JSON
-_CLAUDE_INJECT_EVENTS = frozenset({"sessionStart", "postCompact", "preToolUse"})
+_CLAUDE_INJECT_EVENTS = frozenset(
+    {"sessionStart", "postCompact", "preToolUse", "subagentStart"}
+)
 
 
 @dataclass(frozen=True)
@@ -678,7 +680,7 @@ def run_subagent_start(
     project_dir: Path | None = None,
     config: BrainConfig | None = None,
 ) -> HookRunResult:
-    """SubagentStart — register activity for Claude subagents (capture-only stdout)."""
+    """SubagentStart — inject frozen pack and register activity for Claude subagents."""
     cfg = config or load_brain_config(project_dir)
     data = _parse_hook_object(raw) if raw.strip() else {}
     session_id = _session_id_from_payload(data) or resolve_session_id(data)
@@ -721,7 +723,7 @@ def run_subagent_start(
         session_id=session_id,
         skipped=False,
         reason=None,
-        additional_context=None,
+        additional_context=snapshot.pack_text if cfg.injection.frozen_snapshot else None,
         snapshot_neuron_ids=snapshot.neuron_ids,
     )
 

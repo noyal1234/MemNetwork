@@ -9,7 +9,7 @@
 One SQLite brain. Eight MCP tools. Thin host adapters.  
 The `brainkm` package remembers *why* you chose something, maps how your code connects, and injects bounded context — so agents stop re-reading files and re-explaining past decisions, even after chat compaction.
 
-[![Version](https://img.shields.io/badge/version-0.4.2-3d9a8b?style=flat-square)](brainkm/pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.5.0-3d9a8b?style=flat-square)](brainkm/pyproject.toml)
 [![Python](https://img.shields.io/badge/python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](brainkm/pyproject.toml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-red?style=flat-square)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-8%20tools-1a2332?style=flat-square)](docs/FEATURES.md)
@@ -189,7 +189,7 @@ brainkm doctor
 Restart the IDE or reload MCP servers. Ask the agent (or call tools) using the [Usage](#usage) table below.
 
 ```bash
-brainkm version   # expect 0.4.2
+brainkm version   # expect 0.5.0
 ```
 
 Full setup notes → [docs/INSTALL.md](docs/INSTALL.md)
@@ -299,11 +299,12 @@ Methodology and what we refuse to claim → [docs/BENCHMARKS.md](docs/BENCHMARKS
 
 ## Status
 
-**brainkm 0.4.2** — Multi-host project brain: Antigravity first-class client, Claude silent memory, shared localhost brain, guided TUI (optional), eight MCP tools, included `brainkm viz`.
+**brainkm 0.5.0** — Multi-host project brain with hardened shared HTTP: Bearer MCP auth, viz access tokens, Groq cloud-distill consent, MCP Doctor + Review Queue in the TUI, eight MCP tools, included `brainkm viz`.
 
 - [x] Local SQLite brain + 8 MCP tools
 - [x] Cursor / Claude / Antigravity / Codex adapters
 - [x] Compaction survival (PreCompact + SessionEnd)
+- [x] Shared HTTP MCP Bearer auth + loopback bind guards
 - [x] CMA public scorecard + product eval suites
 - [ ] PyPI / `uvx` one-liner (deferred — name + public repo)
 - [ ] MCP Registry / host one-click installers (deferred)

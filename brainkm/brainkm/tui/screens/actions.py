@@ -69,6 +69,12 @@ class ActionsScreen(Screen):
             yield RichLogPanel(title="[ ACTION LOG ]", id="action-log")
         yield Footer()
 
+    def on_mount(self) -> None:
+        """Seed the log with a muted empty-state hint."""
+        self.log_panel.log_info(
+            "Select an action above to run it; output appears here."
+        )
+
     @property
     def log_panel(self) -> RichLogPanel:
         return self.query_one("#action-log", RichLogPanel)
@@ -119,19 +125,22 @@ class ActionsScreen(Screen):
         from brainkm.services.config_loader import load_brain_config
         from brainkm.services.graphify_sync import sync_graph
 
-        cfg = load_brain_config(self._project_dir)
-        result = sync_graph(
-            project_dir=self._project_dir,
-            config=cfg,
-            extract=True,
-        )
-        return {
-            "action": "graph_sync",
-            "status": result.status,
-            "message": result.message,
-            "node_count": result.import_result.node_count if result.import_result else 0,
-            "edge_count": result.import_result.edge_count if result.import_result else 0,
-        }
+        try:
+            cfg = load_brain_config(self._project_dir)
+            result = sync_graph(
+                project_dir=self._project_dir,
+                config=cfg,
+                extract=True,
+            )
+            return {
+                "action": "graph_sync",
+                "status": result.status,
+                "message": result.message,
+                "node_count": result.import_result.node_count if result.import_result else 0,
+                "edge_count": result.import_result.edge_count if result.import_result else 0,
+            }
+        except Exception as exc:
+            return {"action": "graph_sync", "status": "error", "message": str(exc)}
 
     def _run_graph_status(self) -> None:
         self._begin_action("Fetching graph status…")
@@ -142,9 +151,12 @@ class ActionsScreen(Screen):
         from brainkm.services.config_loader import load_brain_config
         from brainkm.services.graphify_sync import build_graph_status
 
-        cfg = load_brain_config(self._project_dir)
-        status = build_graph_status(self._project_dir, cfg)
-        return {"action": "graph_status", **status}
+        try:
+            cfg = load_brain_config(self._project_dir)
+            status = build_graph_status(self._project_dir, cfg)
+            return {"action": "graph_status", **status}
+        except Exception as exc:
+            return {"action": "graph_status", "error": str(exc)}
 
     def _run_ollama_doctor(self) -> None:
         self._begin_action("Running Ollama doctor…")
@@ -154,11 +166,14 @@ class ActionsScreen(Screen):
     def _do_ollama_doctor(self) -> dict[str, Any]:
         from brainkm.services.ollama_advisor import build_doctor_report, format_doctor_report
 
-        report = build_doctor_report(project_dir=self._project_dir)
-        return {
-            "action": "ollama_doctor",
-            "formatted": format_doctor_report(report),
-        }
+        try:
+            report = build_doctor_report(project_dir=self._project_dir)
+            return {
+                "action": "ollama_doctor",
+                "formatted": format_doctor_report(report),
+            }
+        except Exception as exc:
+            return {"action": "ollama_doctor", "error": str(exc)}
 
     def _run_groq_doctor(self) -> None:
         self._begin_action("Running Groq doctor…")
@@ -168,11 +183,14 @@ class ActionsScreen(Screen):
     def _do_groq_doctor(self) -> dict[str, Any]:
         from brainkm.services.groq_advisor import build_groq_report, format_groq_report
 
-        report = build_groq_report(project_dir=self._project_dir)
-        return {
-            "action": "groq_doctor",
-            "formatted": format_groq_report(report),
-        }
+        try:
+            report = build_groq_report(project_dir=self._project_dir)
+            return {
+                "action": "groq_doctor",
+                "formatted": format_groq_report(report),
+            }
+        except Exception as exc:
+            return {"action": "groq_doctor", "error": str(exc)}
 
     def _run_cursor_doctor(self) -> None:
         self._begin_action("Running Cursor doctor…")
@@ -185,11 +203,14 @@ class ActionsScreen(Screen):
             format_cursor_report,
         )
 
-        report = build_cursor_doctor_report(project_dir=self._project_dir)
-        return {
-            "action": "cursor_doctor",
-            "formatted": format_cursor_report(report),
-        }
+        try:
+            report = build_cursor_doctor_report(project_dir=self._project_dir)
+            return {
+                "action": "cursor_doctor",
+                "formatted": format_cursor_report(report),
+            }
+        except Exception as exc:
+            return {"action": "cursor_doctor", "error": str(exc)}
 
     def _run_export(self) -> None:
         self._begin_action("Exporting neurons…")
@@ -199,12 +220,15 @@ class ActionsScreen(Screen):
     def _do_export(self) -> dict[str, Any]:
         from brainkm.services.export import export_markdown
 
-        result = export_markdown(project_dir=self._project_dir)
-        return {
-            "action": "export",
-            "neuron_count": result.neuron_count,
-            "path": str(result.path),
-        }
+        try:
+            result = export_markdown(project_dir=self._project_dir)
+            return {
+                "action": "export",
+                "neuron_count": result.neuron_count,
+                "path": str(result.path),
+            }
+        except Exception as exc:
+            return {"action": "export", "error": str(exc)}
 
     def _run_repair(self) -> None:
         self._begin_action("Running brain repair…")
@@ -214,12 +238,15 @@ class ActionsScreen(Screen):
     def _do_repair(self) -> dict[str, Any]:
         from brainkm.services.repair import repair_brain
 
-        result = repair_brain(project_dir=self._project_dir)
-        return {
-            "action": "repair",
-            "fts_rows": result.fts_rows_rebuilt,
-            "integrity_ok": result.integrity_ok,
-        }
+        try:
+            result = repair_brain(project_dir=self._project_dir)
+            return {
+                "action": "repair",
+                "fts_rows": result.fts_rows_rebuilt,
+                "integrity_ok": result.integrity_ok,
+            }
+        except Exception as exc:
+            return {"action": "repair", "error": str(exc)}
 
     def _run_bench(self, suite: str) -> None:
         self._begin_action(f"Running bench suite: {suite}…")
@@ -337,12 +364,16 @@ class ActionsScreen(Screen):
             return
 
         action = result.get("action", "")
+        if result.get("error") and action not in {"bench", "viz"}:
+            self.log_panel.log_error(str(result["error"]))
+            self.notify(escape_markup(str(result["error"])), severity="error", timeout=8)
+            return
 
         if action == "graph_sync":
             status = result.get("status", "?")
             if status in ("skipped", "skipped_locked", "skipped_empty"):
                 self.log_panel.log_warning(f"Graph sync skipped: {result.get('message', status)}")
-            elif status in ("extract_failed", "missing_graph"):
+            elif status in ("extract_failed", "missing_graph", "error"):
                 self.log_panel.log_error(result.get("message", status))
             else:
                 self.log_panel.log_success(

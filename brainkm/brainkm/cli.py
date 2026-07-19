@@ -142,7 +142,11 @@ def handover_cmd(
     from brainkm.services.handover import run_handover, run_handover_from_stdin
 
     kind = (client or "cursor").strip().lower()
-    fail_soft = kind == "claude"
+    # Hook mode (--stdin): keep stdout JSON-clean (empty). Manual CLI keeps status lines.
+    hook_mode = bool(stdin)
+    # Hooks must never block the host. Manual CLI still surfaces checkpoint failure
+    # for Cursor; Claude/Antigravity stay fail-soft in both modes.
+    fail_soft = kind in ("claude", "antigravity") or hook_mode
 
     try:
         if stdin:
@@ -164,7 +168,7 @@ def handover_cmd(
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
 
-    if kind != "claude":
+    if not hook_mode:
         if result.skipped:
             typer.echo(f"Skipped: {result.reason}")
         else:
@@ -416,7 +420,8 @@ def _run_stdin_hook(
     )
 
     kind = (client or "cursor").strip().lower()
-    fail_soft = kind in ("claude", "antigravity")
+    # All hook hosts are fail-soft so a broken hook never blocks the agent.
+    fail_soft = kind in ("cursor", "claude", "antigravity")
 
     try:
         payload = sys.stdin.read()
@@ -464,7 +469,7 @@ def _run_stdin_hook(
         if kind == "antigravity":
             typer.echo(json.dumps(build_antigravity_hook_stdout(result, event)))
             return
-        # Cursor events that don't emit JSON are capture-only for some hooks.
+        # Cursor: emit JSON for inject events; capture-only events print nothing.
         try:
             typer.echo(json.dumps(build_cursor_hook_stdout(result, event)))
         except ValueError:
@@ -474,13 +479,11 @@ def _run_stdin_hook(
                 logger.info("%s (no stdout) ok session_id=%s", handler_name, result.session_id)
         return
 
-    # Capture-only hooks: Claude/AGY print nothing; Cursor keeps human-readable status.
-    if kind in ("claude", "antigravity"):
-        return
+    # Capture-only hooks (no event): keep stdout empty for every host (JSON-clean).
     if result.skipped:
-        typer.echo(f"Skipped: {result.reason}")
+        logger.info("%s skipped: %s", handler_name, result.reason)
     else:
-        typer.echo(f"{handler_name} ok session_id={result.session_id}")
+        logger.info("%s ok session_id=%s", handler_name, result.session_id)
 
 
 @app.command("session-start")
@@ -816,7 +819,7 @@ def subagent_start_cmd(
     stdin: bool = typer.Option(True, "--stdin", help="Read hook payload JSON from stdin"),
     client: str = _hook_client_option(),
 ) -> None:
-    """SubagentStart hook — register subagent session activity (Claude)."""
+    """SubagentStart hook — inject frozen pack for Claude subagents."""
     from brainkm.services.hooks import run_subagent_start
 
     if not stdin:
@@ -826,6 +829,7 @@ def subagent_start_cmd(
     _run_stdin_hook(
         "SubagentStart",
         lambda raw: run_subagent_start(raw, project_dir=project_dir),
+        event="subagentStart",
         client=client,
     )
 
@@ -1413,11 +1417,22 @@ def serve_cmd(
     ),
     host: str = typer.Option("127.0.0.1", "--host"),
     port: int = typer.Option(8765, "--port"),
+    allow_remote: bool = typer.Option(
+        False,
+        "--allow-remote",
+        help="Permit binding outside loopback (dangerous; also mcp.allow_remote)",
+    ),
 ) -> None:
     """Run shared HTTP MCP server (alias of ``mcp --http``)."""
     from brainkm.server import main as run_mcp_server
 
-    run_mcp_server(project_dir=project_dir, http=True, host=host, port=port)
+    run_mcp_server(
+        project_dir=project_dir,
+        http=True,
+        host=host,
+        port=port,
+        allow_remote=allow_remote,
+    )
 
 
 @app.command("connect")
@@ -1484,6 +1499,8 @@ def doctor_cmd(
         raise typer.Exit(code=1)
     if report.dual_writer_warning:
         raise typer.Exit(code=1)
+    if report.missing_auth_warning:
+        raise typer.Exit(code=1)
 
 
 @app.command("mcp")
@@ -1500,11 +1517,22 @@ def mcp_cmd(
     ),
     host: str = typer.Option("127.0.0.1", "--host"),
     port: int = typer.Option(8765, "--port"),
+    allow_remote: bool = typer.Option(
+        False,
+        "--allow-remote",
+        help="Permit binding outside loopback when using --http",
+    ),
 ) -> None:
     """Run brainkm MCP server (stdio by default, or --http)."""
     from brainkm.server import main as run_mcp_server
 
-    run_mcp_server(project_dir=project_dir, http=http, host=host, port=port)
+    run_mcp_server(
+        project_dir=project_dir,
+        http=http,
+        host=host,
+        port=port,
+        allow_remote=allow_remote,
+    )
 
 
 if __name__ == "__main__":

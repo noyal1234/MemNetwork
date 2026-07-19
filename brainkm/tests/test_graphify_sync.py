@@ -15,11 +15,13 @@ from brainkm.models.brain_config import BrainConfig, GraphifyAutoSyncConfig, Gra
 from brainkm.services.graph_import import count_code_nodes, import_graph_json
 from brainkm.services.graphify_sync import (
     GraphSyncScheduler,
+    GraphifyArgsError,
     build_graph_status,
     probe_graphify,
     request_graph_sync,
     resolve_graphify_binary,
     sync_graph,
+    validate_graphify_extra_args,
 )
 from brainkm.services.install import run_install
 from tests.test_graphify_adapter import FIXTURE
@@ -313,3 +315,16 @@ def test_graph_sync_cli_with_skip_extract(
         result = runner.invoke(app, ["graph", "sync", "--skip-extract"])
     assert result.exit_code == 0
     assert "Synced graph" in result.stdout or "Skipped" in result.stdout
+
+
+def test_validate_graphify_extra_args_allowlist() -> None:
+    assert validate_graphify_extra_args(["--no-cluster", "--exclude=vendor"]) == [
+        "--no-cluster",
+        "--exclude=vendor",
+    ]
+    with pytest.raises(GraphifyArgsError):
+        validate_graphify_extra_args(["-c", "evil"])
+    with pytest.raises(GraphifyArgsError):
+        validate_graphify_extra_args(["../../etc/passwd"])
+    with pytest.raises(GraphifyArgsError):
+        validate_graphify_extra_args(["--unknown-flag"])

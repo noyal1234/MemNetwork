@@ -34,7 +34,8 @@ DARK = {
     "surface_container": "#221e28",
     "surface_high": "#2c2833",
     "text": "#e8dfee",
-    "text_muted": "#ccc3d8",
+    # Farther from $text so labels/secondary copy read as hierarchy, not body.
+    "text_muted": "#9a91a8",
     "outline": "#958da1",
     "border": "#4a4455",
 }
@@ -83,6 +84,13 @@ def use_ansi16_palette() -> bool:
 def active_tokens() -> dict[str, str]:
     """Return the color tokens for the current terminal capability."""
     return ANSI16 if use_ansi16_palette() else DARK
+
+
+def markup_color(token: str, text: str, *, bold: bool = False) -> str:
+    """Wrap ``text`` in Rich markup using an active theme token hex/name."""
+    color = active_tokens().get(token, token)
+    style = f"bold {color}" if bold else color
+    return f"[{style}]{text}[/]"
 
 
 def ansi16_css_overrides() -> str:

@@ -97,9 +97,17 @@ export function createChatController({ getNodeById, onCite }) {
     return webllm;
   }
 
+  function withAuth(path) {
+    const token = new URLSearchParams(window.location.search).get('token');
+    if (!token) return path;
+    const url = new URL(path, window.location.origin);
+    url.searchParams.set('token', token);
+    return url.pathname + url.search;
+  }
+
   async function fetchWebllmConfig() {
     try {
-      const res = await fetch('/api/webllm-config');
+      const res = await fetch(withAuth('/api/webllm-config'));
       if (!res.ok) return null;
       return await res.json();
     } catch {
@@ -186,7 +194,9 @@ export function createChatController({ getNodeById, onCite }) {
   }
 
   async function fetchContext(query, limit = 8) {
-    const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+    const res = await fetch(
+      withAuth(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}`),
+    );
     if (!res.ok) throw new Error(`search HTTP ${res.status}`);
     const data = await res.json();
     return data.results || [];

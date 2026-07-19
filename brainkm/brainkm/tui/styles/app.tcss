@@ -18,7 +18,8 @@ $surface-alt: #1d1a24;
 $surface-container: #221e28;
 $surface-high: #2c2833;
 $text: #e8dfee;
-$text-muted: #ccc3d8;
+/* Farther from $text so labels/secondary copy read as hierarchy. */
+$text-muted: #9a91a8;
 $outline: #958da1;
 $border: #4a4455;
 
@@ -84,16 +85,24 @@ Footer > .footer--highlight {
 /* === Status panels === */
 
 .status-panel {
-    border: solid $border;
+    border: round $border;
     padding: 1 1;
     margin: 0 0 1 0;
     background: $surface-alt;
     height: auto;
 }
 
+.status-panel:focus-within {
+    border: round $primary;
+}
+
 .status-panel.emphasized {
-    border: solid $primary-container;
+    border: round $primary-container;
     background: $surface-high;
+}
+
+.status-panel.-loading {
+    opacity: 0.75;
 }
 
 .status-panel .panel-title {
@@ -110,7 +119,7 @@ Footer > .footer--highlight {
 }
 
 .status-panel .status-label {
-    width: 12;
+    width: 15;
     color: $text-muted;
     text-wrap: nowrap;
     overflow-x: hidden;
@@ -309,6 +318,54 @@ Footer > .footer--highlight {
     background: transparent;
 }
 
+#mcp-doctor-section {
+    layout: vertical;
+    height: auto;
+    border: solid $border;
+    background: $surface-alt;
+    padding: 1 1;
+    margin: 0 0 1 0;
+}
+
+#mcp-doctor-section .section-header {
+    layout: horizontal;
+    height: 1;
+    align: left middle;
+}
+
+#mcp-doctor-section .section-title {
+    text-style: bold;
+    color: $primary;
+    width: 1fr;
+}
+
+#mcp-doctor-section .graph-actions {
+    layout: horizontal;
+    width: auto;
+    height: 1;
+}
+
+#mcp-doctor-section .graph-actions Button {
+    margin: 0 0 0 1;
+    min-width: 10;
+    height: 1;
+    border: none;
+    padding: 0 1;
+}
+
+#mcp-doctor-section .graph-actions Button:hover,
+#mcp-doctor-section .graph-actions Button:focus {
+    border: none;
+}
+
+#mcp-doctor-section #mcp-doctor-panel {
+    border: none;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    height: auto;
+}
+
 #review-section {
     layout: vertical;
     height: auto;
@@ -317,6 +374,15 @@ Footer > .footer--highlight {
     background: $surface-alt;
     padding: 0;
     margin: 0;
+}
+
+#review-section.review-section--empty {
+    min-height: 5;
+}
+
+#review-section.review-section--empty #review-table {
+    min-height: 3;
+    max-height: 6;
 }
 
 #review-section .review-header {
@@ -342,6 +408,17 @@ Footer > .footer--highlight {
     height: auto;
     min-height: 8;
     padding: 0 1;
+}
+
+#review-table .review-empty {
+    color: $text-muted;
+    height: 1;
+    padding: 1 0;
+    text-align: left;
+}
+
+#review-table DataTable.hidden {
+    display: none;
 }
 
 /* === Rich log panel === */
@@ -519,14 +596,25 @@ Footer > .footer--highlight {
     overflow-y: auto;
 }
 
+.wizard-progress {
+    color: $text-muted;
+    height: 1;
+    margin-bottom: 1;
+}
+
 .wizard-step {
     /* Keep padding small: border + large padding can leave 0 content rows
        (same pitfall as Header/Footer height:1 + border). */
     height: auto;
-    border: solid $border;
+    border: round $border;
     background: $surface-alt;
     padding: 1 2;
     margin: 0 0 1 0;
+}
+
+.wizard-step.wizard-step--active {
+    background: $surface-high;
+    border: round $primary-container;
 }
 
 .wizard-step .step-title {
@@ -579,53 +667,62 @@ Footer > .footer--highlight {
     margin-bottom: 1;
 }
 
-/* === Buttons === */
+/* === Buttons ===
+   Resting state stays quiet so status values remain the loudest elements.
+   Purple fill is reserved for focus / primary / active. */
 
 Button {
-    background: $surface-high;
-    color: $primary;
-    border: solid $border;
+    background: $surface-container;
+    color: $text-muted;
+    border: tall $border;
     min-width: 10;
 }
 
 Button:hover {
-    background: $primary-container;
+    background: $surface-high;
     color: $text;
-    border: solid $primary;
+    border: tall $outline;
 }
 
 Button:focus {
-    border: solid $primary;
+    background: $primary-container;
+    color: $text;
+    border: tall $primary;
     text-style: bold;
 }
 
 Button.-primary {
-    background: $primary-container;
+    background: $primary-muted;
     color: $text;
     text-style: bold;
+    border: tall $primary-container;
 }
 
-Button.-primary:hover {
-    background: $primary;
-    color: $surface;
+Button.-primary:hover,
+Button.-primary:focus {
+    background: $primary-container;
+    color: $text;
+    border: tall $primary;
 }
 
 Button.-success {
     background: $success;
     color: $surface;
     text-style: bold;
+    border: tall $success;
 }
 
 Button.-error {
     background: $error;
-    color: white;
+    color: $text;
     text-style: bold;
+    border: tall $error;
 }
 
 Button:disabled {
     background: $surface-container;
     color: $outline;
-    border: solid $border;
+    border: tall $border;
 }
 
 /* === DataTable === */
@@ -643,7 +740,12 @@ DataTable > .datatable--header {
 }
 
 DataTable > .datatable--cursor {
-    background: $primary-container;
+    background: $primary-muted;
+    color: $text;
+}
+
+DataTable > .datatable--hover {
+    background: $surface-high;
     color: $text;
 }
 
@@ -656,7 +758,7 @@ Input {
 }
 
 Input:focus {
-    border: solid $primary-container;
+    border: solid $primary;
 }
 
 /* === Select === */
@@ -668,7 +770,7 @@ Select {
 }
 
 Select:focus {
-    border: solid $primary-container;
+    border: solid $primary;
 }
 
 /* === Switch === */
@@ -677,10 +779,28 @@ Switch {
     background: $surface;
 }
 
+Switch:focus {
+    background: $surface-high;
+}
+
 /* === Toast === */
 
 Toast {
     background: $surface-alt;
     color: $text;
     border: solid $border;
+}
+
+/* === Command palette / OptionList (theme stock Textual blue away) === */
+
+OptionList > .option-list--option-highlighted {
+    background: $primary-container;
+    color: $text;
+    text-style: bold;
+}
+
+/* === Config sections focus === */
+
+.config-section:focus-within {
+    border: solid $primary;
 }

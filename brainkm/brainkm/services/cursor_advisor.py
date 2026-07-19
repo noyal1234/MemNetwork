@@ -5,6 +5,9 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import tempfile
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -19,7 +22,7 @@ HEURISTIC_HINT = (
     "install the Cursor agent CLI (agent / cursor-agent) for optional LLM-quality extraction"
 )
 
-CURSOR_INSTALL_COMMAND = "curl -fsS https://cursor.com/install | bash"
+CURSOR_INSTALL_URL = "https://cursor.com/install"
 DEFAULT_INSTALL_TIMEOUT_SECONDS = 300
 
 
@@ -124,20 +127,26 @@ def format_cursor_report(report: CursorDoctorReport) -> str:
     return "\n".join(lines)
 
 
+def _download_cursor_install_script(dest: Path, *, timeout_seconds: int) -> None:
+    """Download the allowlisted Cursor install script to *dest*."""
+    request = urllib.request.Request(
+        CURSOR_INSTALL_URL,
+        headers={"User-Agent": "brainkm-cursor-advisor"},
+        method="GET",
+    )
+    with urllib.request.urlopen(request, timeout=timeout_seconds) as resp:  # noqa: S310
+        dest.write_bytes(resp.read())
+
+
 def install_cursor_agent_cli(
     *,
     timeout_seconds: int = DEFAULT_INSTALL_TIMEOUT_SECONDS,
 ) -> CursorInstallResult:
-    """Run the official Cursor agent install script, then re-probe.
+    """Download and run the official Cursor agent install script, then re-probe.
 
     User-initiated only (CLI / Wizard Run Step). Never call on mount.
+    Uses urllib download + ``bash <script>`` (no ``shell=True``).
     """
-    if not shutil.which("curl"):
-        return CursorInstallResult(
-            ok=False,
-            found=False,
-            error="curl not found on PATH — install curl or run the installer manually",
-        )
     if not shutil.which("bash"):
         return CursorInstallResult(
             ok=False,
@@ -157,13 +166,28 @@ def install_cursor_agent_cli(
 
     logger.info("Installing Cursor agent CLI via official install script")
     try:
-        completed = subprocess.run(
-            CURSOR_INSTALL_COMMAND,
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=timeout_seconds,
-            check=False,
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            suffix="-cursor-install.sh",
+            delete=False,
+        ) as tmp:
+            script_path = Path(tmp.name)
+        try:
+            _download_cursor_install_script(script_path, timeout_seconds=timeout_seconds)
+            completed = subprocess.run(
+                ["bash", str(script_path)],
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds,
+                check=False,
+            )
+        finally:
+            script_path.unlink(missing_ok=True)
+    except urllib.error.URLError as exc:
+        return CursorInstallResult(
+            ok=False,
+            found=False,
+            error=f"failed to download installer: {exc}",
         )
     except subprocess.TimeoutExpired:
         return CursorInstallResult(

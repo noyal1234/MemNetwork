@@ -43,7 +43,10 @@ def test_connect_cursor_http_writes_url(tmp_path: Path) -> None:
         dev=True,
     )
     mcp = json.loads((tmp_path / ".cursor" / "mcp.json").read_text(encoding="utf-8"))
-    assert mcp["mcpServers"]["brainkm"]["url"] == "http://127.0.0.1:8765/mcp"
+    entry = mcp["mcpServers"]["brainkm"]
+    assert entry["url"] == "http://127.0.0.1:8765/mcp"
+    assert entry["headers"]["Authorization"].startswith("Bearer ")
+    assert (tmp_path / ".brain" / "mcp_http_token").is_file()
     assert (tmp_path / ".cursor" / "hooks.json").is_file()
     assert result.mcp_url is not None
     cfg = json.loads((tmp_path / ".brain" / "config.json").read_text(encoding="utf-8"))
