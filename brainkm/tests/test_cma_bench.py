@@ -105,5 +105,11 @@ def test_longmemeval_loader_and_stratify(tmp_path: Path) -> None:
     assert len(sampled) == 2  # one per type
     result = run_longmemeval_suite(tmp_path / "db", dataset=path, stratify=1)
     assert result.suite == "longmemeval"
-    assert any(c.name == "aggregate/recall_at_5" for c in result.cases)
+    names = {c.name for c in result.cases}
+    assert "aggregate/recall_at_5" in names
+    assert "aggregate/recall_at_budget" in names
+    assert "aggregate/mean_pack_tokens" in names
     assert result.passed == result.total
+    # Dual-grain default mode label
+    r5 = next(c for c in result.cases if c.name == "aggregate/recall_at_5")
+    assert "fts-blob" in r5.detail

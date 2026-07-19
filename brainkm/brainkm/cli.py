@@ -622,6 +622,11 @@ def bench_run_cmd(
         "--write-ndjson",
         help="LongMemEval-S with --adapters: write per-query arm scores as NDJSON",
     ),
+    chunked: bool = typer.Option(
+        False,
+        "--chunked",
+        help="LongMemEval-S: legacy all-chunk index (default is dual-grain blob FTS)",
+    ),
 ) -> None:
     """Run a bench suite."""
     from brainkm.db.paths import brain_db_path
@@ -643,6 +648,7 @@ def bench_run_cmd(
             seed=seed,
             adapters=adapters,
             write_ndjson=write_ndjson,
+            chunked=chunked,
         )
     else:
         result = run_bench_suite(

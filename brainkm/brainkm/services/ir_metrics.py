@@ -38,6 +38,34 @@ def precision_at_k(
     return hits / len(top)
 
 
+def recall_at_budget(
+    included_ids: Sequence[str],
+    relevant_ids: Sequence[str] | set[str],
+) -> float:
+    """1.0 if any relevant id appears in the pack's included set (else 0.0).
+
+    Matches ``recall_any@K`` semantics under a hard token budget: gold-in-pack
+    rather than gold-in-top-K. Empty relevant → 0.0.
+    """
+    relevant = set(relevant_ids)
+    if not relevant:
+        return 0.0
+    return 1.0 if relevant & set(included_ids) else 0.0
+
+
+def pack_noise_rate(
+    included_ids: Sequence[str],
+    relevant_ids: Sequence[str] | set[str],
+) -> float:
+    """Fraction of pack-included ids that are not relevant (0 if pack empty)."""
+    included = list(included_ids)
+    if not included:
+        return 0.0
+    relevant = set(relevant_ids)
+    noise = sum(1 for doc_id in included if doc_id not in relevant)
+    return noise / len(included)
+
+
 def mrr(
     ranked_ids: Sequence[str],
     relevant_ids: Sequence[str] | set[str],

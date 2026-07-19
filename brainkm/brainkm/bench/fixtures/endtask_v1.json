@@ -1,0 +1,434 @@
+{
+  "id": "endtask_v1",
+  "version": 1,
+  "description": "End-task A/B: agent with brainkm MCP vs without, on MemNetwork repo tasks",
+  "seed_neurons": [
+    {
+      "id": "et_dec_budget_1500",
+      "title": "Hard 1500-token pack budget",
+      "subtype": "decision",
+      "content": "Agent-facing context packs (pack_text + compact MCP JSON) are hard-capped at 1500 tokens so injected memory stays a hint, not a dump. Config field: budget.total_tokens default 1500. Always verify packs in source before editing."
+    },
+    {
+      "id": "et_dec_remember_pin",
+      "title": "remember is pin/correct only",
+      "subtype": "decision",
+      "content": "MCP remember is for pin (durable truth), correct (supersede wrong auto-capture), or archive. Ordinary session learning comes from hooks (SessionEnd distill, PostToolUse observe), not remember."
+    },
+    {
+      "id": "et_dec_layers",
+      "title": "Architecture layers MCP to SQLite",
+      "subtype": "decision",
+      "content": "Strict layering: MCP tool → service → adapter → SQLite. Never skip layers. Handlers stay thin; WriteQueue owns writes."
+    },
+    {
+      "id": "et_dec_precompact",
+      "title": "PreCompact handover before host compaction",
+      "subtype": "decision",
+      "content": "Cursor chat compaction is lossy. PreCompact hook runs brainkm handover so architectural truth lands in brain.db before the host summarizes the window."
+    },
+    {
+      "id": "et_dec_fts_primary",
+      "title": "LongMemEval uses fts_primary fusion",
+      "subtype": "decision",
+      "content": "LongMemEval hybrid bench forces SemanticConfig fusion_mode=fts_primary so MiniLM only re-ranks FTS candidates. Equal RRF previously collapsed R@5 to ~0.37 on long session haystacks by promoting non-lexical vector noise."
+    },
+    {
+      "id": "et_dec_dual_grain",
+      "title": "Dual-grain LongMemEval indexing",
+      "subtype": "decision",
+      "content": "Default LongMemEval index is dual-grain: whole-session blobs for FTS (fts-blob) plus optional chunk embeddings for --semantic. Legacy all-chunk mode is --chunked. Restored full-500 FTS R@5 to 0.934."
+    },
+    {
+      "id": "et_dec_recall_budget",
+      "title": "recall@budget is the headline metric",
+      "subtype": "decision",
+      "content": "Public headline metric is recall@budget: gold fact present in the <=1500-token pack truncation.included_ids, plus pack noise rate. LongMemEval recall_any@K remains a shared-protocol footnote vs agentmemory."
+    },
+    {
+      "id": "et_dec_cma_gate",
+      "title": "CMA micro-avg is a regression gate",
+      "subtype": "decision",
+      "content": "CMA ability micro-average saturated at 100% on v3. Quote recall@budget and hard-slice lift publicly; treat CMA micro as a regression gate, not a leaderboard claim."
+    },
+    {
+      "id": "et_dec_no_secrets",
+      "title": "Never store secrets in neurons",
+      "subtype": "rule",
+      "content": "Security rule: never store API keys, tokens, or passwords in neurons. Use adapters/redaction.py. Off-domain theme-leak queries must abstain."
+    },
+    {
+      "id": "et_dec_config_sources",
+      "title": "get_settings vs BrainConfig",
+      "subtype": "rule",
+      "content": "Use get_settings() for env; BrainConfig for .brain/config.json. No os.environ in app code under brainkm/brainkm/."
+    },
+    {
+      "id": "et_dec_coexistence",
+      "title": "Multi-client coexistence",
+      "subtype": "decision",
+      "content": "One brain shared across Cursor, Claude Code, and Antigravity via brainkm serve (HTTP) + connect. Antigravity MCP field is serverUrl (not url). Cursor Memories are cross-project prefs; brainkm is this project's decisions."
+    },
+    {
+      "id": "et_dec_traverse",
+      "title": "traverse for blast radius",
+      "subtype": "rule",
+      "content": "For call/import/flow and blast-radius questions prefer MCP traverse with a symbol or path, then verify in source. Empty traverse usually means stale graph — run graph sync."
+    },
+    {
+      "id": "et_dec_graphify_auto",
+      "title": "Graphify auto-sync after edits",
+      "subtype": "fact",
+      "content": "MCP server debounces graph sync after Write/Edit. Disable via .brain/config.json graphify.auto_sync.enabled=false."
+    },
+    {
+      "id": "et_err_hybrid_collapse",
+      "title": "Hybrid collapse on whole-session blobs",
+      "subtype": "error",
+      "content": "Embedding entire 4k-char sessions into a 128-token MiniLM encoder collapsed LongMemEval hybrid R@5 to ~0.37. Fix: chunk sessions before embed; use fts_primary or dual-grain blob FTS."
+    },
+    {
+      "id": "et_proc_bench_cma",
+      "title": "How to run CMA scorecard",
+      "subtype": "procedure",
+      "content": "Run: bash brainkm/scripts/run_cma.sh or brainkm bench run cma --write-scorecard docs/benchmarks/YYYY-MM-DD-cma.md. Primary coding-agent diagnostic."
+    },
+    {
+      "id": "et_proc_install",
+      "title": "Preferred setup path",
+      "subtype": "procedure",
+      "content": "Prefer brainkm configure (TUI) over memorizing serve/connect. Dev: bash brainkm/scripts/setup_dev.sh && pip install -e ./brainkm[tui]."
+    },
+    {
+      "id": "et_fact_sqlite",
+      "title": "V1 store is SQLite FTS5 + graph",
+      "subtype": "fact",
+      "content": "Per-project brain lives at .brain/brain.db — SQLite FTS5 for memory search plus a code graph imported from Graphify."
+    },
+    {
+      "id": "et_fact_tools",
+      "title": "MCP tool surface",
+      "subtype": "fact",
+      "content": "MCP tools: remember, recall, context_pack, traverse, brain_stats, forget, graph_sync, session_status (some absorbed/CLI-only depending on version). Keep agent-facing JSON compact under the token cap."
+    },
+    {
+      "id": "et_fact_ir_metrics",
+      "title": "IR metrics module",
+      "subtype": "fact",
+      "content": "brainkm.services.ir_metrics provides recall_at_k, precision_at_k, mrr, ndcg_at_k, recall_at_budget, pack_noise_rate for benches."
+    },
+    {
+      "id": "et_fact_write_queue",
+      "title": "Single-writer WriteQueue",
+      "subtype": "fact",
+      "content": "All DB-touching MCP handlers run through the single-writer WriteQueue (_run_write in dispatch.py). Never open ad-hoc write connections from handlers."
+    },
+    {
+      "id": "et_dec_python_version",
+      "title": "Python 3.11 or 3.12 recommended",
+      "subtype": "rule",
+      "content": "Develop on Python 3.11 or 3.12. Avoid 3.14+ for now — some deps may lack wheels."
+    },
+    {
+      "id": "et_dec_hygiene",
+      "title": "hygiene over injecting junk",
+      "subtype": "rule",
+      "content": "Prefer brainkm hygiene (or injection noise gate) over injecting junk neurons. Packs are hints — always verify in source."
+    },
+    {
+      "id": "et_code_dispatch",
+      "title": "dispatch_tool router",
+      "subtype": "context",
+      "kind": "code",
+      "content": "tools/dispatch.py owns handle_* MCP handlers and dispatch_tool router. All writes go through WriteQueue.",
+      "path": "brainkm/brainkm/tools/dispatch.py"
+    },
+    {
+      "id": "et_code_context_pack",
+      "title": "compile_context_pack",
+      "subtype": "context",
+      "kind": "code",
+      "content": "services/context_pack.py compile_context_pack builds TruncationManifest with included_ids under adaptive_token_budget.",
+      "path": "brainkm/brainkm/services/context_pack.py"
+    },
+    {
+      "id": "et_code_bench_runner",
+      "title": "bench_runner suite registry",
+      "subtype": "context",
+      "kind": "code",
+      "content": "services/bench_runner.py maps suite names (cma, longmemeval, staleness, scale, cost, …) to run_*_suite callables.",
+      "path": "brainkm/brainkm/services/bench_runner.py"
+    },
+    {
+      "id": "et_code_brain_config",
+      "title": "BrainConfig Pydantic schema",
+      "subtype": "context",
+      "kind": "code",
+      "content": "models/brain_config.py defines BrainConfig including BudgetConfig.total_tokens and SemanticConfig.fusion_mode.",
+      "path": "brainkm/brainkm/models/brain_config.py"
+    },
+    {
+      "id": "et_code_cli",
+      "title": "Typer CLI entry",
+      "subtype": "context",
+      "kind": "code",
+      "content": "cli.py is the Typer app: configure, install, connect, bench run, mcp, serve, graph sync, hygiene, handover.",
+      "path": "brainkm/brainkm/cli.py"
+    },
+    {
+      "id": "et_code_search_hybrid",
+      "title": "hybrid_seed fusion",
+      "subtype": "context",
+      "kind": "code",
+      "content": "services/search.py hybrid_seed fuses FTS with vectors via RRF or fts_primary depending on SemanticConfig.fusion_mode.",
+      "path": "brainkm/brainkm/services/search.py"
+    },
+    {
+      "id": "et_code_ir_metrics",
+      "title": "ir_metrics functions",
+      "subtype": "context",
+      "kind": "code",
+      "content": "services/ir_metrics.py — recall_at_budget and pack_noise_rate score gold-in-pack under the token cap.",
+      "path": "brainkm/brainkm/services/ir_metrics.py"
+    },
+    {
+      "id": "et_code_longmemeval",
+      "title": "longmemeval_bench dual-grain",
+      "subtype": "context",
+      "kind": "code",
+      "content": "services/longmemeval_bench.py indexes haystacks as fts-blob by default; --chunked for legacy; --semantic for hybrid-dual-grain.",
+      "path": "brainkm/brainkm/services/longmemeval_bench.py"
+    }
+  ],
+  "seed_edges": [
+    {"from_id": "et_code_context_pack", "to_id": "et_dec_budget_1500", "relationship": "implements"},
+    {"from_id": "et_code_search_hybrid", "to_id": "et_dec_fts_primary", "relationship": "implements"},
+    {"from_id": "et_code_longmemeval", "to_id": "et_dec_dual_grain", "relationship": "implements"},
+    {"from_id": "et_code_ir_metrics", "to_id": "et_dec_recall_budget", "relationship": "implements"},
+    {"from_id": "et_code_dispatch", "to_id": "et_fact_write_queue", "relationship": "related"},
+    {"from_id": "et_code_bench_runner", "to_id": "et_proc_bench_cma", "relationship": "related"}
+  ],
+  "tasks": [
+    {
+      "id": "k_budget_cap",
+      "class": "knowledge",
+      "smoke": true,
+      "prompt": "Why does brainkm hard-cap agent-facing context packs at a specific token budget? What is that number and where is it configured? Answer briefly from project memory if available.",
+      "max_turns": 2,
+      "grade": {
+        "type": "regex",
+        "patterns": ["1500", "(?i)(token|budget|pack)"]
+      },
+      "reference": "Hard 1500-token pack budget via budget.total_tokens."
+    },
+    {
+      "id": "k_remember_role",
+      "class": "knowledge",
+      "smoke": true,
+      "prompt": "When should an agent call the brainkm MCP `remember` tool versus relying on hooks? Answer briefly.",
+      "max_turns": 2,
+      "grade": {
+        "type": "regex",
+        "patterns": ["(?i)pin", "(?i)(correct|archive|hook)"]
+      },
+      "reference": "remember is pin/correct/archive; hooks own ordinary capture."
+    },
+    {
+      "id": "k_fusion_mode",
+      "class": "knowledge",
+      "smoke": true,
+      "prompt": "Which SemanticConfig fusion_mode does the LongMemEval bench force for hybrid retrieval, and why was equal RRF problematic?",
+      "max_turns": 2,
+      "grade": {
+        "type": "regex",
+        "patterns": ["fts_primary", "(?i)(rrf|0\\.37|collapse|noise)"]
+      },
+      "reference": "fts_primary; RRF collapsed ~0.37 R@5."
+    },
+    {
+      "id": "k_precompact",
+      "class": "knowledge",
+      "smoke": true,
+      "prompt": "What does brainkm do before Cursor chat compaction, and why?",
+      "max_turns": 2,
+      "grade": {
+        "type": "regex",
+        "patterns": ["(?i)(precompact|handover)", "(?i)(brain\\.db|neuron|surviv)"]
+      },
+      "reference": "PreCompact handover so truth survives in brain.db."
+    },
+    {
+      "id": "k_layers",
+      "class": "knowledge",
+      "smoke": true,
+      "prompt": "State the mandatory brainkm architecture layering from MCP tool down to storage.",
+      "max_turns": 2,
+      "grade": {
+        "type": "regex",
+        "patterns": ["(?i)MCP", "(?i)service", "(?i)(adapter|SQLite)"]
+      },
+      "reference": "MCP tool → service → adapter → SQLite."
+    },
+    {
+      "id": "k_recall_budget",
+      "class": "knowledge",
+      "prompt": "What is brainkm's headline benchmark metric that measures gold-in-pack under the token cap? Name the metric and the companion noise measure.",
+      "max_turns": 2,
+      "grade": {
+        "type": "regex",
+        "patterns": ["(?i)recall[_@]?budget", "(?i)(noise|pack_noise)"]
+      },
+      "reference": "recall@budget + pack noise."
+    },
+    {
+      "id": "k_dual_grain",
+      "class": "knowledge",
+      "prompt": "How does the default LongMemEval indexing work after the dual-grain change? Mention blobs vs chunks and the legacy flag.",
+      "max_turns": 2,
+      "grade": {
+        "type": "regex",
+        "patterns": ["(?i)blob", "(?i)(chunk|dual.?grain)", "(?i)--chunked"]
+      },
+      "reference": "fts-blob default; chunks for semantic; --chunked legacy."
+    },
+    {
+      "id": "k_no_secrets",
+      "class": "knowledge",
+      "prompt": "What is the security rule about storing secrets in the brain?",
+      "max_turns": 2,
+      "grade": {
+        "type": "regex",
+        "patterns": ["(?i)never", "(?i)(secret|key|password|redact)"]
+      },
+      "reference": "Never store secrets; use redaction."
+    },
+    {
+      "id": "k_clients",
+      "class": "knowledge",
+      "prompt": "Which three agent hosts share one brainkm brain, and what is the Antigravity HTTP MCP field name?",
+      "max_turns": 2,
+      "grade": {
+        "type": "regex",
+        "patterns": ["(?i)Cursor", "(?i)Claude", "(?i)Antigravity", "serverUrl"]
+      },
+      "reference": "Cursor, Claude, Antigravity; serverUrl."
+    },
+    {
+      "id": "k_traverse",
+      "class": "knowledge",
+      "prompt": "For a blast-radius question like 'what calls compile_context_pack?', which brainkm MCP tool should be used first?",
+      "max_turns": 2,
+      "grade": {
+        "type": "regex",
+        "patterns": ["(?i)traverse"]
+      },
+      "reference": "traverse."
+    },
+    {
+      "id": "k_config_env",
+      "class": "knowledge",
+      "prompt": "How should brainkm application code read environment settings versus .brain/config.json? Name the two APIs.",
+      "max_turns": 2,
+      "grade": {
+        "type": "regex",
+        "patterns": ["get_settings", "BrainConfig"]
+      },
+      "reference": "get_settings() and BrainConfig."
+    },
+    {
+      "id": "k_python_version",
+      "class": "knowledge",
+      "prompt": "Which Python versions are recommended for brainkm development, and which should be avoided for now?",
+      "max_turns": 2,
+      "grade": {
+        "type": "regex",
+        "patterns": ["3\\.11", "3\\.12", "3\\.14"]
+      },
+      "reference": "3.11 or 3.12; avoid 3.14+."
+    },
+    {
+      "id": "c_ir_metrics_export",
+      "class": "change",
+      "prompt": "In brainkm/brainkm/services/ir_metrics.py, ensure both `recall_at_budget` and `pack_noise_rate` are defined and documented. If missing, add them. Do not change unrelated files. Keep the 1500-token pack contract in mind.",
+      "max_turns": 3,
+      "grade": {
+        "type": "checker",
+        "command": "rg -n '^def recall_at_budget' brainkm/brainkm/services/ir_metrics.py && rg -n '^def pack_noise_rate' brainkm/brainkm/services/ir_metrics.py"
+      }
+    },
+    {
+      "id": "c_bench_runner_staleness",
+      "class": "change",
+      "prompt": "Confirm that the staleness suite is registered in brainkm/brainkm/services/bench_runner.py. If missing, register it following the existing pattern for other suites. Minimal change only.",
+      "max_turns": 3,
+      "grade": {
+        "type": "checker",
+        "command": "rg -n 'staleness' brainkm/brainkm/services/bench_runner.py"
+      }
+    },
+    {
+      "id": "c_fusion_mode_field",
+      "class": "change",
+      "prompt": "Confirm SemanticConfig.fusion_mode exists in brainkm/brainkm/models/brain_config.py with values including fts_primary. Add it only if missing, matching project style.",
+      "max_turns": 3,
+      "grade": {
+        "type": "checker",
+        "command": "rg -n 'fusion_mode' brainkm/brainkm/models/brain_config.py && rg -n 'fts_primary' brainkm/brainkm/models/brain_config.py"
+      }
+    },
+    {
+      "id": "c_budget_default",
+      "class": "change",
+      "prompt": "Confirm BudgetConfig / total_tokens defaults to 1500 in brainkm/brainkm/models/brain_config.py. Fix only if wrong.",
+      "max_turns": 2,
+      "grade": {
+        "type": "checker",
+        "command": "rg -n 'total_tokens.*1500|default=1500' brainkm/brainkm/models/brain_config.py"
+      }
+    },
+    {
+      "id": "c_endtask_fixture_present",
+      "class": "change",
+      "prompt": "Ensure the end-task fixture file exists at brainkm/brainkm/bench/fixtures/endtask_v1.json with an id field endtask_v1. Create a minimal stub only if missing.",
+      "max_turns": 2,
+      "grade": {
+        "type": "checker",
+        "command": "test -f brainkm/brainkm/bench/fixtures/endtask_v1.json && rg -n '\"id\":\\s*\"endtask_v1\"' brainkm/brainkm/bench/fixtures/endtask_v1.json"
+      }
+    },
+    {
+      "id": "c_longmemeval_chunked_flag",
+      "class": "change",
+      "prompt": "Confirm run_longmemeval_suite accepts a chunked parameter in longmemeval_bench.py. Add it only if missing, default False.",
+      "max_turns": 3,
+      "grade": {
+        "type": "checker",
+        "command": "rg -n 'chunked' brainkm/brainkm/services/longmemeval_bench.py"
+      }
+    },
+    {
+      "id": "c_cli_longmemeval_chunked",
+      "class": "change",
+      "prompt": "Confirm the CLI bench run command exposes --chunked for LongMemEval. Add only if missing.",
+      "max_turns": 3,
+      "grade": {
+        "type": "checker",
+        "command": "rg -n -e '--chunked' -e 'chunked' brainkm/brainkm/cli.py"
+      }
+    },
+    {
+      "id": "c_comparison_doc",
+      "class": "change",
+      "prompt": "Confirm docs/benchmarks/COMPARISON.md mentions recall@budget. If the file exists but lacks the phrase, add a short sentence. Do not invent false numbers.",
+      "max_turns": 2,
+      "grade": {
+        "type": "checker",
+        "command": "rg -n 'recall@budget' docs/benchmarks/COMPARISON.md"
+      }
+    }
+  ],
+  "cost_estimate": {
+    "usd_per_run_rough": 0.05,
+    "note": "Rough composer-2.5 local run estimate; verify on dashboard"
+  }
+}

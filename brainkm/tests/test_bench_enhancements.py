@@ -12,10 +12,17 @@ from brainkm.services.bench_adapters import (
 from brainkm.services.bench_runner import run_bench_suite
 from brainkm.services.cost_bench import format_cost_summary, run_cost_suite
 from brainkm.services.intent import is_off_domain_query
-from brainkm.services.ir_metrics import precision_at_k, recall_at_k
+from brainkm.services.ir_metrics import (
+    pack_noise_rate,
+    precision_at_k,
+    recall_at_budget,
+    recall_at_k,
+)
 from brainkm.services.longmemeval_bench import (
     aggregate_ranked_to_sessions,
     chunk_session_text,
+    filter_chunk_ids,
+    fuse_session_fts_primary,
     session_id_from_chunk_id,
     stratify_sample,
 )
@@ -29,6 +36,8 @@ def test_precision_at_k_basic() -> None:
     assert precision_at_k(ranked, {"a"}, 1) == 1.0
     assert precision_at_k([], {"a"}, 5) == 0.0
     assert recall_at_k(ranked, {"a", "c"}, 5) == 1.0
+    assert recall_at_budget(["gold", "noise"], {"gold"}) == 1.0
+    assert pack_noise_rate(["gold", "noise"], {"gold"}) == 0.5
 
 
 def test_chunk_session_and_aggregate() -> None:
@@ -39,6 +48,9 @@ def test_chunk_session_and_aggregate() -> None:
     assert session_id_from_chunk_id("sessA") == "sessA"
     ranked = ["s1__chunk_0", "s2__chunk_1", "s1__chunk_2", "s3"]
     assert aggregate_ranked_to_sessions(ranked) == ["s1", "s2", "s3"]
+    assert filter_chunk_ids(["s1", "s1__chunk_0", "s2"]) == ["s1", "s2"]
+    fused = fuse_session_fts_primary(["a", "b", "c"], ["c", "b", "z"])
+    assert fused == ["c", "b", "a"]
 
 
 def test_stratify_sample_is_seeded() -> None:

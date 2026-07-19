@@ -2,11 +2,11 @@
 
 Downloads are optional. Without a dataset path the suite reports a single skipped PASS
 so default CI stays free of the ~264MB corpus. When present, reports recall_any@K + MRR
-(+ precision@K when gold sessions are sparse).
+(+ precision@K when gold sessions are sparse) and recall@budget under the ≤1500 pack cap.
 
-Hybrid / MiniLM mode chunks long sessions before embed+FTS so MiniLM's short context
-window is not dominated by truncated role prefixes (the prior full-blob embed collapsed
-R@5 to ~0.37). Rankings are aggregated back to session ids for scoring.
+Default indexing is **dual-grain**: whole-session blobs for FTS (restores the pre-chunk
+full-500 floor) plus optional chunk embeddings for MiniLM. Rankings fuse at session level.
+Legacy ``--chunked`` indexes everything as overlapping chunks (historical comparison).
 """
 
 from __future__ import annotations
@@ -18,13 +18,14 @@ from pathlib import Path
 
 from brainkm.bench.results import BenchCaseResult, BenchSuiteResult
 from brainkm.config import get_settings, set_skip_rolling_scores
-from brainkm.models.brain_config import RecallConfig
+from brainkm.models.brain_config import BrainConfig, RecallConfig
 from brainkm.services.bench_db import (
     cleanup_ephemeral_project,
     ensure_fixture_neuron,
     ephemeral_project_brain,
 )
-from brainkm.services.ir_metrics import precision_at_k
+from brainkm.services.context_pack import compile_context_pack
+from brainkm.services.ir_metrics import pack_noise_rate, precision_at_k, recall_at_budget
 from brainkm.services.recall import recall_live
 
 # Cap session body so ephemeral FTS stays tractable on LongMemEval haystacks.
@@ -41,7 +42,8 @@ _DOWNLOAD_HINT = (
     "print(hf_hub_download(repo_id='xiaowu0162/longmemeval-cleaned', "
     "filename='longmemeval_s_cleaned.json', repo_type='dataset', "
     "local_dir=str(__import__('pathlib').Path.home()/'.cache'/'brainkm')))\"\n"
-    "This suite is a retrieval-only footnote (recall_any@K), not official LongMemEval QA."
+    "This suite is a retrieval-only footnote (recall_any@K + recall@budget), "
+    "not official LongMemEval QA."
 )
 
 
@@ -107,6 +109,12 @@ def session_id_from_chunk_id(chunk_id: str) -> str:
     return chunk_id
 
 
+def filter_chunk_ids(ranked_ids: list[str]) -> list[str]:
+    """Drop ``__chunk_`` neuron ids, keeping bare session (blob) ids only."""
+    marker = "__chunk_"
+    return [nid for nid in ranked_ids if marker not in nid]
+
+
 def aggregate_ranked_to_sessions(ranked_ids: list[str]) -> list[str]:
     """Collapse chunk-level rankings to first-seen session order."""
     seen: set[str] = set()
@@ -118,6 +126,20 @@ def aggregate_ranked_to_sessions(ranked_ids: list[str]) -> list[str]:
         seen.add(sid)
         out.append(sid)
     return out
+
+
+def fuse_session_fts_primary(
+    fts_sessions: list[str],
+    vec_sessions: list[str],
+) -> list[str]:
+    """Reorder FTS session candidates by vector rank (session-level fts_primary)."""
+    if not fts_sessions:
+        return list(vec_sessions)
+    vec_rank = {sid: i for i, sid in enumerate(vec_sessions)}
+    return sorted(
+        fts_sessions,
+        key=lambda sid: (vec_rank.get(sid, 10**9), fts_sessions.index(sid)),
+    )
 
 
 def load_longmemeval_questions(path: Path) -> list[dict]:
@@ -182,33 +204,122 @@ def _index_haystack(
     haystack: list[dict],
     *,
     semantic: bool,
+    chunked: bool,
 ) -> None:
-    """Index sessions as overlapping chunks (better for MiniLM + FTS)."""
+    """Index sessions.
+
+    - Default (dual-grain): whole-session blobs for FTS; when ``semantic``, also
+      chunk neurons with embeddings for the vector arm.
+    - ``chunked=True``: legacy all-chunk index (FTS + optional embed on chunks).
+    """
     from brainkm.services.semantic import embed_neuron_if_enabled
 
     for session in haystack:
         sid = session["id"]
-        chunks = chunk_session_text(session["content"])
-        for idx, chunk in enumerate(chunks):
-            chunk_id = f"{sid}__chunk_{idx}"
-            title = f"session {sid} chunk {idx}"
+        content = session["content"]
+        if chunked:
+            chunks = chunk_session_text(content)
+            for idx, chunk in enumerate(chunks):
+                chunk_id = f"{sid}__chunk_{idx}"
+                title = f"session {sid} chunk {idx}"
+                ensure_fixture_neuron(
+                    conn,
+                    node_id=chunk_id,
+                    title=title,
+                    content=chunk,
+                    kind="memory",
+                    subtype="context",
+                )
+                if semantic:
+                    embed_neuron_if_enabled(
+                        conn,
+                        chunk_id,
+                        title=title,
+                        content=chunk,
+                        semantic_enabled=True,
+                    )
+        else:
+            title = f"session {sid}"
             ensure_fixture_neuron(
                 conn,
-                node_id=chunk_id,
+                node_id=sid,
                 title=title,
-                content=chunk,
+                content=content,
                 kind="memory",
                 subtype="context",
             )
             if semantic:
-                embed_neuron_if_enabled(
-                    conn,
-                    chunk_id,
-                    title=title,
-                    content=chunk,
-                    semantic_enabled=True,
-                )
+                for idx, chunk in enumerate(chunk_session_text(content)):
+                    chunk_id = f"{sid}__chunk_{idx}"
+                    chunk_title = f"session {sid} chunk {idx}"
+                    ensure_fixture_neuron(
+                        conn,
+                        node_id=chunk_id,
+                        title=chunk_title,
+                        content=chunk,
+                        kind="memory",
+                        subtype="context",
+                    )
+                    embed_neuron_if_enabled(
+                        conn,
+                        chunk_id,
+                        title=chunk_title,
+                        content=chunk,
+                        semantic_enabled=True,
+                    )
     conn.commit()
+
+
+def _retrieve_ranked_sessions(
+    conn,
+    question: str,
+    *,
+    semantic: bool,
+    chunked: bool,
+    project_dir: Path,
+) -> list[str]:
+    """Return session-level ranking for scoring."""
+    from brainkm.models.brain_config import SemanticConfig
+
+    recall_cfg = RecallConfig(abstain_on_low_confidence=False)
+
+    if chunked:
+        # Legacy path: product hybrid over chunk index, aggregate to sessions.
+        semantic_cfg = (
+            SemanticConfig(enabled=True, rrf_k=30, fusion_mode="fts_primary")
+            if semantic
+            else SemanticConfig(enabled=False)
+        )
+        result = recall_live(
+            conn,
+            question,
+            limit=20,
+            recall=recall_cfg,
+            semantic=semantic_cfg,
+            project_dir=project_dir,
+        )
+        return aggregate_ranked_to_sessions([n.node_id for n in result.nodes])
+
+    # Dual-grain: FTS over blobs only; optional vector over chunks; fuse sessions.
+    fts_result = recall_live(
+        conn,
+        question,
+        limit=20,
+        recall=recall_cfg,
+        semantic=SemanticConfig(enabled=False),
+        project_dir=project_dir,
+    )
+    fts_sessions = aggregate_ranked_to_sessions(
+        filter_chunk_ids([n.node_id for n in fts_result.nodes])
+    )
+    if not semantic:
+        return fts_sessions
+
+    from brainkm.services.semantic import vector_search_nodes
+
+    vec_hits = vector_search_nodes(conn, question, limit=40)
+    vec_sessions = aggregate_ranked_to_sessions([nid for nid, _score in vec_hits])
+    return fuse_session_fts_primary(fts_sessions, vec_sessions)
 
 
 def run_longmemeval_suite(
@@ -221,6 +332,7 @@ def run_longmemeval_suite(
     seed: int = _DEFAULT_STRATIFY_SEED,
     adapters: bool = False,
     write_ndjson: Path | None = None,
+    chunked: bool = False,
 ) -> BenchSuiteResult:
     """Retrieval-only LongMemEval-S footnote (skip cleanly when dataset absent)."""
     del _db_path
@@ -251,22 +363,18 @@ def run_longmemeval_suite(
 
     from brainkm.models.brain_config import SemanticConfig
 
-    # fts_primary: vector re-ranks FTS hits only — equal RRF previously collapsed
-    # LongMemEval haystacks (~0.37 R@5) by promoting non-lexical vector noise.
-    semantic_cfg = (
-        SemanticConfig(enabled=True, rrf_k=30, fusion_mode="fts_primary")
-        if semantic
-        else SemanticConfig(enabled=False)
-    )
-
     set_skip_rolling_scores(True)
     r_at_5: list[float] = []
     r_at_10: list[float] = []
     p_at_5: list[float] = []
     mrrs: list[float] = []
+    budget_recalls: list[float] = []
+    pack_noises: list[float] = []
+    pack_tokens: list[int] = []
     cases: list[BenchCaseResult] = []
     by_type: dict[str, list[float]] = defaultdict(list)
     adapter_rows: list[dict[str, object]] = []
+    brain = BrainConfig()
 
     try:
         for q in sampled:
@@ -275,16 +383,16 @@ def run_longmemeval_suite(
                 continue
             conn, _db, project = ephemeral_project_brain()
             try:
-                _index_haystack(conn, q["haystack"], semantic=semantic)
-                result = recall_live(
+                _index_haystack(
+                    conn, q["haystack"], semantic=semantic, chunked=chunked
+                )
+                ranked = _retrieve_ranked_sessions(
                     conn,
                     q["question"],
-                    limit=20,
-                    recall=RecallConfig(abstain_on_low_confidence=False),
-                    semantic=semantic_cfg,
+                    semantic=semantic,
+                    chunked=chunked,
                     project_dir=project,
                 )
-                ranked = aggregate_ranked_to_sessions([n.node_id for n in result.nodes])
                 r5 = _recall_any(ranked, gold, 5)
                 r10 = _recall_any(ranked, gold, 10)
                 p5 = precision_at_k(ranked, gold, 5)
@@ -294,12 +402,30 @@ def run_longmemeval_suite(
                 p_at_5.append(p5)
                 mrrs.append(mrr)
                 by_type[str(q["type"])].append(r5)
+
+                pack = compile_context_pack(
+                    conn,
+                    q["question"],
+                    config=brain,
+                    project_dir=project,
+                )
+                included_sessions = aggregate_ranked_to_sessions(
+                    list(pack.truncation.included_ids)
+                )
+                r_budget = recall_at_budget(included_sessions, gold)
+                noise = pack_noise_rate(included_sessions, gold)
+                used = int(pack.truncation.tokens_used)
+                budget_recalls.append(r_budget)
+                pack_noises.append(noise)
+                pack_tokens.append(used)
+
                 cases.append(
                     BenchCaseResult(
                         name=f"{q['type']}/{q['id']}",
                         passed=r5 >= 1.0,
                         detail=(
-                            f"r@5={r5:.0f} r@10={r10:.0f} p@5={p5:.3f} mrr={mrr:.3f}"
+                            f"r@5={r5:.0f} r@10={r10:.0f} p@5={p5:.3f} mrr={mrr:.3f} "
+                            f"r@budget={r_budget:.0f} pack={used} noise={noise:.2f}"
                         ),
                     )
                 )
@@ -316,7 +442,7 @@ def run_longmemeval_suite(
                     naive = aggregate_ranked_to_sessions(
                         naive_title_scan_rank(q["question"], titles, contents, limit=10)
                     )
-                    # FTS-only arm on the same chunked index
+                    # FTS-only arm on the same index (blob or chunked)
                     fts_result = recall_live(
                         conn,
                         q["question"],
@@ -326,7 +452,9 @@ def run_longmemeval_suite(
                         project_dir=project,
                     )
                     fts_ranked = aggregate_ranked_to_sessions(
-                        [n.node_id for n in fts_result.nodes]
+                        filter_chunk_ids([n.node_id for n in fts_result.nodes])
+                        if not chunked
+                        else [n.node_id for n in fts_result.nodes]
                     )
                     adapter_rows.append(
                         {
@@ -347,7 +475,13 @@ def run_longmemeval_suite(
     mean_r10 = sum(r_at_10) / n if r_at_10 else 0.0
     mean_p5 = sum(p_at_5) / n if p_at_5 else 0.0
     mean_mrr = sum(mrrs) / n if mrrs else 0.0
-    mode = "semantic-chunked" if semantic else "fts-chunked"
+    mean_budget = sum(budget_recalls) / n if budget_recalls else 0.0
+    mean_noise = sum(pack_noises) / n if pack_noises else 0.0
+    mean_pack = sum(pack_tokens) / n if pack_tokens else 0.0
+    if chunked:
+        mode = "semantic-chunked" if semantic else "fts-chunked"
+    else:
+        mode = "hybrid-dual-grain" if semantic else "fts-blob"
 
     cases.insert(
         0,
@@ -379,6 +513,30 @@ def run_longmemeval_suite(
             name="aggregate/mrr",
             passed=True,
             detail=f"{mean_mrr:.3f}",
+        ),
+    )
+    cases.insert(
+        4,
+        BenchCaseResult(
+            name="aggregate/recall_at_budget",
+            passed=True,
+            detail=f"{mean_budget:.3f} (n={len(budget_recalls)}, mode={mode})",
+        ),
+    )
+    cases.insert(
+        5,
+        BenchCaseResult(
+            name="aggregate/mean_pack_tokens",
+            passed=True,
+            detail=f"{mean_pack:.0f} (n={len(pack_tokens)})",
+        ),
+    )
+    cases.insert(
+        6,
+        BenchCaseResult(
+            name="aggregate/pack_noise",
+            passed=True,
+            detail=f"{mean_noise:.3f}",
         ),
     )
     for qtype, vals in sorted(by_type.items()):
@@ -439,6 +597,15 @@ def format_longmemeval_summary(result: BenchSuiteResult) -> str:
         (c.detail for c in result.cases if c.name == "aggregate/precision_at_5"), "?"
     )
     mrr = next((c.detail for c in result.cases if c.name == "aggregate/mrr"), "?")
+    r_budget = next(
+        (c.detail for c in result.cases if c.name == "aggregate/recall_at_budget"), "?"
+    )
+    pack_tok = next(
+        (c.detail for c in result.cases if c.name == "aggregate/mean_pack_tokens"), "?"
+    )
+    noise = next(
+        (c.detail for c in result.cases if c.name == "aggregate/pack_noise"), "?"
+    )
     adapter_lines = [
         f"  {c.name}: {c.detail}"
         for c in result.cases
@@ -447,8 +614,9 @@ def format_longmemeval_summary(result: BenchSuiteResult) -> str:
     extra = ("\n" + "\n".join(adapter_lines)) if adapter_lines else ""
     return (
         f"LongMemEval-S retrieval footnote: R@5={r5} R@10={r10} P@5={p5} MRR={mrr}\n"
-        "  Protocol: recall_any@K on chunked session haystacks "
-        "(FTS default; --semantic for MiniLM hybrid). "
+        f"  recall@budget={r_budget} mean_pack={pack_tok} pack_noise={noise}\n"
+        "  Protocol: recall_any@K + recall@budget (≤1500 pack) on session haystacks "
+        "(default fts-blob / hybrid-dual-grain; --chunked for legacy). "
         "Not official LongMemEval QA accuracy."
         f"{extra}"
     )

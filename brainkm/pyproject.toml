@@ -44,6 +44,9 @@ graphify = [
 tui = [
     "textual>=0.60.0",
 ]
+endtask = [
+    "cursor-sdk>=0.1.0",
+]
 
 [project.scripts]
 brainkm = "brainkm.cli:app"

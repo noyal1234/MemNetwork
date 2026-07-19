@@ -3458,6 +3458,7 @@
     "ability_micro_avg": 0.7,
     "hard_micro_avg": 0.55,
     "mean_pack_tokens_max": 1500,
+    "recall_at_budget": 0.80,
     "recall_p95_ms": 800.0,
     "pack_p95_ms": 1200.0,
     "baseline_lift_min": -0.05,

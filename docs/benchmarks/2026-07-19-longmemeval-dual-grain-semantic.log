@@ -1,0 +1,401 @@
+2026-07-19T17:45:27 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:45:27 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:45:27 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:45:27 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:45:27 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:45:27 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:45:27 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:45:38 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:45:38 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:45:38 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:45:38 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:45:38 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:45:38 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:45:38 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:45:48 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:45:48 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:45:48 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:45:48 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:45:48 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:45:48 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:45:48 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:45:58 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:45:58 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:45:58 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:45:58 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:45:58 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:45:58 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:45:58 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:46:09 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:46:09 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:46:09 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:46:09 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:46:09 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:46:09 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:46:09 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:46:18 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:46:18 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:46:18 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:46:18 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:46:18 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:46:18 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:46:18 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:46:28 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:46:28 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:46:28 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:46:28 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:46:28 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:46:28 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:46:28 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:46:37 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:46:38 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:46:38 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:46:38 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:46:38 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:46:38 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:46:38 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:46:46 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:46:46 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:46:46 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:46:46 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:46:46 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:46:46 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:46:46 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:46:57 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:46:57 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:46:57 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:46:57 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:46:57 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:46:57 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:46:57 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:47:06 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:47:06 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:47:06 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:47:06 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:47:06 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:47:06 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:47:06 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:47:16 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:47:16 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:47:16 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:47:16 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:47:16 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:47:16 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:47:16 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:47:26 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:47:26 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:47:26 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:47:26 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:47:26 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:47:26 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:47:26 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:47:35 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:47:36 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:47:36 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:47:36 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:47:36 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:47:36 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:47:36 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:47:46 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:47:46 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:47:46 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:47:46 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:47:46 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:47:46 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:47:46 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:47:56 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:47:56 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:47:56 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:47:56 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:47:56 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:47:56 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:47:56 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:48:05 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:48:05 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:48:05 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:48:05 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:48:05 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:48:05 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:48:05 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:48:13 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:48:13 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:48:13 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:48:13 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:48:13 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:48:13 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:48:13 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:48:20 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:48:20 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:48:20 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:48:20 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:48:20 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:48:20 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:48:20 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:48:27 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:48:27 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:48:27 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:48:27 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:48:27 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:48:27 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:48:27 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:48:35 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:48:35 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:48:35 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:48:35 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:48:35 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:48:35 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:48:35 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:48:43 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:48:43 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:48:43 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:48:43 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:48:43 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:48:43 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:48:43 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:48:50 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:48:50 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:48:50 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:48:50 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:48:50 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:48:50 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:48:50 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:48:58 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:48:58 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:48:58 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:48:58 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:48:58 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:48:58 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:48:58 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:49:05 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:49:05 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:49:05 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:49:05 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:49:05 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:49:05 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:49:05 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:49:13 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:49:13 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:49:13 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:49:13 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:49:13 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:49:13 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:49:13 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:49:21 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:49:21 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:49:21 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:49:21 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:49:21 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:49:21 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:49:21 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:49:29 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:49:29 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:49:29 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:49:29 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:49:29 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:49:29 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:49:29 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:49:36 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:49:36 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:49:36 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:49:36 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:49:36 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:49:36 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:49:36 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:49:44 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:49:44 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:49:44 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:49:44 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:49:44 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:49:44 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:49:44 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:49:51 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:49:51 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:49:51 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:49:51 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:49:51 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:49:51 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:49:51 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:49:59 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:49:59 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:49:59 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:49:59 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:49:59 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:49:59 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:49:59 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:50:06 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:50:06 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:50:06 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:50:06 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:50:06 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:50:06 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:50:06 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:50:15 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:50:15 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:50:15 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:50:15 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:50:15 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:50:15 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:50:15 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:50:22 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:50:22 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:50:22 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:50:22 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:50:22 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:50:22 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:50:22 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:50:30 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:50:30 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:50:30 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:50:30 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:50:30 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:50:30 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:50:30 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:50:38 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:50:38 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:50:38 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:50:38 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:50:38 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:50:38 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:50:38 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:50:47 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:50:47 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:50:47 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:50:47 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:50:47 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:50:47 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:50:47 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:50:55 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:50:55 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:50:55 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:50:55 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:50:55 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:50:55 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:50:55 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:51:02 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:51:02 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:51:02 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:51:02 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:51:02 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:51:02 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:51:02 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:51:09 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:51:09 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:51:09 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:51:09 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:51:09 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:51:09 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:51:09 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:51:17 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:51:17 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:51:17 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:51:17 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:51:17 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:51:17 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:51:17 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:51:25 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:51:25 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:51:25 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:51:25 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:51:25 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:51:25 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:51:25 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:51:33 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:51:33 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:51:33 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:51:33 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:51:33 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:51:33 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:51:33 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:51:41 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:51:41 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:51:41 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:51:41 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:51:41 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:51:41 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:51:41 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:51:48 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:51:48 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:51:48 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:51:48 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:51:48 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:51:48 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:51:48 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:51:56 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:51:56 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:51:56 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:51:56 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:51:56 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:51:56 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:51:56 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+2026-07-19T17:52:04 INFO brainkm.db.migrate Applying migration 001_initial
+2026-07-19T17:52:04 INFO brainkm.db.migrate Applying migration 002_temporal_lite
+2026-07-19T17:52:04 INFO brainkm.db.migrate Applying migration 003_temporal_forgotten
+2026-07-19T17:52:04 INFO brainkm.db.migrate Applying migration 004_session_snapshots
+2026-07-19T17:52:04 INFO brainkm.db.migrate Applying migration 005_session_activity
+2026-07-19T17:52:04 INFO brainkm.db.migrate Applying migration 006_semantic_embeddings
+2026-07-19T17:52:04 INFO brainkm.db.migrate Applying migration 007_nodal_edges
+Suite longmemeval: 61/61 (100%)
+  [PASS] aggregate/recall_at_5: 0.729 (n=48, dataset=longmemeval_s_cleaned.json, mode=hybrid-dual-grain)
+  [PASS] aggregate/recall_at_10: 0.729
+  [PASS] aggregate/precision_at_5: 0.563
+  [PASS] aggregate/mrr: 0.708
+  [PASS] aggregate/recall_at_budget: 0.771 (n=48, mode=hybrid-dual-grain)
+  [PASS] aggregate/mean_pack_tokens: 314 (n=48)
+  [PASS] aggregate/pack_noise: 0.535
+  [PASS] knowledge-update/affe2881: r@5=1 r@10=1 p@5=0.500 mrr=1.000 r@budget=1 pack=323 noise=0.50
+  [PASS] knowledge-update/50635ada: r@5=1 r@10=1 p@5=1.000 mrr=1.000 r@budget=1 pack=352 noise=0.00
+  [PASS] knowledge-update/cc5ded98: r@5=1 r@10=1 p@5=1.000 mrr=1.000 r@budget=1 pack=300 noise=0.00
+  [FAIL] knowledge-update/ce6d2d27: r@5=0 r@10=0 p@5=0.000 mrr=0.000 r@budget=1 pack=329 noise=0.75
+  [PASS] knowledge-update/f685340e: r@5=1 r@10=1 p@5=1.000 mrr=1.000 r@budget=1 pack=287 noise=0.67
+  [PASS] knowledge-update/26bdc477: r@5=1 r@10=1 p@5=1.000 mrr=1.000 r@budget=1 pack=311 noise=0.00
+  [PASS] knowledge-update/7a87bd0c: r@5=1 r@10=1 p@5=1.000 mrr=1.000 r@budget=1 pack=351 noise=0.67
+  [PASS] knowledge-update/0f05491a: r@5=1 r@10=1 p@5=1.000 mrr=1.000 r@budget=1 pack=336 noise=0.00
+  [PASS] multi-session/gpt4_731e37d7: r@5=1 r@10=1 p@5=1.000 mrr=1.000 r@budget=1 pack=352 noise=0.50
+  [PASS] multi-session/00ca467f: r@5=1 r@10=1 p@5=0.500 mrr=1.000 r@budget=1 pack=288 noise=0.50
+  [PASS] multi-session/edced276_abs: r@5=1 r@10=1 p@5=1.000 mrr=1.000 r@budget=1 pack=282 noise=0.50
+  [PASS] multi-session/bf659f65: r@5=1 r@10=1 p@5=0.667 mrr=1.000 r@budget=1 pack=310 noise=0.33
+  [PASS] multi-session/gpt4_7fce9456: r@5=1 r@10=1 p@5=1.000 mrr=1.000 r@budget=1 pack=355 noise=0.25
+  [PASS] multi-session/81507db6: r@5=1 r@10=1 p@5=1.000 mrr=1.000 r@budget=1 pack=377 noise=0.33
+  [PASS] multi-session/gpt4_e05b82a6: r@5=1 r@10=1 p@5=1.000 mrr=1.000 r@budget=1 pack=338 noise=0.40
+  [PASS] multi-session/80ec1f4f_abs: r@5=1 r@10=1 p@5=1.000 mrr=1.000 r@budget=1 pack=316 noise=0.25
+  [FAIL] single-session-assistant/8464fc84: r@5=0 r@10=0 p@5=0.000 mrr=0.000 r@budget=0 pack=433 noise=1.00
+  [PASS] single-session-assistant/4388e9dd: r@5=1 r@10=1 p@5=0.500 mrr=1.000 r@budget=1 pack=314 noise=0.80
+  [PASS] single-session-assistant/e8a79c70: r@5=1 r@10=1 p@5=0.500 mrr=1.000 r@budget=0 pack=49 noise=0.00
+  [PASS] single-session-assistant/f523d9fe: r@5=1 r@10=1 p@5=0.500 mrr=1.000 r@budget=1 pack=470 noise=0.75
+  [PASS] single-session-assistant/ceb54acb: r@5=1 r@10=1 p@5=0.500 mrr=1.000 r@budget=1 pack=283 noise=0.80
+  [FAIL] single-session-assistant/a40e080f: r@5=0 r@10=0 p@5=0.000 mrr=0.000 r@budget=0 pack=349 noise=1.00
+  [PASS] single-session-assistant/6ae235be: r@5=1 r@10=1 p@5=1.000 mrr=1.000 r@budget=1 pack=307 noise=0.50
+  [PASS] single-session-assistant/ac031881: r@5=1 r@10=1 p@5=1.000 mrr=1.000 r@budget=1 pack=388 noise=0.00
+  [FAIL] single-session-preference/6b7dfb22: r@5=0 r@10=0 p@5=0.000 mrr=0.000 r@budget=0 pack=316 noise=1.00
+  [FAIL] single-session-preference/07b6f563: r@5=0 r@10=0 p@5=0.000 mrr=0.000 r@budget=1 pack=374 noise=0.83
+  [PASS] single-session-preference/b0479f84: r@5=1 r@10=1 p@5=0.333 mrr=1.000 r@budget=1 pack=303 noise=0.75
+  [PASS] single-session-preference/75f70248: r@5=1 r@10=1 p@5=0.500 mrr=1.000 r@budget=1 pack=375 noise=0.80
+  [FAIL] single-session-preference/57f827a0: r@5=0 r@10=0 p@5=0.000 mrr=0.000 r@budget=1 pack=379 noise=0.80
+  [FAIL] single-session-preference/a89d7624: r@5=0 r@10=0 p@5=0.000 mrr=0.000 r@budget=0 pack=349 noise=1.00
+  [FAIL] single-session-preference/06f04340: r@5=0 r@10=0 p@5=0.000 mrr=0.000 r@budget=0 pack=296 noise=1.00
+  [PASS] single-session-preference/1d4e3b97: r@5=1 r@10=1 p@5=0.500 mrr=0.500 r@budget=1 pack=335 noise=0.80
+  [FAIL] single-session-user/36580ce8: r@5=0 r@10=0 p@5=0.000 mrr=0.000 r@budget=1 pack=318 noise=0.67
+  [PASS] single-session-user/15745da0_abs: r@5=1 r@10=1 p@5=0.500 mrr=1.000 r@budget=1 pack=343 noise=0.83
+  [FAIL] single-session-user/001be529: r@5=0 r@10=0 p@5=0.000 mrr=0.000 r@budget=1 pack=361 noise=0.86
+  [PASS] single-session-user/a06e4cfe: r@5=1 r@10=1 p@5=1.000 mrr=1.000 r@budget=1 pack=369 noise=0.50
+  [PASS] single-session-user/60d45044: r@5=1 r@10=1 p@5=0.200 mrr=0.500 r@budget=0 pack=23 noise=0.00
+  [PASS] single-session-user/66f24dbb: r@5=1 r@10=1 p@5=1.000 mrr=1.000 r@budget=0 pack=26 noise=0.00
+  [FAIL] single-session-user/ad7109d1: r@5=0 r@10=0 p@5=0.000 mrr=0.000 r@budget=0 pack=305 noise=1.00
+  [PASS] single-session-user/853b0a1d: r@5=1 r@10=1 p@5=0.333 mrr=1.000 r@budget=1 pack=360 noise=0.75
+  [PASS] temporal-reasoning/2ebe6c90: r@5=1 r@10=1 p@5=0.667 mrr=1.000 r@budget=1 pack=357 noise=0.33
+  [PASS] temporal-reasoning/b29f3365: r@5=1 r@10=1 p@5=1.000 mrr=1.000 r@budget=1 pack=305 noise=0.00
+  [FAIL] temporal-reasoning/gpt4_59149c78: r@5=0 r@10=0 p@5=0.000 mrr=0.000 r@budget=0 pack=335 noise=1.00
+  [FAIL] temporal-reasoning/2ebe6c92: r@5=0 r@10=0 p@5=0.000 mrr=0.000 r@budget=1 pack=370 noise=0.83
+  [PASS] temporal-reasoning/gpt4_4929293a: r@5=1 r@10=1 p@5=0.667 mrr=1.000 r@budget=1 pack=310 noise=0.50
+  [PASS] temporal-reasoning/0bc8ad93: r@5=1 r@10=1 p@5=1.000 mrr=1.000 r@budget=1 pack=363 noise=0.60
+  [PASS] temporal-reasoning/gpt4_1e4a8aeb: r@5=1 r@10=1 p@5=1.000 mrr=1.000 r@budget=1 pack=340 noise=0.33
+  [PASS] temporal-reasoning/gpt4_8e165409: r@5=1 r@10=1 p@5=0.667 mrr=1.000 r@budget=0 pack=50 noise=0.00
+  [PASS] type/knowledge-update: r@5=0.875 n=8
+  [PASS] type/multi-session: r@5=1.000 n=8
+  [PASS] type/single-session-assistant: r@5=0.750 n=8
+  [PASS] type/single-session-preference: r@5=0.375 n=8
+  [PASS] type/single-session-user: r@5=0.625 n=8
+  [PASS] type/temporal-reasoning: r@5=0.750 n=8
+LongMemEval-S retrieval footnote: R@5=0.729 (n=48, dataset=longmemeval_s_cleaned.json, mode=hybrid-dual-grain) R@10=0.729 P@5=0.563 MRR=0.708
+  recall@budget=0.771 (n=48, mode=hybrid-dual-grain) mean_pack=314 (n=48) pack_noise=0.535
+  Protocol: recall_any@K + recall@budget (≤1500 pack) on session haystacks (default fts-blob / hybrid-dual-grain; --chunked for legacy). Not official LongMemEval QA accuracy.

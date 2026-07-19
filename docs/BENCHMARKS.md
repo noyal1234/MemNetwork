@@ -8,8 +8,10 @@ brainkm bench run eval --project-dir .
 # or: bash brainkm/scripts/run_eval.sh
 ```
 
-**Public shared-metric footnote (vs agentmemory):** LongMemEval-S retrieval `recall_any@K`
-on the same cleaned corpus. **Diagnostic suite (coding shape):** Common Memory Axes (CMA).
+**Headline metric:** **recall@budget** — gold fact present in the ≤1500-token pack
+(+ pack noise). Framed on brainkm’s product contract, not chat-haystack top-K.
+**Shared-protocol footnote (vs agentmemory):** LongMemEval-S `recall_any@K`.
+**Regression gate (coding shape):** Common Memory Axes (CMA) ability micro-avg.
 Head-to-head notes: [benchmarks/COMPARISON.md](benchmarks/COMPARISON.md).
 
 ```bash
@@ -34,11 +36,54 @@ brainkm bench run cost      # injected tokens/session + $/yr model
 
 Optional LLM judge (Ollama): `brainkm bench run task --judge`
 
-## Common Memory Axes (CMA) — primary public scorecard
+### End-task A/B (agent with brainkm vs without)
+
+Standalone harness (not a gated `bench run` suite — costs Cursor API tokens):
+
+```bash
+pip install -e "./brainkm[endtask]"   # cursor-sdk
+export CURSOR_API_KEY=cursor_...
+
+# Plan only (no API):
+python brainkm/scripts/endtask_harness.py --dry-run --smoke
+
+# Groq knowledge A/B (uses GROQ_API_KEY / .env; pack-injected vs bare prompt):
+python brainkm/scripts/endtask_harness.py --backend groq --smoke --repeats 1
+
+# Full Cursor agent A/B (CURSOR_API_KEY + cursor-sdk):
+python brainkm/scripts/endtask_harness.py --backend cursor --smoke --repeats 1
+
+# Publication (Cursor, 20 tasks × 2 arms × 3 repeats):
+python brainkm/scripts/endtask_harness.py --backend cursor --repeats 3 \
+  --write-md docs/benchmarks/YYYY-MM-DD-endtask.md
+```
+
+**Groq** produces a knowledge-only claim (*solved X/N vs Y/N* with pack injection).
+**Cursor** is the full agent+MCP claim (including change tasks / tool use).
+Fixture: `endtask_v1.json` (12 knowledge + 8 change). Publish with **repeats ≥ 3**.
+Latest Groq smoke: [2026-07-19-endtask-groq.md](benchmarks/2026-07-19-endtask-groq.md).
+
+## Headline: recall@budget (≤1500-token pack)
+
+brainkm’s contract is not “gold in top-5 of an unbounded list” — it is **gold fact
+inside a hard token budget without drowning the agent in noise**.
+
+| Corpus | recall@budget | Mean pack tokens | Pack noise | Artifact |
+|--------|---------------|------------------|------------|----------|
+| CMA v3 (coding-agent) | **0.833** | **323** / 1500 | 0.885 | [cma-v3-budget](benchmarks/2026-07-19-cma-v3-budget.md) |
+| LongMemEval-S full 500 | **0.892** | **373** / 1500 | 0.724 | [lme-full](benchmarks/2026-07-19-longmemeval-s-full.md) |
+
+Agentmemory’s published LongMemEval protocol does not report a hard pack budget
+(~1.9k tokens/session in their cost model). recall@budget is the comparison framed
+on our terms; see [COMPARISON.md](benchmarks/COMPARISON.md).
+
+## Common Memory Axes (CMA) — coding-agent diagnostic + regression gate
 
 Chat-memory vendors (Mem0, Zep, agentmemory) often cite **LoCoMo**, **LongMemEval**, or **BEAM**. Those corpora are multi-session **chat** haystacks. brainkm is a **coding-agent project brain** (neurons + code graph + ≤1500-token packs).
 
-CMA reuses LongMemEval’s *ability language* on a coding-agent fixture so numbers are comparable in spirit without pretending to be a chat-assistant leaderboard score:
+CMA reuses LongMemEval’s *ability language* on a coding-agent fixture. **Quote
+recall@budget + hard-slice lift** publicly; ability micro-avg is a **regression gate**
+(currently saturated at 100% and no longer discriminative).
 
 | Ability | What we measure |
 |---------|-----------------|
@@ -49,41 +94,38 @@ CMA reuses LongMemEval’s *ability language* on a coding-agent fixture so numbe
 | `multi_session` | Facts evolving across seeded sessions |
 | `procedure` | Procedure neuron ranked for how-to queries |
 
-**Always reported as a triple:** ability micro-average + mean pack tokens (≤1500) + recall/pack p95 latency.
-
-**Baselines (same gold):** BM25/FTS-only and naive title/content token scan.
-
-Latest published artifact: [docs/benchmarks/2026-07-19-cma-v3.md](benchmarks/2026-07-19-cma-v3.md) (brainkm **0.5.0**, CMA **v3**, semantic off):
+Latest published artifact: [docs/benchmarks/2026-07-19-cma-v3-budget.md](benchmarks/2026-07-19-cma-v3-budget.md) (brainkm **0.5.0**, CMA **v3**):
 
 | Metric | Result |
 |--------|--------|
-| Ability micro-avg | **100%** (hard subset **100%**, n=32) |
-| Mean pack tokens | **~322** / 1500 |
+| **recall@budget** | **0.833** (floor ≥0.80, n=42) |
+| Pack noise | **0.885** (report-only) |
+| Mean pack tokens | **~323** / 1500 |
+| Ability micro-avg (gate) | **100%** (hard subset **100%**, n=32) |
 | Recall / pack p95 | **~13 / 18 ms** |
 | Baselines (full) | brain **1.00** vs BM25 **0.88** / title-scan **0.83** |
-| Hard-slice lift | brain **1.00** vs BM25 **0.55** (**+0.45**, n=11 paraphrase/bridge) |
+| Hard-slice lift | brain **1.00** vs BM25 **0.55** (**+0.45**, n=11) |
 | Decision+structure scorecard | **8/8** |
-| Theme-leak (gated) | **2/2** (off-domain abstain) |
+| Theme-leak (gated) | **2/2** |
 
-Prior: [2026-07-18 cma-v3](benchmarks/2026-07-18-cma-v3.md), [cma-v2](benchmarks/2026-07-18-cma-v2.md), [cma-v1](benchmarks/2026-07-18-cma.md).
+Prior: [cma-v3](benchmarks/2026-07-19-cma-v3.md), [2026-07-18 cma-v3](benchmarks/2026-07-18-cma-v3.md).
 
-### LongMemEval-S retrieval footnote (shared metric vs agentmemory)
+### LongMemEval-S shared-protocol footnote (vs agentmemory)
 
-**Full 500** — [docs/benchmarks/2026-07-19-longmemeval-s-full.md](benchmarks/2026-07-19-longmemeval-s-full.md) (FTS **chunked**):
+**Full 500** — [docs/benchmarks/2026-07-19-longmemeval-s-full.md](benchmarks/2026-07-19-longmemeval-s-full.md) (**fts-blob** dual-grain default):
 
-| Metric | brainkm (FTS chunked) | agentmemory (published) |
-|--------|----------------------|-------------------------|
-| **R@5** | **0.908** | **0.952** (BM25+MiniLM) |
-| **R@10** | **0.926** | 0.986 |
-| **P@5** | **0.402** | — |
-| **MRR** | **0.834** | 0.882 |
+| Metric | brainkm (FTS blob) | agentmemory (published) |
+|--------|-------------------|-------------------------|
+| **recall@budget** | **0.892** @ 373 tok | — (no hard pack budget reported) |
+| **R@5** | **0.934** | **0.952** (BM25+MiniLM) |
+| **R@10** | **0.962** | 0.986 |
+| **MRR** | **0.861** | 0.882 |
 
-Prior blob-FTS full-500 (pre-chunk, 2026-07-18): R@5 **0.934** — see that artifact for history.
-Chunking recovered MiniLM hybrid on stratified samples but trades some FTS R@5 on full-500
-(mainly preference / assistant single-session). See [COMPARISON.md](benchmarks/COMPARISON.md).
+Dual-grain indexing (blob FTS + optional chunk vectors) restored the pre-chunk FTS floor.
+Legacy all-chunk: `--chunked`. Stratified hybrid did not beat FTS — see
+[dual-grain semantic note](benchmarks/2026-07-19-longmemeval-dual-grain-semantic.md).
 
-Also: [stratified chunked + adapters](benchmarks/2026-07-19-longmemeval-chunked.md),
-[2026-07-18 full blob FTS](benchmarks/2026-07-18-longmemeval-s-full.md).
+Also: [chunked mid-day run](benchmarks/2026-07-19-longmemeval-chunked.md) (R@5 0.908, historical).
 
 ### Market-standard + unique suites
 
@@ -107,9 +149,10 @@ For an apples-to-apples *retrieval* footnote against agentmemory’s protocol:
 ```bash
 # Download cleaned JSON (~264MB), then:
 export LONGMEMEVAL_PATH=~/.cache/brainkm/longmemeval_s_cleaned.json
-brainkm bench run longmemeval --stratify 10 --seed 42
-brainkm bench run longmemeval --stratify 10 --semantic --adapters
+brainkm bench run longmemeval --stratify 10 --seed 42      # fts-blob + recall@budget
+brainkm bench run longmemeval --stratify 10 --semantic     # dual-grain hybrid sanity
 brainkm bench run longmemeval --stratify 0                 # full 500 (slow)
+brainkm bench run longmemeval --chunked --stratify 10      # legacy all-chunk index
 ```
 
 Without a dataset the suite **skips cleanly** (PASS with instructions). Requires `pip install -e "./brainkm[semantic]"` for `--semantic`.

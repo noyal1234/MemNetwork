@@ -18,6 +18,7 @@ from brainkm.services.bench_db import (
     ephemeral_project_brain,
 )
 from brainkm.services.context_pack import compile_context_pack
+from brainkm.services.ir_metrics import pack_noise_rate, recall_at_budget
 from brainkm.services.memory import new_ulid, supersede_neuron
 from brainkm.services.recall import recall_live
 from brainkm.services.search import fts_search_nodes, traverse
@@ -146,6 +147,8 @@ def run_cma_suite(
     ability_pass: dict[str, list[bool]] = defaultdict(list)
     hard_pass: list[bool] = []
     pack_tokens: list[int] = []
+    budget_recalls: list[float] = []
+    pack_noises: list[float] = []
     recall_ms: list[float] = []
     pack_ms: list[float] = []
     brain_hits: list[bool] = []
@@ -286,6 +289,13 @@ def run_cma_suite(
                     used = int(pack.truncation.tokens_used)
                     pack_tokens.append(used)
                     detail += f" pack={used}/{pack.truncation.token_budget}"
+                    if expected:
+                        included = list(pack.truncation.included_ids)
+                        r_budget = recall_at_budget(included, expected)
+                        noise = pack_noise_rate(included, expected)
+                        budget_recalls.append(r_budget)
+                        pack_noises.append(noise)
+                        detail += f" r@budget={r_budget:.0f} noise={noise:.2f}"
 
             if mode != "traverse" and query.get("measure_pack") and warm_n > 0:
                 for _ in range(warm_n):
@@ -316,12 +326,17 @@ def run_cma_suite(
             sum(1 for p in hard_pass if p) / len(hard_pass) if hard_pass else 1.0
         )
         mean_pack = statistics.mean(pack_tokens) if pack_tokens else 0.0
+        mean_budget = (
+            statistics.mean(budget_recalls) if budget_recalls else 0.0
+        )
+        mean_noise = statistics.mean(pack_noises) if pack_noises else 0.0
         r_p95 = _percentile(recall_ms, 95)
         p_p95 = _percentile(pack_ms, 95) if pack_ms else 0.0
 
         floor_micro = float(floors.get("ability_micro_avg", 0.70))
         floor_hard = float(floors.get("hard_micro_avg", 0.55))
         floor_pack = float(floors.get("mean_pack_tokens_max", 1500))
+        floor_budget = float(floors.get("recall_at_budget", 0.80))
         floor_r = float(floors.get("recall_p95_ms", 800))
         floor_p = float(floors.get("pack_p95_ms", 1200))
         floor_lift = float(floors.get("baseline_lift_min", 0.0))
@@ -372,6 +387,23 @@ def run_cma_suite(
                 name="aggregate/mean_pack_tokens",
                 passed=mean_pack <= floor_pack,
                 detail=f"{mean_pack:.0f} (max<={floor_pack:.0f}, n={len(pack_tokens)})",
+            )
+        )
+        cases.append(
+            BenchCaseResult(
+                name="aggregate/recall_at_budget",
+                passed=(not budget_recalls) or mean_budget >= floor_budget,
+                detail=(
+                    f"{mean_budget:.3f} (floor>={floor_budget:.2f}, "
+                    f"n={len(budget_recalls)})"
+                ),
+            )
+        )
+        cases.append(
+            BenchCaseResult(
+                name="aggregate/pack_noise",
+                passed=True,  # report-only honesty companion
+                detail=f"{mean_noise:.3f} (n={len(pack_noises)})",
             )
         )
         cases.append(
@@ -452,7 +484,8 @@ def run_cma_suite(
 def format_cma_summary(result: BenchSuiteResult) -> str:
     """Compact CMA headline for CLI / dated scorecards."""
     by_ability: dict[str, str] = {}
-    micro = hard = mean_pack = recall_p95 = pack_p95 = bm25 = title = hard_lift = fixture = ""
+    micro = hard = mean_pack = r_budget = pack_noise = ""
+    recall_p95 = pack_p95 = bm25 = title = hard_lift = fixture = ""
     for case in result.cases:
         if case.name.startswith("ability/"):
             parts = case.detail.split()
@@ -463,6 +496,10 @@ def format_cma_summary(result: BenchSuiteResult) -> str:
             hard = case.detail
         elif case.name == "aggregate/mean_pack_tokens":
             mean_pack = case.detail
+        elif case.name == "aggregate/recall_at_budget":
+            r_budget = case.detail
+        elif case.name == "aggregate/pack_noise":
+            pack_noise = case.detail
         elif case.name == "aggregate/recall_p95_ms":
             recall_p95 = case.detail
         elif case.name == "aggregate/pack_p95_ms":
@@ -479,7 +516,8 @@ def format_cma_summary(result: BenchSuiteResult) -> str:
     ability_bits = " ".join(f"{k}={v}" for k, v in sorted(by_ability.items()))
     lines = [
         f"CMA {result.passed}/{result.total} fixture={fixture}",
-        f"  micro={micro} hard={hard}",
+        f"  recall@budget={r_budget} pack_noise={pack_noise}",
+        f"  micro={micro} hard={hard}  # regression gate",
         f"  pack={mean_pack} recall_p95={recall_p95} pack_p95={pack_p95}",
         f"  baselines: {bm25} | {title}",
         f"  hard_slice_lift: {hard_lift}",
@@ -530,7 +568,8 @@ def render_cma_scorecard_markdown(
             "",
             "- CMA maps LongMemEval *ability language* onto a **coding-agent project brain**",
             "  corpus (neurons + code graph + procedures), not chat-session haystacks.",
-            "- Accuracy is always paired with **mean pack tokens (≤1500)** and **latency p95**.",
+            "- Headline metric: **recall@budget** (gold fact in the ≤1500-token pack) + pack noise.",
+            "- Ability micro-avg is a **regression gate** (often saturated); quote recall@budget.",
             "- Baselines: **BM25/FTS-only** and naive **title/content token scan** on the same gold.",
             "- Hard subset includes paraphrase, multi-session, and theme-adjacent abstention.",
             "- This is **not** a LongMemEval-S leaderboard claim. See BENCHMARKS.md.",
