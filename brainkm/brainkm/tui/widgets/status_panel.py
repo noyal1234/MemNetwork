@@ -1,23 +1,23 @@
 """Reusable status card widget — ASCII title + key/value rows with status.
 
-Color meaning for ``state`` (CSS ``value--*``):
+Color meaning for ``state`` (CSS ``value--*`` via Rich styles from theme tokens):
   ok      green  — healthy / connected / fresh
   error   red    — failure / unreachable / rate limit
   warning amber  — attention (stale, mismatch, pending work)
   accent  #FFB000 — model IDs (LLM identity)
   muted   gray   — informational / secondary
+
+Rows are rendered into a single body ``Static`` (Rich Text) so rapid refresh
+never races Textual 8's async remove_children/mount.
 """
 
 from __future__ import annotations
 
+from rich.text import Text
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
 from textual.widgets import Static
 
-from brainkm.tui.theme import escape_markup
-
-# States whose values are model IDs — always render with accent styling if passed
-# through as "accent". Callers should use state="accent" for model strings.
+from brainkm.tui.theme import active_tokens, escape_markup
 
 
 class StatusPanel(Static):
@@ -38,43 +38,17 @@ class StatusPanel(Static):
         height: auto;
     }
 
-    StatusPanel > Vertical {
+    StatusPanel .panel-body {
         height: auto;
         width: 100%;
-    }
-
-    StatusPanel .status-row {
-        height: 1;
-        width: 100%;
-        layout: horizontal;
-    }
-
-    StatusPanel .status-label {
-        width: 15;
-        color: $text-muted;
-        text-wrap: nowrap;
-        overflow-x: hidden;
-        text-overflow: ellipsis;
-        padding: 0 1 0 0;
-    }
-
-    StatusPanel .status-glyph {
-        width: 2;
-        text-align: left;
-    }
-
-    StatusPanel .status-value {
-        width: 1fr;
-        height: 1;
-        text-wrap: nowrap;
-        overflow-x: hidden;
-        text-overflow: ellipsis;
     }
 
     StatusPanel.-loading {
         opacity: 0.75;
     }
     """
+
+    _LABEL_WIDTH = 14
 
     def __init__(
         self,
@@ -86,12 +60,11 @@ class StatusPanel(Static):
         super().__init__(id=id, classes=f"status-panel {classes or ''}".strip())
         self._title = title
         self._items: list[tuple[str, str, str]] = []
-        self._render_generation = 0
 
     def compose(self) -> ComposeResult:
         if self._title:
             yield Static(escape_markup(self._title), classes="panel-title")
-        yield Vertical(id=f"{self.id}-body" if self.id else "panel-body")
+        yield Static("", id=f"{self.id}-body" if self.id else "panel-body", classes="panel-body")
 
     def set_title(self, title: str) -> None:
         """Update the panel title text."""
@@ -110,13 +83,13 @@ class StatusPanel(Static):
         """
         self._items = [(label, str(value or ""), state) for label, value, state in items]
         self.remove_class("-loading")
-        self._schedule_render()
+        self._render_items()
 
     def set_loading(self, message: str = "Loading…") -> None:
         """Show a loading state in the panel body."""
         self.add_class("-loading")
         self._items = [("Status", message, "muted")]
-        self._schedule_render()
+        self._render_items()
 
     def set_error(self, message: str) -> None:
         """Show a panel-level error state."""
@@ -125,54 +98,34 @@ class StatusPanel(Static):
             ("Status", "error", "error"),
             ("Detail", message[:72], "muted"),
         ]
-        self._schedule_render()
+        self._render_items()
 
-    def _schedule_render(self) -> None:
-        """Queue an awaited DOM rebuild on the main loop (Textual 8-safe)."""
-        if not self.is_mounted:
-            return
-        self._render_generation += 1
-        generation = self._render_generation
-        group = f"status-render-{self.id or id(self)}"
-        self.run_worker(
-            self._render_items_async(generation),
-            exclusive=True,
-            group=group,
-            exit_on_error=False,
-        )
-
-    async def _render_items_async(self, generation: int) -> None:
-        if generation != self._render_generation:
-            return
+    def _render_items(self) -> None:
         body_id = f"#{self.id}-body" if self.id else "#panel-body"
         try:
-            body = self.query_one(body_id)
+            body = self.query_one(body_id, Static)
         except Exception:
             return
-        await body.remove_children()
-        if generation != self._render_generation:
-            return
-        items = list(self._items)
-        children: list[Horizontal] = []
-        for label, value, state in items:
+        tokens = active_tokens()
+        state_color = {
+            "ok": tokens["success"],
+            "warning": tokens["warning"],
+            "error": tokens["error"],
+            "accent": tokens["accent"],
+            "muted": tokens["text_muted"],
+        }
+        text = Text()
+        for i, (label, value, state) in enumerate(self._items):
+            if i:
+                text.append("\n")
+            label_col = f"{label}:".ljust(self._LABEL_WIDTH)
+            text.append(label_col, style=tokens["text_muted"])
             glyph = self._state_glyph(state)
-            row = Horizontal(
-                Static(f"{escape_markup(label)}:", classes="status-label"),
-                Static(
-                    glyph,
-                    classes=f"status-glyph value--{state}",
-                    markup=False,
-                ),
-                Static(
-                    value if value else "—",
-                    classes=f"status-value value--{state}",
-                    markup=False,
-                ),
-                classes="status-row",
-            )
-            children.append(row)
-        if children:
-            await body.mount(*children)
+            color = state_color.get(state, tokens["text_muted"])
+            display = value if value else "—"
+            text.append(f"{glyph} ", style=f"bold {color}")
+            text.append(display, style=f"bold {color}")
+        body.update(text)
 
     def _state_glyph(self, state: str) -> str:
         return {

@@ -22,6 +22,22 @@ def recall_at_k(
     return hits / len(relevant)
 
 
+def precision_at_k(
+    ranked_ids: Sequence[str],
+    relevant_ids: Sequence[str] | set[str],
+    k: int,
+) -> float:
+    """Fraction of the top-k results that are relevant (0 if k<=0 or empty top)."""
+    if k <= 0:
+        return 0.0
+    relevant = set(relevant_ids)
+    top = list(ranked_ids)[:k]
+    if not top:
+        return 0.0
+    hits = sum(1 for doc_id in top if doc_id in relevant)
+    return hits / len(top)
+
+
 def mrr(
     ranked_ids: Sequence[str],
     relevant_ids: Sequence[str] | set[str],

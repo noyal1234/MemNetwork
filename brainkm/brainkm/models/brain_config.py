@@ -156,13 +156,20 @@ class RecallConfig(BaseModel):
 
 
 class SemanticConfig(BaseModel):
-    """T1 hybrid retrieval (vector + BM25 RRF). Off by default for zero-dep T0."""
+    """T1 hybrid retrieval (vector + BM25). Off by default for zero-dep T0."""
 
     enabled: bool = False
     prefer_onnx: bool = True
     vector_limit: int = Field(default=20, ge=5, le=100)
     rrf_k: int = Field(default=60, ge=10, le=200)
     embed_on_write: bool = True
+    fusion_mode: Literal["rrf", "fts_primary"] = Field(
+        default="rrf",
+        description=(
+            "rrf = classic Reciprocal Rank Fusion; "
+            "fts_primary = keep FTS candidate set, re-rank by vector (safer on long haystacks)"
+        ),
+    )
 
 
 class DecayConfig(BaseModel):

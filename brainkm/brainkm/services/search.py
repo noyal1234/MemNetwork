@@ -579,7 +579,20 @@ def hybrid_seed(
         limit=sem.vector_limit,
         prefer_onnx=sem.prefer_onnx,
     )
-    # Convert cosine to ranking list (already sorted); FTS uses BM25 order.
+    if not vectors:
+        return [(node_id, max(0.1, abs(score))) for node_id, score in fts]
+
+    if getattr(sem, "fusion_mode", "rrf") == "fts_primary":
+        # Preserve FTS candidate set; only re-order by vector similarity.
+        # Avoids pure-vector noise drowning lexical hits on long chat haystacks.
+        vec_scores = {node_id: score for node_id, score in vectors}
+        rescored = sorted(
+            fts,
+            key=lambda item: (vec_scores.get(item[0], -1.0), abs(item[1])),
+            reverse=True,
+        )
+        return [(node_id, max(0.1, abs(score))) for node_id, score in rescored]
+
     fused = reciprocal_rank_fusion(fts, vectors, k=sem.rrf_k)
     if not fused:
         return [(node_id, max(0.1, abs(score))) for node_id, score in fts]
@@ -606,6 +619,15 @@ def recall_with_bfs(
     recall_cfg = recall or RecallConfig()
     semantic_cfg = semantic or SemanticConfig()
     routing = route_query(query)
+
+    # Theme-leak / personal prompts: abstain even when keywords collide with neurons.
+    if recall_cfg.abstain_on_low_confidence:
+        from brainkm.services.intent import is_off_domain_query
+
+        if is_off_domain_query(query):
+            return TraversalResult(
+                nodes=[], hops_explored=0, abstained=True, intent=routing.intent.value
+            )
 
     seeds = hybrid_seed(
         conn,

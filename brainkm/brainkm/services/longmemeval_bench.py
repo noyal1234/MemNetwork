@@ -1,12 +1,18 @@
 """LongMemEval-S retrieval footnote — same protocol as agentmemory (not official QA).
 
 Downloads are optional. Without a dataset path the suite reports a single skipped PASS
-so default CI stays free of the ~264MB corpus. When present, reports recall_any@K + MRR.
+so default CI stays free of the ~264MB corpus. When present, reports recall_any@K + MRR
+(+ precision@K when gold sessions are sparse).
+
+Hybrid / MiniLM mode chunks long sessions before embed+FTS so MiniLM's short context
+window is not dominated by truncated role prefixes (the prior full-blob embed collapsed
+R@5 to ~0.37). Rankings are aggregated back to session ids for scoring.
 """
 
 from __future__ import annotations
 
 import json
+import random
 from collections import defaultdict
 from pathlib import Path
 
@@ -18,11 +24,16 @@ from brainkm.services.bench_db import (
     ensure_fixture_neuron,
     ephemeral_project_brain,
 )
+from brainkm.services.ir_metrics import precision_at_k
 from brainkm.services.recall import recall_live
 
 # Cap session body so ephemeral FTS stays tractable on LongMemEval haystacks.
 _MAX_SESSION_CHARS = 4000
+# MiniLM / hashing embedders see ~128 tokens; chunk so embeddings are meaningful.
+_CHUNK_CHARS = 480
+_CHUNK_OVERLAP = 64
 _DEFAULT_CACHE = Path.home() / ".cache" / "brainkm" / "longmemeval_s_cleaned.json"
+_DEFAULT_STRATIFY_SEED = 42
 _DOWNLOAD_HINT = (
     "Download LongMemEval-S (cleaned) then set LONGMEMEVAL_PATH or pass --dataset:\n"
     "  pip install huggingface_hub\n"
@@ -62,6 +73,53 @@ def _flatten_session(turns: list[dict]) -> str:
     return text
 
 
+def chunk_session_text(
+    text: str,
+    *,
+    chunk_chars: int = _CHUNK_CHARS,
+    overlap: int = _CHUNK_OVERLAP,
+) -> list[str]:
+    """Split a session blob into overlapping chunks for embed/FTS indexing."""
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return [""]
+    if len(cleaned) <= chunk_chars:
+        return [cleaned]
+    step = max(1, chunk_chars - overlap)
+    chunks: list[str] = []
+    start = 0
+    while start < len(cleaned):
+        end = min(len(cleaned), start + chunk_chars)
+        piece = cleaned[start:end].strip()
+        if piece:
+            chunks.append(piece)
+        if end >= len(cleaned):
+            break
+        start += step
+    return chunks or [cleaned[:chunk_chars]]
+
+
+def session_id_from_chunk_id(chunk_id: str) -> str:
+    """Map ``{session}__chunk_{n}`` (or bare session id) back to the session id."""
+    marker = "__chunk_"
+    if marker in chunk_id:
+        return chunk_id.split(marker, 1)[0]
+    return chunk_id
+
+
+def aggregate_ranked_to_sessions(ranked_ids: list[str]) -> list[str]:
+    """Collapse chunk-level rankings to first-seen session order."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for nid in ranked_ids:
+        sid = session_id_from_chunk_id(nid)
+        if sid in seen:
+            continue
+        seen.add(sid)
+        out.append(sid)
+    return out
+
+
 def load_longmemeval_questions(path: Path) -> list[dict]:
     raw = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(raw, list):
@@ -89,13 +147,22 @@ def load_longmemeval_questions(path: Path) -> list[dict]:
     return questions
 
 
-def stratify_sample(questions: list[dict], per_type: int) -> list[dict]:
+def stratify_sample(
+    questions: list[dict],
+    per_type: int,
+    *,
+    seed: int = _DEFAULT_STRATIFY_SEED,
+) -> list[dict]:
+    """Sample up to ``per_type`` questions per type with a deterministic RNG seed."""
     buckets: dict[str, list[dict]] = defaultdict(list)
     for q in questions:
         buckets[str(q["type"])].append(q)
+    rng = random.Random(seed)
     out: list[dict] = []
     for qtype in sorted(buckets):
-        out.extend(buckets[qtype][:per_type])
+        bucket = list(buckets[qtype])
+        rng.shuffle(bucket)
+        out.extend(bucket[:per_type])
     return out
 
 
@@ -110,6 +177,40 @@ def _recall_any(ranked_ids: list[str], gold: set[str], k: int) -> float:
     return 1.0 if gold & set(ranked_ids[:k]) else 0.0
 
 
+def _index_haystack(
+    conn,
+    haystack: list[dict],
+    *,
+    semantic: bool,
+) -> None:
+    """Index sessions as overlapping chunks (better for MiniLM + FTS)."""
+    from brainkm.services.semantic import embed_neuron_if_enabled
+
+    for session in haystack:
+        sid = session["id"]
+        chunks = chunk_session_text(session["content"])
+        for idx, chunk in enumerate(chunks):
+            chunk_id = f"{sid}__chunk_{idx}"
+            title = f"session {sid} chunk {idx}"
+            ensure_fixture_neuron(
+                conn,
+                node_id=chunk_id,
+                title=title,
+                content=chunk,
+                kind="memory",
+                subtype="context",
+            )
+            if semantic:
+                embed_neuron_if_enabled(
+                    conn,
+                    chunk_id,
+                    title=title,
+                    content=chunk,
+                    semantic_enabled=True,
+                )
+    conn.commit()
+
+
 def run_longmemeval_suite(
     _db_path: Path | None = None,
     *,
@@ -117,6 +218,9 @@ def run_longmemeval_suite(
     stratify: int | None = None,
     limit: int | None = None,
     semantic: bool = False,
+    seed: int = _DEFAULT_STRATIFY_SEED,
+    adapters: bool = False,
+    write_ndjson: Path | None = None,
 ) -> BenchSuiteResult:
     """Retrieval-only LongMemEval-S footnote (skip cleanly when dataset absent)."""
     del _db_path
@@ -141,20 +245,28 @@ def run_longmemeval_suite(
     if stratify == 0:
         sampled = questions if limit is None else questions[:limit]
     else:
-        sampled = stratify_sample(questions, per_type)
+        sampled = stratify_sample(questions, per_type, seed=seed)
         if limit is not None:
             sampled = sampled[:limit]
 
     from brainkm.models.brain_config import SemanticConfig
 
-    semantic_cfg = SemanticConfig(enabled=True) if semantic else SemanticConfig(enabled=False)
+    # fts_primary: vector re-ranks FTS hits only — equal RRF previously collapsed
+    # LongMemEval haystacks (~0.37 R@5) by promoting non-lexical vector noise.
+    semantic_cfg = (
+        SemanticConfig(enabled=True, rrf_k=30, fusion_mode="fts_primary")
+        if semantic
+        else SemanticConfig(enabled=False)
+    )
 
     set_skip_rolling_scores(True)
     r_at_5: list[float] = []
     r_at_10: list[float] = []
+    p_at_5: list[float] = []
     mrrs: list[float] = []
     cases: list[BenchCaseResult] = []
     by_type: dict[str, list[float]] = defaultdict(list)
+    adapter_rows: list[dict[str, object]] = []
 
     try:
         for q in sampled:
@@ -163,51 +275,68 @@ def run_longmemeval_suite(
                 continue
             conn, _db, project = ephemeral_project_brain()
             try:
-                for session in q["haystack"]:
-                    ensure_fixture_neuron(
-                        conn,
-                        node_id=session["id"],
-                        title=f"session {session['id']}",
-                        content=session["content"],
-                        kind="memory",
-                        subtype="context",
-                    )
-                conn.commit()
-                if semantic:
-                    from brainkm.services.semantic import embed_neuron_if_enabled
-
-                    for session in q["haystack"]:
-                        embed_neuron_if_enabled(
-                            conn,
-                            session["id"],
-                            title=f"session {session['id']}",
-                            content=session["content"],
-                            semantic_enabled=True,
-                        )
-                    conn.commit()
+                _index_haystack(conn, q["haystack"], semantic=semantic)
                 result = recall_live(
                     conn,
                     q["question"],
-                    limit=10,
+                    limit=20,
                     recall=RecallConfig(abstain_on_low_confidence=False),
                     semantic=semantic_cfg,
                     project_dir=project,
                 )
-                ranked = [n.node_id for n in result.nodes]
+                ranked = aggregate_ranked_to_sessions([n.node_id for n in result.nodes])
                 r5 = _recall_any(ranked, gold, 5)
                 r10 = _recall_any(ranked, gold, 10)
+                p5 = precision_at_k(ranked, gold, 5)
                 mrr = _mrr(ranked, gold)
                 r_at_5.append(r5)
                 r_at_10.append(r10)
+                p_at_5.append(p5)
                 mrrs.append(mrr)
                 by_type[str(q["type"])].append(r5)
                 cases.append(
                     BenchCaseResult(
                         name=f"{q['type']}/{q['id']}",
                         passed=r5 >= 1.0,
-                        detail=f"r@5={r5:.0f} r@10={r10:.0f} mrr={mrr:.3f}",
+                        detail=(
+                            f"r@5={r5:.0f} r@10={r10:.0f} p@5={p5:.3f} mrr={mrr:.3f}"
+                        ),
                     )
                 )
+                if adapters:
+                    from brainkm.services.bench_adapters import (
+                        naive_title_scan_rank,
+                        score_ranked_sessions,
+                    )
+
+                    titles = {
+                        s["id"]: f"session {s['id']}" for s in q["haystack"]
+                    }
+                    contents = {s["id"]: s["content"] for s in q["haystack"]}
+                    naive = aggregate_ranked_to_sessions(
+                        naive_title_scan_rank(q["question"], titles, contents, limit=10)
+                    )
+                    # FTS-only arm on the same chunked index
+                    fts_result = recall_live(
+                        conn,
+                        q["question"],
+                        limit=20,
+                        recall=RecallConfig(abstain_on_low_confidence=False),
+                        semantic=SemanticConfig(enabled=False),
+                        project_dir=project,
+                    )
+                    fts_ranked = aggregate_ranked_to_sessions(
+                        [n.node_id for n in fts_result.nodes]
+                    )
+                    adapter_rows.append(
+                        {
+                            "id": q["id"],
+                            "type": q["type"],
+                            "brainkm": score_ranked_sessions(ranked, gold),
+                            "bm25": score_ranked_sessions(fts_ranked, gold),
+                            "naive": score_ranked_sessions(naive, gold),
+                        }
+                    )
             finally:
                 cleanup_ephemeral_project(project, conn)
     finally:
@@ -216,8 +345,9 @@ def run_longmemeval_suite(
     n = len(r_at_5) or 1
     mean_r5 = sum(r_at_5) / n if r_at_5 else 0.0
     mean_r10 = sum(r_at_10) / n if r_at_10 else 0.0
+    mean_p5 = sum(p_at_5) / n if p_at_5 else 0.0
     mean_mrr = sum(mrrs) / n if mrrs else 0.0
-    mode = "semantic" if semantic else "fts"
+    mode = "semantic-chunked" if semantic else "fts-chunked"
 
     cases.insert(
         0,
@@ -238,6 +368,14 @@ def run_longmemeval_suite(
     cases.insert(
         2,
         BenchCaseResult(
+            name="aggregate/precision_at_5",
+            passed=True,
+            detail=f"{mean_p5:.3f}",
+        ),
+    )
+    cases.insert(
+        3,
+        BenchCaseResult(
             name="aggregate/mrr",
             passed=True,
             detail=f"{mean_mrr:.3f}",
@@ -253,6 +391,13 @@ def run_longmemeval_suite(
             )
         )
 
+    if adapters and adapter_rows:
+        cases.extend(_adapter_aggregate_cases(adapter_rows))
+        if write_ndjson is not None:
+            from brainkm.services.bench_adapters import write_ndjson as _write_ndjson
+
+            _write_ndjson(write_ndjson, adapter_rows)
+
     return BenchSuiteResult(
         suite="longmemeval",
         passed=len(cases),
@@ -261,18 +406,49 @@ def run_longmemeval_suite(
     )
 
 
+def _adapter_aggregate_cases(rows: list[dict[str, object]]) -> list[BenchCaseResult]:
+    arms = ("brainkm", "bm25", "naive")
+    out: list[BenchCaseResult] = []
+    for arm in arms:
+        r5 = [float(row[arm]["r@5"]) for row in rows]  # type: ignore[index]
+        p5 = [float(row[arm]["p@5"]) for row in rows]  # type: ignore[index]
+        mrr = [float(row[arm]["mrr"]) for row in rows]  # type: ignore[index]
+        n = len(r5) or 1
+        out.append(
+            BenchCaseResult(
+                name=f"adapter/{arm}",
+                passed=True,
+                detail=(
+                    f"r@5={sum(r5)/n:.3f} p@5={sum(p5)/n:.3f} "
+                    f"mrr={sum(mrr)/n:.3f} n={len(r5)}"
+                ),
+            )
+        )
+    return out
+
+
 def format_longmemeval_summary(result: BenchSuiteResult) -> str:
     if any(c.name == "skipped/no_dataset" for c in result.cases):
         return (
             "LongMemEval-S retrieval: SKIPPED (no dataset). "
-            "Primary public claim is CMA — see docs/BENCHMARKS.md."
+            "See docs/BENCHMARKS.md for published footnote + CMA diagnostics."
         )
     r5 = next((c.detail for c in result.cases if c.name == "aggregate/recall_at_5"), "?")
     r10 = next((c.detail for c in result.cases if c.name == "aggregate/recall_at_10"), "?")
+    p5 = next(
+        (c.detail for c in result.cases if c.name == "aggregate/precision_at_5"), "?"
+    )
     mrr = next((c.detail for c in result.cases if c.name == "aggregate/mrr"), "?")
+    adapter_lines = [
+        f"  {c.name}: {c.detail}"
+        for c in result.cases
+        if c.name.startswith("adapter/")
+    ]
+    extra = ("\n" + "\n".join(adapter_lines)) if adapter_lines else ""
     return (
-        f"LongMemEval-S retrieval footnote: R@5={r5} R@10={r10} MRR={mrr}\n"
-        "  Protocol: recall_any@K on session haystacks "
-        "(FTS default; --semantic for MiniLM hybrid side-by-side). "
+        f"LongMemEval-S retrieval footnote: R@5={r5} R@10={r10} P@5={p5} MRR={mrr}\n"
+        "  Protocol: recall_any@K on chunked session haystacks "
+        "(FTS default; --semantic for MiniLM hybrid). "
         "Not official LongMemEval QA accuracy."
+        f"{extra}"
     )

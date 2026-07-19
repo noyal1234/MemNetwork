@@ -563,7 +563,7 @@ def bench_run_cmd(
         ...,
         help=(
             "Suite: eval|retrieval|task|abstention|token|dmr|longmem|budget|"
-            "compaction|latency|compare|scorecard|cma|longmemeval"
+            "compaction|latency|compare|scorecard|cma|longmemeval|staleness|scale|cost"
         ),
     ),
     project_dir: Path | None = typer.Option(None, "--project-dir"),
@@ -607,6 +607,21 @@ def bench_run_cmd(
         "--semantic",
         help="LongMemEval-S: enable MiniLM hybrid retrieval (requires [semantic] extra)",
     ),
+    adapters: bool = typer.Option(
+        False,
+        "--adapters",
+        help="LongMemEval-S: also score naive/bm25/brainkm side-by-side arms",
+    ),
+    seed: int = typer.Option(
+        42,
+        "--seed",
+        help="LongMemEval-S: RNG seed for stratified sampling",
+    ),
+    write_ndjson: Path | None = typer.Option(
+        None,
+        "--write-ndjson",
+        help="LongMemEval-S with --adapters: write per-query arm scores as NDJSON",
+    ),
 ) -> None:
     """Run a bench suite."""
     from brainkm.db.paths import brain_db_path
@@ -621,7 +636,13 @@ def bench_run_cmd(
         from brainkm.services.longmemeval_bench import run_longmemeval_suite
 
         result = run_longmemeval_suite(
-            db_path, dataset=dataset, stratify=stratify, semantic=semantic
+            db_path,
+            dataset=dataset,
+            stratify=stratify,
+            semantic=semantic,
+            seed=seed,
+            adapters=adapters,
+            write_ndjson=write_ndjson,
         )
     else:
         result = run_bench_suite(

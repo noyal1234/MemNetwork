@@ -324,7 +324,7 @@ async def test_review_empty_state_uses_static_not_datatable_row(
 async def test_status_panel_rapid_refresh_does_not_duplicate_rows(
     tui_project: Path,
 ) -> None:
-    """Textual 8 awaited remove/mount — rapid set_items must not leave dupes."""
+    """Rapid set_items must keep the last snapshot (single body Static render)."""
     app = BrainkmConfigureApp(project_dir=tui_project)
     async with app.run_test(size=(140, 60)) as pilot:
         await pilot.pause(0.4)
@@ -336,7 +336,10 @@ async def test_status_panel_rapid_refresh_does_not_duplicate_rows(
                     ("neurons", str(i), "ok"),
                 ]
             )
-        await pilot.pause(0.5)
-        rows = list(panel.query(".status-row"))
-        assert len(rows) == 2
+        await pilot.pause(0.2)
+        assert len(panel._items) == 2
         assert panel._items[0][1] == "mode-4"
+        body = panel.query_one("#brain-status-body")
+        rendered = str(body.render())
+        assert "mode-4" in rendered
+        assert "mode-0" not in rendered

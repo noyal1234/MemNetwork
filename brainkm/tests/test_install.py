@@ -68,6 +68,20 @@ def test_build_hooks_config_includes_all_events() -> None:
     assert events["postToolUse"][0]["matcher"] == "Write|Edit|Shell"
 
 
+def test_build_hooks_config_quotes_binary_with_spaces() -> None:
+    hooks = build_hooks_config("/Users/dev/My Tools/brainkm")
+    command = hooks["hooks"]["sessionStart"][0]["command"]
+    assert command == "'/Users/dev/My Tools/brainkm' session-start --stdin"
+
+
+def test_gitignore_entries_cover_secrets() -> None:
+    from brainkm.services.install import GITIGNORE_ENTRIES
+
+    assert ".brain/mcp_http_token" in GITIGNORE_ENTRIES
+    assert ".env" in GITIGNORE_ENTRIES
+    assert ".brain/exports/" in GITIGNORE_ENTRIES
+
+
 def test_merge_hooks_json_replaces_brainkm_commands() -> None:
     existing = {
         "version": 1,

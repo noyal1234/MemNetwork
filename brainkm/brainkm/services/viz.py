@@ -5,6 +5,7 @@ from __future__ import annotations
 import hmac
 import json
 import mimetypes
+import re
 import secrets
 import sqlite3
 import threading
@@ -23,6 +24,7 @@ logger = get_logger("viz")
 
 _STATIC_DIR = Path(__file__).resolve().parent / "viz_static"
 _VIZ_COOKIE = "brainkm_viz"
+_TOKEN_QS_RE = re.compile(r"(token=)[^&\s\"']+")
 
 # ---------------------------------------------------------------------------
 # Demo seed data
@@ -377,7 +379,9 @@ class _VizHandler(BaseHTTPRequestHandler):
     bound_port: int = 5757
 
     def log_message(self, fmt: str, *args: object) -> None:  # type: ignore[override]
-        logger.debug(fmt, *args)
+        # Request lines carry ?token=… — scrub the secret before logging.
+        scrubbed = tuple(_TOKEN_QS_RE.sub(r"\1[redacted]", str(arg)) for arg in args)
+        logger.debug(fmt, *scrubbed)
 
     def _with_conn(self):
         """Yield a usable connection (demo shared, or fresh read-only live)."""

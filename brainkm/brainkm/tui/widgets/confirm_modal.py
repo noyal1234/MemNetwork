@@ -14,48 +14,16 @@ class ConfirmDiscardModal(ModalScreen[bool]):
     """Ask whether to discard unsaved config changes.
 
     Returns ``True`` if the user chooses Discard, ``False`` for Cancel.
+    Styles live in ``styles/app.tcss`` (``ConfirmDiscardModal`` rules) so
+    custom design tokens resolve correctly.
     """
 
-    DEFAULT_CSS = """
-    ConfirmDiscardModal {
-        align: center middle;
-    }
-
-    ConfirmDiscardModal > Vertical {
-        width: 56;
-        height: auto;
-        border: solid $primary-container;
-        background: $surface-alt;
-        padding: 1 2;
-    }
-
-    ConfirmDiscardModal .modal-title {
-        text-style: bold;
-        color: $warning;
-        height: 1;
-        margin-bottom: 1;
-    }
-
-    ConfirmDiscardModal .modal-body {
-        color: $text;
-        height: auto;
-        margin-bottom: 1;
-    }
-
-    ConfirmDiscardModal .modal-buttons {
-        layout: horizontal;
-        height: 3;
-        align: right middle;
-    }
-
-    ConfirmDiscardModal .modal-buttons Button {
-        margin: 0 0 0 1;
-        min-width: 12;
-    }
-    """
+    BINDINGS = [
+        ("escape", "cancel", "Cancel"),
+    ]
 
     def compose(self) -> ComposeResult:
-        with Vertical():
+        with Vertical(id="confirm-discard-box"):
             yield Static(
                 escape_markup("Unsaved changes"),
                 classes="modal-title",
@@ -68,16 +36,15 @@ class ConfirmDiscardModal(ModalScreen[bool]):
                 yield Button(bracket_label("Cancel"), id="btn-cancel")
                 yield Button(
                     bracket_label("Discard"),
-                    id="btn-discard",
+                    id="btn-discard-confirm",
                     classes="-error",
                 )
 
+    def action_cancel(self) -> None:
+        self.dismiss(False)
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-discard":
+        if event.button.id == "btn-discard-confirm":
             self.dismiss(True)
         else:
-            self.dismiss(False)
-
-    def on_key(self, event) -> None:  # type: ignore[no-untyped-def]
-        if event.key == "escape":
             self.dismiss(False)

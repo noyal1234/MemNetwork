@@ -43,6 +43,17 @@ def test_ensure_mcp_http_token_persists(tmp_path: Path) -> None:
     assert ensure_mcp_http_token(tmp_path) == token
 
 
+def test_mcp_http_token_file_is_owner_only(tmp_path: Path) -> None:
+    ensure_mcp_http_token(tmp_path)
+    path = mcp_http_token_path(tmp_path)
+    assert (path.stat().st_mode & 0o777) == 0o600
+
+    # Loading re-restricts tokens created by older versions with loose perms.
+    path.chmod(0o644)
+    assert load_mcp_http_token(tmp_path)
+    assert (path.stat().st_mode & 0o777) == 0o600
+
+
 def test_token_matches_constant_time() -> None:
     assert token_matches("abc", "abc")
     assert not token_matches("abc", "abd")

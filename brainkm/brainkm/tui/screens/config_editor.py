@@ -410,6 +410,10 @@ class ConfigEditorScreen(Screen):
                 if not found:
                     lines.append(f"GROQ_API_KEY={api_key}")
                 env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                try:
+                    env_path.chmod(0o600)
+                except OSError:
+                    pass
                 result["api_key_saved"] = True
             except Exception as exc:
                 return {

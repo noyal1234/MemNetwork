@@ -18,7 +18,7 @@ from brainkm.services.install import (
     write_antigravity_hooks,
     write_claude_settings_hooks,
 )
-from brainkm.services.mcp_http_auth import ensure_mcp_http_token
+from brainkm.services.mcp_http_auth import ensure_mcp_http_token, restrict_secret_file
 from brainkm.services.mcp_transport import (
     BRAINKM_MCP_SERVER_KEY,
     DEFAULT_HTTP_PORT,
@@ -137,12 +137,16 @@ def run_connect(
     )
     mcp_path = mcp_config_path_for_client(root, kind)
     _merge_mcp_file(mcp_path, payload)
+    if http_token:
+        restrict_secret_file(mcp_path)
     result.files_written.append(mcp_path)
 
     if kind == "antigravity" and mirror_global:
         for gpath in antigravity_global_mcp_paths()[:1]:  # shared ~/.gemini/config only
             try:
                 _merge_mcp_file(gpath, payload)
+                if http_token:
+                    restrict_secret_file(gpath)
                 result.files_written.append(gpath)
             except OSError as exc:
                 result.warnings.append(f"mirror-global failed for {gpath}: {exc}")

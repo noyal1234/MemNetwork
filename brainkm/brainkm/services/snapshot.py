@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 
+from brainkm.adapters.redaction import sanitize_for_storage
 from brainkm.logging_config import get_logger
 from brainkm.models.brain_config import BrainConfig
 from brainkm.models.snapshot import InjectionSnapshot, SnapshotNeuron
@@ -59,11 +60,19 @@ def select_injection_neurons(
         for row in rows:
             if row.node_id in seen:
                 continue
-            if row.kind == "memory" and not passes_stored_neuron_gate(
-                title=row.title,
-                content=row.content,
-            ):
-                continue
+            if row.kind == "memory":
+                if not passes_stored_neuron_gate(title=row.title, content=row.content):
+                    continue
+                # Outbound injection gate — re-run redaction block rules so
+                # legacy rows written before a rule existed never reach packs.
+                gate = sanitize_for_storage(
+                    row.title or "",
+                    row.content or "",
+                    source="injection",
+                    mode="capture",
+                )
+                if gate.blocked:
+                    continue
             cost = row.token_count or token_count(f"{row.title}\n{row.content or ''}")
             if used + cost > token_budget and selected:
                 break

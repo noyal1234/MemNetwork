@@ -1,0 +1,124 @@
+{
+  "id": "staleness_v1",
+  "description": "Knowledge-update / contradiction suite: superseded facts must not outrank replacements; packs must not inject stale bodies.",
+  "floors": {
+    "supersede_top1": 0.8,
+    "stale_injection_clean": 0.8
+  },
+  "corpus": [
+    {
+      "id": "stale_auth_old",
+      "title": "Auth: sessions (old)",
+      "content": "We use cookie sessions for auth. Do not switch.",
+      "kind": "memory",
+      "subtype": "decision"
+    },
+    {
+      "id": "stale_auth_new",
+      "title": "Auth: JWT (current)",
+      "content": "We switched to JWT with jose middleware. Sessions are deprecated.",
+      "kind": "memory",
+      "subtype": "decision"
+    },
+    {
+      "id": "stale_budget_old",
+      "title": "Token budget was 4000",
+      "content": "Pack budget is 4000 tokens.",
+      "kind": "memory",
+      "subtype": "fact"
+    },
+    {
+      "id": "stale_budget_new",
+      "title": "Token budget is 1500",
+      "content": "Hard pack budget is 1500 tokens (not 4000).",
+      "kind": "memory",
+      "subtype": "fact"
+    },
+    {
+      "id": "stale_db_old",
+      "title": "Store in Postgres",
+      "content": "Project brain uses Postgres.",
+      "kind": "memory",
+      "subtype": "decision"
+    },
+    {
+      "id": "stale_db_new",
+      "title": "Store in SQLite",
+      "content": "Project brain uses local SQLite WAL — Postgres deferred.",
+      "kind": "memory",
+      "subtype": "decision"
+    },
+    {
+      "id": "stale_observe_old",
+      "title": "auto_observe unlimited",
+      "content": "PostToolUse observations are unlimited per session.",
+      "kind": "memory",
+      "subtype": "fact"
+    },
+    {
+      "id": "stale_observe_new",
+      "title": "auto_observe capped",
+      "content": "Observations are capped per session via observe_max_per_session.",
+      "kind": "memory",
+      "subtype": "fact"
+    },
+    {
+      "id": "stale_filler_1",
+      "title": "Graphify AST import",
+      "content": "Code graph comes from Graphify extract + import.",
+      "kind": "memory",
+      "subtype": "fact"
+    },
+    {
+      "id": "stale_filler_2",
+      "title": "Hooks fill memory",
+      "content": "SessionEnd distill is the primary capture path.",
+      "kind": "memory",
+      "subtype": "rule"
+    }
+  ],
+  "supersedes": [
+    ["stale_auth_new", "stale_auth_old"],
+    ["stale_budget_new", "stale_budget_old"],
+    ["stale_db_new", "stale_db_old"],
+    ["stale_observe_new", "stale_observe_old"]
+  ],
+  "queries": [
+    {
+      "id": "stale_q_auth",
+      "query": "what auth mechanism do we use",
+      "expected_top": "stale_auth_new",
+      "forbidden_top": "stale_auth_old",
+      "stale_body_substrings": ["cookie sessions", "Do not switch"]
+    },
+    {
+      "id": "stale_q_budget",
+      "query": "what is the pack token budget",
+      "expected_top": "stale_budget_new",
+      "forbidden_top": "stale_budget_old",
+      "stale_body_substrings": ["4000 tokens"]
+    },
+    {
+      "id": "stale_q_db",
+      "query": "which database stores the project brain",
+      "expected_top": "stale_db_new",
+      "forbidden_top": "stale_db_old",
+      "stale_body_substrings": ["uses Postgres"]
+    },
+    {
+      "id": "stale_q_observe",
+      "query": "are post tool observations unlimited",
+      "expected_top": "stale_observe_new",
+      "forbidden_top": "stale_observe_old",
+      "stale_body_substrings": ["unlimited per session"]
+    },
+    {
+      "id": "stale_q_auth_pack",
+      "query": "summarize our current auth decision for the agent",
+      "expected_top": "stale_auth_new",
+      "forbidden_top": "stale_auth_old",
+      "measure_pack": true,
+      "stale_body_substrings": ["cookie sessions"]
+    }
+  ]
+}

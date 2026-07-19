@@ -804,3 +804,41 @@ OptionList > .option-list--option-highlighted {
 .config-section:focus-within {
     border: solid $primary;
 }
+
+/* === Confirm discard modal === */
+
+ConfirmDiscardModal {
+    align: center middle;
+}
+
+ConfirmDiscardModal #confirm-discard-box {
+    width: 56;
+    height: auto;
+    border: solid $primary-container;
+    background: $surface-alt;
+    padding: 1 2;
+}
+
+ConfirmDiscardModal .modal-title {
+    text-style: bold;
+    color: $warning;
+    height: 1;
+    margin-bottom: 1;
+}
+
+ConfirmDiscardModal .modal-body {
+    color: $text;
+    height: auto;
+    margin-bottom: 1;
+}
+
+ConfirmDiscardModal .modal-buttons {
+    layout: horizontal;
+    height: 3;
+    align: right middle;
+}
+
+ConfirmDiscardModal .modal-buttons Button {
+    margin: 0 0 0 1;
+    min-width: 12;
+}

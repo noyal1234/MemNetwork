@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -19,6 +20,7 @@ from brainkm.models.brain_config import BrainConfig
 from brainkm.services.config_loader import example_config_path
 from brainkm.services.graph_import import import_project_graph
 from brainkm.services.hooks import pre_tool_matcher
+from brainkm.services.mcp_http_auth import restrict_secret_file
 
 logger = get_logger("services.install")
 
@@ -31,6 +33,9 @@ GITIGNORE_ENTRIES = (
     ".brain/brain.db",
     ".brain/brain.db-wal",
     ".brain/brain.db-shm",
+    ".brain/mcp_http_token",
+    ".brain/exports/",
+    ".env",
     "graphify-out/",
 )
 RULE_OVERLAP_KEYWORDS = (
@@ -96,45 +101,48 @@ def build_hooks_config(
 ) -> dict[str, object]:
     cfg = config or BrainConfig()
     matcher = pre_tool_matcher(cfg.injection.pre_tool_patterns)
+    # Hook commands run through the IDE's shell — quote the binary path so
+    # spaces/metacharacters in install locations cannot alter the command.
+    bin_q = shlex.quote(brainkm_bin)
     return {
         "version": 1,
         "hooks": {
             "sessionStart": [
                 {
-                    "command": f"{brainkm_bin} session-start --stdin",
+                    "command": f"{bin_q} session-start --stdin",
                     "timeout": 30,
                 }
             ],
             "sessionEnd": [
                 {
-                    "command": f"{brainkm_bin} session-end --stdin",
+                    "command": f"{bin_q} session-end --stdin",
                     "timeout": 120,
                 }
             ],
             "preCompact": [
                 {
                     "matcher": "auto",
-                    "command": f"{brainkm_bin} handover --stdin",
+                    "command": f"{bin_q} handover --stdin",
                     "timeout": 30,
                 }
             ],
             "preToolUse": [
                 {
                     "matcher": matcher,
-                    "command": f"{brainkm_bin} pre-tool --stdin",
+                    "command": f"{bin_q} pre-tool --stdin",
                     "timeout": 15,
                 }
             ],
             "postToolUse": [
                 {
                     "matcher": "Write|Edit|Shell",
-                    "command": f"{brainkm_bin} post-tool --stdin",
+                    "command": f"{bin_q} post-tool --stdin",
                     "timeout": 5,
                 }
             ],
             "userPromptSubmit": [
                 {
-                    "command": f"{brainkm_bin} user-prompt --stdin",
+                    "command": f"{bin_q} user-prompt --stdin",
                     "timeout": 5,
                 }
             ],
@@ -144,7 +152,7 @@ def build_hooks_config(
 
 def _claude_hook_command(brainkm_bin: str, *args: str, timeout: int | None = None) -> dict[str, object]:
     """One Claude Code command-hook entry (nested under matcher groups)."""
-    cmd = f"{brainkm_bin} {' '.join(args)} --client claude"
+    cmd = f"{shlex.quote(brainkm_bin)} {' '.join(args)} --client claude"
     entry: dict[str, object] = {"type": "command", "command": cmd}
     if timeout is not None:
         entry["timeout"] = timeout
@@ -286,7 +294,7 @@ def write_claude_settings_hooks(
 
 
 def _agy_hook_command(brainkm_bin: str, *args: str, timeout: int | None = None) -> dict[str, object]:
-    cmd = f"{brainkm_bin} {' '.join(args)} --client antigravity"
+    cmd = f"{shlex.quote(brainkm_bin)} {' '.join(args)} --client antigravity"
     entry: dict[str, object] = {"type": "command", "command": cmd}
     if timeout is not None:
         entry["timeout"] = timeout
@@ -747,6 +755,8 @@ def run_install(
         else:
             _write_json(mcp_path, mcp_payload)
             result.files_written.append(mcp_path)
+        if http_token:
+            restrict_secret_file(mcp_path)
 
         hooks_path = cursor_dir / "hooks.json"
         if hooks_path.is_file():
@@ -796,6 +806,8 @@ def run_install(
         else:
             _write_json(mcp_path, mcp_payload)
         result.files_written.append(mcp_path)
+        if http_token:
+            restrict_secret_file(mcp_path)
 
         hooks_path = agents_dir / "hooks.json"
         write_antigravity_hooks(hooks_path, brainkm_bin, config=cfg)
@@ -853,6 +865,8 @@ def run_install(
         else:
             _write_json(mcp_path, mcp_payload)
         result.files_written.append(mcp_path)
+        if http_token:
+            restrict_secret_file(mcp_path)
 
         claude_dir = root / ".claude"
         claude_dir.mkdir(parents=True, exist_ok=True)

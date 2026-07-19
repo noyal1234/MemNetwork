@@ -116,6 +116,15 @@ SUITE_RUNNERS = {
     "longmemeval": lambda _db: __import__(
         "brainkm.services.longmemeval_bench", fromlist=["run_longmemeval_suite"]
     ).run_longmemeval_suite(_db),
+    "staleness": lambda _db: __import__(
+        "brainkm.services.staleness_bench", fromlist=["run_staleness_suite"]
+    ).run_staleness_suite(_db),
+    "scale": lambda _db: __import__(
+        "brainkm.services.scale_bench", fromlist=["run_scale_suite"]
+    ).run_scale_suite(_db, fast=True),
+    "cost": lambda _db: __import__(
+        "brainkm.services.cost_bench", fromlist=["run_cost_suite"]
+    ).run_cost_suite(_db),
 }
 
 
@@ -229,6 +238,33 @@ def format_suite_result(result: BenchSuiteResult) -> str:
             status = "PASS" if case.passed else "FAIL"
             lines.append(f"  [{status}] {case.name}: {case.detail}")
         lines.append(format_longmemeval_summary(result))
+        return "\n".join(lines)
+    if result.suite == "staleness":
+        from brainkm.services.staleness_bench import format_staleness_summary
+
+        lines = [f"Suite {result.suite}: {result.passed}/{result.total} ({result.pass_rate:.0%})"]
+        for case in result.cases:
+            status = "PASS" if case.passed else "FAIL"
+            lines.append(f"  [{status}] {case.name}: {case.detail}")
+        lines.append(format_staleness_summary(result))
+        return "\n".join(lines)
+    if result.suite == "scale":
+        from brainkm.services.scale_bench import format_scale_summary
+
+        lines = [f"Suite {result.suite}: {result.passed}/{result.total} ({result.pass_rate:.0%})"]
+        for case in result.cases:
+            status = "PASS" if case.passed else "FAIL"
+            lines.append(f"  [{status}] {case.name}: {case.detail}")
+        lines.append(format_scale_summary(result))
+        return "\n".join(lines)
+    if result.suite == "cost":
+        from brainkm.services.cost_bench import format_cost_summary
+
+        lines = [f"Suite {result.suite}: {result.passed}/{result.total} ({result.pass_rate:.0%})"]
+        for case in result.cases:
+            status = "PASS" if case.passed else "FAIL"
+            lines.append(f"  [{status}] {case.name}: {case.detail}")
+        lines.append(format_cost_summary(result))
         return "\n".join(lines)
     lines = [f"Suite {result.suite}: {result.passed}/{result.total} ({result.pass_rate:.0%})"]
     for case in result.cases:

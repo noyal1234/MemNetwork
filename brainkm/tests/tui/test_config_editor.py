@@ -213,8 +213,8 @@ async def test_dirty_navigation_shows_confirm_modal(tui_project: Path) -> None:
 
         app.switch_screen("dashboard")
         await pilot.pause(0.3)
-        # Discard via button
-        await pilot.click("#btn-discard")
+        # Discard via modal confirm button
+        await pilot.click("#btn-discard-confirm")
         await pilot.pause(0.5)
         assert isinstance(app.screen, DashboardScreen)
 

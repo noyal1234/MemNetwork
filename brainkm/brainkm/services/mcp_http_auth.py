@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hmac
 import ipaddress
+import os
 import secrets
 from pathlib import Path
 
@@ -50,10 +51,20 @@ def assert_bind_allowed(host: str, *, allow_remote: bool) -> None:
     )
 
 
+def restrict_secret_file(path: Path) -> None:
+    """Best-effort owner-only permissions on a file holding a secret."""
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
+
+
 def load_mcp_http_token(project_dir: Path | None = None) -> str | None:
     path = mcp_http_token_path(project_dir)
     if not path.is_file():
         return None
+    # Re-assert owner-only perms on tokens created by older versions.
+    restrict_secret_file(path)
     token = path.read_text(encoding="utf-8").strip()
     return token or None
 
@@ -66,11 +77,11 @@ def ensure_mcp_http_token(project_dir: Path | None = None) -> str:
     path = mcp_http_token_path(project_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     token = secrets.token_urlsafe(32)
-    path.write_text(token + "\n", encoding="utf-8")
-    try:
-        path.chmod(0o600)
-    except OSError:
-        pass
+    # O_CREAT with 0600 avoids the umask window a write-then-chmod would leave.
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(token + "\n")
+    restrict_secret_file(path)
     logger.info(
         "Generated MCP HTTP bearer token at %s — reconnect clients "
         "(brainkm connect <client> --http)",

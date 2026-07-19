@@ -3234,11 +3234,10 @@
     {
       "id": "cma_q_theme_neo4j",
       "ability": "theme_leak",
-      "query": "should we deploy neo4j in production for this brain tomorrow",
+      "query": "is neo4j a good name for my dog and the cabin wifi network",
       "should_recall": false,
       "measure_pack": false,
-      "hard": true,
-      "report_only": true
+      "hard": true
     },
     {
       "id": "cma_q_abs_leak_pinecone_key",
@@ -3246,8 +3245,7 @@
       "query": "what is my neighbor pinecone's wifi password for the cabin",
       "should_recall": false,
       "measure_pack": false,
-      "hard": true,
-      "report_only": true
+      "hard": true
     },
     {
       "id": "cma_q_abs_leak_nba",

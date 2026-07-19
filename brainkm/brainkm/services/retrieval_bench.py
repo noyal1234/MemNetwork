@@ -19,6 +19,7 @@ from brainkm.services.ir_metrics import (
     binary_relevance_grades,
     mrr,
     ndcg_at_k,
+    precision_at_k,
     recall_at_k,
 )
 from brainkm.services.recall import recall_live
@@ -124,6 +125,8 @@ def run_retrieval_suite(_db_path: Path) -> BenchSuiteResult:
         recall_abs = RecallConfig(abstain_on_low_confidence=True)
         ranking_r1: list[float] = []
         ranking_r5: list[float] = []
+        ranking_p1: list[float] = []
+        ranking_p5: list[float] = []
         ranking_mrr: list[float] = []
         ranking_ndcg: list[float] = []
         abstain_correct = 0
@@ -171,6 +174,8 @@ def run_retrieval_suite(_db_path: Path) -> BenchSuiteResult:
             grades = item.relevance or binary_relevance_grades(item.relevant_ids)
             ranking_r1.append(recall_at_k(ranked, item.relevant_ids, k=1))
             ranking_r5.append(recall_at_k(ranked, item.relevant_ids, k=5))
+            ranking_p1.append(precision_at_k(ranked, item.relevant_ids, k=1))
+            ranking_p5.append(precision_at_k(ranked, item.relevant_ids, k=5))
             ranking_mrr.append(mrr(ranked, item.relevant_ids))
             ranking_ndcg.append(ndcg_at_k(ranked, grades, k=5))
     finally:
@@ -182,6 +187,8 @@ def run_retrieval_suite(_db_path: Path) -> BenchSuiteResult:
 
     mean_r1 = _mean(ranking_r1)
     mean_r5 = _mean(ranking_r5)
+    mean_p1 = _mean(ranking_p1)
+    mean_p5 = _mean(ranking_p5)
     mean_mrr = _mean(ranking_mrr)
     mean_ndcg = _mean(ranking_ndcg)
     abstain_acc = (abstain_correct / abstain_total) if abstain_total else 1.0
@@ -200,6 +207,16 @@ def run_retrieval_suite(_db_path: Path) -> BenchSuiteResult:
             name="recall_at_5",
             passed=mean_r5 >= floors.get("recall_at_5", 0.55),
             detail=f"{mean_r5:.3f} (floor>={floors.get('recall_at_5', 0.55):.2f}, n={len(ranking_r5)})",
+        ),
+        BenchCaseResult(
+            name="precision_at_1",
+            passed=mean_p1 >= floors.get("precision_at_1", 0.35),
+            detail=f"{mean_p1:.3f} (floor>={floors.get('precision_at_1', 0.35):.2f})",
+        ),
+        BenchCaseResult(
+            name="precision_at_5",
+            passed=mean_p5 >= floors.get("precision_at_5", 0.25),
+            detail=f"{mean_p5:.3f} (floor>={floors.get('precision_at_5', 0.25):.2f})",
         ),
         BenchCaseResult(
             name="mrr",

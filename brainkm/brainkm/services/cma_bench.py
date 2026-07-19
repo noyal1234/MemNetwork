@@ -182,18 +182,24 @@ def run_cma_suite(
                 recall_ms.append((time.perf_counter() - t0) * 1000.0)
                 recalled = not result.abstained and bool(result.nodes)
                 clean = result.abstained or not recalled
-                if ability == "theme_leak" or query.get("report_only"):
-                    # Measurement only: theme-adjacent leak rate (do not fail suite).
+                if query.get("report_only"):
+                    # Explicit opt-out: report but do not fail the suite.
                     passed = True
                     metric_ok = clean
                     detail = (
                         f"leaked={int(recalled)} abstained={result.abstained} "
-                        f"hits={len(result.nodes)}"
+                        f"hits={len(result.nodes)} report_only=1"
                     )
                 else:
+                    # theme_leak gates like abstention (must stay clean).
                     passed = clean
                     metric_ok = clean
-                    detail = f"abstained={result.abstained} hits={len(result.nodes)}"
+                    detail = (
+                        f"leaked={int(recalled)} abstained={result.abstained} "
+                        f"hits={len(result.nodes)}"
+                        if ability == "theme_leak"
+                        else f"abstained={result.abstained} hits={len(result.nodes)}"
+                    )
 
             elif mode == "traverse":
                 t0 = time.perf_counter()
@@ -423,8 +429,7 @@ def run_cma_suite(
                 if ability in {"multi_session", "theme_leak"}
                 else floor_micro
             )
-            # theme_leak is reported; do not fail suite on ability rollup
-            ab_passed = True if ability == "theme_leak" else rate >= ab_floor
+            ab_passed = rate >= ab_floor
             cases.append(
                 BenchCaseResult(
                     name=f"ability/{ability}",

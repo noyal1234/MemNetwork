@@ -8,7 +8,9 @@ brainkm bench run eval --project-dir .
 # or: bash brainkm/scripts/run_eval.sh
 ```
 
-**Public comparison claim (architecture-aware):** use **Common Memory Axes (CMA)**, not LongMemEval-S as the headline:
+**Public shared-metric footnote (vs agentmemory):** LongMemEval-S retrieval `recall_any@K`
+on the same cleaned corpus. **Diagnostic suite (coding shape):** Common Memory Axes (CMA).
+Head-to-head notes: [benchmarks/COMPARISON.md](benchmarks/COMPARISON.md).
 
 ```bash
 bash brainkm/scripts/run_cma.sh
@@ -24,7 +26,10 @@ brainkm bench run latency --profile both
 brainkm bench run compare   # token proxy only (generous baseline)
 brainkm bench run cma       # Common Memory Axes (abilities + tokens + latency)
 brainkm bench run scorecard # decision vs structure differentiator
-brainkm bench run longmemeval  # optional LongMemEval-S retrieval footnote
+brainkm bench run longmemeval  # LongMemEval-S retrieval footnote (+ --semantic --adapters)
+brainkm bench run staleness # supersede / stale-injection
+brainkm bench run scale     # R@5 + latency at growing corpus sizes
+brainkm bench run cost      # injected tokens/session + $/yr model
 ```
 
 Optional LLM judge (Ollama): `brainkm bench run task --judge`
@@ -48,40 +53,46 @@ CMA reuses LongMemEval’s *ability language* on a coding-agent fixture so numbe
 
 **Baselines (same gold):** BM25/FTS-only and naive title/content token scan.
 
-Latest published artifact: [docs/benchmarks/2026-07-18-cma-v3.md](benchmarks/2026-07-18-cma-v3.md) (brainkm **0.4.1**, CMA **v3**, semantic off):
+Latest published artifact: [docs/benchmarks/2026-07-19-cma-v3.md](benchmarks/2026-07-19-cma-v3.md) (brainkm **0.5.0**, CMA **v3**, semantic off):
 
 | Metric | Result |
 |--------|--------|
-| Ability micro-avg | **96.7%** (hard subset **93.8%**) |
+| Ability micro-avg | **100%** (hard subset **100%**, n=32) |
 | Mean pack tokens | **~322** / 1500 |
-| Recall / pack p95 | **~8 / 14 ms** |
+| Recall / pack p95 | **~13 / 18 ms** |
 | Baselines (full) | brain **1.00** vs BM25 **0.88** / title-scan **0.83** |
 | Hard-slice lift | brain **1.00** vs BM25 **0.55** (**+0.45**, n=11 paraphrase/bridge) |
 | Decision+structure scorecard | **8/8** |
-| Theme-leak (report-only) | 0/2 clean — known gap |
+| Theme-leak (gated) | **2/2** (off-domain abstain) |
 
-Prior: [cma-v2](benchmarks/2026-07-18-cma-v2.md), [cma-v1](benchmarks/2026-07-18-cma.md).
+Prior: [2026-07-18 cma-v3](benchmarks/2026-07-18-cma-v3.md), [cma-v2](benchmarks/2026-07-18-cma-v2.md), [cma-v1](benchmarks/2026-07-18-cma.md).
 
-### LongMemEval-S retrieval footnote (measured)
+### LongMemEval-S retrieval footnote (shared metric vs agentmemory)
 
-**Full 500** — [docs/benchmarks/2026-07-18-longmemeval-s-full.md](benchmarks/2026-07-18-longmemeval-s-full.md) (FTS default):
+**Full 500** — [docs/benchmarks/2026-07-19-longmemeval-s-full.md](benchmarks/2026-07-19-longmemeval-s-full.md) (FTS **chunked**):
 
-| Metric | brainkm (FTS) | agentmemory (published) |
-|--------|---------------|-------------------------|
-| **R@5** | **0.934** | **0.952** (BM25+MiniLM) |
-| **R@10** | **0.962** | 0.986 |
-| **MRR** | **0.861** | 0.882 |
+| Metric | brainkm (FTS chunked) | agentmemory (published) |
+|--------|----------------------|-------------------------|
+| **R@5** | **0.908** | **0.952** (BM25+MiniLM) |
+| **R@10** | **0.926** | 0.986 |
+| **P@5** | **0.402** | — |
+| **MRR** | **0.834** | 0.882 |
 
-**Stratified 60** FTS vs MiniLM hybrid — [docs/benchmarks/2026-07-18-longmemeval-s-semantic.md](benchmarks/2026-07-18-longmemeval-s-semantic.md):
+Prior blob-FTS full-500 (pre-chunk, 2026-07-18): R@5 **0.934** — see that artifact for history.
+Chunking recovered MiniLM hybrid on stratified samples but trades some FTS R@5 on full-500
+(mainly preference / assistant single-session). See [COMPARISON.md](benchmarks/COMPARISON.md).
 
-| Mode | R@5 | R@10 | MRR |
-|------|-----|------|-----|
-| FTS | **0.917** | **0.950** | **0.847** |
-| `--semantic` (MiniLM RRF) | 0.367 | 0.500 | 0.250 |
+Also: [stratified chunked + adapters](benchmarks/2026-07-19-longmemeval-chunked.md),
+[2026-07-18 full blob FTS](benchmarks/2026-07-18-longmemeval-s-full.md).
 
-On this protocol (long truncated session blobs), FTS remains the published footnote; MiniLM hybrid is not a free win. Primary public claim stays **CMA v3**.
+### Market-standard + unique suites
 
-Also: [stratified FTS-only](benchmarks/2026-07-18-longmemeval-s.md).
+| Suite | What |
+|-------|------|
+| `retrieval` | Recall@k + **Precision@k** + MRR/nDCG + abstain + theme-leak |
+| `staleness` | Superseded fact must not outrank / leak into packs |
+| `scale` | R@5 + p95 latency at 1k / 10k (/ 50k) synthetic neurons |
+| `cost` | Injected tokens/session + distill tokens + $/yr model |
 
 ### What we refuse to claim
 
@@ -96,9 +107,9 @@ For an apples-to-apples *retrieval* footnote against agentmemory’s protocol:
 ```bash
 # Download cleaned JSON (~264MB), then:
 export LONGMEMEVAL_PATH=~/.cache/brainkm/longmemeval_s_cleaned.json
-brainkm bench run longmemeval --stratify 10          # fast sample (FTS)
-brainkm bench run longmemeval --stratify 10 --semantic  # MiniLM hybrid side-by-side
-brainkm bench run longmemeval --stratify 0           # full 500 (slow; FTS published)
+brainkm bench run longmemeval --stratify 10 --seed 42
+brainkm bench run longmemeval --stratify 10 --semantic --adapters
+brainkm bench run longmemeval --stratify 0                 # full 500 (slow)
 ```
 
 Without a dataset the suite **skips cleanly** (PASS with instructions). Requires `pip install -e "./brainkm[semantic]"` for `--semantic`.

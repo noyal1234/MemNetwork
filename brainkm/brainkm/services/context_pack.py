@@ -557,14 +557,15 @@ def compile_context_pack(
         if not passes_stored_neuron_gate(title=row["title"] or "", content=row["content"]):
             continue
         # Outbound injection gate — same redaction rules as capture.
-        try:
-            sanitize_for_storage(
-                row["title"] or "",
-                row["content"] or "",
-                source="injection",
-                mode="capture",
-            )
-        except Exception:  # noqa: BLE001
+        # sanitize_for_storage reports via .blocked (it does not raise), so the
+        # result must be checked explicitly or blocked content leaks into packs.
+        gate = sanitize_for_storage(
+            row["title"] or "",
+            row["content"] or "",
+            source="injection",
+            mode="capture",
+        )
+        if gate.blocked:
             continue
         line = _to_budget_line(row)
         content = line.content

@@ -76,6 +76,37 @@ def test_frozen_snapshot_advertises_graph_when_imported(brain_db) -> None:
         conn.close()
 
 
+def test_select_injection_neurons_blocks_redaction_flagged(brain_db) -> None:
+    """SessionStart pack must skip stored rows that trip redaction block rules."""
+    from tests.conftest import insert_node
+
+    conn = connect(brain_db)
+    try:
+        insert_node(
+            conn,
+            node_id="rule-clean",
+            subtype="rule",
+            title="Token budget rule",
+            content="Keep agent-facing packs under 1500 tokens.",
+        )
+        # Direct INSERT bypasses remember_neuron write-time redaction.
+        insert_node(
+            conn,
+            node_id="rule-leak",
+            subtype="rule",
+            title="Deploy credentials",
+            content="Deploy using key sk-live-abcdefghijklmnopqrstuvwxyz123456",
+        )
+        conn.commit()
+
+        rows = select_injection_neurons(conn, BrainConfig())
+        selected_ids = {row.node_id for row in rows}
+        assert "rule-clean" in selected_ids
+        assert "rule-leak" not in selected_ids
+    finally:
+        conn.close()
+
+
 def test_frozen_snapshot_excludes_mid_session_remember(brain_db) -> None:
     conn = connect(brain_db)
     try:

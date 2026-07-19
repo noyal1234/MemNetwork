@@ -48,6 +48,15 @@ _LOCATE = re.compile(
     r"\b(where is|find|locate|defined|definition|symbol)\b",
     re.I,
 )
+# Personal / off-domain prompts that share keywords with project neurons (theme leak).
+_OFF_DOMAIN = re.compile(
+    r"\b("
+    r"wifi|password|passphrase|cabin|neighbor|nba\s+finals|weather|rain\s+in|"
+    r"grocery|recipe|birthday|dog'?s?\s+name|name\s+for\s+my\s+dog|"
+    r"cafe\s+wifi|lodge\s+wifi"
+    r")\b",
+    re.I,
+)
 
 _ROUTING: dict[QueryIntent, IntentRouting] = {
     QueryIntent.LOCATE: IntentRouting(
@@ -127,3 +136,12 @@ def classify_intent(query: str) -> QueryIntent:
 
 def route_query(query: str) -> IntentRouting:
     return _ROUTING[classify_intent(query)]
+
+
+def is_off_domain_query(query: str) -> bool:
+    """True when the query looks personal / non-coding despite keyword overlap.
+
+    Used to abstain on theme-leak prompts (e.g. wifi password mentioning a
+    vendor name that also appears in project decisions).
+    """
+    return bool(_OFF_DOMAIN.search(query or ""))

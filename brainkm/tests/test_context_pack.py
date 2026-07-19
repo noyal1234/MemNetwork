@@ -72,6 +72,41 @@ def test_compile_context_pack_includes_neuron(brain_db) -> None:
         conn.close()
 
 
+def test_compile_context_pack_blocks_redaction_flagged_neuron(brain_db) -> None:
+    """Outbound gate: legacy rows with secrets never reach agent-facing packs."""
+    conn = connect(brain_db)
+    try:
+        insert_node(
+            conn,
+            node_id="jwt-clean",
+            subtype="decision",
+            title="JWT expiry policy",
+            content="Use 15 minute access tokens",
+        )
+        # Direct INSERT bypasses remember_neuron — simulates a row stored
+        # before the matching redaction rule existed.
+        insert_node(
+            conn,
+            node_id="jwt-leak",
+            subtype="decision",
+            title="JWT expiry signing key",
+            content="Sign JWT expiry tokens with sk-live-abcdefghijklmnopqrstuvwxyz123456",
+        )
+        conn.commit()
+
+        pack = compile_context_pack(
+            conn,
+            "JWT expiry",
+            config=BrainConfig(recall={"abstain_on_low_confidence": False}),
+            include_structured=True,
+        )
+        assert any(n.node_id == "jwt-clean" for n in pack.neurons)
+        assert all(n.node_id != "jwt-leak" for n in pack.neurons)
+        assert "sk-live-" not in pack.pack_text
+    finally:
+        conn.close()
+
+
 def test_compile_context_pack_seeds_symbol_neighborhood(brain_db) -> None:
     conn = connect(brain_db)
     try:
