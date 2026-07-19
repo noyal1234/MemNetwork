@@ -38,7 +38,8 @@ def test_classify_query_type_code() -> None:
 
 
 def test_dynamic_budget_allocates_more_graph_for_code() -> None:
-    cfg = BrainConfig()
+    # Compare dynamic_reallocation paths (pack_quotas only apply to "general").
+    cfg = BrainConfig(budget={"pack_quotas": {"enabled": False}})
     code_slots = context_pack_slots(cfg, "edit src/foo.py")
     general_slots = context_pack_slots(cfg, "project overview")
     assert code_slots["graph"] >= general_slots["graph"]

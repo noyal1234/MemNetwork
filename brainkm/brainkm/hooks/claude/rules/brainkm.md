@@ -29,9 +29,9 @@ reading source because a pack abstained or looked incomplete — prefer fewer in
 trusting noise.
 
 If `traverse` / `context_pack` results look empty or wrong, check **`brain_stats`** first —
-a stale or missing code graph is the usual cause; refresh with **`graph_sync`** (or
-`brainkm graph sync`) instead of distrusting the whole brain. Empty `traverse` responses
-include a `hint` and `resolved_id` when the graph matched but had no neighbors.
+a stale or missing code graph is the usual cause; reads auto-queue a refresh, or run
+`brainkm graph sync`. Empty `traverse` responses include a `hint`, `resolved_id`, and
+`impact_summary` when the graph matched but had no neighbors.
 
 ## What lives in the brain
 

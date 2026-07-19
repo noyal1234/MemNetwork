@@ -20,6 +20,7 @@ from brainkm.models.schemas import (
     GraphSyncRequest,
     GraphSyncResponse,
     NeuronResult,
+    ProvenanceSource,
     RecallRequest,
     RecallResponse,
     RememberRequest,
@@ -30,8 +31,11 @@ from brainkm.models.schemas import (
     TraverseResponse,
 )
 from brainkm.services.brain_stats import collect_brain_stats
+from brainkm.services.confidence import score_confidence
 from brainkm.services.config_loader import load_brain_config
 from brainkm.services.context_pack import compile_context_pack
+from brainkm.services.decision_trail import build_decision_trail, should_include_history
+from brainkm.services.impact import linked_memories_for_code_nodes
 from brainkm.services.learning import persist_neuron_hits
 from brainkm.services.mcp_results import (
     budget_session_chunk_excerpts,
@@ -39,7 +43,7 @@ from brainkm.services.mcp_results import (
     ranked_to_neuron,
     trim_neurons_to_budget,
 )
-from brainkm.services.memory import forget_neuron, remember_neuron, token_count
+from brainkm.services.memory import forget_neuron, remember_neuron, supersede_neuron, token_count
 from brainkm.services.neuron_index import index_neuron_links
 from brainkm.services.provenance import compact_sources_for_node
 from brainkm.services.recall import recall_live
@@ -53,7 +57,6 @@ from brainkm.services.session_activity import (
     record_mcp_tool_use,
 )
 from brainkm.services.session_status import get_session_status, set_session_status
-from brainkm.models.schemas import ProvenanceSource
 
 
 @dataclass(frozen=True)
@@ -70,6 +73,40 @@ def _maintenance(conn: sqlite3.Connection) -> None:
     prune_old_tool_use(conn)
 
 
+def _maybe_queue_graph_sync(
+    project_dir: Path,
+    config: BrainConfig,
+    *,
+    existing_hint: str | None = None,
+) -> str | None:
+    """If the code graph is stale, queue a background sync and annotate the hint."""
+    if not config.graphify.enabled or not config.graphify.auto_sync.enabled:
+        return existing_hint
+    try:
+        from brainkm.services.graphify_sync import (
+            _graph_json_path,
+            graph_json_newer_than_import,
+            request_graph_sync,
+        )
+    except Exception:  # noqa: BLE001
+        return existing_hint
+
+    graph_path = _graph_json_path(project_dir, config)
+    if not graph_path.is_file():
+        return existing_hint
+    try:
+        stale = graph_json_newer_than_import(project_dir, config)
+    except Exception:  # noqa: BLE001
+        return existing_hint
+    if not stale:
+        return existing_hint
+    request_graph_sync(project_dir)
+    refresh = "graph refresh queued"
+    if existing_hint:
+        return f"{existing_hint} ({refresh})"
+    return refresh
+
+
 def handle_remember(
     conn: sqlite3.Connection,
     request: RememberRequest,
@@ -77,6 +114,25 @@ def handle_remember(
     config: BrainConfig | None = None,
 ) -> RememberResponse:
     cfg = config or BrainConfig()
+
+    if request.action == "archive":
+        assert request.target_node_id is not None
+        archived = forget_neuron(
+            conn,
+            request.target_node_id,
+            reason=request.reason or "remember action=archive",
+        )
+        record_mcp_tool_use(conn, request.session_id, "remember", result_count=1)
+        _maintenance(conn)
+        conn.commit()
+        return RememberResponse(
+            node_id=archived.id,
+            title=archived.title,
+            archived_node_id=archived.id,
+            action="archive",
+        )
+
+    assert request.title is not None and request.body is not None
     record = remember_neuron(
         conn,
         title=request.title,
@@ -106,6 +162,35 @@ def handle_remember(
     )
     candidates = [s.node_id for s in suggestions]
     conflicts = [s.node_id for s in suggestions if s.conflict]
+
+    superseded_node_id: str | None = None
+    if request.action == "correct":
+        assert request.target_node_id is not None
+        supersede_neuron(
+            conn,
+            request.target_node_id,
+            replacement=record,
+            reasoning=request.reason,
+        )
+        superseded_node_id = request.target_node_id
+    elif (
+        cfg.capture.auto_supersede_conflicts
+        and conflicts
+        and suggestions
+        and suggestions[0].conflict
+        and suggestions[0].similarity >= 0.9
+    ):
+        try:
+            supersede_neuron(
+                conn,
+                suggestions[0].node_id,
+                replacement=record,
+                reasoning="auto_supersede_conflicts",
+            )
+            superseded_node_id = suggestions[0].node_id
+        except ValueError:
+            superseded_node_id = None
+
     record_mcp_tool_use(conn, request.session_id, "remember", result_count=1)
     _maintenance(conn)
     conn.commit()
@@ -115,6 +200,8 @@ def handle_remember(
         linked_code_nodes=linked,
         supersede_candidates=candidates,
         conflict_suggestions=conflicts,
+        superseded_node_id=superseded_node_id,
+        action=request.action,
     )
 
 
@@ -140,7 +227,13 @@ def handle_recall(
         )
         _maintenance(conn)
         conn.commit()
-        return RecallResponse(query=request.query, nodes=[], abstained=True, source="rate_limited")
+        return RecallResponse(
+            query=request.query,
+            nodes=[],
+            abstained=True,
+            source="rate_limited",
+            confidence="low",
+        )
 
     result = recall_live(
         conn,
@@ -172,6 +265,29 @@ def handle_recall(
             compact = compact_sources_for_node(conn, node.node_id, max_links=3)
             if compact:
                 sources[node.node_id] = [ProvenanceSource(**item) for item in compact]
+
+    decision_trail = []
+    if should_include_history(
+        include_history=request.include_history,
+        intent=result.intent,
+        query=request.query,
+    ):
+        decision_ids = [
+            n.node_id
+            for n in nodes
+            if n.kind == "memory" and (n.subtype or "") in {"decision", "rule", "fact"}
+        ][:3]
+        decision_trail = build_decision_trail(conn, decision_ids)
+
+    top_score = None
+    if result.nodes:
+        top_score = result.nodes[0].score
+    confidence = score_confidence(
+        abstained=result.abstained,
+        top_score=top_score,
+        result_count=len(nodes),
+        min_bm25_strength=config.recall.min_bm25_strength,
+    )
 
     hit_ids = [node.node_id for node in nodes]
     persist_neuron_hits(
@@ -208,6 +324,8 @@ def handle_recall(
         session_chunks=chunks,
         intent=result.intent,
         sources=sources,
+        confidence=confidence,
+        decision_trail=decision_trail,
     )
 
 
@@ -229,6 +347,24 @@ def handle_context_pack(
         extra_seed_ids=list(load_file_seeds(conn, request.session_id)),
         include_sources=request.include_sources,
     )
+    hint = _maybe_queue_graph_sync(
+        project_dir,
+        config,
+        existing_hint=result.graph_hint,
+    )
+    if hint != result.graph_hint:
+        result = result.model_copy(update={"graph_hint": hint})
+
+    # Confidence from pack density (neurons kept vs abstain-like emptiness).
+    kept = len(result.truncation.included_ids)
+    confidence = score_confidence(
+        abstained=kept == 0,
+        top_score=12.0 if kept >= 4 else (6.0 if kept >= 1 else None),
+        result_count=kept,
+        min_bm25_strength=config.recall.min_bm25_strength,
+    )
+    result = result.model_copy(update={"confidence": confidence})
+
     hit_ids = filter_active_memory_ids(conn, list(result.truncation.included_ids))
     persist_neuron_hits(
         conn,
@@ -252,6 +388,7 @@ def handle_session_status(
     conn: sqlite3.Connection,
     request: SessionStatusRequest,
 ) -> SessionStatusResponse:
+    """Hook/CLI helper — not exposed as an MCP tool."""
     if request.title is not None and request.body is not None:
         record = set_session_status(
             conn,
@@ -293,6 +430,7 @@ def handle_traverse(
     request: TraverseRequest,
     *,
     config: BrainConfig,
+    project_dir: Path | None = None,
 ) -> TraverseResponse:
     result = traverse(
         conn,
@@ -309,6 +447,27 @@ def handle_traverse(
         if neuron is not None:
             nodes.append(neuron)
     nodes = trim_neurons_to_budget(nodes, budget=config.budget.total_tokens)
+
+    linked = linked_memories_for_code_nodes(
+        conn,
+        [n.node_id for n in nodes if n.kind == "code"],
+    )
+    # Keep linked memories inside remaining budget.
+    linked = trim_neurons_to_budget(
+        linked,
+        budget=max(100, config.budget.total_tokens // 4),
+    )
+
+    hint = result.hint
+    if project_dir is not None:
+        hint = _maybe_queue_graph_sync(project_dir, config, existing_hint=hint)
+
+    from brainkm.models.schemas import ImpactSummary
+
+    impact = result.impact_summary
+    if impact is not None and not isinstance(impact, ImpactSummary):
+        impact = ImpactSummary.model_validate(impact)
+
     record_mcp_tool_use(conn, None, "traverse", result_count=len(nodes))
     _maintenance(conn)
     conn.commit()
@@ -317,11 +476,14 @@ def handle_traverse(
         resolved_id=result.resolved_id,
         nodes=nodes,
         hops_explored=result.hops_explored,
-        hint=result.hint,
+        hint=hint,
+        impact_summary=impact,  # type: ignore[arg-type]
+        linked_neurons=linked,
     )
 
 
 def handle_forget(conn: sqlite3.Connection, request: ForgetRequest) -> ForgetResponse:
+    """Service helper — MCP agents should use remember action=archive."""
     archived = forget_neuron(conn, request.node_id, reason=request.reason)
     record_mcp_tool_use(conn, None, "forget", result_count=1 if archived.valid_until else 0)
     _maintenance(conn)
@@ -359,8 +521,7 @@ def handle_graph_sync(
 ) -> GraphSyncResponse:
     """Queue a sync request, or run extract+import synchronously when force=True.
 
-    MCP ``dispatch_tool`` uses a split path for force (extract off-queue, import
-    on WriteQueue); this helper remains for CLI/tests.
+    Kept for CLI/tests — not exposed as an MCP tool (auto-queued on stale reads).
     """
     from brainkm.services.graphify_sync import request_graph_sync, sync_graph
 
@@ -445,19 +606,15 @@ async def dispatch_tool(name: str, arguments: dict[str, Any], runtime: BrainRunt
         )
         return result.model_dump()
 
-    if name == "session_status":
-        request = SessionStatusRequest.model_validate(arguments)
-        result = await _run_write(runtime, handle_session_status, request)
-        return result.model_dump()
-
     if name == "traverse":
         request = TraverseRequest.model_validate(arguments)
-        result = await _run_write(runtime, handle_traverse, request, config=config)
-        return result.model_dump()
-
-    if name == "forget":
-        request = ForgetRequest.model_validate(arguments)
-        result = await _run_write(runtime, handle_forget, request)
+        result = await _run_write(
+            runtime,
+            handle_traverse,
+            request,
+            config=config,
+            project_dir=runtime.project_dir,
+        )
         return result.model_dump()
 
     if name == "brain_stats":
@@ -470,53 +627,6 @@ async def dispatch_tool(name: str, arguments: dict[str, Any], runtime: BrainRunt
             project_dir=runtime.project_dir,
         )
         return result.model_dump()
-
-    if name == "graph_sync":
-        request = GraphSyncRequest.model_validate(arguments or {})
-
-        def _log_tool_use(conn: sqlite3.Connection) -> None:
-            record_mcp_tool_use(conn, None, "graph_sync", result_count=1 if request.force else 0)
-            _maintenance(conn)
-            conn.commit()
-
-        await _run_write(runtime, _log_tool_use)
-
-        if not request.force:
-            result = handle_graph_sync(runtime.project_dir, request, config=config)
-            return result.model_dump()
-
-        # Force: extract outside WriteQueue; import serialized on the queue.
-        import asyncio
-
-        from brainkm.models.graphify import GraphSyncResult
-        from brainkm.services.graphify_sync import (
-            finalize_force_sync,
-            prepare_force_sync,
-            release_force_sync_lock,
-        )
-        from brainkm.services.write_queue import get_write_queue
-
-        prepared = await asyncio.to_thread(
-            prepare_force_sync,
-            runtime.project_dir,
-            config,
-            extract=not request.skip_extract,
-            force=True,
-        )
-        if isinstance(prepared, GraphSyncResult):
-            return _graph_sync_response_from_result(prepared).model_dump()
-
-        root, cfg, graph_path, extract_ok = prepared
-        try:
-
-            def _finalize() -> GraphSyncResult:
-                return finalize_force_sync(root, cfg, graph_path, extract_ok)
-
-            sync_result = await get_write_queue().run(_finalize)
-        except Exception:
-            release_force_sync_lock(runtime.project_dir)
-            raise
-        return _graph_sync_response_from_result(sync_result).model_dump()
 
     msg = f"unknown tool: {name}"
     raise ValueError(msg)

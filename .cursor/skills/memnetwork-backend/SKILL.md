@@ -85,7 +85,8 @@ Python **3.11 or 3.12** recommended.
 - **Capture** — hooks + `auto_observe` fill the brain; MCP `remember` descriptions/docs stay pin/correct (do not re-promote as the everyday store path)
 - **Redaction** — every neuron write path (MCP `remember`, observe, capture, handover, plan ingest, import, supersede) funnels through `remember_neuron`, which redacts and injection-scans
 - **Abstention** — `recall` returns `[]` on low confidence (percentile default P10); max 3 recalls/turn
-- **Soft delete only** — `forget` sets `valid_until`; hard delete is a `brainkm repair` admin path
+- **Soft delete only** — `remember action=archive` / `forget_neuron` sets `valid_until`; hard delete is a `brainkm repair` admin path
+- **MCP surface** — 5 tools (`remember`, `recall`, `context_pack`, `traverse`, `brain_stats`); graph sync auto-queues on stale reads; session_status stays hook/CLI-only
 
 ## Security
 

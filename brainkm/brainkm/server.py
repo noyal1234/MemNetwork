@@ -22,16 +22,10 @@ from brainkm.models.schemas import (
     BrainStatsResponse,
     ContextPackRequest,
     ContextPackResponse,
-    ForgetRequest,
-    ForgetResponse,
-    GraphSyncRequest,
-    GraphSyncResponse,
     RecallRequest,
     RecallResponse,
     RememberRequest,
     RememberResponse,
-    SessionStatusRequest,
-    SessionStatusResponse,
     TraverseRequest,
     TraverseResponse,
 )
@@ -45,14 +39,23 @@ logger = get_logger("server")
 TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
     (
         "remember",
-        "Pin durable project truth or correct a wrong auto-capture. "
-        "Hooks (not this tool) are the primary memory path.",
+        (
+            "Pin durable project truth, correct a wrong auto-capture (action=correct + "
+            "target_node_id writes a supersedes edge), or archive noise (action=archive). "
+            "Hooks (not this tool) are the primary memory path — do not use for ordinary "
+            "session notes."
+        ),
         RememberRequest,
         RememberResponse,
     ),
     (
         "recall",
-        "Hybrid FTS5 + optional vector RRF + PPR graph recall. Abstains on low confidence.",
+        (
+            "Live project memory search (decisions, rules, errors) with optional "
+            "decision_trail supersede history for why/history questions. Abstains on "
+            "low confidence. Not for call graphs (traverse) or multi-file packs "
+            "(context_pack)."
+        ),
         RecallRequest,
         RecallResponse,
     ),
@@ -61,51 +64,32 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
         (
             "Compile a bounded task pack (decisions + code neighborhood + procedures). "
             "Prefer before reading 3+ source files — include a symbol or path "
-            "(or seed_refs). For pure call/import/blast-radius questions use traverse."
+            "(or seed_refs). Auto-queues graph refresh when stale. For pure "
+            "call/import/blast-radius questions use traverse."
         ),
         ContextPackRequest,
         ContextPackResponse,
     ),
     (
-        "session_status",
-        "Read or write the current session context neuron.",
-        SessionStatusRequest,
-        SessionStatusResponse,
-    ),
-    (
         "traverse",
         (
-            "Focused AST neighborhood for one symbol or path: callers, callees, imports. "
-            "Prefer for blast-radius ('what calls X?', 'what breaks if I change Y?'). "
-            "Defaults: direction=both, structural edges. Not for decisions (recall) "
-            "or multi-file task packs (context_pack)."
+            "Impact analysis: AST neighborhood (callers/callees/imports) plus "
+            "impact_summary (hop counts, high fan-in risk) and linked decision/error "
+            "neurons. Prefer for 'what breaks if I change Y?'. Not for decisions-only "
+            "(recall) or multi-file task packs (context_pack)."
         ),
         TraverseRequest,
         TraverseResponse,
     ),
     (
-        "forget",
-        "Soft-archive a neuron (sets valid_until via audit_log).",
-        ForgetRequest,
-        ForgetResponse,
-    ),
-    (
         "brain_stats",
         (
             "Brain health summary: neuron/graph counts, last graph import, staleness, "
-            "review queue size, abstention calibration. Use before trusting traverse/context_pack."
+            "review queue, abstention calibration, hygiene hint. Use before trusting "
+            "traverse/context_pack when results look empty."
         ),
         BrainStatsRequest,
         BrainStatsResponse,
-    ),
-    (
-        "graph_sync",
-        (
-            "Refresh the code graph (queue or force extract+import). "
-            "Use when brain_stats reports a stale graph or after large refactors."
-        ),
-        GraphSyncRequest,
-        GraphSyncResponse,
     ),
 ]
 

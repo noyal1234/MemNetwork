@@ -218,18 +218,15 @@ Full setup notes → [docs/INSTALL.md](docs/INSTALL.md)
 | Pin a decision / fix bad memory | `remember` |
 
 <details>
-<summary><strong>MCP tools (8)</strong></summary>
+<summary><strong>MCP tools (5)</strong></summary>
 
 | Tool | Purpose |
 |------|---------|
-| `remember` | Pin durable truth or correct a wrong auto-capture |
-| `recall` | Hybrid search; abstains on low confidence |
-| `context_pack` | Task pack (graph + neurons) under token budget |
-| `traverse` | Focused AST neighborhood (callers / callees / imports) |
-| `session_status` | Read/write current session context |
-| `forget` | Soft-archive a neuron |
-| `brain_stats` | Health: counts, usage, abstention, dead neurons |
-| `graph_sync` | Refresh Graphify extract + import |
+| `remember` | Pin / correct / archive (`action`); correct writes supersedes |
+| `recall` | Hybrid search + `decision_trail`; abstains on low confidence |
+| `context_pack` | Task pack under token budget; auto-queues stale graph refresh |
+| `traverse` | Impact analysis: neighborhood + `impact_summary` + linked neurons |
+| `brain_stats` | Health: counts, usage, abstention, dead neurons, hygiene hint |
 
 </details>
 
@@ -238,7 +235,7 @@ Full setup notes → [docs/INSTALL.md](docs/INSTALL.md)
 
 | Host | Role today |
 |------|------------|
-| **Any MCP client** | Core contract: 8 tools + optional `brainkm serve` |
+| **Any MCP client** | Core contract: 5 tools + optional `brainkm serve` |
 | **Cursor** | Deepest maturity (hooks, PreCompact, distill) |
 | **Claude Code** | First-class hooks + MCP |
 | **Antigravity** | First-class `.agents/` MCP (`serverUrl`) + hooks |

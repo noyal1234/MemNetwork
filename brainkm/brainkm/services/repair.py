@@ -22,6 +22,8 @@ class RepairResult:
     fts_rows_rebuilt: int
     integrity_ok: bool
     secrets_archived: int = 0
+    links_backfilled: int = 0
+    supersedes_backfilled: int = 0
 
 
 def rebuild_fts5(conn: sqlite3.Connection) -> int:
@@ -65,13 +67,25 @@ def repair_brain(
     recalibrate_abstention: bool = True,
     reset_rolling_scores: bool = True,
     rescan_secrets: bool = True,
+    backfill_links: bool = False,
+    backfill_supersedes: bool = False,
 ) -> RepairResult:
     migrate(project_dir=project_dir, run_integrity_check=False)
     conn = connect(brain_db_path(project_dir))
     secrets_archived = 0
+    links_added = 0
+    supersedes_added = 0
     try:
         if rescan_secrets:
             secrets_archived = rescan_neurons_for_secrets(conn)
+        if backfill_links:
+            from brainkm.services.backfill import backfill_neuron_links
+
+            links_added = backfill_neuron_links(conn).edges_added
+        if backfill_supersedes:
+            from brainkm.services.backfill import backfill_supersedes as _backfill_supersedes
+
+            supersedes_added = _backfill_supersedes(conn).edges_added
         count = rebuild_fts5(conn)
         conn.commit()
         issues = check_fts_integrity(conn)
@@ -91,6 +105,8 @@ def repair_brain(
         fts_rows_rebuilt=count,
         integrity_ok=integrity_ok,
         secrets_archived=secrets_archived,
+        links_backfilled=links_added,
+        supersedes_backfilled=supersedes_added,
     )
 
 

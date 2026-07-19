@@ -27,25 +27,67 @@ class SessionChunkResult(BaseModel):
 
 
 class RememberRequest(BaseModel):
-    """Pin durable project truth or correct a wrong auto-capture (hooks are primary)."""
+    """Pin durable project truth, correct a wrong capture, or archive a neuron."""
 
-    title: str = Field(..., min_length=1, max_length=200)
-    body: str = Field(..., min_length=1)
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    body: str | None = Field(default=None, min_length=1)
     kind: str = Field(default="memory")
     subtype: str = Field(default="fact")
     tags: list[str] = Field(default_factory=list)
     session_id: str | None = None
+    action: Literal["pin", "correct", "archive"] = Field(
+        default="pin",
+        description=(
+            "pin=store durable truth; correct=write replacement and supersede "
+            "target_node_id; archive=soft-delete target_node_id (absorbs forget)"
+        ),
+    )
+    target_node_id: str | None = Field(
+        default=None,
+        description="Required for archive; required for correct (node being replaced)",
+    )
+    reason: str | None = Field(
+        default=None,
+        description="Optional archive/correct reason for audit_log",
+    )
+
+    @model_validator(mode="after")
+    def validate_action_fields(self) -> RememberRequest:
+        if self.action == "archive":
+            if not self.target_node_id:
+                msg = "remember action=archive requires target_node_id"
+                raise ValueError(msg)
+            return self
+        if not self.title or not self.body:
+            msg = "remember action=pin|correct requires title and body"
+            raise ValueError(msg)
+        if self.action == "correct" and not self.target_node_id:
+            msg = "remember action=correct requires target_node_id"
+            raise ValueError(msg)
+        return self
 
 
 class RememberResponse(BaseModel):
-    node_id: str
-    title: str
+    node_id: str | None = None
+    title: str | None = None
     linked_code_nodes: list[str] = Field(default_factory=list)
     supersede_candidates: list[str] = Field(default_factory=list)
     conflict_suggestions: list[str] = Field(
         default_factory=list,
         description="Near-duplicate nodes with a conflicting claim — prefer supersede",
     )
+    archived_node_id: str | None = None
+    superseded_node_id: str | None = None
+    action: Literal["pin", "correct", "archive"] = "pin"
+
+
+class DecisionTrailEntry(BaseModel):
+    node_id: str
+    title: str
+    subtype: str | None = None
+    valid_from: str | None = None
+    valid_until: str | None = None
+    superseded_by: str | None = None
 
 
 class RecallRequest(BaseModel):
@@ -59,6 +101,13 @@ class RecallRequest(BaseModel):
     include_sources: bool | None = Field(
         default=None,
         description="Attach compact provenance; defaults to BrainConfig.recall.include_sources",
+    )
+    include_history: bool | None = Field(
+        default=None,
+        description=(
+            "Follow supersedes chains for decision neurons. "
+            "Default: auto for why/history/decision intents."
+        ),
     )
 
 
@@ -78,6 +127,11 @@ class RecallResponse(BaseModel):
     sources: dict[str, list[ProvenanceSource]] = Field(
         default_factory=dict,
         description="Optional provenance keyed by node_id when include_sources is on",
+    )
+    confidence: Literal["high", "medium", "low"] = "medium"
+    decision_trail: list[DecisionTrailEntry] = Field(
+        default_factory=list,
+        description="Ordered supersede history for top decision hits (newest first)",
     )
 
 
@@ -132,9 +186,12 @@ class ContextPackResponse(BaseModel):
     graph_available: bool = True
     graph_hint: str | None = None
     sources: dict[str, list[ProvenanceSource]] = Field(default_factory=dict)
+    confidence: Literal["high", "medium", "low"] = "medium"
 
 
 class SessionStatusRequest(BaseModel):
+    """CLI/hook I/O — no longer an MCP tool."""
+
     session_id: str | None = None
     title: str | None = None
     body: str | None = None
@@ -184,15 +241,35 @@ class TraverseRequest(BaseModel):
     )
 
 
+class ImpactSummary(BaseModel):
+    neighbor_count: int = 0
+    by_hop: dict[str, int] = Field(
+        default_factory=dict,
+        description='Neighbor counts keyed by hop depth as string ("1", "2")',
+    )
+    high_fan_in: list[dict[str, object]] = Field(
+        default_factory=list,
+        description="Neighbors with high inbound call/import degree (change risk)",
+    )
+    risk_flag: bool = False
+
+
 class TraverseResponse(BaseModel):
     from_ref: str
     resolved_id: str | None = None
     nodes: list[NeuronResult]
     hops_explored: int = 0
     hint: str | None = None
+    impact_summary: ImpactSummary | None = None
+    linked_neurons: list[NeuronResult] = Field(
+        default_factory=list,
+        description="Decision/error memories linked to impacted code nodes (via=code id)",
+    )
 
 
 class ForgetRequest(BaseModel):
+    """Service/CLI I/O — absorbed into remember action=archive for MCP."""
+
     node_id: str = Field(..., min_length=1)
     reason: str | None = None
 
@@ -231,6 +308,10 @@ class BrainStatsResponse(BaseModel):
         default=0,
         description="Active memory neurons with use_count=0 and no pending hits",
     )
+    hygiene_hint: str | None = Field(
+        default=None,
+        description="Suggested hygiene action when dead/noisy neurons accumulate",
+    )
     # Optional session-scoped fields (populated when request.session_id is set)
     session_id: str | None = None
     session_mcp_calls_by_tool: dict[str, int] = Field(
@@ -256,6 +337,8 @@ class BrainStatsResponse(BaseModel):
 
 
 class GraphSyncRequest(BaseModel):
+    """CLI I/O — graph sync is automatic from MCP read tools when stale."""
+
     force: bool = Field(
         default=False,
         description="Run extract+import immediately instead of only queuing a request flag",

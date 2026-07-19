@@ -193,13 +193,11 @@ def test_review_reject_soft_archives(brain_db, tmp_path: Path) -> None:
         db_path=brain_db,
         session_id="session-reject",
     )
+    pending = list(pending_dir(tmp_path).glob("*.json"))
+    assert pending, "expected at least one neuron in the review queue"
+    node_id = pending[0].stem
     conn = connect(brain_db)
     try:
-        node_row = conn.execute(
-            "SELECT id FROM nodes WHERE valid_until IS NULL ORDER BY created_at DESC LIMIT 1"
-        ).fetchone()
-        assert node_row is not None
-        node_id = node_row["id"]
         assert reject_pending(node_id, conn=conn, project_dir=tmp_path) is True
         archived = conn.execute("SELECT valid_until FROM nodes WHERE id = ?", (node_id,)).fetchone()
         assert archived is not None

@@ -14,10 +14,11 @@ _INTERNAL_TOOLS = frozenset(
         "remember",
         "recall",
         "context_pack",
-        "session_status",
         "traverse",
-        "forget",
         "brain_stats",
+        # Removed from MCP but may still appear in historical session windows
+        "session_status",
+        "forget",
         "graph_sync",
         "__recall__",
     }

@@ -79,7 +79,8 @@ EXPAND_RELATIONSHIPS = frozenset(
 UNRESOLVED_TRAVERSE_HINT = (
     "No graph node matched from_ref — pass an exact symbol or file path "
     "(e.g. handle_traverse or brainkm/tools/dispatch.py). "
-    "If the graph looks stale, check brain_stats then graph_sync."
+    "If the graph looks stale, check brain_stats; sync refreshes automatically "
+    "or run `brainkm graph sync`."
 )
 
 _FTS_TOKEN = re.compile(r"[\w.-]+", re.UNICODE)
@@ -206,6 +207,8 @@ class TraversalResult:
     intent: str | None = None
     resolved_id: str | None = None
     hint: str | None = None
+    impact_summary: object | None = None
+    activation_meta: dict[str, _ActivationMeta] | None = None
 
 
 @dataclass
@@ -761,6 +764,8 @@ def traverse(
     graph: GraphConfig | None = None,
 ) -> TraversalResult:
     """Explicit graph hop from a resolved reference (structural flow edges by default)."""
+    from brainkm.services.impact import compute_impact_summary
+
     cfg = graph or GraphConfig()
     max_hops = min(max(max_hops, 1), 2)
     rels = relationships_for_traverse(relationship)
@@ -808,6 +813,11 @@ def traverse(
         if node_id != start_id
     }
     ranked = rank_activated_nodes(conn, neighbor_activations)
+    impact = compute_impact_summary(
+        conn,
+        neighbor_activations,
+        seed_id=None,
+    )
     hint = None
     if not ranked:
         hint = (
@@ -820,4 +830,6 @@ def traverse(
         hops_explored=hops,
         resolved_id=start_id,
         hint=hint,
+        impact_summary=impact,
+        activation_meta=neighbor_activations,
     )

@@ -33,7 +33,8 @@ from brainkm.services.search import (
 GRAPH_HINT = (
     "Graph available but no symbol/path resolved from query — "
     "retry with a symbol/path in the query or seed_refs. "
-    "For pure call/import/blast-radius questions prefer traverse."
+    "For pure call/import/blast-radius questions prefer traverse. "
+    "Stale graphs auto-queue a refresh; or run `brainkm graph sync`."
 )
 MAX_QUERY_CHARS = 240
 MAX_PACK_QUERY_TOKENS = 40
@@ -661,6 +662,28 @@ def compile_context_pack(
         pre_sections.extend(["> Graph unavailable — FTS-only neighborhood.", ""])
     elif graph_hint:
         pre_sections.extend([f"> {graph_hint}", ""])
+
+    # Compact decision history (supersede chains) when query looks decision-shaped.
+    from brainkm.services.decision_trail import (
+        build_decision_trail,
+        format_decision_history_section,
+        should_include_history,
+    )
+
+    if should_include_history(
+        include_history=None,
+        intent=getattr(recall, "intent", None),
+        query=query,
+    ):
+        decision_ids = [
+            line.node_id
+            for line in neuron_lines
+            if (line.subtype or "") in {"decision", "rule", "fact"}
+        ][:3]
+        trail = build_decision_trail(conn, decision_ids, max_entries=8)
+        history_lines = format_decision_history_section(trail)
+        if history_lines:
+            pre_sections.extend(history_lines)
 
     pack_text, neuron_kept, graph_kept, proc_kept = _fit_pack_text(
         query_echo=query_echo,

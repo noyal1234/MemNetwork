@@ -11,9 +11,11 @@ from brainkm.models.schemas import (
     SessionStatusRequest,
     TraverseRequest,
 )
+from brainkm.services.memory import supersede_neuron
 from brainkm.services.recall_limit import RecallLimitState
 from brainkm.tools.dispatch import (
     BrainRuntime,
+    dispatch_tool,
     handle_forget,
     handle_recall,
     handle_remember,
@@ -31,6 +33,13 @@ def runtime(tmp_path) -> BrainRuntime:
     return BrainRuntime(project_dir=tmp_path)
 
 
+@pytest.mark.asyncio
+async def test_removed_mcp_tools_are_unknown(runtime) -> None:
+    for name in ("session_status", "forget", "graph_sync"):
+        with pytest.raises(ValueError, match="unknown tool"):
+            await dispatch_tool(name, {}, runtime)
+
+
 def test_remember_and_recall(runtime, tmp_path) -> None:
     conn = connect(tmp_path / ".brain" / "brain.db")
     try:
@@ -40,6 +49,7 @@ def test_remember_and_recall(runtime, tmp_path) -> None:
         )
         conn.commit()
         assert response.node_id
+        assert response.action == "pin"
 
         recall = handle_recall(
             conn,
@@ -48,16 +58,119 @@ def test_remember_and_recall(runtime, tmp_path) -> None:
             project_dir=tmp_path,
         )
         assert len(recall.nodes) >= 1
+        assert recall.confidence in {"high", "medium", "low"}
     finally:
         conn.close()
 
 
-def test_session_status_write_read(runtime, tmp_path) -> None:
+def test_remember_archive_action(runtime, tmp_path) -> None:
+    conn = connect(tmp_path / ".brain" / "brain.db")
+    try:
+        created = handle_remember(
+            conn,
+            RememberRequest(title="Temp", body="Remove me"),
+        )
+        conn.commit()
+        archived = handle_remember(
+            conn,
+            RememberRequest(
+                action="archive",
+                target_node_id=created.node_id,
+                reason="test",
+            ),
+        )
+        assert archived.action == "archive"
+        assert archived.archived_node_id == created.node_id
+        row = conn.execute(
+            "SELECT valid_until FROM nodes WHERE id = ?", (created.node_id,)
+        ).fetchone()
+        assert row["valid_until"] is not None
+    finally:
+        conn.close()
+
+
+def test_remember_correct_writes_supersedes(runtime, tmp_path) -> None:
+    conn = connect(tmp_path / ".brain" / "brain.db")
+    try:
+        old = handle_remember(
+            conn,
+            RememberRequest(
+                title="Use sessions",
+                body="Prefer server sessions for auth",
+                subtype="decision",
+            ),
+        )
+        conn.commit()
+        new = handle_remember(
+            conn,
+            RememberRequest(
+                title="Use JWT",
+                body="Prefer JWT over sessions for API auth",
+                subtype="decision",
+                action="correct",
+                target_node_id=old.node_id,
+                reason="pivoted to JWT",
+            ),
+        )
+        assert new.superseded_node_id == old.node_id
+        edge = conn.execute(
+            """
+            SELECT 1 FROM edges
+            WHERE from_id = ? AND to_id = ? AND relationship = 'supersedes'
+            """,
+            (new.node_id, old.node_id),
+        ).fetchone()
+        assert edge is not None
+        old_row = conn.execute(
+            "SELECT valid_until FROM nodes WHERE id = ?", (old.node_id,)
+        ).fetchone()
+        assert old_row["valid_until"] is not None
+    finally:
+        conn.close()
+
+
+def test_remember_links_code_path(runtime, tmp_path) -> None:
+    conn = connect(tmp_path / ".brain" / "brain.db")
+    try:
+        insert_node(
+            conn,
+            node_id="code-memory",
+            kind="code",
+            subtype="file",
+            title="memory.py",
+            path="brainkm/services/memory.py",
+        )
+        conn.commit()
+        resp = handle_remember(
+            conn,
+            RememberRequest(
+                title="Token budget",
+                body="Enforce 1500 tokens in brainkm/services/memory.py",
+                subtype="decision",
+            ),
+        )
+        assert "code-memory" in resp.linked_code_nodes
+        edge = conn.execute(
+            """
+            SELECT 1 FROM edges
+            WHERE from_id = ? AND to_id = ? AND relationship = 'about_file'
+            """,
+            (resp.node_id, "code-memory"),
+        ).fetchone()
+        assert edge is not None
+    finally:
+        conn.close()
+
+
+def test_session_status_helper_still_works(runtime, tmp_path) -> None:
+    """session_status remains a service helper for hooks, not an MCP tool."""
     conn = connect(tmp_path / ".brain" / "brain.db")
     try:
         written = handle_session_status(
             conn,
-            SessionStatusRequest(session_id="s1", title="Working on auth", body="Refactoring middleware"),
+            SessionStatusRequest(
+                session_id="s1", title="Working on auth", body="Refactoring middleware"
+            ),
         )
         conn.commit()
         assert written.updated is True
@@ -80,11 +193,55 @@ def test_traverse_one_hop(runtime, tmp_path) -> None:
             conn,
             TraverseRequest(from_ref="a.py", max_hops=1),
             config=BrainConfig(),
+            project_dir=tmp_path,
         )
         assert result.resolved_id == "a"
         assert result.hint is None
         assert any(n.node_id == "b" for n in result.nodes)
         assert all(n.node_id != "a" for n in result.nodes)
+        assert result.impact_summary is not None
+        assert result.impact_summary.neighbor_count >= 1
+    finally:
+        conn.close()
+
+
+def test_traverse_linked_neurons(runtime, tmp_path) -> None:
+    conn = connect(tmp_path / ".brain" / "brain.db")
+    try:
+        insert_node(conn, node_id="fn", kind="code", subtype="function", title="target_fn")
+        insert_node(conn, node_id="caller", kind="code", subtype="function", title="caller_fn")
+        insert_edge(
+            conn,
+            edge_id="e1",
+            from_id="caller",
+            to_id="fn",
+            relationship="calls",
+        )
+        mem = handle_remember(
+            conn,
+            RememberRequest(
+                title="Do not break callers",
+                body="caller_fn depends on target_fn contract",
+                subtype="decision",
+            ),
+        )
+        # Force about_symbol edge to the impacted neighbor
+        insert_edge(
+            conn,
+            edge_id="e2",
+            from_id=mem.node_id,
+            to_id="caller",
+            relationship="about_symbol",
+        )
+        conn.commit()
+
+        result = handle_traverse(
+            conn,
+            TraverseRequest(from_ref="target_fn", max_hops=1),
+            config=BrainConfig(),
+            project_dir=tmp_path,
+        )
+        assert any(n.node_id == mem.node_id for n in result.linked_neurons)
     finally:
         conn.close()
 
@@ -96,11 +253,13 @@ def test_traverse_unresolved_returns_hint(runtime, tmp_path) -> None:
             conn,
             TraverseRequest(from_ref="NonExistentSymbolXYZ"),
             config=BrainConfig(),
+            project_dir=tmp_path,
         )
         assert result.nodes == []
         assert result.resolved_id is None
         assert result.hint is not None
         assert "from_ref" in result.hint
+        assert "graph_sync" not in result.hint  # MCP tool removed
     finally:
         conn.close()
 
@@ -123,6 +282,7 @@ def test_traverse_default_both_finds_callers(runtime, tmp_path) -> None:
             conn,
             TraverseRequest(from_ref="target_fn", max_hops=1),
             config=BrainConfig(),
+            project_dir=tmp_path,
         )
         assert result.resolved_id == "target"
         assert any(n.node_id == "caller" for n in result.nodes)
@@ -144,6 +304,7 @@ def test_traverse_skips_references_by_default(runtime, tmp_path) -> None:
             conn,
             TraverseRequest(from_ref="fn", max_hops=1),
             config=BrainConfig(),
+            project_dir=tmp_path,
         )
         assert {n.node_id for n in default.nodes} == {"callee"}
 
@@ -151,13 +312,14 @@ def test_traverse_skips_references_by_default(runtime, tmp_path) -> None:
             conn,
             TraverseRequest(from_ref="fn", max_hops=1, relationship="*"),
             config=BrainConfig(),
+            project_dir=tmp_path,
         )
         assert {n.node_id for n in all_edges.nodes} == {"callee", "ref"}
     finally:
         conn.close()
 
 
-def test_forget_soft_archives(runtime, tmp_path) -> None:
+def test_forget_helper_soft_archives(runtime, tmp_path) -> None:
     conn = connect(tmp_path / ".brain" / "brain.db")
     try:
         created = handle_remember(
@@ -168,6 +330,53 @@ def test_forget_soft_archives(runtime, tmp_path) -> None:
         archived = handle_forget(conn, ForgetRequest(node_id=created.node_id, reason="test"))
         assert archived.archived is True
         assert archived.valid_until is not None
+    finally:
+        conn.close()
+
+
+def test_recall_decision_trail(runtime, tmp_path) -> None:
+    conn = connect(tmp_path / ".brain" / "brain.db")
+    try:
+        old = handle_remember(
+            conn,
+            RememberRequest(
+                title="Auth: sessions",
+                body="Use server sessions",
+                subtype="decision",
+            ),
+        )
+        mid = handle_remember(
+            conn,
+            RememberRequest(
+                title="Auth: cookies",
+                body="Use cookie sessions",
+                subtype="decision",
+            ),
+        )
+        newest = handle_remember(
+            conn,
+            RememberRequest(
+                title="Auth: JWT",
+                body="Use JWT for API auth",
+                subtype="decision",
+            ),
+        )
+        supersede_neuron(conn, old.node_id, replacement_id=mid.node_id)
+        supersede_neuron(conn, mid.node_id, replacement_id=newest.node_id)
+        conn.commit()
+
+        recall = handle_recall(
+            conn,
+            RecallRequest(query="why did we choose JWT auth", limit=5, include_history=True),
+            config=BrainConfig(recall={"abstain_on_low_confidence": False}),
+            project_dir=tmp_path,
+        )
+        ids = [e.node_id for e in recall.decision_trail]
+        assert newest.node_id in ids
+        # Trail should include superseded ancestors
+        assert old.node_id in ids or mid.node_id in ids
+        # Newest first
+        assert ids[0] == newest.node_id or newest.node_id in ids[:2]
     finally:
         conn.close()
 

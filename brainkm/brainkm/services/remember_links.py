@@ -10,10 +10,16 @@ from brainkm.adapters.embeddings import cosine_similarity, get_embedder
 from brainkm.services.memory import new_ulid
 from brainkm.services.search import fts_search_nodes
 
+# Allow markdown wrappers (** `path` **) and single-segment filenames that
+# exist in the code graph (matched later by DB lookup).
 _PATH_PATTERN = re.compile(
-    r"(?:^|[\s\"'`(])"
-    r"((?:[\w.-]+/)+[\w.-]+\.(?:py|ts|tsx|js|jsx|go|rs|java|md|json|yaml|yml|toml))"
-    r"(?:$|[\s\"'`),:;])",
+    r"(?:^|[\s\"'`(*\[])"
+    r"("
+    r"(?:[\w.-]+/)+[\w.-]+\.(?:py|ts|tsx|js|jsx|go|rs|java|md|json|yaml|yml|toml|tcss|mdc)"
+    r"|"
+    r"[\w.-]+\.(?:py|ts|tsx|js|jsx|go|rs|java)"
+    r")"
+    r"(?:$|[\s\"'`)*\],:;])",
     re.MULTILINE,
 )
 
@@ -116,6 +122,38 @@ def _insert_edge(
     )
 
 
+def _resolve_code_file_id(conn: sqlite3.Connection, path: str) -> str | None:
+    """Prefer exact file-node path match; fall back to basename / suffix."""
+    # Exact path, prefer subtype=file
+    row = conn.execute(
+        """
+        SELECT id FROM nodes
+        WHERE kind = 'code' AND path = ? AND valid_until IS NULL
+        ORDER BY CASE WHEN subtype = 'file' THEN 0 ELSE 1 END
+        LIMIT 1
+        """,
+        (path,),
+    ).fetchone()
+    if row is not None:
+        return row[0]
+
+    base = path.rsplit("/", 1)[-1]
+    # Suffix match (handles shortened paths like brainkm/services/x.py vs full)
+    row = conn.execute(
+        """
+        SELECT id FROM nodes
+        WHERE kind = 'code' AND valid_until IS NULL
+          AND (path = ? OR path LIKE ? OR path LIKE ?)
+        ORDER BY
+          CASE WHEN subtype = 'file' THEN 0 ELSE 1 END,
+          LENGTH(path) ASC
+        LIMIT 1
+        """,
+        (base, f"%/{base}", f"%{path}"),
+    ).fetchone()
+    return row[0] if row else None
+
+
 def link_code_nodes_by_path(
     conn: sqlite3.Connection,
     neuron_id: str,
@@ -127,28 +165,9 @@ def link_code_nodes_by_path(
     linked: list[str] = []
     blob = f"{title}\n{content}"
     for path in extract_path_mentions(blob):
-        row = conn.execute(
-            """
-            SELECT id FROM nodes
-            WHERE kind = 'code' AND path = ? AND valid_until IS NULL
-            LIMIT 1
-            """,
-            (path,),
-        ).fetchone()
-        if row is None:
-            base = path.rsplit("/", 1)[-1]
-            row = conn.execute(
-                """
-                SELECT id FROM nodes
-                WHERE kind = 'code' AND path LIKE ? AND valid_until IS NULL
-                ORDER BY LENGTH(path) ASC
-                LIMIT 1
-                """,
-                (f"%/{base}",),
-            ).fetchone()
-        if row is None:
+        code_id = _resolve_code_file_id(conn, path)
+        if code_id is None:
             continue
-        code_id = row[0]
         _insert_edge(
             conn,
             from_id=neuron_id,
@@ -171,18 +190,33 @@ def link_code_nodes_by_symbol(
     linked: list[str] = []
     blob = f"{title}\n{content}"
     for symbol in extract_symbol_mentions(blob):
+        # Exact title first (function nodes often store "name()" — try both).
         rows = conn.execute(
             """
             SELECT id FROM nodes
             WHERE kind = 'code'
               AND valid_until IS NULL
-              AND (title = ? OR title LIKE ?)
+              AND (title = ? OR title = ?)
             LIMIT 3
             """,
-            (symbol, f"%{symbol}%"),
+            (symbol, f"{symbol}()"),
         ).fetchall()
         if len(rows) != 1:
-            continue
+            # Unambiguous prefix only for CamelCase / long symbols
+            if len(symbol) < 6 or not symbol[0].isupper():
+                continue
+            rows = conn.execute(
+                """
+                SELECT id FROM nodes
+                WHERE kind = 'code'
+                  AND valid_until IS NULL
+                  AND (title = ? OR title LIKE ?)
+                LIMIT 3
+                """,
+                (symbol, f"{symbol}%"),
+            ).fetchall()
+            if len(rows) != 1:
+                continue
         code_id = rows[0][0]
         _insert_edge(
             conn,

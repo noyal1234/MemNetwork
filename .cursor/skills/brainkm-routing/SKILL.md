@@ -13,11 +13,11 @@ brainkm is this project's brain (`.brain/brain.db`). It complements Cursor — i
 
 | Question | Tool |
 |----------|------|
-| Why did we choose X? Past decision / pivot | `recall` |
-| What calls / imports X? Blast radius | `traverse` |
+| Why did we choose X? Past decision / pivot | `recall` (uses `decision_trail`) |
+| What calls / imports X? Blast radius / impact | `traverse` (`impact_summary` + linked neurons) |
 | Understand a module before editing 3+ files | `context_pack` (include path or symbol) |
 | What did we learn about `auth.ts`? | `recall` / `context_pack` with that path in the query |
-| Pin or correct durable truth | `remember` (hooks are the primary capture path) |
+| Pin, correct, or archive durable truth | `remember` (`action=pin\|correct\|archive`; hooks are primary capture) |
 
 ## Rules
 
@@ -25,7 +25,7 @@ brainkm is this project's brain (`.brain/brain.db`). It complements Cursor — i
 2. Packs are hints — **always verify in source** before editing.
 3. Prefer fewer injected tokens over trusting noise; `recall` abstains on weak matches.
 4. Optional provenance: pass `include_sources=true` on recall/context_pack when debugging trust.
-5. If graph looks empty/wrong, check `brain_stats` then `graph_sync`.
+5. If graph looks empty/wrong, check `brain_stats` — stale graphs auto-queue refresh, or run `brainkm graph sync`.
 
 ## Lifecycle (mental model)
 

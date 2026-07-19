@@ -15,18 +15,20 @@ This project uses **brainkm** — a local SQLite project brain at `.brain/brain.
 - Prefer MCP **`context_pack`** for multi-file task context (include a **symbol or file path**
   in the query or `seed_refs`), **then verify in source** before editing — packs are hints,
   never a substitute for reading the code you will change.
-- Use **`recall`** for architectural decisions, rules, and past pivots — not chat history alone.
+- Use **`recall`** for architectural decisions, rules, and past pivots (includes
+  `decision_trail` for why/history) — not chat history alone.
 - Memory is filled primarily by **hooks** (SessionEnd distill, PostToolUse observations,
-  SessionStart injection). Call **`remember` only to pin** durable project truth or **correct**
-  a wrong auto-capture — not for ordinary session learning.
+  SessionStart injection). Call **`remember` only to pin** durable project truth,
+  **correct** a wrong auto-capture (`action=correct`), or **archive** noise
+  (`action=archive`) — not for ordinary session learning.
 
 ## Tool routing (locate vs flow vs decisions)
 
 | Question type | Use first | Why |
 |---------------|-----------|-----|
 | "Where is symbol X defined?" | Cursor search / Grep / `@codebase` | Semantic/symbol locate |
-| "What calls / imports X?" / "impact of changing Y" | **`traverse`** (symbol/path), then verify | Focused AST neighborhood |
-| "Why did we choose X?" | **`recall`** | Decisions live in neurons, not the code index |
+| "What calls / imports X?" / "impact of changing Y" | **`traverse`** (symbol/path), then verify | Impact analysis + linked decisions |
+| "Why did we choose X?" | **`recall`** | Decisions + supersede trail live in neurons |
 | Understand one module (would open 3+ files) | **`context_pack`** then targeted reads | Bounded pack vs file dumps |
 
 Do **not** treat brainkm as a second `@codebase`. Use Cursor to **locate**; use Graphify
@@ -35,9 +37,9 @@ source because a pack abstained or looked incomplete — prefer fewer injected t
 trusting noise.
 
 If `traverse` / `context_pack` results look empty or wrong, check **`brain_stats`** first —
-a stale or missing code graph is the usual cause; refresh with **`graph_sync`** (or
-`brainkm graph sync`) instead of distrusting the whole brain. Empty `traverse` responses
-include a `hint` and `resolved_id` when the graph matched but had no neighbors.
+a stale or missing code graph is the usual cause; reads auto-queue a refresh, or run
+`brainkm graph sync`. Empty `traverse` responses include a `hint`, `resolved_id`, and
+`impact_summary` when the graph matched but had no neighbors.
 
 ## What lives in the brain
 

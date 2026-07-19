@@ -37,7 +37,7 @@ source .venv/bin/activate
 pip install -e "./brainkm[dev,graphify]"
 ```
 
-**Memory path:** hooks + `capture.auto_observe` fill the brain; MCP `remember` is pin/correct only.
+**Memory path:** hooks + `capture.auto_observe` fill the brain; MCP `remember` is pin/correct/archive only.
 
 | Client | Hooks | MCP | Maturity note |
 |--------|-------|-----|---------------|

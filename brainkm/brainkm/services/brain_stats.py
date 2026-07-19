@@ -81,6 +81,12 @@ def collect_brain_stats(
 
     mcp_7d, mcp_30d, abstention_rate = _mcp_usage_stats(conn)
     dead_count = _dead_neuron_count(conn)
+    hygiene_hint = None
+    if dead_count >= 25:
+        hygiene_hint = (
+            f"{dead_count} unused active neurons — run `brainkm hygiene` "
+            "(or enable capture.auto_hygiene) to soft-archive noise"
+        )
 
     session_fields: dict = {}
     if session_id:
@@ -101,6 +107,7 @@ def collect_brain_stats(
         mcp_calls_30d=mcp_30d,
         abstention_rate_7d=abstention_rate,
         dead_neuron_count=dead_count,
+        hygiene_hint=hygiene_hint,
         **session_fields,
     )
 

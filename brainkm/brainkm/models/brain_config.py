@@ -64,6 +64,13 @@ class CaptureConfig(BaseModel):
             "distill_mode is groq (required before cloud upload)"
         ),
     )
+    auto_supersede_conflicts: bool = Field(
+        default=False,
+        description=(
+            "When true, remember action=pin auto-supersedes the top high-confidence "
+            "conflict suggestion (still prefer explicit action=correct)"
+        ),
+    )
 
     @field_validator("distill_mode", mode="before")
     @classmethod

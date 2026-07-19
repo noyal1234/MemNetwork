@@ -24,18 +24,17 @@ Long agent sessions burn tokens and lose context. Compaction summarizes the chat
 
 ## Agent tools (MCP)
 
-Eight tools the agent (or you) can call. Typed `outputSchema` so clients know the shape of every response.
+Five sharp tools the agent (or you) can call. Typed `outputSchema` so clients know the shape of every response.
 
 | Tool | What it does |
 |------|----------------|
-| **`remember`** | **Pin** durable project truth or **correct** a wrong auto-capture. Hooks are the primary capture path — do not rely on the agent calling this for ordinary learning. |
-| **`recall`** | Search project memory (FTS + graph). Returns nothing when confidence is too low — so weak noise does not pollute the chat. |
-| **`context_pack`** | Compile a task pack: relevant neurons + code neighborhood + procedures, under a hard token cap. Prefer before opening 3+ files (not for pure blast-radius — use `traverse`). |
-| **`traverse`** | Focused AST neighborhood for one symbol/path: callers, callees, imports. Prefer for blast-radius; defaults to `direction=both` and structural edges. |
-| **`session_status`** | Read or write the current session’s context neuron — keep “what we’re doing now” durable mid-session. |
-| **`forget`** | Soft-archive a neuron (reversible). Wrong or stale memories leave without a hard delete. |
-| **`brain_stats`** | Health snapshot: neuron/graph counts, MCP usage, abstention rate, dead neurons. Optional per-session breakdown. |
-| **`graph_sync`** | Queue or force a code-graph refresh (Graphify extract + import) when the structure feels stale. |
+| **`remember`** | **Pin** durable truth, **correct** a wrong capture (`action=correct` writes a `supersedes` edge), or **archive** noise (`action=archive`). Hooks are the primary capture path. |
+| **`recall`** | Search project memory (FTS + graph). Returns `confidence` and optional `decision_trail` (supersede history for why/history questions). Abstains on weak matches. |
+| **`context_pack`** | Compile a task pack: decisions + code neighborhood + procedures (+ decision history), under a hard token cap. Auto-queues graph refresh when stale. Prefer before opening 3+ files. |
+| **`traverse`** | Impact analysis: AST neighborhood + `impact_summary` (hop counts, high fan-in risk) + linked decision/error neurons. Prefer for blast-radius. |
+| **`brain_stats`** | Health snapshot: neuron/graph counts, MCP usage, abstention rate, dead neurons, hygiene hint. Optional per-session breakdown. |
+
+Graph refresh and session context are automatic (hooks + stale-graph auto-queue). Manual CLI: `brainkm graph sync`, `brainkm hygiene`, `brainkm repair --backfill-links --backfill-supersedes`.
 
 **MCP resources** (read without a tool call):
 
@@ -190,7 +189,7 @@ Optional semantic stack: `pip install -e "./brainkm[semantic]"` + `brainkm seman
 |---------|---------|
 | **`hygiene`** | Soft-archives noisy or unused neurons so packs stay sharp. Safe to re-run (`--dry-run` available). |
 | **`consolidate` / decay** | Merges near-duplicates and decays stale unused memory — sleep-time cleanup. |
-| **Soft `forget` + audit** | Archives with an audit trail; no silent hard deletes on the agent path. |
+| **Soft archive + audit** | `remember action=archive` (or CLI forget path) with an audit trail; no silent hard deletes on the agent path. |
 | **`repair`** | Rebuilds FTS5, re-scans for leaked secrets, runs integrity checks when the DB feels wrong. |
 | **Review approve / reject** | Human-in-the-loop for pending auto-captures. |
 
@@ -262,7 +261,7 @@ Headline targets (see [BENCHMARKS.md](BENCHMARKS.md)): **`bench run cma`** for p
 | Static team policy | Host rules files — brainkm stores *learned* project context |
 | Pin a decision / correct bad auto-memory | MCP **`remember`** (hooks fill ordinary learning) |
 
-Always verify packs in source before editing. Empty or wrong graph? Check `brain_stats` / `graph status`, then `graph_sync`.
+Always verify packs in source before editing. Empty or wrong graph? Check `brain_stats` / `graph status` — stale graphs auto-queue a refresh, or run `brainkm graph sync`.
 
 ---
 

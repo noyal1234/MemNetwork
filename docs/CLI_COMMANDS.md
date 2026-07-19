@@ -116,7 +116,7 @@ Safe to re-run; archives via `forget` (reversible with audit log). SessionStart/
 | `brainkm import` | Merge or replace neurons from JSON export | `--project-dir`, `--replace` | `brainkm import export.json --replace` |
 | `brainkm team-export` | Export curated neurons to `.brain/team/neurons.json` | `--project-dir` | `brainkm team-export` |
 | `brainkm team-import` | Import `.brain/team/neurons.json` (confidence merge) | `--project-dir` | `brainkm team-import` |
-| `brainkm repair` | Rebuild FTS5 + integrity check | `--project-dir` | `brainkm repair` |
+| `brainkm repair` | Rebuild FTS5 + integrity check; optional edge backfills | `--project-dir`, `--backfill-links`, `--backfill-supersedes` | `brainkm repair --backfill-links --backfill-supersedes` |
 
 ---
 

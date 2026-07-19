@@ -1367,14 +1367,30 @@ def export_cmd(
 @app.command("repair")
 def repair_cmd(
     project_dir: Path | None = typer.Option(None, "--project-dir"),
+    backfill_links: bool = typer.Option(
+        False,
+        "--backfill-links",
+        help="Re-index about_file/about_symbol edges for active memory neurons",
+    ),
+    backfill_supersedes: bool = typer.Option(
+        False,
+        "--backfill-supersedes",
+        help="Chain near-duplicate decision neurons into supersedes edges",
+    ),
 ) -> None:
     """Rebuild FTS5 index, re-scan for leaked secrets, and run integrity check."""
     from brainkm.services.repair import repair_brain
 
-    result = repair_brain(project_dir=project_dir)
+    result = repair_brain(
+        project_dir=project_dir,
+        backfill_links=backfill_links,
+        backfill_supersedes=backfill_supersedes,
+    )
     typer.echo(
         f"Rebuilt FTS5 ({result.fts_rows_rebuilt} rows), "
         f"secrets_archived={result.secrets_archived}, "
+        f"links_backfilled={result.links_backfilled}, "
+        f"supersedes_backfilled={result.supersedes_backfilled}, "
         f"integrity_ok={result.integrity_ok}"
     )
     if not result.integrity_ok:

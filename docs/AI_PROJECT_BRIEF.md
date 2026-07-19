@@ -16,7 +16,7 @@
 | **Zero-LLM default (T0)** | Rule-based distill, FTS5 BM25, Graphify AST — no local Ollama, no cloud API required |
 | **User-chosen distill** | `capture.distill_mode`: `cursor` \| `claude` \| `antigravity` \| `ollama` \| `groq` \| `rules` (legacy `mcp` → `claude`) |
 | **Compaction-aware** | PreCompact / synthetic-precompact handover + SessionEnd / idle Stop so truth survives host compaction |
-| **Inspectable** | Every memory is a SQLite row or markdown export — `forget`, export/import, consolidate |
+| **Inspectable** | Every memory is a SQLite row or markdown export — `remember action=archive`, export/import, consolidate |
 | **Bounded tokens** | 1500-token hard cap on agent-facing packs (`pack_text` + compact MCP JSON); structural retrieval over file dumps |
 | **Complement Cursor** | Does not replace @codebase or Cursor Memories — stores **project-specific** decisions |
 
@@ -41,7 +41,7 @@ flowchart LR
 
   subgraph brainkm_pkg [brainkm package]
     Server[MCP server]
-    Tools[8 MCP tools]
+    Tools[5 MCP tools]
     Services[services layer]
     Adapters[adapters layer]
   end
@@ -64,7 +64,7 @@ flowchart LR
 | **Memory** | SQLite FTS5 BM25 | Neurons (`kind=memory`) — facts, decisions, rules |
 | **Code graph** | Graphify AST adapter | `code` nodes, import/call edges |
 | **Temporal** | `valid_from` / `valid_until`, `supersedes` | Evolving facts without full GraphRAG |
-| **MCP** | `mcp` SDK stdio **or** localhost HTTP (`brainkm serve`) | 8 tools: remember (pin/correct), recall, context_pack, session_status, traverse, forget, brain_stats, graph_sync |
+| **MCP** | `mcp` SDK stdio **or** localhost HTTP (`brainkm serve`) | 5 tools: remember (pin/correct/archive), recall (+decision trail), context_pack (self-healing), traverse (impact), brain_stats |
 | **CLI** | Typer | install, serve, connect, doctor, export, bench, repair, handover, review, hygiene, migrate, configure |
 | **TUI** | Textual (optional `[tui]` extra) | `brainkm configure` — guided app checkboxes, Start Brain, dashboard, config editor, actions |
 | **Optional T1** | sqlite-vec + ONNX MiniLM | Semantic search when `semantic: true` |
@@ -123,16 +123,15 @@ MemNetwork/
 
 | Tool | Purpose |
 |------|---------|
-| `remember` | **Pin** durable project truth or **correct** a wrong auto-capture (hooks are the primary capture path); auto-links path mentions |
-| `recall` | FTS5 + graph activation; abstain on low confidence (percentile default P10); bodies capped to `budget.total_tokens` |
-| `context_pack` | Task-specific compiled pack (graph + neurons + procedures). Prefer before 3+ file reads; for pure blast-radius use `traverse`. Default MCP payload is lean (`pack_text` + truncation IDs); pass `include_structured=true` for full neuron arrays |
-| `session_status` | Read/write session context neuron |
-| `traverse` | Focused AST neighborhood (callers/callees/imports). Defaults: `direction=both`, structural edges; returns `resolved_id` + `hint` on empty |
-| `forget` | Soft-archive node (`valid_until`) + cascade edges |
-| `brain_stats` | Health summary: neuron/graph counts, MCP usage (7d), abstention rate, dead-neuron count; optional `session_id` adds per-session MCP/hit/snapshot/distill fields |
-| `graph_sync` | Queue or force Graphify extract+import |
+| `remember` | **Pin** / **correct** / **archive** (`action`). Correct writes a `supersedes` edge; archive soft-deletes (absorbs former `forget`). Hooks remain the primary capture path; auto-links path/symbol mentions |
+| `recall` | FTS5 + graph activation; abstain on low confidence (percentile default P10); returns `confidence` + optional `decision_trail` (supersede history for why/history intents) |
+| `context_pack` | Task-specific compiled pack (graph + neurons + procedures + decision history). Prefer before 3+ file reads; for pure blast-radius use `traverse`. Auto-queues graph refresh when stale. Lean MCP payload by default (`include_structured=true` for arrays) |
+| `traverse` | **Impact analysis**: AST neighborhood + `impact_summary` (hop counts, high fan-in risk) + linked decision/error neurons. Defaults: `direction=both`, structural edges |
+| `brain_stats` | Health summary: neuron/graph counts, MCP usage (7d), abstention rate, dead-neuron count, `hygiene_hint`; optional `session_id` adds per-session fields |
 
-CLI-only (not MCP): `install`, `serve`, `connect`, `doctor`, `export`, `bench`, `repair`, `handover`, `review`, `hygiene`, `migrate`, `configure`.
+Removed from MCP (still available via CLI/hooks/services): `session_status`, `forget` → `remember action=archive`, `graph_sync` → auto-queue on stale reads + `brainkm graph sync`.
+
+CLI-only (not MCP): `install`, `serve`, `connect`, `doctor`, `export`, `bench`, `repair` (`--backfill-links`, `--backfill-supersedes`), `handover`, `review`, `hygiene`, `migrate`, `configure`.
 
 Shared localhost brain: prefer **`brainkm configure`** (multi-app → Start Brain). Power path: `brainkm serve` + `brainkm connect <client> --http` so Cursor / Claude / Antigravity / Codex share one HTTP MCP process and `.brain/brain.db`. Antigravity HTTP MCP uses `serverUrl`. Hooks remain the primary memory writers (`capture.auto_observe`).
 
@@ -249,7 +248,7 @@ flowchart TB
 | Multi-signal fusion (vector + BM25 + entity) | FTS5 BM25 + 2-hop graph activation + optional sqlite-vec RRF | V1 / T1 |
 | Session decomposition | Split transcripts into user/assistant rounds before distill | V1 |
 | Fact-augmented keys | Auto-tags on distill for BM25 indexing | V1 |
-| ADD-only audit trail | `audit_log`; `forget` → `valid_until` (soft archive) | V1 |
+| ADD-only audit trail | `audit_log`; `remember action=archive` / `forget_neuron` → `valid_until` (soft archive) | V1 |
 | Async extraction | SessionEnd / PreCompact run after agent responds | V1 |
 | ADD-only without supersede | **Reject** — use `supersedes` for knowledge updates (LongMemEval) | — |
 
@@ -347,7 +346,7 @@ All distill modes share Cursor chrome cleaning (`clean_cursor_text` / `is_distil
 | **Nodal adopt** | Done | Lifecycle ladder (observation TTL, episode, `distilled_from`); `about_file`/`about_symbol` + hook file seeds; concept materializer; Seed→Expand→Diversify→Budget→Abstain; pack quotas; `consolidate --llm`; temporal supersede meta; team tags; skill pack; scorecard bench; `file-history` / `provenance` / `demo` CLI |
 | **0.4.1** | Done | Claude Code silent memory parity: `.claude/settings.json` hooks + `hookSpecificOutput`; SubagentStart/Stop + Stop; Claude-default `auto_observe`; `.claude/rules` + routing skill; doctor dry-run; TUI copy/dashboard Claude hooks status; coexistence with CLAUDE.md / Auto Memory |
 | **0.4.2** | Done | Antigravity first-class client (`.agents/` MCP `serverUrl` + named hooks, PreInvocation inject, synthetic precompact, idle Stop distill, AGY transcript JSONL); `distill_mode` peers `claude` (`claude -p` + live sampling) + `antigravity` (`agy -p`); legacy `mcp`→`claude`; TUI Antigravity checkbox + dashboard AGY hooks; doctor multi-path probes + `--mirror-global` |
-| **0.5.0** | Done | Shared-brain security + ops polish: HTTP MCP loopback guard + Bearer token (`.brain/mcp_http_token`, `connect` headers); viz per-run `?token=` / no wildcard CORS; expanded redaction; Groq `cloud_distill_acknowledged`; graphify `extract_extra_args` allowlist + graph-import sanitize; install curl\|bash → download+bash; TUI MCP Doctor panel + Review Queue (`y`/`n`) + brain-status sidebar; client routing skill / hook parity |
+| **0.5.0** | Done | MCP surface 8→5 (drop session_status/forget/graph_sync from MCP); `remember` pin/correct/archive; `recall` decision_trail + confidence; `traverse` impact_summary + linked neurons; self-healing stale-graph queue; about_*/supersedes pipeline + `repair --backfill-*`; shared-brain security polish (HTTP Bearer, viz token, redaction, Groq consent, graphify allowlist); TUI MCP Doctor + Review Queue |
 | **CMA scorecard** | Done | Common Memory Axes public scorecard (`bench run cma`): **v3** micro **100%** (2026-07-19, 0.5.0); hard-slice brain **1.00** vs BM25 **0.55**; LongMemEval-S footnote full-500 FTS-chunked R@5 **0.908** (prior blob-FTS **0.934**); `run_cma.sh` + dated `docs/benchmarks/` artifacts |
 | **License** | Done | Apache-2.0 ([LICENSE](../LICENSE), [NOTICE](../NOTICE)); copyright Noyal Bastin Benny; [CLA](../CLA.md) + [CONTRIBUTING](../CONTRIBUTING.md) for future relicense option |
 | **Public distribution** | **Deferred** | PyPI / `uvx` one-liner, MCP Registry, Cursor deeplink — wait until repo is public, installable name is finalized (may rename from `brainkm`), and a stable version ships. Trusted-publishing workflow prepared under `.github/workflows/publish.yml`. Local path: `brainkm install --dev`. See [PUBLIC_RELEASE_CHECKLIST.md](PUBLIC_RELEASE_CHECKLIST.md). |
@@ -356,7 +355,7 @@ All distill modes share Cursor chrome cleaning (`clean_cursor_text` / `is_distil
 
 ### SQLite concurrency
 
-Single-writer queue (`services/write_queue.py`) serializes MCP writes (remember, forget, use_count flush) with SQLITE_BUSY retry. Prefer **one** HTTP `brainkm serve` process per project when using shared multi-client; stdio remains for single-editor / CI.
+Single-writer queue (`services/write_queue.py`) serializes MCP writes (remember, use_count flush) with SQLITE_BUSY retry. Prefer **one** HTTP `brainkm serve` process per project when using shared multi-client; stdio remains for single-editor / CI.
 
 ---
 
