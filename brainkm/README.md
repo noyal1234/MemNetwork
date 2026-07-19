@@ -2,6 +2,8 @@
 
 Local project brain for **agentic coding IDEs** — MCP server backed by SQLite FTS5 and a weighted knowledge graph. Same `.brain/` across hosts; Cursor / Claude Code / Antigravity / Codex are adapters (Cursor is deepest today while we dogfood there).
 
+**Product overview** (hero, features, benchmarks, multi-host setup): see the repo root [README.md](../README.md).
+
 **Version:** `0.4.2`
 
 **License:** Apache-2.0 (see repo root [LICENSE](../LICENSE) and [NOTICE](../NOTICE)). Copyright © 2026 Noyal Bastin Benny.

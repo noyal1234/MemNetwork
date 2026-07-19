@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="200" viewBox="0 0 960 200" role="img" aria-label="MemNetwork">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f1419"/>
+      <stop offset="100%" stop-color="#1a2332"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3d9a8b"/>
+      <stop offset="100%" stop-color="#5eb8a8"/>
+    </linearGradient>
+  </defs>
+  <rect width="960" height="200" rx="12" fill="url(#bg)"/>
+  <!-- subtle grid -->
+  <g stroke="#2a3544" stroke-width="1" opacity="0.45">
+    <line x1="0" y1="50" x2="960" y2="50"/>
+    <line x1="0" y1="100" x2="960" y2="100"/>
+    <line x1="0" y1="150" x2="960" y2="150"/>
+    <line x1="160" y1="0" x2="160" y2="200"/>
+    <line x1="320" y1="0" x2="320" y2="200"/>
+    <line x1="480" y1="0" x2="480" y2="200"/>
+    <line x1="640" y1="0" x2="640" y2="200"/>
+    <line x1="800" y1="0" x2="800" y2="200"/>
+  </g>
+  <!-- node cluster mark -->
+  <g transform="translate(72,100)">
+    <circle cx="0" cy="-28" r="8" fill="#5eb8a8"/>
+    <circle cx="32" cy="0" r="7" fill="#3d9a8b"/>
+    <circle cx="-28" cy="12" r="6" fill="#7ec8bb"/>
+    <circle cx="8" cy="28" r="5" fill="#3d9a8b" opacity="0.85"/>
+    <line x1="0" y1="-28" x2="32" y2="0" stroke="#5eb8a8" stroke-width="1.5" opacity="0.7"/>
+    <line x1="0" y1="-28" x2="-28" y2="12" stroke="#5eb8a8" stroke-width="1.5" opacity="0.7"/>
+    <line x1="32" y1="0" x2="8" y2="28" stroke="#5eb8a8" stroke-width="1.5" opacity="0.55"/>
+    <line x1="-28" y1="12" x2="8" y2="28" stroke="#5eb8a8" stroke-width="1.5" opacity="0.55"/>
+  </g>
+  <text x="160" y="88" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="42" font-weight="700" fill="#f0f4f8">MemNetwork</text>
+  <text x="160" y="128" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="18" fill="#9aafc0">Local project memory for agentic coding IDEs</text>
+  <rect x="160" y="148" width="120" height="3" rx="1.5" fill="url(#accent)"/>
+</svg>
