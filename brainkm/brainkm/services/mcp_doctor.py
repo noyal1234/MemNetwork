@@ -45,6 +45,8 @@ class McpDoctorReport:
 def _inspect_mcp_entry(entry: object) -> tuple[str | None, str | None]:
     if not isinstance(entry, dict):
         return None, None
+    if entry.get("serverUrl"):
+        return "http", str(entry["serverUrl"])
     if entry.get("url"):
         return "http", str(entry["url"])
     if entry.get("command"):
@@ -227,12 +229,93 @@ def inspect_claude_wiring(project_dir: Path) -> list[str]:
     return notes
 
 
+def _antigravity_hooks_wired(hooks_path: Path) -> bool:
+    if not hooks_path.is_file():
+        return False
+    try:
+        data = json.loads(hooks_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return False
+    brainkm = data.get("brainkm") if isinstance(data, dict) else None
+    if not isinstance(brainkm, dict):
+        return False
+    blob = json.dumps(brainkm)
+    return "brainkm" in blob and "--client antigravity" in blob
+
+
+def antigravity_hooks_wired(project_dir: Path) -> bool:
+    """True when project ``.agents/hooks.json`` contains brainkm Antigravity hooks."""
+    return _antigravity_hooks_wired(
+        resolve_project_dir(project_dir) / ".agents" / "hooks.json"
+    )
+
+
+def inspect_antigravity_wiring(project_dir: Path) -> list[str]:
+    """Doctor notes for Antigravity MCP + hooks."""
+    from brainkm.services.connect import antigravity_global_mcp_paths
+
+    notes: list[str] = []
+    mcp_path = project_dir / ".agents" / "mcp_config.json"
+    hooks_path = project_dir / ".agents" / "hooks.json"
+    if not mcp_path.is_file():
+        notes.append(
+            "Antigravity .agents/mcp_config.json missing — "
+            "run `brainkm install --client antigravity` or connect"
+        )
+    else:
+        try:
+            data = json.loads(mcp_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            notes.append("Antigravity mcp_config.json is not valid JSON")
+            data = {}
+        servers = data.get("mcpServers") if isinstance(data, dict) else None
+        entry = servers.get(BRAINKM_MCP_SERVER_KEY) if isinstance(servers, dict) else None
+        if isinstance(entry, dict):
+            if "url" in entry and "serverUrl" not in entry:
+                notes.append(
+                    "Antigravity HTTP MCP uses `url` — should be `serverUrl` "
+                    "(re-run `brainkm connect antigravity --http`)"
+                )
+            transport, _ = _inspect_mcp_entry(entry)
+            if transport is None:
+                notes.append("Antigravity brainkm MCP entry incomplete")
+        else:
+            notes.append("Antigravity mcp_config.json missing brainkm server entry")
+
+    if not _antigravity_hooks_wired(hooks_path):
+        notes.append(
+            "Antigravity hooks missing or lack `--client antigravity` — "
+            "run `brainkm connect antigravity --hooks`"
+        )
+
+    for gpath in antigravity_global_mcp_paths():
+        if not gpath.is_file():
+            continue
+        try:
+            gdata = json.loads(gpath.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        gservers = gdata.get("mcpServers") if isinstance(gdata, dict) else None
+        if isinstance(gservers, dict) and BRAINKM_MCP_SERVER_KEY in gservers:
+            if not mcp_path.is_file():
+                notes.append(
+                    f"brainkm found only in global {gpath} — prefer workspace "
+                    ".agents/mcp_config.json (`brainkm connect antigravity`)"
+                )
+            break
+    return notes
+
+
 def _client_status(project_dir: Path, client: str) -> ClientWireStatus:
     mcp_path = mcp_config_path_for_client(project_dir, client)
     hooks_path = hooks_path_for_client(project_dir, client)
     if client == "claude":
         hooks_present = _claude_settings_has_brainkm_hooks(
             project_dir / ".claude" / "settings.json"
+        )
+    elif client == "antigravity":
+        hooks_present = _antigravity_hooks_wired(
+            project_dir / ".agents" / "hooks.json"
         )
     else:
         hooks_present = bool(hooks_path and hooks_path.is_file())
@@ -258,6 +341,9 @@ def _client_status(project_dir: Path, client: str) -> ClientWireStatus:
     status.url = url
     if transport is None:
         status.notes.append("brainkm server entry missing or incomplete")
+    if client == "antigravity" and isinstance(entry, dict):
+        if "url" in entry and "serverUrl" not in entry:
+            status.notes.append("HTTP field should be serverUrl for Antigravity")
     return status
 
 
@@ -288,7 +374,7 @@ def build_mcp_doctor_report(
     health_ok, health_detail = probe_health(host=resolved_host, port=resolved_port)
     clients = [
         _client_status(root, name)
-        for name in ("cursor", "claude", "codex", "generic")
+        for name in ("cursor", "claude", "antigravity", "codex", "generic")
     ]
 
     dual: str | None = None
@@ -305,6 +391,16 @@ def build_mcp_doctor_report(
     claude_status = next((c for c in clients if c.client == "claude"), None)
     if claude_status and (claude_status.present or (root / ".claude").is_dir()):
         claude_notes = inspect_claude_wiring(root)
+
+    agy_status = next((c for c in clients if c.client == "antigravity"), None)
+    if agy_status and (agy_status.present or (root / ".agents").is_dir()):
+        claude_notes.extend(inspect_antigravity_wiring(root))
+
+    if cfg.capture.distill_mode == "mcp":
+        claude_notes.append(
+            "Legacy distill_mode=mcp coerced to claude on load — "
+            "re-save config to persist distill_mode=claude"
+        )
 
     return McpDoctorReport(
         project_dir=root,

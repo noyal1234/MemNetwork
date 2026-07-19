@@ -1,8 +1,8 @@
 # brainkm — Features
 
-**brainkm** is a local, project-scoped brain for coding agents. It remembers *why* you chose something, maps how your code connects, and injects bounded context so agents stop re-reading files and re-explaining past decisions — even after Cursor chat compaction.
+**brainkm** is a local, project-scoped brain for coding agents (Cursor, Claude Code, Antigravity; Codex connect). It remembers *why* you chose something, maps how your code connects, and injects bounded context so agents stop re-reading files and re-explaining past decisions — even after chat compaction.
 
-It complements Cursor — it does **not** replace `@codebase`, Cursor Memories, or static rules. Storage stays on your machine: `.brain/brain.db` (SQLite).
+It complements the host IDE — it does **not** replace `@codebase` / Grep, Cursor Memories, CLAUDE.md / Auto Memory, or Antigravity `.agents/rules`. Storage stays on your machine: `.brain/brain.db` (SQLite).
 
 > **Command flags:** see [CLI_COMMANDS.md](CLI_COMMANDS.md). **Architecture:** see [AI_PROJECT_BRIEF.md](AI_PROJECT_BRIEF.md).
 
@@ -58,27 +58,38 @@ Hooks wire brainkm into the agent lifecycle so memory keeps working while you vi
 
 ### Hook parity (auto-capture)
 
-| Event | Cursor | Claude | Codex | Notes |
-|-------|--------|--------|-------|-------|
-| SessionStart injection | yes | yes | yes | Frozen pack; Claude uses `hookSpecificOutput` |
-| SessionEnd distill + observe promote | yes | yes | yes | Primary memory path |
-| PreCompact handover | yes | yes | yes | |
-| PostCompact refresh | — | yes | — | Claude-only; refreshes frozen pack |
-| PostToolUse observe | yes | yes | yes | Claude install enables `auto_observe` by default |
-| UserPromptSubmit | yes | yes | — | Gist only |
-| PostToolUseFailure | — | yes | — | Cursor: failure payload on PostToolUse |
-| SubagentStart / SubagentStop | — | yes | — | Multi-agent silent path |
-| Stop | — | yes | — | Flush use counts / optional gist |
+| Event | Cursor | Claude | Antigravity | Codex | Notes |
+|-------|--------|--------|-------------|-------|-------|
+| SessionStart injection | yes | yes | via PreInvocation | yes | AGY: `injectSteps.ephemeralMessage`; Claude: `hookSpecificOutput` |
+| SessionEnd distill + observe promote | yes | yes | idle Stop + debounce | yes | Primary memory path |
+| PreCompact handover | yes | yes | synthetic on PreInvocation | yes | AGY has no host PreCompact |
+| PostCompact refresh | — | yes | — | — | Claude-only |
+| PostToolUse observe | yes | yes | yes (AGY tool names) | yes | Claude/AGY install enable `auto_observe` |
+| UserPromptSubmit | yes | yes | — | — | Gist only |
+| PostToolUseFailure | — | yes | — | — | Cursor: failure on PostToolUse |
+| SubagentStart / SubagentStop | — | yes | — | — | Multi-agent silent path |
+| Stop | — | yes | yes (tiered) | — | AGY: distill only when `fullyIdle` |
 
-Claude hooks install into **`.claude/settings.json`** (not `.claude/hooks.json`). MCP is project **`.mcp.json`**.
+Claude hooks → **`.claude/settings.json`**. MCP → **`.mcp.json`**.  
+Antigravity → **`.agents/mcp_config.json`** (HTTP uses `serverUrl`) + **`.agents/hooks.json`**.
 
-### Coexistence with Claude native memory
+### Distill modes (client peers)
+
+| Mode | Mechanism |
+|------|-----------|
+| `cursor` | Cursor Agent CLI + heuristics |
+| `claude` | `claude -p` (+ MCP sampling when live); legacy `mcp` coerces to `claude` |
+| `antigravity` | `agy -p` |
+| `groq` / `ollama` / `rules` | Shared third-party / offline |
+
+### Coexistence with host-native memory
 
 | Layer | Role |
 |-------|------|
-| `CLAUDE.md` / `.claude/rules` | Authored static instructions |
-| Claude Auto Memory (`MEMORY.md`) | Claude's private notes — brainkm does not write here |
-| brainkm (`.brain/brain.db`) | Searchable decisions, Graphify, compaction survival |
+| Cursor Rules / Memories / `@codebase` | Static policy, cross-project prefs, symbol search |
+| `CLAUDE.md` / `.claude/rules` / Auto Memory | Claude static instructions + private notes — brainkm does not write Auto Memory |
+| `.agents/rules` / `AGENTS.md` (Antigravity) | Authored static instructions; grant `mcp(brainkm/*)` |
+| brainkm (`.brain/brain.db`) | Searchable decisions, Graphify, session/compaction survival |
 
 ### Shared localhost brain
 
@@ -90,6 +101,7 @@ Advanced / scripts:
 brainkm serve --project-dir .
 brainkm connect cursor --http
 brainkm connect claude --http --hooks
+brainkm connect antigravity --http --hooks
 brainkm connect codex --http
 brainkm doctor
 ```
@@ -180,7 +192,7 @@ Optional semantic stack: `pip install -e "./brainkm[semantic]"` + `brainkm seman
 | Feature | Benefit |
 |---------|---------|
 | **`brainkm configure` TUI** | **Recommended setup:** pick coding apps (checkboxes), Semantic Quality consent, Start Brain for shared mode, live status, validated config edits. |
-| **`brainkm install`** | Scaffolds `.brain/`, MCP config, hooks, and rules for **Cursor**, **Claude Code**, **Codex**, or **generic** MCP clients (`--http` for shared). |
+| **`brainkm install`** | Scaffolds `.brain/`, MCP config, hooks, and rules for **Cursor**, **Claude Code**, **Antigravity**, **Codex**, or **generic** (`--http` for shared). |
 | **`serve` / `connect` / `doctor`** | Shared HTTP brain wiring and health checks (TUI Start/Stop wraps serve). |
 | **`migrate`** | Applies pending SQLite migrations when the package advances. |
 | **Multi-root config** | Point `project_roots` at monorepo packages so one brain spans related trees. |
@@ -209,7 +221,7 @@ Optional semantic stack: `pip install -e "./brainkm[semantic]"` + `brainkm seman
 | **Redaction + injection scan** | Secrets and prompt-injection patterns are blocked or stripped on write *and* before pack injection. |
 | **No secrets in neurons / config** | API keys live in env / `.env` only — never in `.brain/config.json` or memory bodies. |
 | **HTTP MCP on localhost** | `brainkm serve` / `mcp --http` binds to `127.0.0.1` by default; `/health` for doctor. |
-| **`connect` / `doctor`** | Wire Cursor / Claude / Codex to stdio or shared URL; detect dual writers + auto_observe. |
+| **`connect` / `doctor`** | Wire Cursor / Claude / Antigravity / Codex to stdio or shared URL (`serverUrl` for AGY HTTP); detect dual writers + auto_observe. |
 
 Details: [SECURITY.md](SECURITY.md).
 

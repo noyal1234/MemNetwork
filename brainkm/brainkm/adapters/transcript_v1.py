@@ -1,17 +1,30 @@
-"""Cursor / Claude agent-transcripts JSONL parser with format detection."""
+"""Cursor / Claude / Antigravity agent-transcripts JSONL parser with format detection."""
 
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from brainkm.models.distill import ParsedTranscript, TranscriptMessage, TranscriptRound
 
 CURSOR_V1_MAGIC = "cursor_transcript_v1"
 CLAUDE_JSONL = "claude_jsonl"
-SUPPORTED_FORMATS = frozenset({CURSOR_V1_MAGIC, CLAUDE_JSONL, "raw_text"})
+ANTIGRAVITY_JSONL = "antigravity_jsonl"
+SUPPORTED_FORMATS = frozenset(
+    {CURSOR_V1_MAGIC, CLAUDE_JSONL, ANTIGRAVITY_JSONL, "raw_text"}
+)
 
 _CLAUDE_TYPES = frozenset({"user", "assistant", "human", "system", "message"})
+_AGY_USER_TYPES = frozenset({"USER_INPUT", "USER_EXPLICIT"})
+_AGY_ASSISTANT_TYPES = frozenset(
+    {"PLANNER_RESPONSE", "AGENT_RESPONSE", "MODEL_RESPONSE", "ASSISTANT_RESPONSE"}
+)
+_AGY_SKIP_TYPES = frozenset({"CONVERSATION_HISTORY", "EPHEMERAL_MESSAGE"})
+_USER_REQUEST_RE = re.compile(
+    r"<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>",
+    re.DOTALL | re.IGNORECASE,
+)
 
 
 def detect_transcript_format(lines: list[str]) -> str:
@@ -31,12 +44,25 @@ def detect_transcript_format(lines: list[str]) -> str:
                 return CURSOR_V1_MAGIC
             if explicit in (CLAUDE_JSONL, "claude", "claude_code"):
                 return CLAUDE_JSONL
+            if explicit in (ANTIGRAVITY_JSONL, "antigravity", "agy"):
+                return ANTIGRAVITY_JSONL
+            if _looks_like_antigravity(payload):
+                return ANTIGRAVITY_JSONL
             if "role" in payload and "message" in payload:
                 return CURSOR_V1_MAGIC
             if _looks_like_claude(payload):
                 return CLAUDE_JSONL
         return "raw_text"
     return "raw_text"
+
+
+def _looks_like_antigravity(payload: dict) -> bool:
+    step_type = str(payload.get("type") or "")
+    if step_type in _AGY_USER_TYPES or step_type in _AGY_ASSISTANT_TYPES:
+        return True
+    if "step_index" in payload and ("content" in payload or "tool_calls" in payload):
+        return True
+    return False
 
 
 def _looks_like_claude(payload: dict) -> bool:
@@ -165,6 +191,93 @@ def parse_claude_jsonl_lines(
     )
 
 
+def _strip_agy_user_request(content: str) -> str:
+    match = _USER_REQUEST_RE.search(content)
+    if match:
+        return match.group(1).strip()
+    return content.strip()
+
+
+def _agy_role_for_type(step_type: str) -> str | None:
+    upper = step_type.upper()
+    if upper in _AGY_SKIP_TYPES:
+        return None
+    if upper in _AGY_USER_TYPES or upper == "USER":
+        return "user"
+    if upper in _AGY_ASSISTANT_TYPES or upper.startswith("PLANNER"):
+        return "assistant"
+    if "TOOL" in upper or upper.endswith("_FILE") or upper in {
+        "RUN_COMMAND",
+        "SEARCH_WEB",
+        "VIEW_FILE",
+        "EDIT_FILE",
+        "WRITE_TO_FILE",
+        "REPLACE_FILE_CONTENT",
+    }:
+        return "assistant"
+    if upper in {"SYSTEM_MESSAGE", "SYSTEM"}:
+        return "system"
+    if step_type:
+        # Unknown future types: keep as assistant prose when content present.
+        return "assistant"
+    return None
+
+
+def parse_antigravity_jsonl_lines(
+    lines: list[str],
+    *,
+    session_id: str,
+    source_path: str | None = None,
+) -> ParsedTranscript:
+    """Parse Antigravity ``transcript.jsonl`` (step_index / type / content)."""
+    messages: list[TranscriptMessage] = []
+    for line_no, line in enumerate(lines, start=1):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            payload = json.loads(stripped)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict):
+            continue
+
+        step_type = str(payload.get("type") or "")
+        role = _agy_role_for_type(step_type)
+        if role is None:
+            continue
+
+        content = payload.get("content")
+        text = ""
+        if isinstance(content, str) and content.strip():
+            text = (
+                _strip_agy_user_request(content)
+                if role == "user"
+                else content.strip()
+            )
+        elif payload.get("tool_calls"):
+            calls = payload.get("tool_calls")
+            if isinstance(calls, list) and calls:
+                names = []
+                for call in calls[:5]:
+                    if isinstance(call, dict):
+                        names.append(str(call.get("name") or call.get("tool") or "tool"))
+                text = f"[tool_calls:{','.join(names)}]" if names else "[tool_calls]"
+
+        if not text:
+            continue
+        messages.append(TranscriptMessage(role=role, text=text, line_no=line_no))
+
+    rounds = _decompose_rounds(messages)
+    return ParsedTranscript(
+        session_id=session_id,
+        format_name=ANTIGRAVITY_JSONL,
+        messages=tuple(messages),
+        rounds=rounds,
+        source_path=source_path,
+    )
+
+
 def parse_raw_text(
     text: str,
     *,
@@ -224,6 +337,10 @@ def parse_transcript_file(
         return parse_cursor_v1_lines(lines, session_id=resolved_session, source_path=str(path))
     if fmt == CLAUDE_JSONL:
         return parse_claude_jsonl_lines(
+            lines, session_id=resolved_session, source_path=str(path)
+        )
+    if fmt == ANTIGRAVITY_JSONL:
+        return parse_antigravity_jsonl_lines(
             lines, session_id=resolved_session, source_path=str(path)
         )
     return parse_raw_text(raw, session_id=resolved_session, source_path=str(path))

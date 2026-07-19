@@ -40,7 +40,9 @@ class CaptureConfig(BaseModel):
     transcripts: bool = True
     plan_files: bool = True
     plan_glob: str = ".cursor/plans/*.plan.md"
-    distill_mode: Literal["cursor", "ollama", "groq", "rules", "mcp"] = "cursor"
+    distill_mode: Literal[
+        "cursor", "claude", "antigravity", "ollama", "groq", "rules", "mcp"
+    ] = "cursor"
     max_auto_neurons_per_session: int = Field(default=50, ge=1, le=500)
     max_neurons_per_plan: int = Field(default=20, ge=1, le=200)
     auto_hygiene: bool = True
@@ -55,6 +57,15 @@ class CaptureConfig(BaseModel):
         le=8760,
         description="Soft-archive unpromoted observations older than this (0=disable)",
     )
+
+
+
+    @field_validator("distill_mode", mode="before")
+    @classmethod
+    def _coerce_legacy_mcp_distill(cls, value: object) -> object:
+        if isinstance(value, str) and value.strip().lower() == "mcp":
+            return "claude"
+        return value
 
 
 class InjectionConfig(BaseModel):

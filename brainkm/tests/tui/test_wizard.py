@@ -122,7 +122,7 @@ async def test_wizard_distill_mode_selection_writes_config(tmp_path: Path) -> No
 
         radio_set = screen.query_one("#wizard-distill-radio", RadioSet)
         radio_set.focus()
-        # Order follows PRIMARY_DISTILL_MODES: cursor, ollama, groq, mcp
+        # Order: cursor, claude, antigravity, ollama, groq
         radio_set.action_next_button()
         radio_set.action_toggle_button()
         await pilot.pause(0.1)
@@ -132,7 +132,7 @@ async def test_wizard_distill_mode_selection_writes_config(tmp_path: Path) -> No
 
         cfg_path = tmp_path / ".brain" / "config.json"
         saved = json.loads(cfg_path.read_text())
-        assert saved["capture"]["distill_mode"] == "ollama"
+        assert saved["capture"]["distill_mode"] == "claude"
         # Agent CLI is skipped for non-cursor distill → land on API key
         assert STEPS[screen._current_step] == STEP_APIKEY
 

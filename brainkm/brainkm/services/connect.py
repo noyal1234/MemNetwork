@@ -15,6 +15,7 @@ from brainkm.services.install import (
     merge_hooks_json,
     resolve_hook_command,
     resolve_project_dir,
+    write_antigravity_hooks,
     write_claude_settings_hooks,
 )
 from brainkm.services.mcp_transport import (
@@ -22,6 +23,7 @@ from brainkm.services.mcp_transport import (
     DEFAULT_HTTP_PORT,
     build_mcp_config,
     mcp_http_url,
+    normalize_mcp_entry_transport_fields,
 )
 
 logger = get_logger("services.connect")
@@ -52,15 +54,9 @@ def _merge_mcp_file(path: Path, payload: dict[str, object]) -> None:
         if isinstance(incoming, dict):
             servers = {**servers, **incoming}
         existing["mcpServers"] = servers
-        # Drop stale command/args when switching to URL (and vice versa).
         entry = servers.get(BRAINKM_MCP_SERVER_KEY)
         if isinstance(entry, dict):
-            if "url" in entry:
-                entry.pop("command", None)
-                entry.pop("args", None)
-            else:
-                entry.pop("url", None)
-            servers[BRAINKM_MCP_SERVER_KEY] = entry
+            servers[BRAINKM_MCP_SERVER_KEY] = normalize_mcp_entry_transport_fields(entry)
         _write_json(path, existing)
     else:
         _write_json(path, payload)
@@ -74,6 +70,8 @@ def mcp_config_path_for_client(project_dir: Path, client: str) -> Path:
         return project_dir / ".mcp.json"
     if kind == "codex":
         return project_dir / ".codex" / "mcp.json"
+    if kind == "antigravity":
+        return project_dir / ".agents" / "mcp_config.json"
     return project_dir / ".brain" / "mcp.http.example.json"
 
 
@@ -85,7 +83,22 @@ def hooks_path_for_client(project_dir: Path, client: str) -> Path | None:
         return project_dir / ".claude" / "settings.json"
     if kind == "codex":
         return project_dir / ".codex" / "hooks.json"
+    if kind == "antigravity":
+        return project_dir / ".agents" / "hooks.json"
     return None
+
+
+def antigravity_global_mcp_paths() -> list[Path]:
+    """Known global / legacy Antigravity MCP config locations (doctor + optional mirror)."""
+    home = Path.home()
+    paths = [
+        home / ".gemini" / "config" / "mcp_config.json",
+        home / ".gemini" / "antigravity-cli" / "mcp_config.json",
+    ]
+    # macOS IDE Application Support variant
+    app_support = home / "Library" / "Application Support" / "Antigravity" / "User" / "mcp_config.json"
+    paths.append(app_support)
+    return paths
 
 
 def run_connect(
@@ -98,15 +111,12 @@ def run_connect(
     port: int = DEFAULT_HTTP_PORT,
     dev: bool = False,
     update_config: bool = True,
+    mirror_global: bool = False,
 ) -> ConnectResult:
     """Wire one client to stdio or shared HTTP MCP for this project."""
     root = resolve_project_dir(project_dir)
     kind = str(client).lower()
-    try:
-        adapter = get_client_adapter(kind)
-    except ValueError:
-        # Allow codex before adapter raises — get_client_adapter will include codex.
-        raise
+    adapter = get_client_adapter(kind)
 
     result = ConnectResult(
         project_dir=root,
@@ -120,10 +130,19 @@ def run_connect(
         transport=transport,
         host=host,
         port=port,
+        client=kind,
     )
     mcp_path = mcp_config_path_for_client(root, kind)
     _merge_mcp_file(mcp_path, payload)
     result.files_written.append(mcp_path)
+
+    if kind == "antigravity" and mirror_global:
+        for gpath in antigravity_global_mcp_paths()[:1]:  # shared ~/.gemini/config only
+            try:
+                _merge_mcp_file(gpath, payload)
+                result.files_written.append(gpath)
+            except OSError as exc:
+                result.warnings.append(f"mirror-global failed for {gpath}: {exc}")
 
     if kind == "generic":
         result.warnings.append(
@@ -143,6 +162,9 @@ def run_connect(
                         "Legacy .claude/hooks.json found — Claude loads "
                         ".claude/settings.json; remove the legacy file after verifying doctor."
                     )
+            elif kind == "antigravity":
+                write_antigravity_hooks(hooks_path, brainkm_bin)
+                result.files_written.append(hooks_path)
             elif kind == "cursor":
                 hooks_payload = build_hooks_config(brainkm_bin)
                 if hooks_path.is_file():
@@ -172,7 +194,7 @@ def run_connect(
             "http_host": host,
             "http_port": port,
         }
-        if transport == "http" or kind == "claude":
+        if transport == "http" or kind in ("claude", "antigravity"):
             capture = data.setdefault("capture", {})
             if isinstance(capture, dict):
                 capture["auto_observe"] = True

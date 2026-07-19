@@ -1,6 +1,6 @@
 # Agent instructions — MemNetwork / brainkm
 
-When working in this repository, read **`docs/AI_PROJECT_BRIEF.md`** first for product vision, architecture, MCP contract, Cursor coexistence, and roadmap status.
+When working in this repository, read **`docs/AI_PROJECT_BRIEF.md`** first for product vision, architecture, MCP contract, multi-client coexistence (Cursor / Claude / Antigravity), and roadmap status.
 
 ## Quick orientation
 
@@ -38,16 +38,19 @@ Python **3.11 or 3.12** recommended. Avoid 3.14+ for now (some deps may not have
 
 Full clone setup: [docs/INSTALL.md](docs/INSTALL.md).
 
-## Cursor-specific assets
+## Client install assets
 
 | Path | In git? | Purpose |
 |------|---------|---------|
 | `cursor-policy/README.md` | Yes | Notes on local `.cursor/rules/` (not versioned) |
 | `.cursor/skills/` | Yes | Backend implementation skill |
-| `.cursor/*.example` | Yes | MCP/hooks config shape before install |
+| `.cursor/*.example` | Yes | Cursor MCP/hooks config shape before install |
 | `.cursor/rules/` | No | Policy rules + `brainkm.mdc` (local only) |
+| `brainkm/brainkm/hooks/cursor/` | Yes | Cursor hooks + `brainkm.mdc` + routing skill |
+| `brainkm/brainkm/hooks/claude/` | Yes | Claude settings hooks, rules, routing skill |
+| `brainkm/brainkm/hooks/antigravity/` | Yes | Antigravity `.agents/` hooks, rules, routing skill |
 
-Cursor rules in target projects are installed by `brainkm install` / `brainkm configure` (V1).
+Client wiring is installed by `brainkm install --client …` / `brainkm configure`.
 
 ## Release checklist (version bump)
 
@@ -55,7 +58,7 @@ When shipping a release, keep these in lockstep:
 
 1. `brainkm/pyproject.toml` → `version`
 2. `brainkm/brainkm/__init__.py` → `__version__`
-3. Docs status tables / expect strings: `docs/AI_PROJECT_BRIEF.md`, `docs/INSTALL.md`, `README.md`, `brainkm/README.md`, `.cursor/skills/memnetwork-backend/SKILL.md`
-4. Hook/rule templates: `brainkm/brainkm/hooks/cursor/brainkm.mdc` (and sync workspace `.cursor/rules/brainkm.mdc` if present)
+3. Docs status tables / expect strings: `docs/AI_PROJECT_BRIEF.md`, `docs/INSTALL.md`, `docs/FEATURES.md`, `docs/CLI_COMMANDS.md`, `README.md`, `brainkm/README.md`, `.cursor/skills/memnetwork-backend/SKILL.md`
+4. Hook/rule templates: `hooks/cursor/brainkm.mdc` (sync workspace `.cursor/rules/brainkm.mdc`), plus Claude/Antigravity rules + routing skills under `hooks/{claude,antigravity}/`
 5. `pytest tests/test_version.py` (asserts pyproject == `__version__`)
 6. Prefer adding a brief row to the Implementation status table in `AI_PROJECT_BRIEF.md`

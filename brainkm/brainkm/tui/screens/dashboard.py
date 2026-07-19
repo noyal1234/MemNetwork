@@ -274,7 +274,10 @@ class DashboardScreen(Screen):
     def _load_serve_status(self) -> dict[str, Any]:
         try:
             from brainkm.services.config_loader import load_brain_config
-            from brainkm.services.mcp_doctor import claude_hooks_wired
+            from brainkm.services.mcp_doctor import (
+                antigravity_hooks_wired,
+                claude_hooks_wired,
+            )
             from brainkm.services.serve_helper import get_serve_status
 
             cfg = load_brain_config(self._project_dir)
@@ -282,6 +285,7 @@ class DashboardScreen(Screen):
             claude_dir = (self._project_dir / ".claude").is_dir() or (
                 self._project_dir / ".mcp.json"
             ).is_file()
+            agy_dir = (self._project_dir / ".agents").is_dir()
             return {
                 "running": status.running,
                 "transport": cfg.mcp.transport,
@@ -289,6 +293,9 @@ class DashboardScreen(Screen):
                 "url": status.health_url,
                 "detail": status.detail,
                 "claude_hooks": claude_hooks_wired(self._project_dir) if claude_dir else None,
+                "antigravity_hooks": (
+                    antigravity_hooks_wired(self._project_dir) if agy_dir else None
+                ),
             }
         except Exception as exc:
             return {"error": str(exc), "running": False, "transport": "?"}
@@ -325,6 +332,11 @@ class DashboardScreen(Screen):
             items.append(("Claude hooks", "settings.json", "ok"))
         elif claude_hooks is False:
             items.append(("Claude hooks", "missing", "warning"))
+        agy_hooks = data.get("antigravity_hooks")
+        if agy_hooks is True:
+            items.append(("AGY hooks", ".agents/hooks.json", "ok"))
+        elif agy_hooks is False:
+            items.append(("AGY hooks", "missing", "warning"))
         panel.set_items(items)
 
     # --- Ollama ---

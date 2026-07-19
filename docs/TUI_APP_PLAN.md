@@ -428,7 +428,7 @@ Each action is a button that spawns a Textual `Worker`. Output is captured line-
 
 **Purpose:** Guided alternative to manually running `brainkm install --client …` + doctor commands. Activated automatically when `.brain/` does not exist, or via the `w` keybinding.
 
-**Steps (sequential screens) — as of 0.4.0:**
+**Steps (sequential screens) — as of 0.4.2:**
 
 ```mermaid
 flowchart LR
@@ -447,12 +447,12 @@ flowchart LR
 | Step | What happens | Service call |
 |------|-------------|-------------|
 | **1. Project dir** | Confirm `--project-dir` or `cwd`. Warn if `.brain/` already exists. Auto-advances. | — |
-| **2. Which apps** | Checkboxes: Cursor / Claude / Codex. One app = simple stdio; two+ = shared HTTP. | checkboxes → `shared_mode` |
-| **3. Set up brain** | `run_install` (+ `connect` for extra apps); always enables `auto_observe`. Claude → `.claude/settings.json` hooks + `.mcp.json` + rules/skill; Cursor → `.cursor/hooks.json`. | `install` / `connect` |
-| **4–10** | Same as before (doctor, semantic, distill, …). | — |
-| **Done** | Plain next steps (Claude tip when selected). Shared mode: **Start Brain** button (background `serve`). | `serve_helper.start_serve_background` |
+| **2. Which apps** | Checkboxes: Cursor / Claude / Antigravity / Codex. One app = simple stdio; two+ = shared HTTP. | checkboxes → `shared_mode` |
+| **3. Set up brain** | `run_install` (+ `connect` for extra apps); always enables `auto_observe`. Claude → `.claude/settings.json` + `.mcp.json`; Antigravity → `.agents/` (`serverUrl` for HTTP); Cursor → `.cursor/hooks.json`. | `install` / `connect` |
+| **4–10** | Same as before (doctor, semantic, distill, …). Distill radios include `claude` / `antigravity`. | — |
+| **Done** | Plain next steps (client tips when selected). Shared mode: **Start Brain** button (background `serve`). | `serve_helper.start_serve_background` |
 
-Dashboard **Shared Brain** panel shows Observe on/off; when a Claude install is present it also shows **Claude hooks** (`settings.json` vs missing).
+Dashboard **Shared Brain** panel shows Observe on/off; Claude install → **Claude hooks**; Antigravity `.agents/` → **AGY hooks**.
 
 ---
 

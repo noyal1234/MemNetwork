@@ -31,3 +31,7 @@ Prefs and debug insights stay in Auto Memory. Durable team architecture → brai
 - **PreCompact** runs `brainkm handover` before lossy summarize.
 - **PostCompact** refreshes the frozen injection snapshot.
 - **SessionEnd** captures the transcript into neurons.
+
+## Distill
+
+Prefer `capture.distill_mode: claude` (`claude -p`, or live MCP sampling when available). Install with `brainkm install --client claude`.

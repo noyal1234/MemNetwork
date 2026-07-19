@@ -11,6 +11,6 @@ pip install -e "./brainkm[tui]"
 brainkm configure
 ```
 
-Or `brainkm install --dev` to add `brainkm.mdc`, MCP config, hooks, and `.brain/` scaffolding. Add or restore `memnetwork-*.mdc` rules locally under `.cursor/rules/` as needed for your machine.
+Or `brainkm install --dev` (Cursor) / `--client claude` / `--client antigravity` to add host wiring and `.brain/` scaffolding. Add or restore `memnetwork-*.mdc` rules locally under `.cursor/rules/` as needed for your machine.
 
-The installed `brainkm.mdc` treats hooks as the primary memory path; MCP `remember` is pin/correct only.
+The installed host rules treat hooks as the primary memory path; MCP `remember` is pin/correct only. Package version: **0.4.2**.

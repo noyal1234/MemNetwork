@@ -1,0 +1,50 @@
+{
+  "brainkm": {
+    "enabled": true,
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "brainkm pre-invocation --stdin --client antigravity --event SessionStart",
+        "timeout": 30
+      }
+    ],
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "brainkm pre-invocation --stdin --client antigravity --event PreInvocation",
+        "timeout": 30
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "write_to_file|replace_file_content|multi_replace_file_content|run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "brainkm pre-tool --stdin --client antigravity --event PreToolUse",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "write_to_file|replace_file_content|multi_replace_file_content|run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "brainkm post-tool --stdin --client antigravity --event PostToolUse",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "brainkm agent-stop --stdin --client antigravity --event Stop",
+        "timeout": 120
+      }
+    ]
+  }
+}

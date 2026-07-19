@@ -15,22 +15,22 @@ from brainkm.services.ollama_advisor import probe_ollama
 logger = get_logger("services.distill_status")
 
 # Backend / doctor order (rules remains a real mode + timeout fallback).
-DISTILL_MODES = ("cursor", "rules", "ollama", "groq", "mcp")
+DISTILL_MODES = ("cursor", "claude", "antigravity", "rules", "ollama", "groq")
 
-# Primary TUI pickers: rules is intentionally omitted — it overlaps conceptually
-# with cursor heuristics and is an advanced/offline fallback, not a peer choice.
-PRIMARY_DISTILL_MODES = ("cursor", "ollama", "groq", "mcp")
+# Primary TUI pickers: rules is intentionally omitted — advanced/offline fallback.
+PRIMARY_DISTILL_MODES = ("cursor", "claude", "antigravity", "ollama", "groq")
 
-# User-facing labels: cursor must not say "rule-based" (that collides with rules).
 DISTILL_MODE_LABELS: dict[str, str] = {
     "cursor": (
         "cursor — Cursor transcripts (default; free heuristic, "
         "optional Agent CLI for LLM quality)"
     ),
+    "claude": "claude — Claude Code CLI (claude -p) + optional MCP sampling",
+    "antigravity": "antigravity — Antigravity CLI (agy -p)",
     "rules": "rules — advanced raw pattern fallback (no Cursor cleanup)",
     "ollama": "ollama — local LLM (needs Ollama daemon)",
     "groq": "groq — cloud LLM (needs GROQ_API_KEY)",
-    "mcp": "mcp — client model via MCP sampling (falls back to rules)",
+    "mcp": "mcp — legacy alias for claude (coerced on load)",
 }
 
 
@@ -42,7 +42,6 @@ def distill_mode_select_options(
     """(label, value) pairs for Config/Wizard pickers."""
     modes: list[str] = list(PRIMARY_DISTILL_MODES)
     if include_rules or current == "rules":
-        # Keep advanced mode visible only when already selected in config.
         if "rules" not in modes:
             modes.insert(1, "rules")
     return [(DISTILL_MODE_LABELS[m], m) for m in modes]
@@ -61,13 +60,10 @@ def build_distill_status(
     *,
     project_dir: Path | None = None,
 ) -> list[DistillModeStatus]:
-    """Probe all distill backends and return one status row per mode.
+    """Probe all distill backends and return one status row per mode."""
+    from brainkm.adapters.antigravity_distill import resolve_agy_bin
+    from brainkm.adapters.claude_distill import resolve_claude_bin
 
-    - rules  — always ready (pure pattern match)
-    - cursor — always ready (heuristic fallback); detail notes agent CLI
-    - ollama — ready when daemon is reachable
-    - groq   — ready when API key works and endpoint is reachable
-    """
     cfg_path = config_path(project_dir)
     active_mode = "cursor"
     ollama_base = "http://127.0.0.1:11434"
@@ -86,6 +82,8 @@ def build_distill_status(
     cursor = probe_cursor_agent()
     ollama = probe_ollama(ollama_base)
     groq = probe_groq(groq_base, get_settings().groq_api_key, model=groq_model)
+    claude_bin = resolve_claude_bin()
+    agy_bin = resolve_agy_bin()
 
     statuses: list[DistillModeStatus] = [
         DistillModeStatus(
@@ -98,6 +96,20 @@ def build_distill_status(
             ),
             is_default=True,
             is_active=active_mode == "cursor",
+        ),
+        DistillModeStatus(
+            mode="claude",
+            ready=True,
+            detail=("claude CLI" if claude_bin else "rules fallback (no claude CLI)"),
+            is_default=False,
+            is_active=active_mode == "claude",
+        ),
+        DistillModeStatus(
+            mode="antigravity",
+            ready=bool(agy_bin),
+            detail=("agy CLI" if agy_bin else "agy not on PATH"),
+            is_default=False,
+            is_active=active_mode == "antigravity",
         ),
         DistillModeStatus(
             mode="rules",
@@ -124,38 +136,28 @@ def build_distill_status(
             is_default=False,
             is_active=active_mode == "groq",
         ),
-        DistillModeStatus(
-            mode="mcp",
-            ready=True,
-            detail="uses host sampling when available; else rules",
-            is_default=False,
-            is_active=active_mode == "mcp",
-        ),
     ]
     return statuses
 
 
 def format_distill_status_line(statuses: list[DistillModeStatus]) -> str:
-    """Compact one-line summary for Config Editor / Dashboard.
-
-    Omits inactive ``rules`` so readiness does not look like a third peer
-    beside cursor (rules is an advanced fallback, not a primary distill choice).
-    """
+    """Compact one-line summary for Config Editor / Dashboard."""
     parts: list[str] = []
     for item in statuses:
         if item.mode == "rules" and not item.is_active:
             continue
         mark = "OK" if item.ready else "unreachable"
-        if item.mode in ("cursor", "rules") and item.ready:
+        if item.mode in ("cursor", "rules", "claude") and item.ready:
             mark = "OK"
         if not item.ready and item.mode == "groq" and item.detail:
-            # Prefer short detail for groq failures (e.g. "GROQ_API_KEY not set")
             short = item.detail.split("(")[0].strip()
             mark = short if len(short) < 40 else "unreachable"
         elif not item.ready:
             mark = "unreachable"
         elif item.mode == "cursor":
             mark = item.detail if "heuristic" in item.detail else "OK"
+        elif item.mode == "claude" and "fallback" in item.detail:
+            mark = item.detail
         parts.append(f"{item.mode} {mark}")
     return " | ".join(parts)
 
@@ -171,6 +173,8 @@ def active_distill_display(
         return ("?", "unknown", "muted")
     color = "ok" if active.ready else "error"
     if active.mode == "cursor" and "heuristic" in active.detail:
+        color = "ok"
+    if active.mode == "claude":
         color = "ok"
     display = f"{active.mode} ({active.detail})"
     return (active.mode, display, color)

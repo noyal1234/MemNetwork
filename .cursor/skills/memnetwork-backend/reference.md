@@ -110,6 +110,8 @@ Troubleshooting:
 | `ollama` | Local Ollama (`qwen2.5:3b` default) | `pip install -e "./brainkm[ollama]"` + `brainkm ollama doctor` |
 | `groq` | Free cloud Groq (`llama-3.3-70b-versatile`) | `pip install -e "./brainkm[cloud]"` + `GROQ_API_KEY` + `brainkm groq doctor` |
 | `cursor` | Cursor agent CLI when installed; else Cursor-aware heuristic distill (strips `<user_query>` / tool_use chrome). Optional pre-distilled JSON at `.brain/pending/cursor-distill/<session_id>.json` | `agent` / `cursor-agent` on PATH (optional) |
+| `claude` | Live MCP sampling when registered; else `claude -p --bare`; else rules. Legacy `mcp` coerces to `claude` | `claude` on PATH (optional) |
+| `antigravity` | `agy -p` / `agy --print`; else rules | `agy` on PATH (optional) |
 
 Set in `.brain/config.json`:
 
@@ -131,18 +133,7 @@ Full CLI surface: [docs/CLI_COMMANDS.md](../../../docs/CLI_COMMANDS.md).
 
 ## MCP server entry (target project)
 
-```json
-{
-  "mcpServers": {
-    "brainkm": {
-      "command": "uvx",
-      "args": ["brainkm@latest", "--project-dir", "."]
-    }
-  }
-}
-```
-
-Local dev of brainkm:
+Cursor / Claude stdio (local dev):
 
 ```json
 {
@@ -154,6 +145,20 @@ Local dev of brainkm:
   }
 }
 ```
+
+Antigravity HTTP (shared brain) — field is **`serverUrl`**, not `url`:
+
+```json
+{
+  "mcpServers": {
+    "brainkm": {
+      "serverUrl": "http://127.0.0.1:8765/mcp"
+    }
+  }
+}
+```
+
+Paths: Cursor → `.cursor/mcp.json`; Claude → `.mcp.json`; Antigravity → `.agents/mcp_config.json`.
 
 ## Token budget slots (default)
 

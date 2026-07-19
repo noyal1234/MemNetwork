@@ -16,20 +16,29 @@ SamplingCallback = Callable[..., str | None]
 
 # Set by the MCP server when a sampling-capable client session is active.
 _SAMPLING_CALLBACK: SamplingCallback | None = None
+_SAMPLING_LIVE: bool = False
 
 
-def set_sampling_callback(callback: SamplingCallback) -> None:
-    global _SAMPLING_CALLBACK
+def set_sampling_callback(callback: SamplingCallback, *, live: bool = True) -> None:
+    """Register sampling callback. ``live=False`` for the empty server stub."""
+    global _SAMPLING_CALLBACK, _SAMPLING_LIVE
     _SAMPLING_CALLBACK = callback
+    _SAMPLING_LIVE = bool(live and callback is not None)
 
 
 def clear_sampling_callback() -> None:
-    global _SAMPLING_CALLBACK
+    global _SAMPLING_CALLBACK, _SAMPLING_LIVE
     _SAMPLING_CALLBACK = None
+    _SAMPLING_LIVE = False
+
+
+def sampling_callback_usable() -> bool:
+    """True when a real host sampling bridge is registered (not the empty stub)."""
+    return _SAMPLING_LIVE and _SAMPLING_CALLBACK is not None
 
 
 class McpDistillAdapter:
-    """Ask the MCP host to distill via sampling; fall back to rules."""
+    """Legacy alias — prefer ClaudeDistillAdapter (``distill_mode=claude``)."""
 
     mode = "mcp"
 

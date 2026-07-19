@@ -262,7 +262,8 @@ def _register_sampling_callback(server: Server) -> None:
         _ = (system, user, max_tokens)
         return ""
 
-    set_sampling_callback(_sampling_callback)
+    # Stub is not live — ClaudeDistillAdapter will use ``claude -p`` instead.
+    set_sampling_callback(_sampling_callback, live=False)
 
 
 async def run_http_server(

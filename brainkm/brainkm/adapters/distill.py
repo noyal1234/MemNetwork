@@ -52,10 +52,14 @@ def get_distill_adapter(
             project_dir=project_dir,
             session_id=session_id,
         )
-    if mode == "mcp":
-        from brainkm.adapters.mcp_distill import McpDistillAdapter
+    if mode in ("claude", "mcp"):
+        from brainkm.adapters.claude_distill import ClaudeDistillAdapter
 
-        return McpDistillAdapter(config)
+        return ClaudeDistillAdapter(config, project_dir=project_dir)
+    if mode == "antigravity":
+        from brainkm.adapters.antigravity_distill import AntigravityDistillAdapter
+
+        return AntigravityDistillAdapter(config, project_dir=project_dir)
     from brainkm.adapters.distill_rules import RulesDistillAdapter
 
     return RulesDistillAdapter()

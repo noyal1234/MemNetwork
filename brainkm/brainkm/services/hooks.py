@@ -131,7 +131,61 @@ def _tool_name_from_payload(data: dict[str, object]) -> str | None:
         value = data.get(key)
         if value is not None:
             return str(value)
+    tool_call = data.get("toolCall")
+    if isinstance(tool_call, dict):
+        name = tool_call.get("name")
+        if name is not None:
+            return str(name)
     return None
+
+
+def _tool_input_from_payload(data: dict[str, object]) -> dict[str, object]:
+    for key in ("tool_input", "toolInput", "input", "arguments"):
+        value = data.get(key)
+        if isinstance(value, dict):
+            return value
+    tool_call = data.get("toolCall")
+    if isinstance(tool_call, dict):
+        args = tool_call.get("args")
+        if isinstance(args, dict):
+            return args
+    return {}
+
+
+def normalize_antigravity_stdin(
+    data: dict[str, object],
+    *,
+    event: str | None = None,
+) -> dict[str, object]:
+    """Map Antigravity hook fields onto Cursor/Claude-shaped keys for shared handlers."""
+    out = dict(data)
+    if event:
+        out.setdefault("hook_event_name", event)
+        out.setdefault("hookEventName", event)
+    conv = data.get("conversationId") or data.get("conversation_id")
+    if conv is not None:
+        out.setdefault("session_id", str(conv))
+        out.setdefault("sessionId", str(conv))
+    transcript = data.get("transcriptPath") or data.get("transcript_path")
+    if transcript is not None:
+        out.setdefault("transcript_path", str(transcript))
+        out.setdefault("transcriptPath", str(transcript))
+    tool_name = _tool_name_from_payload(data)
+    if tool_name:
+        out.setdefault("tool_name", tool_name)
+        out.setdefault("toolName", tool_name)
+    tool_input = _tool_input_from_payload(data)
+    if tool_input:
+        # Map AGY file/shell args to common observe keys.
+        mapped = dict(tool_input)
+        if "TargetFile" in tool_input and "path" not in mapped:
+            mapped["path"] = tool_input["TargetFile"]
+            mapped["file_path"] = tool_input["TargetFile"]
+        if "CommandLine" in tool_input and "command" not in mapped:
+            mapped["command"] = tool_input["CommandLine"]
+        out.setdefault("tool_input", mapped)
+        out.setdefault("toolInput", mapped)
+    return out
 
 
 def _pattern_matches_tool(pattern: str, tool_name: str) -> bool:
@@ -139,12 +193,47 @@ def _pattern_matches_tool(pattern: str, tool_name: str) -> bool:
     normalized_tool = tool_name.strip().lower()
 
     aliases = {
-        "write": ("write",),
-        "edit": ("edit",),
-        "run_terminal": ("shell", "bash", "run_terminal", "run_terminal_cmd", "terminal"),
+        "write": ("write", "write_to_file"),
+        "edit": ("edit", "replace_file_content", "multi_replace_file_content"),
+        "run_terminal": (
+            "shell",
+            "bash",
+            "run_terminal",
+            "run_terminal_cmd",
+            "terminal",
+            "run_command",
+        ),
     }
     candidates = aliases.get(normalized_pattern, (normalized_pattern,))
     return any(candidate in normalized_tool for candidate in candidates)
+
+
+def build_antigravity_hook_stdout(
+    result: HookRunResult,
+    event: str,
+) -> dict[str, object]:
+    """Build Antigravity hook stdout JSON for the given PascalCase or camelCase event."""
+    normalized = event[0].lower() + event[1:] if event and event[0].isupper() else event
+    # Accept both PreInvocation and preInvocation.
+    key = normalized.replace("PreInvocation", "preInvocation").replace(
+        "SessionStart", "sessionStart"
+    )
+    if event in ("PreInvocation", "preInvocation", "SessionStart", "sessionStart"):
+        if result.additional_context:
+            return {
+                "injectSteps": [
+                    {"ephemeralMessage": result.additional_context},
+                ]
+            }
+        return {}
+    if event in ("PreToolUse", "preToolUse"):
+        return {"decision": "allow"}
+    if event in ("PostToolUse", "postToolUse", "PostInvocation", "postInvocation"):
+        return {}
+    if event in ("Stop", "stop"):
+        return {"decision": "stop"}
+    _ = key
+    return {}
 
 
 _CONTEXT_HINT_KEYS = ("context_hint", "contextHint", "hint", "task")
@@ -692,11 +781,18 @@ def run_agent_stop(
     *,
     project_dir: Path | None = None,
     config: BrainConfig | None = None,
+    client: str = "cursor",
 ) -> HookRunResult:
-    """Stop — flush use counts; optional capped turn gist when auto_observe is on."""
+    """Stop — flush use counts; Antigravity idle Stop also distills/handover with debounce."""
     cfg = config or load_brain_config(project_dir)
     data = _parse_hook_object(raw) if raw.strip() else {}
+    kind = (client or "cursor").strip().lower()
+    if kind == "antigravity":
+        data = normalize_antigravity_stdin(data, event="Stop")
     session_id = _session_id_from_payload(data)
+
+    if kind == "antigravity" and session_id:
+        return _run_antigravity_stop(data, session_id=session_id, project_dir=project_dir, config=cfg)
 
     conn = connect(brain_db_path(project_dir))
     try:
@@ -727,6 +823,211 @@ def run_agent_stop(
         session_id=session_id,
         skipped=False,
         reason=None,
+    )
+
+
+def _run_antigravity_stop(
+    data: dict[str, object],
+    *,
+    session_id: str,
+    project_dir: Path | None,
+    config: BrainConfig,
+) -> HookRunResult:
+    import time
+
+    from brainkm.services.antigravity_session import (
+        get_agy_session,
+        save_agy_session,
+        should_run_distill,
+    )
+    from brainkm.services.handover import run_handover
+    from brainkm.services.observe import promote_session_observations
+
+    fully_idle = bool(data.get("fullyIdle", data.get("fully_idle", False)))
+    termination = str(data.get("terminationReason") or data.get("termination_reason") or "")
+    force = termination in {"error", "max_steps_exceeded"}
+    state = get_agy_session(project_dir, session_id)
+
+    conn = connect(brain_db_path(project_dir))
+    try:
+        if config.capture.auto_observe:
+            promo = promote_session_observations(
+                conn,
+                session_id=session_id,
+                config=config,
+                project_dir=project_dir,
+            )
+            logger.info(
+                "hook=Stop(agy) session_id=%s observe_promoted=%d",
+                session_id,
+                promo.promoted,
+            )
+        flushed = flush_use_counts(conn, session_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    do_distill = should_run_distill(state, fully_idle=fully_idle, force=force)
+    if do_distill:
+        transcript = data.get("transcript_path") or data.get("transcriptPath")
+        if isinstance(transcript, str) and transcript.strip():
+            tpath = Path(transcript).expanduser()
+            if tpath.is_file():
+                try:
+                    run_handover(
+                        tpath,
+                        project_dir=project_dir,
+                        config=config,
+                        session_id=session_id,
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.warning("Antigravity Stop handover failed", exc_info=True)
+                else:
+                    state.last_distill_at = time.time()
+                    try:
+                        state.transcript_byte_offset = tpath.stat().st_size
+                        state.last_handover_transcript_bytes = state.transcript_byte_offset
+                        state.last_handover_at = state.last_distill_at
+                    except OSError:
+                        pass
+                    save_agy_session(project_dir, state)
+
+    logger.info(
+        "hook=Stop(agy) session_id=%s fully_idle=%s distill=%s flushed=%d",
+        session_id,
+        fully_idle,
+        do_distill,
+        flushed,
+    )
+    return HookRunResult(
+        hook="Stop",
+        session_id=session_id,
+        skipped=not do_distill and not fully_idle,
+        reason=None if do_distill or fully_idle else "not fully idle",
+    )
+
+
+def run_pre_invocation(
+    raw: str,
+    *,
+    project_dir: Path | None = None,
+    config: BrainConfig | None = None,
+    event: str = "PreInvocation",
+) -> HookRunResult:
+    """Antigravity PreInvocation / SessionStart — inject throttled pack + synthetic precompact."""
+    import hashlib
+    import time
+
+    from brainkm.services.antigravity_session import (
+        get_agy_session,
+        save_agy_session,
+        should_inject_pack,
+        should_synthetic_handover,
+    )
+    from brainkm.services.handover import run_handover
+
+    cfg = config or load_brain_config(project_dir)
+    data = _parse_hook_object(raw) if raw.strip() else {}
+    data = normalize_antigravity_stdin(data, event=event)
+    session_id = _session_id_from_payload(data) or resolve_session_id(data)
+    invocation_num = int(data.get("invocationNum") or data.get("invocation_num") or 0)
+    steps = int(data.get("initialNumSteps") or data.get("initial_num_steps") or 0)
+    context_hint = _context_hint_from_payload(data)
+
+    if not cfg.injection.session_start:
+        return HookRunResult(
+            hook="PreInvocation",
+            session_id=session_id,
+            skipped=True,
+            reason="injection.session_start disabled",
+        )
+
+    migrate(project_dir=project_dir, run_integrity_check=invocation_num == 0)
+    state = get_agy_session(project_dir, session_id or "unknown")
+
+    transcript = data.get("transcript_path") or data.get("transcriptPath")
+    transcript_bytes = 0
+    tpath: Path | None = None
+    if isinstance(transcript, str) and transcript.strip():
+        tpath = Path(transcript).expanduser()
+        try:
+            if tpath.is_file():
+                transcript_bytes = tpath.stat().st_size
+        except OSError:
+            transcript_bytes = 0
+
+    did_handover = False
+    if tpath is not None and tpath.is_file() and should_synthetic_handover(
+        state, transcript_bytes=transcript_bytes, steps=steps
+    ):
+        try:
+            run_handover(
+                tpath,
+                project_dir=project_dir,
+                config=cfg,
+                session_id=session_id,
+            )
+            state.last_handover_at = time.time()
+            state.last_handover_transcript_bytes = transcript_bytes
+            save_agy_session(project_dir, state)
+            did_handover = True
+            logger.info(
+                "hook=PreInvocation synthetic_handover session_id=%s bytes=%d steps=%d",
+                session_id,
+                transcript_bytes,
+                steps,
+            )
+        except Exception:  # noqa: BLE001
+            logger.warning("synthetic precompact handover failed", exc_info=True)
+
+    conn = connect(brain_db_path(project_dir))
+    try:
+        snapshot = build_frozen_snapshot(
+            conn,
+            session_id,
+            cfg,
+            force=did_handover,
+            context_hint=context_hint,
+        )
+        pack_text = snapshot.pack_text if cfg.injection.frozen_snapshot else None
+        pack_hash = (
+            hashlib.sha256(pack_text.encode("utf-8")).hexdigest()[:16] if pack_text else ""
+        )
+        inject = should_inject_pack(
+            state,
+            invocation_num=invocation_num,
+            pack_hash=pack_hash,
+        )
+        if inject and pack_text:
+            record_neuron_activity(
+                conn,
+                session_id,
+                list(snapshot.neuron_ids),
+                source="pre_invocation",
+            )
+            conn.commit()
+            state.last_inject_invocation = invocation_num
+            state.last_inject_pack_hash = pack_hash
+            state.bootstrap_done = True
+            save_agy_session(project_dir, state)
+        else:
+            pack_text = None
+    finally:
+        conn.close()
+
+    logger.info(
+        "hook=PreInvocation session_id=%s invocation=%d inject=%s",
+        session_id,
+        invocation_num,
+        bool(pack_text),
+    )
+    return HookRunResult(
+        hook="PreInvocation",
+        session_id=session_id,
+        skipped=not bool(pack_text),
+        reason=None if pack_text else "throttled",
+        additional_context=pack_text,
+        snapshot_neuron_ids=snapshot.neuron_ids if pack_text else (),
     )
 
 

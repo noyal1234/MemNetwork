@@ -57,9 +57,9 @@ PyPI / `uvx brainkm install`, MCP Registry listing, Cursor one-click deeplink, a
 | "What calls X?" | **brainkm `traverse` / `context_pack`** |
 | Hosted multi-tenant memory | Mem0 / Zep — not the goal here |
 
-brainkm is **local-first**, **zero-LLM-default** (`rules` distill), and complementary to Cursor / Claude — not a second codebase index. Claude silent memory installs into `.claude/settings.json` (see [INSTALL.md](docs/INSTALL.md)).
+brainkm is **local-first**, **zero-LLM-default** (`rules` distill), and complementary to Cursor / Claude / Antigravity — not a second codebase index. Claude → `.claude/settings.json`; Antigravity → `.agents/` (`serverUrl` for HTTP). See [INSTALL.md](docs/INSTALL.md).
 
 
 ## Status
 
-**brainkm 0.4.1** — Claude Code silent memory (`.claude/settings.json` hooks + `hookSpecificOutput`, subagent lifecycle, doctor/TUI verify) on top of 0.4.0: 8 MCP tools, shared localhost brain, hook-first `auto_observe`, hybrid retrieval, multi-client install (Cursor / Claude / Codex / generic) + guided TUI. `remember` is pin/correct only — hooks fill the brain. See [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md) and [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+**brainkm 0.4.2** — Antigravity first-class client (`.agents/` MCP `serverUrl` + hooks, PreInvocation inject, `agy -p` distill) + foolproof `claude` distill (`claude -p`; legacy `mcp` alias) on top of 0.4.1 Claude silent memory. 8 MCP tools, shared localhost brain, multi-client install (Cursor / Claude / Antigravity / Codex) + guided TUI. See [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md).

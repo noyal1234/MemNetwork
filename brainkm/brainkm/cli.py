@@ -113,7 +113,7 @@ def _hook_client_option() -> str:
     return typer.Option(
         "cursor",
         "--client",
-        help="Hook host: cursor | claude (stdout envelope + fail-soft for claude)",
+        help="Hook host: cursor | claude | antigravity (stdout envelope + fail-soft)",
     )
 
 
@@ -366,7 +366,7 @@ def install_cmd(
     client: str = typer.Option(
         "cursor",
         "--client",
-        help="Target agent client: cursor | claude | codex | generic",
+        help="Target agent client: cursor | claude | antigravity | codex | generic",
     ),
     http: bool = typer.Option(
         False,
@@ -408,18 +408,45 @@ def _run_stdin_hook(
 ) -> None:
     import sys
 
-    from brainkm.services.hooks import build_claude_hook_stdout, build_cursor_hook_stdout
+    from brainkm.services.hooks import (
+        build_antigravity_hook_stdout,
+        build_claude_hook_stdout,
+        build_cursor_hook_stdout,
+        normalize_antigravity_stdin,
+    )
 
     kind = (client or "cursor").strip().lower()
-    fail_soft = kind == "claude"
+    fail_soft = kind in ("claude", "antigravity")
 
     try:
         payload = sys.stdin.read()
+        if kind == "antigravity" and payload.strip():
+            try:
+                data = json.loads(payload)
+                if isinstance(data, dict):
+                    payload = json.dumps(normalize_antigravity_stdin(data, event=event))
+            except json.JSONDecodeError:
+                pass
         result = handler(payload)
     except Exception as exc:
         logger.error("%s failed: %s", handler_name, exc)
         if fail_soft:
-            # Never block Claude Code sessions / tool use.
+            if kind == "antigravity" and event:
+                from brainkm.services.hooks import HookRunResult
+
+                typer.echo(
+                    json.dumps(
+                        build_antigravity_hook_stdout(
+                            HookRunResult(
+                                hook=handler_name,
+                                session_id=None,
+                                skipped=True,
+                                reason=str(exc),
+                            ),
+                            event,
+                        )
+                    )
+                )
             raise typer.Exit(code=0) from exc
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
@@ -434,11 +461,21 @@ def _run_stdin_hook(
             if payload_out is not None:
                 typer.echo(json.dumps(payload_out))
             return
-        typer.echo(json.dumps(build_cursor_hook_stdout(result, event)))
+        if kind == "antigravity":
+            typer.echo(json.dumps(build_antigravity_hook_stdout(result, event)))
+            return
+        # Cursor events that don't emit JSON are capture-only for some hooks.
+        try:
+            typer.echo(json.dumps(build_cursor_hook_stdout(result, event)))
+        except ValueError:
+            if result.skipped:
+                logger.info("%s (no stdout) skipped: %s", handler_name, result.reason)
+            else:
+                logger.info("%s (no stdout) ok session_id=%s", handler_name, result.session_id)
         return
 
-    # Capture-only hooks: Claude prints nothing; Cursor keeps human-readable status.
-    if kind == "claude":
+    # Capture-only hooks: Claude/AGY print nothing; Cursor keeps human-readable status.
+    if kind in ("claude", "antigravity"):
         return
     if result.skipped:
         typer.echo(f"Skipped: {result.reason}")
@@ -492,6 +529,11 @@ def pre_tool_cmd(
     project_dir: Path | None = typer.Option(None, "--project-dir"),
     stdin: bool = typer.Option(True, "--stdin", help="Read hook payload JSON from stdin"),
     client: str = _hook_client_option(),
+    event: str = typer.Option(
+        "preToolUse",
+        "--event",
+        help="Host event name (Antigravity: PreToolUse)",
+    ),
 ) -> None:
     """PreToolUse hook — inject bounded context_pack for matched write/edit/shell tools."""
     from brainkm.services.hooks import run_pre_tool_use
@@ -503,7 +545,7 @@ def pre_tool_cmd(
     _run_stdin_hook(
         "PreToolUse",
         lambda raw: run_pre_tool_use(raw, project_dir=project_dir),
-        event="preToolUse",
+        event=event,
         client=client,
     )
 
@@ -707,6 +749,11 @@ def post_tool_cmd(
     project_dir: Path | None = typer.Option(None, "--project-dir"),
     stdin: bool = typer.Option(True, "--stdin", help="Read hook payload JSON from stdin"),
     client: str = _hook_client_option(),
+    event: str = typer.Option(
+        "postToolUse",
+        "--event",
+        help="Host event name (Antigravity: PostToolUse)",
+    ),
 ) -> None:
     """PostToolUse hook — observations, graph sync, co-activation learning."""
     from brainkm.services.hooks import run_post_tool_use
@@ -718,7 +765,7 @@ def post_tool_cmd(
     _run_stdin_hook(
         "PostToolUse",
         lambda raw: run_post_tool_use(raw, project_dir=project_dir, failed=False),
-        event="postToolUse",
+        event=event,
         client=client,
     )
 
@@ -808,8 +855,13 @@ def agent_stop_cmd(
     project_dir: Path | None = typer.Option(None, "--project-dir"),
     stdin: bool = typer.Option(True, "--stdin", help="Read hook payload JSON from stdin"),
     client: str = _hook_client_option(),
+    event: str = typer.Option(
+        "Stop",
+        "--event",
+        help="Host event name (Antigravity often omits it from stdin)",
+    ),
 ) -> None:
-    """Stop hook — flush use counts / optional stop gist (Claude)."""
+    """Stop hook — flush use counts; Antigravity idle Stop distills with debounce."""
     from brainkm.services.hooks import run_agent_stop
 
     if not stdin:
@@ -818,7 +870,34 @@ def agent_stop_cmd(
 
     _run_stdin_hook(
         "Stop",
-        lambda raw: run_agent_stop(raw, project_dir=project_dir),
+        lambda raw: run_agent_stop(raw, project_dir=project_dir, client=client),
+        event=event if (client or "").strip().lower() == "antigravity" else None,
+        client=client,
+    )
+
+
+@app.command("pre-invocation")
+def pre_invocation_cmd(
+    project_dir: Path | None = typer.Option(None, "--project-dir"),
+    stdin: bool = typer.Option(True, "--stdin", help="Read hook payload JSON from stdin"),
+    client: str = _hook_client_option(),
+    event: str = typer.Option(
+        "PreInvocation",
+        "--event",
+        help="Host event name (PreInvocation or SessionStart)",
+    ),
+) -> None:
+    """Antigravity PreInvocation / SessionStart — inject throttled pack + synthetic precompact."""
+    from brainkm.services.hooks import run_pre_invocation
+
+    if not stdin:
+        typer.echo("--stdin is required for pre-invocation hook", err=True)
+        raise typer.Exit(code=1)
+
+    _run_stdin_hook(
+        "PreInvocation",
+        lambda raw: run_pre_invocation(raw, project_dir=project_dir, event=event),
+        event=event,
         client=client,
     )
 
@@ -1343,13 +1422,21 @@ def serve_cmd(
 
 @app.command("connect")
 def connect_cmd(
-    client: str = typer.Argument(..., help="cursor | claude | codex | generic"),
+    client: str = typer.Argument(
+        ...,
+        help="cursor | claude | antigravity | codex | generic",
+    ),
     project_dir: Path | None = typer.Option(None, "--project-dir"),
     http: bool = typer.Option(True, "--http/--stdio", help="Shared HTTP (default) or stdio"),
     hooks: bool = typer.Option(True, "--hooks/--no-hooks"),
     host: str = typer.Option("127.0.0.1", "--host"),
     port: int = typer.Option(8765, "--port"),
     dev: bool = typer.Option(False, "--dev"),
+    mirror_global: bool = typer.Option(
+        False,
+        "--mirror-global",
+        help="Antigravity: also merge MCP into ~/.gemini/config/mcp_config.json",
+    ),
 ) -> None:
     """Wire one agent client to this project's brain (stdio or shared HTTP)."""
     from brainkm.services.connect import run_connect
@@ -1364,6 +1451,7 @@ def connect_cmd(
             host=host,
             port=port,
             dev=dev,
+            mirror_global=mirror_global,
         )
     except ValueError as exc:
         typer.echo(str(exc), err=True)

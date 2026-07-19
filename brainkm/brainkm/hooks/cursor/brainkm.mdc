@@ -59,6 +59,7 @@ Cursor chat compaction is lossy. Architectural truth must be in `brain.db`:
 - **Cursor Memories** = cross-project user prefs. brainkm = **this project's** decisions.
 - **Cursor Rules** = static policy. brainkm neurons = dynamic learned context.
 - **@codebase** = semantic code index. brainkm graph = structural relationships + neurons.
+- Shared with Claude / Antigravity: one `brainkm serve` + `connect --http` (AGY MCP field is `serverUrl`).
 
 ## Manual fallback (hooks unavailable)
 

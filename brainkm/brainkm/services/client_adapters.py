@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
-ClientKind = Literal["cursor", "claude", "codex", "generic"]
+ClientKind = Literal["cursor", "claude", "codex", "antigravity", "generic"]
 
 
 @dataclass(frozen=True)
@@ -133,6 +133,36 @@ class CodexClientAdapter:
         return ".codex"
 
 
+class AntigravityClientAdapter:
+    kind: ClientKind = "antigravity"
+
+    def hook_events(self) -> list[str]:
+        return [
+            "preInvocation",
+            "preToolUse",
+            "postToolUse",
+            "stop",
+            "sessionStart",  # optional bonus if host accepts
+        ]
+
+    def transcript_style(self) -> str:
+        return "antigravity_jsonl"
+
+    def agents_snippet(self) -> str:
+        return (
+            AGENTS_SNIPPET
+            + "\nInstalled for Antigravity via `brainkm install --client antigravity`.\n"
+            + "\n## Coexistence with Antigravity native config\n\n"
+            + "- **`.agents/rules` / `AGENTS.md`** = authored static instructions.\n"
+            + "- **brainkm** = searchable project brain (decisions, graph, session survival).\n"
+            + "- Grant `mcp(brainkm/*)` so recall/context_pack are not stuck in Ask mode.\n"
+            + "- Do not stack Mem0 (or similar) with brainkm on the same project.\n"
+        )
+
+    def config_dir_name(self) -> str:
+        return ".agents"
+
+
 class GenericClientAdapter:
     kind: ClientKind = "generic"
 
@@ -159,6 +189,7 @@ def get_client_adapter(kind: ClientKind | str) -> ClientAdapter:
         "cursor": CursorClientAdapter(),
         "claude": ClaudeClientAdapter(),
         "codex": CodexClientAdapter(),
+        "antigravity": AntigravityClientAdapter(),
         "generic": GenericClientAdapter(),
     }
     adapter = mapping.get(str(kind).lower())

@@ -9,7 +9,7 @@ description: >-
 # MemNetwork Backend Development
 
 Guide for implementing features in the **brainkm** Python package.
-Current version: **0.4.1** (keep in lockstep with `pyproject.toml` and `__version__` — see the release checklist in `AGENTS.md`). Feature history lives in the Implementation status table of `docs/AI_PROJECT_BRIEF.md`; do not re-derive it here.
+Current version: **0.4.2** (keep in lockstep with `pyproject.toml` and `__version__` — see the release checklist in `AGENTS.md`). Feature history lives in the Implementation status table of `docs/AI_PROJECT_BRIEF.md`; do not re-derive it here.
 
 ## When to use this skill
 
@@ -30,10 +30,11 @@ Current version: **0.4.1** (keep in lockstep with `pyproject.toml` and `__versio
 | `brainkm/brainkm/models/brain_config.py` | `.brain/config.json` schema |
 | `brainkm/brainkm/models/schemas.py` | MCP tool I/O models |
 | `brainkm/brainkm/services/` | Business logic — memory, recall, search, budget, snapshot, learning, procedures, review, write_queue, mcp_results, … |
-| `brainkm/brainkm/adapters/` | graphify, transcripts, redaction, distill (rules/cursor/ollama/groq/mcp), embeddings/onnx |
+| `brainkm/brainkm/adapters/` | graphify, transcripts, redaction, distill (rules/cursor/claude/antigravity/ollama/groq), embeddings/onnx |
 | `brainkm/brainkm/hooks/cursor/` | Installed hook + rule templates (`hooks.json`, `brainkm.mdc`) |
 | `brainkm/brainkm/hooks/claude/` | Claude Code settings hooks template, rules, routing skill |
-| `brainkm/brainkm/services/client_adapters.py` | Cursor / Claude / generic install adapters |
+| `brainkm/brainkm/hooks/antigravity/` | Antigravity `.agents/` hooks, rules, routing skill (`serverUrl` HTTP) |
+| `brainkm/brainkm/services/client_adapters.py` | Cursor / Claude / Antigravity / generic install adapters |
 | `brainkm/brainkm/tui/` | Optional Textual `brainkm configure` (app checkboxes, Start Brain, Semantic Quality consent) |
 | `brainkm/brainkm/db/` | SQLite connection (WAL), migrations, FTS5 |
 | `brainkm/tests/` | pytest suite (`tests/tui/` holds Textual snapshot tests) |

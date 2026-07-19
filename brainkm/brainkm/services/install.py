@@ -284,16 +284,137 @@ def write_claude_settings_hooks(
     return merged
 
 
+def _agy_hook_command(brainkm_bin: str, *args: str, timeout: int | None = None) -> dict[str, object]:
+    cmd = f"{brainkm_bin} {' '.join(args)} --client antigravity"
+    entry: dict[str, object] = {"type": "command", "command": cmd}
+    if timeout is not None:
+        entry["timeout"] = timeout
+    return entry
+
+
+def build_antigravity_hooks_config(
+    brainkm_bin: str,
+    *,
+    config: BrainConfig | None = None,
+) -> dict[str, object]:
+    """Named-handler hooks for ``.agents/hooks.json`` (Antigravity schema)."""
+    _ = config
+    write_matcher = (
+        "write_to_file|replace_file_content|multi_replace_file_content|run_command"
+    )
+    return {
+        "brainkm": {
+            "enabled": True,
+            # Bonus: some builds accept SessionStart (Mem0); ignored if unsupported.
+            "SessionStart": [
+                _agy_hook_command(
+                    brainkm_bin,
+                    "pre-invocation",
+                    "--stdin",
+                    "--event",
+                    "SessionStart",
+                    timeout=30,
+                ),
+            ],
+            "PreInvocation": [
+                _agy_hook_command(
+                    brainkm_bin,
+                    "pre-invocation",
+                    "--stdin",
+                    "--event",
+                    "PreInvocation",
+                    timeout=30,
+                ),
+            ],
+            "PreToolUse": [
+                {
+                    "matcher": write_matcher,
+                    "hooks": [
+                        _agy_hook_command(
+                            brainkm_bin,
+                            "pre-tool",
+                            "--stdin",
+                            "--event",
+                            "PreToolUse",
+                            timeout=15,
+                        ),
+                    ],
+                }
+            ],
+            "PostToolUse": [
+                {
+                    "matcher": write_matcher,
+                    "hooks": [
+                        _agy_hook_command(
+                            brainkm_bin,
+                            "post-tool",
+                            "--stdin",
+                            "--event",
+                            "PostToolUse",
+                            timeout=5,
+                        ),
+                    ],
+                }
+            ],
+            "Stop": [
+                _agy_hook_command(
+                    brainkm_bin,
+                    "agent-stop",
+                    "--stdin",
+                    "--event",
+                    "Stop",
+                    timeout=120,
+                ),
+            ],
+        }
+    }
+
+
+def merge_antigravity_hooks_json(
+    existing: dict[str, object],
+    incoming: dict[str, object],
+) -> dict[str, object]:
+    """Replace ``brainkm`` named handler; preserve other top-level hook groups."""
+    merged = dict(existing)
+    for name, body in incoming.items():
+        merged[name] = body
+    return merged
+
+
+def write_antigravity_hooks(
+    hooks_path: Path,
+    brainkm_bin: str,
+    *,
+    config: BrainConfig | None = None,
+) -> dict[str, object]:
+    """Write/merge brainkm Antigravity hooks into ``.agents/hooks.json``."""
+    incoming = build_antigravity_hooks_config(brainkm_bin, config=config)
+    if hooks_path.is_file():
+        existing = json.loads(hooks_path.read_text(encoding="utf-8"))
+        if not isinstance(existing, dict):
+            existing = {}
+    else:
+        existing = {}
+    merged = merge_antigravity_hooks_json(existing, incoming)
+    _write_json(hooks_path, merged)
+    return merged
+
+
 def build_mcp_config(
     *,
     dev: bool,
     transport: str = "stdio",
     host: str = "127.0.0.1",
     port: int = 8765,
+    client: str | None = None,
 ) -> dict[str, object]:
     from brainkm.services.mcp_transport import build_mcp_config as _build
 
-    return _build(dev=dev, transport=transport, host=host, port=port)
+    return _build(dev=dev, transport=transport, host=host, port=port, client=client)
+
+
+def _cli_on_path(name: str) -> bool:
+    return shutil.which(name) is not None
 
 
 def _deep_merge_dict(base: dict[str, object], incoming: dict[str, object]) -> dict[str, object]:
@@ -490,6 +611,54 @@ def run_install(
     result = InstallResult(project_dir=root)
     adapter = get_client_adapter(client)
 
+    # Client-specific distill defaults (schema default is cursor).
+    if adapter.kind == "antigravity":
+        if _cli_on_path("agy"):
+            cfg = cfg.model_copy(
+                update={
+                    "capture": cfg.capture.model_copy(
+                        update={"distill_mode": "antigravity", "auto_observe": True}
+                    )
+                }
+            )
+        else:
+            mode = cfg.capture.distill_mode
+            if mode in ("cursor", "mcp"):
+                mode = "rules"
+            cfg = cfg.model_copy(
+                update={
+                    "capture": cfg.capture.model_copy(
+                        update={"distill_mode": mode, "auto_observe": True}
+                    )
+                }
+            )
+            result.warnings.append(
+                "agy not on PATH — distill_mode set to rules (or keep groq/ollama); "
+                "install Antigravity CLI for distill_mode=antigravity."
+            )
+    if adapter.kind == "claude":
+        if _cli_on_path("claude"):
+            cfg = cfg.model_copy(
+                update={
+                    "capture": cfg.capture.model_copy(
+                        update={"distill_mode": "claude", "auto_observe": True}
+                    )
+                }
+            )
+        else:
+            cfg = cfg.model_copy(
+                update={"capture": cfg.capture.model_copy(update={"auto_observe": True})}
+            )
+            if cfg.capture.distill_mode in ("cursor", "mcp"):
+                cfg = cfg.model_copy(
+                    update={
+                        "capture": cfg.capture.model_copy(update={"distill_mode": "rules"})
+                    }
+                )
+            result.warnings.append(
+                "claude CLI not on PATH — prefer distill_mode=claude after installing Claude Code CLI."
+            )
+
     cursor_dir = root / ".cursor"
     brainkm_bin = resolve_hook_command(dev=dev)
 
@@ -499,11 +668,13 @@ def run_install(
         transport=transport,
         host=cfg.mcp.http_host,
         port=cfg.mcp.http_port,
+        client=adapter.kind,
     )
     hooks_payload = build_hooks_config(brainkm_bin, config=cfg)
 
-    cursor_dir.mkdir(parents=True, exist_ok=True)
-    (cursor_dir / "rules").mkdir(parents=True, exist_ok=True)
+    if adapter.kind == "cursor":
+        cursor_dir.mkdir(parents=True, exist_ok=True)
+        (cursor_dir / "rules").mkdir(parents=True, exist_ok=True)
 
     if adapter.kind == "cursor":
         mcp_path = cursor_dir / "mcp.json"
@@ -550,12 +721,77 @@ def run_install(
                 _write_text(skill_dst, skill_src.read_text(encoding="utf-8"))
                 result.files_written.append(skill_dst)
 
-    if adapter.kind == "claude":
-        # Silent observe on by default for Claude (agentmemory-style capture-on).
-        cfg = cfg.model_copy(
-            update={"capture": cfg.capture.model_copy(update={"auto_observe": True})}
-        )
+    if adapter.kind == "antigravity":
+        agents_dir = root / ".agents"
+        agents_dir.mkdir(parents=True, exist_ok=True)
 
+        mcp_path = agents_dir / "mcp_config.json"
+        if mcp_path.is_file():
+            existing_mcp = json.loads(mcp_path.read_text(encoding="utf-8"))
+            merged_mcp = _deep_merge_dict(existing_mcp, mcp_payload)
+            from brainkm.services.mcp_transport import (
+                BRAINKM_MCP_SERVER_KEY as _KEY,
+                normalize_mcp_entry_transport_fields,
+            )
+
+            servers = merged_mcp.get("mcpServers")
+            if isinstance(servers, dict) and isinstance(servers.get(_KEY), dict):
+                servers[_KEY] = normalize_mcp_entry_transport_fields(servers[_KEY])  # type: ignore[arg-type]
+            _write_json(mcp_path, merged_mcp)
+        else:
+            _write_json(mcp_path, mcp_payload)
+        result.files_written.append(mcp_path)
+
+        hooks_path = agents_dir / "hooks.json"
+        write_antigravity_hooks(hooks_path, brainkm_bin, config=cfg)
+        result.files_written.append(hooks_path)
+
+        rule_src = (
+            Path(__file__).resolve().parents[1]
+            / "hooks"
+            / "antigravity"
+            / "rules"
+            / "brainkm.md"
+        )
+        if rule_src.is_file():
+            rule_dst = agents_dir / "rules" / "brainkm.md"
+            if rule_dst.is_file() and not force:
+                result.files_skipped.append(rule_dst)
+            else:
+                _write_text(rule_dst, rule_src.read_text(encoding="utf-8"))
+                result.files_written.append(rule_dst)
+
+        skill_src = (
+            Path(__file__).resolve().parents[1]
+            / "hooks"
+            / "antigravity"
+            / "skills"
+            / "brainkm-routing"
+            / "SKILL.md"
+        )
+        if skill_src.is_file():
+            skill_dst = agents_dir / "skills" / "brainkm-routing" / "SKILL.md"
+            if skill_dst.is_file() and not force:
+                result.files_skipped.append(skill_dst)
+            else:
+                _write_text(skill_dst, skill_src.read_text(encoding="utf-8"))
+                result.files_written.append(skill_dst)
+
+        # Always refresh AGENTS.md snippet for Antigravity.
+        agents_path = root / "AGENTS.md"
+        snippet = adapter.agents_snippet()
+        if agents_path.is_file() and not force:
+            existing = agents_path.read_text(encoding="utf-8")
+            if "brainkm — project memory routing" not in existing:
+                _write_text(agents_path, existing.rstrip() + "\n\n" + snippet)
+                result.files_written.append(agents_path)
+            else:
+                result.files_skipped.append(agents_path)
+        else:
+            _write_text(agents_path, snippet)
+            result.files_written.append(agents_path)
+
+    if adapter.kind == "claude":
         mcp_path = root / ".mcp.json"
         if mcp_path.is_file():
             existing_mcp = json.loads(mcp_path.read_text(encoding="utf-8"))
@@ -659,12 +895,12 @@ def run_install(
     result.files_written.append(example_dst)
 
     config_dst = brain_root / "config.json"
-    # Claude install always persists auto_observe=true (and other cfg updates).
+    # Claude / Antigravity install always persists auto_observe + distill defaults.
     must_save_config = (
         force
         or config is not None
         or http
-        or adapter.kind == "claude"
+        or adapter.kind in ("claude", "antigravity")
         or not config_dst.is_file()
     )
     if not must_save_config:
@@ -726,11 +962,13 @@ def run_install(
         result.warnings.extend(probe_cursor_version())
     result.warnings.extend(scan_rule_overlap(root))
 
-    claude_hooks_src = resources.files("brainkm.hooks.claude") / "hooks.json"
-    claude_dst = root / ".cursor" / "hooks.claude.example.json"
-    cursor_dir.mkdir(parents=True, exist_ok=True)
-    _write_text(claude_dst, claude_hooks_src.read_text(encoding="utf-8"))
-    result.files_written.append(claude_dst)
+    # Optional Cursor-side example of Claude hooks schema (only when installing Cursor).
+    if adapter.kind == "cursor":
+        claude_hooks_src = resources.files("brainkm.hooks.claude") / "hooks.json"
+        claude_dst = root / ".cursor" / "hooks.claude.example.json"
+        cursor_dir.mkdir(parents=True, exist_ok=True)
+        _write_text(claude_dst, claude_hooks_src.read_text(encoding="utf-8"))
+        result.files_written.append(claude_dst)
 
     if cfg.capture.plan_files:
         try:

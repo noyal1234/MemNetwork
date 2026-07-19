@@ -19,7 +19,7 @@ brainkm install --dev
 brainkm graph sync          # optional: first code graph
 brainkm graph status
 pytest
-brainkm version   # expect 0.4.1
+brainkm version   # expect 0.4.2
 ```
 
 Restart Cursor or reload MCP servers after `brainkm install --dev`.
@@ -36,6 +36,7 @@ The wizard asks **which coding apps you use** in plain language:
 - **One app** → silent memory, no extra terminal (the app starts the brain for you).
 - **Two or more** → shared brain across apps; on the last screen click **Start Brain** (or use Dashboard → Start Brain). You only start it once while you work — not every chat.
 - **Claude Code** → writes `.claude/settings.json` hooks + project `.mcp.json` (not `.claude/hooks.json`). Dashboard shows Claude hooks status when present.
+- **Antigravity** → writes `.agents/mcp_config.json` (HTTP uses `serverUrl`) + `.agents/hooks.json` + rules/skills. Dashboard shows AGY hooks when `.agents/` is present.
 
 You do **not** need to memorize `serve` / `connect` commands.
 
@@ -66,9 +67,12 @@ bash brainkm/scripts/setup_dev.sh
 | `setup_dev.sh` | Creates `.venv` and editable `brainkm[dev,graphify]` install |
 | `brainkm install --dev` | Writes `.cursor/mcp.json`, `.cursor/hooks.json`, `.cursor/rules/brainkm.mdc`, `.brain/` scaffolding |
 | `brainkm install --dev --client claude` | Writes project `.mcp.json`, `.claude/settings.json` hooks (PascalCase), `.claude/rules/brainkm.md`, skill, `CLAUDE.md`; enables `auto_observe` |
+| `brainkm install --dev --client antigravity` | Writes `.agents/mcp_config.json`, `.agents/hooks.json` (named `brainkm` handler), rules/skill, `AGENTS.md`; `auto_observe`; distill `antigravity` if `agy` on PATH |
 | `brainkm graph sync` | Builds `graphify-out/graph.json` and imports into `brain.db` |
 
 Claude Code loads hooks from **`.claude/settings.json`** only (not `.claude/hooks.json`). Verify with `brainkm doctor`.
+
+Antigravity workspace MCP/hooks live under **`.agents/`**. HTTP shared brain uses `serverUrl` (not `url`). Optional: `brainkm connect antigravity --http --mirror-global` merges into `~/.gemini/config/mcp_config.json` when the CLI ignores workspace config.
 
 ## Example vs live Cursor config
 
@@ -120,6 +124,7 @@ brainkm install --dev --http --project-dir /path/to/other-project
 brainkm serve --project-dir /path/to/other-project
 # wire additional clients
 brainkm connect claude --http --project-dir /path/to/other-project
+brainkm connect antigravity --http --project-dir /path/to/other-project
 brainkm connect codex --http --project-dir /path/to/other-project
 brainkm doctor --project-dir /path/to/other-project
 ```

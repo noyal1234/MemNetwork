@@ -9,13 +9,13 @@
 
 ## 1. Product vision
 
-**MemNetwork** is a **local, project-scoped augmented brain** for Cursor and Claude Code (Codex connect supported). It captures architectural decisions from chat and plans, maps code structure via an AST graph, and injects bounded context so agents stop re-reading files and re-explaining past decisions.
+**MemNetwork** is a **local, project-scoped augmented brain** for Cursor, Claude Code, and Antigravity (Codex connect supported). It captures architectural decisions from chat and plans, maps code structure via an AST graph, and injects bounded context so agents stop re-reading files and re-explaining past decisions.
 
 | Principle | Meaning |
 |-----------|---------|
 | **Zero-LLM default (T0)** | Rule-based distill, FTS5 BM25, Graphify AST — no local Ollama, no cloud API required |
-| **User-chosen distill** | `capture.distill_mode`: `rules` (default path), `ollama` (local), `groq` (free cloud), or `cursor` |
-| **Compaction-aware** | PreCompact handover + SessionEnd capture so truth survives Cursor chat compaction |
+| **User-chosen distill** | `capture.distill_mode`: `cursor` \| `claude` \| `antigravity` \| `ollama` \| `groq` \| `rules` (legacy `mcp` → `claude`) |
+| **Compaction-aware** | PreCompact / synthetic-precompact handover + SessionEnd / idle Stop so truth survives host compaction |
 | **Inspectable** | Every memory is a SQLite row or markdown export — `forget`, export/import, consolidate |
 | **Bounded tokens** | 1500-token hard cap on agent-facing packs (`pack_text` + compact MCP JSON); structural retrieval over file dumps |
 | **Complement Cursor** | Does not replace @codebase or Cursor Memories — stores **project-specific** decisions |
@@ -119,7 +119,7 @@ MemNetwork/
 
 ## 4. MCP tool contract (V1 / current)
 
-**Package version:** `0.4.1`
+**Package version:** `0.4.2`
 
 | Tool | Purpose |
 |------|---------|
@@ -134,13 +134,19 @@ MemNetwork/
 
 CLI-only (not MCP): `install`, `serve`, `connect`, `doctor`, `export`, `bench`, `repair`, `handover`, `review`, `hygiene`, `migrate`, `configure`.
 
-Shared localhost brain: prefer **`brainkm configure`** (multi-app → Start Brain). Power path: `brainkm serve` + `brainkm connect <client> --http` so Cursor / Claude / Codex share one HTTP MCP process and `.brain/brain.db`. Hooks remain the primary memory writers (`capture.auto_observe`).
+Shared localhost brain: prefer **`brainkm configure`** (multi-app → Start Brain). Power path: `brainkm serve` + `brainkm connect <client> --http` so Cursor / Claude / Antigravity / Codex share one HTTP MCP process and `.brain/brain.db`. Antigravity HTTP MCP uses `serverUrl`. Hooks remain the primary memory writers (`capture.auto_observe`).
 
 ---
 
-## 5. Cursor ecosystem boundaries
+## 5. Host ecosystem boundaries
 
-MemNetwork **complements** Cursor — it does not replace built-in indexing, user memories, or rules. One `brainkm` MCP server per project; do not stack Mem0, Pinecone, or other memory layers on top.
+MemNetwork **complements** Cursor, Claude Code, and Antigravity — it does not replace built-in indexing, user memories, or static rules. One `brainkm` MCP server per project; do not stack Mem0, Pinecone, or other memory layers on top.
+
+| Client | MCP path | Hooks / rules |
+|--------|----------|---------------|
+| Cursor | `.cursor/mcp.json` | `.cursor/hooks.json`, `.cursor/rules/brainkm.mdc` |
+| Claude Code | `.mcp.json` | `.claude/settings.json`, `.claude/rules/` |
+| Antigravity | `.agents/mcp_config.json` (HTTP: **`serverUrl`**) | `.agents/hooks.json`, `.agents/rules/` |
 
 ### 5.1 System boundaries
 
@@ -333,6 +339,7 @@ All distill modes share Cursor chrome cleaning (`clean_cursor_text` / `is_distil
 | **0.4.0** | Done | Shared localhost brain: `serve` / `connect` / `doctor`, URL MCP, `/health`, TUI app checkboxes + Start Brain; Claude `.mcp.json` + Codex adapter; `capture.auto_observe` (PostToolUse / prompts / failures → capped observations → SessionEnd promote); `remember` demoted to pin/correct in rules/docs |
 | **Nodal adopt** | Done | Lifecycle ladder (observation TTL, episode, `distilled_from`); `about_file`/`about_symbol` + hook file seeds; concept materializer; Seed→Expand→Diversify→Budget→Abstain; pack quotas; `consolidate --llm`; temporal supersede meta; team tags; skill pack; scorecard bench; `file-history` / `provenance` / `demo` CLI |
 | **0.4.1** | Done | Claude Code silent memory parity: `.claude/settings.json` hooks + `hookSpecificOutput`; SubagentStart/Stop + Stop; Claude-default `auto_observe`; `.claude/rules` + routing skill; doctor dry-run; TUI copy/dashboard Claude hooks status; coexistence with CLAUDE.md / Auto Memory |
+| **0.4.2** | Done | Antigravity first-class client (`.agents/` MCP `serverUrl` + named hooks, PreInvocation inject, synthetic precompact, idle Stop distill, AGY transcript JSONL); `distill_mode` peers `claude` (`claude -p` + live sampling) + `antigravity` (`agy -p`); legacy `mcp`→`claude`; TUI Antigravity checkbox + dashboard AGY hooks; doctor multi-path probes + `--mirror-global` |
 | **CMA scorecard** | Done | Common Memory Axes public scorecard (`bench run cma`): **v3** paraphrase/noise hard slice (brain **1.00** vs BM25 **0.55**); decision/structure scorecard; LongMemEval-S footnote (full-500 FTS R@5 **0.934**; stratified MiniLM side-by-side shows FTS wins); `run_cma.sh` + dated `docs/benchmarks/` artifacts |
 | **Public distribution** | **Deferred** | PyPI / `uvx` zero-clone install, trusted-publishing + public CI matrix, MCP Registry listing, Cursor deeplink — wait until repo is public and a stable version ships. Local path: `brainkm install --dev`. |
 | **V3+ polish** | Ongoing | Packaged ONNX MiniLM weights, cross-encoder reranker weights, refreshed public bench numbers after open-source |

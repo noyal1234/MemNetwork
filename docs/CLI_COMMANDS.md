@@ -17,14 +17,14 @@ brainkm --help
 | Command | Purpose | Key flags | Example |
 |---------|---------|-----------|---------|
 | `brainkm version` | Print installed package version | — | `brainkm version` |
-| `brainkm install` | Scaffold `.brain/`, MCP config, hooks, rule | `--project-dir`, `--dev`, `--force`, `--no-graph`, `--client cursor\|claude\|codex\|generic`, `--http`, `--host`, `--port` | `brainkm install --dev --client cursor` |
+| `brainkm install` | Scaffold `.brain/`, MCP config, hooks, rule | `--project-dir`, `--dev`, `--force`, `--no-graph`, `--client cursor\|claude\|antigravity\|codex\|generic`, `--http`, `--host`, `--port` | `brainkm install --dev --client antigravity` |
 | `brainkm serve` | Shared HTTP MCP server (alias of `mcp --http`) | `--project-dir`, `--host`, `--port` | `brainkm serve --project-dir .` |
-| `brainkm connect` | Wire a client to stdio or shared HTTP | `--project-dir`, `--http/--stdio`, `--hooks/--no-hooks`, `--host`, `--port`, `--dev` | `brainkm connect claude --http` |
+| `brainkm connect` | Wire a client to stdio or shared HTTP | `--project-dir`, `--http/--stdio`, `--hooks/--no-hooks`, `--host`, `--port`, `--dev`, `--mirror-global` (Antigravity) | `brainkm connect antigravity --http` |
 | `brainkm doctor` | Health + client wiring + auto_observe / dual-writer checks | `--project-dir`, `--host`, `--port` | `brainkm doctor` |
 | `brainkm migrate` | Apply pending SQLite migrations | `--project-dir` | `brainkm migrate` |
 | `brainkm configure` | Launch Textual config dashboard (wizard / status / forms / actions) | `--project-dir` | `brainkm configure` |
 
-> **Tip:** Prefer `brainkm configure` (0.4.0+): app checkboxes → one app = silent stdio; two+ = shared HTTP + **Start Brain**. Semantic Quality consent is separate. Power users: `serve` + `connect --http`. Requires `pip install -e "./brainkm[tui]"`. Semantic weights: `pip install -e "./brainkm[semantic]"`. Design notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
+> **Tip:** Prefer `brainkm configure` (0.4.2): app checkboxes (Cursor / Claude / Antigravity / Codex) → one app = silent stdio; two+ = shared HTTP + **Start Brain**. Semantic Quality consent is separate. Power users: `serve` + `connect --http`. Requires `pip install -e "./brainkm[tui]"`. Semantic weights: `pip install -e "./brainkm[semantic]"`. Design notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
 
 ---
 
@@ -35,9 +35,9 @@ brainkm --help
 | `brainkm capture` | Ingest transcript JSONL → chunks + distilled neurons | `--project-dir`, `--session-id` | `brainkm capture path/to/transcript.jsonl` |
 | `brainkm handover` | PreCompact durable distill + WAL checkpoint | `--project-dir`, `--session-id`, `--stdin` | `brainkm handover --stdin` |
 
-Distill backend is selected by `capture.distill_mode` in `.brain/config.json`: `rules` \| `cursor` \| `ollama` \| `groq` \| `mcp`.
+Distill backend is selected by `capture.distill_mode` in `.brain/config.json`: `rules` \| `cursor` \| `claude` \| `antigravity` \| `ollama` \| `groq` (legacy `mcp` coerces to `claude`).
 
-All modes clean Cursor chrome before extract. PreCompact handover allows up to `handover.precompact_distill_timeout_seconds` (default **30s**) before falling back to `rules`. `mcp` uses the host's sampling API when available.
+All modes clean host chrome before extract. PreCompact / synthetic-precompact handover allows up to `handover.precompact_distill_timeout_seconds` (default **30s**) before falling back to `rules`. `claude` uses live MCP sampling when registered, else `claude -p`; `antigravity` uses `agy -p`.
 
 ---
 
@@ -125,37 +125,45 @@ Safe to re-run; archives via `forget` (reversible with audit log). SessionStart/
 
 ---
 
-## Hooks (Cursor-invoked; prefer not to run manually)
+## Hooks (host-invoked; prefer not to run manually)
 
-These commands expect hook payload JSON on stdin (`--stdin`). Cursor / Claude hooks call them; manual use is for debugging only.
+These commands expect hook payload JSON on stdin (`--stdin`). Cursor / Claude / Antigravity hooks call them; manual use is for debugging only.
 
-Use `--client claude` for Claude Code so stdout uses `hookSpecificOutput` (and fail-soft exit 0). Default `--client cursor`.
+| `--client` | Stdout envelope |
+|------------|-----------------|
+| `cursor` (default) | Cursor hook JSON |
+| `claude` | `hookSpecificOutput` (fail-soft exit 0) |
+| `antigravity` | `injectSteps` / `{decision:allow\|stop}` (pass `--event`; fail-soft) |
 
 | Command | Host event | Purpose |
 |---------|--------------|---------|
 | `brainkm session-start` | SessionStart | Migrate brain.db; prepare frozen injection |
+| `brainkm pre-invocation` | PreInvocation / SessionStart (AGY) | Throttled inject + synthetic precompact |
 | `brainkm session-end` | SessionEnd | Capture + promote observations |
-| `brainkm pre-tool` | PreToolUse | Bounded context_pack injection |
+| `brainkm pre-tool` | PreToolUse | Bounded context_pack injection (AGY: allow-only) |
 | `brainkm post-tool` | PostToolUse | Observations + graph sync + learning |
 | `brainkm post-tool-failure` | PostToolUseFailure | Failure observation |
 | `brainkm user-prompt` | UserPromptSubmit | Prompt gist observation |
 | `brainkm post-compact` | PostCompact | Refresh frozen snapshot (Claude) |
 | `brainkm subagent-start` | SubagentStart | Subagent activity (Claude) |
 | `brainkm subagent-stop` | SubagentStop | Promote observations for subagent (Claude) |
-| `brainkm agent-stop` | Stop | Flush use counts / optional gist (Claude) |
+| `brainkm agent-stop` | Stop | Claude flush / AGY idle distill (`fullyIdle`) |
 
 Example debug:
 
 ```bash
 echo '{"session_id":"debug"}' | brainkm session-start --stdin --project-dir .
 echo '{"session_id":"debug"}' | brainkm session-start --stdin --client claude --project-dir .
+echo '{"conversationId":"debug","invocationNum":0}' | brainkm pre-invocation --stdin --client antigravity --event PreInvocation --project-dir .
 ```
 
-Claude install path:
+Install paths:
 
 ```bash
 brainkm install --dev --client claude
+brainkm install --dev --client antigravity
 brainkm connect claude --hooks
+brainkm connect antigravity --http --hooks   # optional: --mirror-global
 brainkm doctor
 ```
 

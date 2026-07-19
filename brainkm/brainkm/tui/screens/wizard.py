@@ -59,6 +59,7 @@ STEPS = [
 APP_CHECKBOXES: list[tuple[str, str, str]] = [
     ("cursor", "wizard-app-cursor", "Cursor (recommended)"),
     ("claude", "wizard-app-claude", "Claude Code"),
+    ("antigravity", "wizard-app-antigravity", "Antigravity"),
     ("codex", "wizard-app-codex", "Codex"),
 ]
 
@@ -67,13 +68,15 @@ INSTALL_PLAIN: dict[str, str] = {
         "We'll set up silent memory for one app. You won't need an extra terminal — "
         "your coding app starts the brain automatically. Silent capture stays on.\n"
         "Claude Code → hooks in .claude/settings.json + .mcp.json "
-        "(not .claude/hooks.json). Cursor → .cursor/hooks.json."
+        "(not .claude/hooks.json). Cursor → .cursor/hooks.json. "
+        "Antigravity → .agents/mcp_config.json + .agents/hooks.json."
     ),
     "shared": (
         "You use more than one coding app. We'll share one brain across them.\n"
         "Later you'll click Start Brain (or leave one small terminal open while you code). "
         "You only do that once per day — not for every chat.\n"
-        "Claude hooks land in .claude/settings.json; Cursor in .cursor/hooks.json."
+        "Claude → .claude/settings.json; Cursor → .cursor/hooks.json; "
+        "Antigravity → .agents/ (HTTP uses serverUrl)."
     ),
 }
 
