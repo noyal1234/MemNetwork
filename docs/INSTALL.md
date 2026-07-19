@@ -2,6 +2,10 @@
 
 Clone this repo on a new machine and run brainkm as a Cursor MCP server.
 
+**License:** Apache-2.0 — [LICENSE](../LICENSE), [NOTICE](../NOTICE). Copyright © 2026 Noyal Bastin Benny. Contributions: [CONTRIBUTING.md](../CONTRIBUTING.md) + [CLA.md](../CLA.md).
+
+**Public install:** PyPI / `uvx` one-liner is deferred until the repository is public and the installable package name is finalized. Until then, use the clone + editable install below. See [PUBLIC_RELEASE_CHECKLIST.md](PUBLIC_RELEASE_CHECKLIST.md).
+
 ## Prerequisites
 
 - Python **3.11 or 3.12** (`requires-python = ">=3.11"` in `brainkm/pyproject.toml`)

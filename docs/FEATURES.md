@@ -1,8 +1,10 @@
 # brainkm — Features
 
-**brainkm** is a local, project-scoped brain for coding agents (Cursor, Claude Code, Antigravity; Codex connect). It remembers *why* you chose something, maps how your code connects, and injects bounded context so agents stop re-reading files and re-explaining past decisions — even after chat compaction.
+**brainkm** is a local, project-scoped brain for **agentic coding IDEs** — anything that can speak MCP. One `.brain/brain.db`, eight tools, and thin host adapters. It remembers *why* you chose something, maps how your code connects, and injects bounded context so agents stop re-reading files and re-explaining past decisions — even after chat compaction.
 
-It complements the host IDE — it does **not** replace `@codebase` / Grep, Cursor Memories, CLAUDE.md / Auto Memory, or Antigravity `.agents/rules`. Storage stays on your machine: `.brain/brain.db` (SQLite).
+It is **not** a Cursor-only product. Cursor is a first-class host and currently the **deepest** path (hooks + PreCompact + distill) because that is where we dogfood hardest. Claude Code, Antigravity, Codex, and generic MCP clients share the same brain; adapter depth follows what each IDE exposes.
+
+It complements the host — it does **not** replace codebase search / Grep, host Memories, or authored rules (`CLAUDE.md`, `.cursor/rules`, `.agents/rules`, …). Storage stays on your machine: `.brain/brain.db` (SQLite).
 
 > **Command flags:** see [CLI_COMMANDS.md](CLI_COMMANDS.md). **Architecture:** see [AI_PROJECT_BRIEF.md](AI_PROJECT_BRIEF.md).
 
@@ -10,12 +12,13 @@ It complements the host IDE — it does **not** replace `@codebase` / Grep, Curs
 
 ## Why it matters for vibe coding
 
-Long agent sessions burn tokens and lose context. Compaction summarizes the chat and drops the decisions you already debated. brainkm fixes that loop:
+Long agent sessions burn tokens and lose context. Compaction summarizes the chat and drops the decisions you already debated. brainkm fixes that loop across agent IDEs:
 
 - **Stop re-explaining pivots** — “we chose JWT over sessions” lives in the brain, not only in chat history.
 - **Stop re-reading whole modules** — get a bounded pack of neighbors + decisions instead of dumping five files.
-- **Survive compaction** — PreCompact handover + SessionEnd capture keep truth in SQLite before the window shrinks.
+- **Survive compaction** — PreCompact / synthetic-precompact handover + SessionEnd capture keep truth in SQLite before the window shrinks.
 - **Inject only high-signal context** — hard token budget, abstention on weak matches, noise gates so junk stays out.
+- **One brain, many hosts** — switch or combine Cursor, Claude, Antigravity, Codex (or another MCP client) without forking project memory.
 
 ---
 
@@ -43,20 +46,22 @@ Eight tools the agent (or you) can call. Typed `outputSchema` so clients know th
 
 ## Survive long sessions
 
-Hooks wire brainkm into the agent lifecycle so memory keeps working while you vibe:
+Hooks wire brainkm into each host’s agent lifecycle so memory keeps working while you vibe. Exact events vary by IDE (see parity table); the jobs are the same:
 
 | Hook | Benefit |
 |------|---------|
-| **SessionStart** | Migrates the DB and injects a frozen context pack so the agent starts with project memory (and Cursor can cache the prefix). |
-| **SessionEnd** | Distills the transcript into neurons after you finish — decisions do not die with the tab. |
-| **PreCompact** | Runs handover *before* Cursor’s lossy summarize — architectural truth is saved first. |
+| **SessionStart** / inject | Migrates the DB and injects a frozen context pack so the agent starts with project memory (hosts that cache prefixes keep that win). |
+| **SessionEnd** / idle Stop | Distills the transcript into neurons after you finish — decisions do not die with the tab. |
+| **PreCompact** / synthetic precompact | Runs handover *before* the host’s lossy summarize — architectural truth is saved first. |
 | **PostCompact** | Refreshes the frozen injection snapshot after compaction so the next turns still see the brain. |
 | **PreToolUse** | Injects a bounded `context_pack` before matched write/edit/shell tools — less blind editing. |
 | **PostToolUse** | Records capped observations when `capture.auto_observe` is on; requests graph sync after Write/Edit; runs the learning loop (co-activation / procedures). |
-| **PostToolUseFailure** | Failure observation (Claude / hosts that support it). |
+| **PostToolUseFailure** | Failure observation (hosts that support it). |
 | **UserPromptSubmit** | Capped prompt gist observation (where the host supports it). |
 
 ### Hook parity (auto-capture)
+
+Shipped adapters below. **Cursor is deepest today** (dogfood); others are first-class and expanding. Any other IDE with MCP can use tools + CLI fallbacks (`handover` / `capture`) even before hooks land.
 
 | Event | Cursor | Claude | Antigravity | Codex | Notes |
 |-------|--------|--------|-------------|-------|-------|
@@ -70,8 +75,12 @@ Hooks wire brainkm into the agent lifecycle so memory keeps working while you vi
 | SubagentStart / SubagentStop | — | yes | — | — | Multi-agent silent path |
 | Stop | — | yes | yes (tiered) | — | AGY: distill only when `fullyIdle` |
 
-Claude hooks → **`.claude/settings.json`**. MCP → **`.mcp.json`**.  
-Antigravity → **`.agents/mcp_config.json`** (HTTP uses `serverUrl`) + **`.agents/hooks.json`**.
+| Host | Hooks / rules | MCP config |
+|------|---------------|------------|
+| Cursor | `.cursor/hooks.json`, rules | `.cursor/mcp.json` |
+| Claude Code | `.claude/settings.json` | project `.mcp.json` |
+| Antigravity | `.agents/hooks.json`, `.agents/rules` | `.agents/mcp_config.json` (HTTP: `serverUrl`) |
+| Codex / generic | as installed by `connect` / `install` | host MCP config or shared HTTP |
 
 ### Distill modes (client peers)
 
@@ -86,10 +95,10 @@ Antigravity → **`.agents/mcp_config.json`** (HTTP uses `serverUrl`) + **`.agen
 
 | Layer | Role |
 |-------|------|
-| Cursor Rules / Memories / `@codebase` | Static policy, cross-project prefs, symbol search |
-| `CLAUDE.md` / `.claude/rules` / Auto Memory | Claude static instructions + private notes — brainkm does not write Auto Memory |
+| Host rules / Memories / codebase index | Static policy, cross-project prefs, symbol search (Cursor, Claude, AGY, …) |
+| `CLAUDE.md` / Auto Memory | Claude static instructions + private notes — brainkm does not write Auto Memory |
 | `.agents/rules` / `AGENTS.md` (Antigravity) | Authored static instructions; grant `mcp(brainkm/*)` |
-| brainkm (`.brain/brain.db`) | Searchable decisions, Graphify, session/compaction survival |
+| brainkm (`.brain/brain.db`) | Searchable decisions, Graphify, session/compaction survival — **shared across hosts** |
 
 ### Shared localhost brain
 
@@ -139,7 +148,7 @@ Manual fallbacks when hooks are unavailable: `brainkm handover`, `brainkm captur
 | **Optional filesystem watch** | Opt-in: changes from any editor (or checkout) request the same sync pipeline — useful for multi-IDE workflows. |
 | **`graph sync` / `import` / `extract` / `status`** | Manual control: full refresh, re-import only, extract only, or check staleness and node counts. |
 
-Graphify maps structure; Cursor `@codebase` still finds symbols by meaning. Use both.
+Graphify maps structure; the host’s semantic codebase index still finds symbols by meaning. Use both.
 
 ---
 
@@ -165,11 +174,11 @@ Optional semantic stack: `pip install -e "./brainkm[semantic]"` + `brainkm seman
 | Feature | Benefit |
 |---------|---------|
 | **Distill mode: `rules`** | Zero-dependency default. Offline extract with no API key — always works. |
-| **Distill mode: `cursor`** | Uses Cursor-aware distill (agent CLI when available) for higher-quality session capture. |
+| **Distill mode: `cursor` / `claude` / `antigravity`** | Host-peer distill (`agent` / `claude -p` / `agy -p`) when that CLI is available. |
 | **Distill mode: `ollama`** | Local LLM distill on your machine — private, no cloud. |
 | **Distill mode: `groq`** | Fast cloud distill when you want quality without a local GPU (`GROQ_API_KEY` in env only). |
-| **Distill mode: `mcp`** | Uses the host’s MCP sampling API when the client supports it. |
-| **Chrome cleaning** | Strips Cursor UI chrome before extract so neurons are not full of tool noise. |
+| **Distill mode: `mcp`** (legacy → `claude`) | Host MCP sampling when the client supports it. |
+| **Chrome cleaning** | Strips host UI / tool chrome before extract so neurons are not full of noise. |
 | **Injection noise gate** | Packs re-filter junk at injection time — distilled trash stays out of the agent window. |
 | **Doctors** | `ollama` / `groq` / `cursor` / `semantic doctor` — readiness checks before you rely on a mode. |
 
@@ -192,12 +201,12 @@ Optional semantic stack: `pip install -e "./brainkm[semantic]"` + `brainkm seman
 | Feature | Benefit |
 |---------|---------|
 | **`brainkm configure` TUI** | **Recommended setup:** pick coding apps (checkboxes), Semantic Quality consent, Start Brain for shared mode, live status, validated config edits. |
-| **`brainkm install`** | Scaffolds `.brain/`, MCP config, hooks, and rules for **Cursor**, **Claude Code**, **Antigravity**, **Codex**, or **generic** (`--http` for shared). |
-| **`serve` / `connect` / `doctor`** | Shared HTTP brain wiring and health checks (TUI Start/Stop wraps serve). |
+| **`brainkm install`** | Scaffolds `.brain/`, MCP config, hooks, and rules for **Cursor**, **Claude Code**, **Antigravity**, **Codex**, or **generic** MCP hosts (`--http` for shared). |
+| **`serve` / `connect` / `doctor`** | Shared HTTP brain wiring and health checks (TUI Start/Stop wraps serve) — one brain for every connected IDE. |
 | **`migrate`** | Applies pending SQLite migrations when the package advances. |
 | **Multi-root config** | Point `project_roots` at monorepo packages so one brain spans related trees. |
 
-> Public one-command install (`uvx` / PyPI / MCP Registry) is deferred while the repo is private. Local path: [INSTALL.md](INSTALL.md).
+> Public one-command install (`uvx` / PyPI / MCP Registry) is deferred until the repo is public and the installable package name is finalized. Local path: [INSTALL.md](INSTALL.md). License: Apache-2.0.
 
 ---
 
@@ -221,7 +230,7 @@ Optional semantic stack: `pip install -e "./brainkm[semantic]"` + `brainkm seman
 | **Redaction + injection scan** | Secrets and prompt-injection patterns are blocked or stripped on write *and* before pack injection. |
 | **No secrets in neurons / config** | API keys live in env / `.env` only — never in `.brain/config.json` or memory bodies. |
 | **HTTP MCP on localhost** | `brainkm serve` / `mcp --http` binds to `127.0.0.1` by default; `/health` for doctor. |
-| **`connect` / `doctor`** | Wire Cursor / Claude / Antigravity / Codex to stdio or shared URL (`serverUrl` for AGY HTTP); detect dual writers + auto_observe. |
+| **`connect` / `doctor`** | Wire any supported host to stdio or shared URL (`serverUrl` for AGY HTTP); detect dual writers + auto_observe. |
 
 Details: [SECURITY.md](SECURITY.md).
 
@@ -243,12 +252,12 @@ Headline targets (see [BENCHMARKS.md](BENCHMARKS.md)): **`bench run cma`** for p
 
 | Question | Use first |
 |----------|-----------|
-| Where is symbol X defined? | Cursor `@codebase` / Grep |
+| Where is symbol X defined? | Host codebase index / Grep |
 | Why did we choose X over Y? | **brainkm `recall`** |
 | What calls / imports X? Impact of changing Y? | **`traverse`** (symbol/path) |
 | Understand one module (would open 3+ files) | **`context_pack`**, then verify in source |
-| Cross-project personal prefs | Cursor Memories (not brainkm) |
-| Static team policy | `.cursor/rules/` — brainkm stores *learned* project context |
+| Cross-project personal prefs | Host Memories (not brainkm) |
+| Static team policy | Host rules files — brainkm stores *learned* project context |
 | Pin a decision / correct bad auto-memory | MCP **`remember`** (hooks fill ordinary learning) |
 
 Always verify packs in source before editing. Empty or wrong graph? Check `brain_stats` / `graph status`, then `graph_sync`.
@@ -265,7 +274,7 @@ Clone-local setup and MCP wiring:
 bash brainkm/scripts/setup_dev.sh
 source .venv/bin/activate
 pip install -e "./brainkm[tui]"
-brainkm configure   # recommended
-# or: brainkm install --dev --client cursor
+brainkm configure   # recommended: pick the IDEs you use
+# or: brainkm install --dev --client cursor|claude|antigravity|codex|generic
 brainkm version
 ```

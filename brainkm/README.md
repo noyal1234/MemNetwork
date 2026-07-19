@@ -1,8 +1,12 @@
 # brainkm
 
-Local project brain for Cursor, Claude Code, and Antigravity — MCP server backed by SQLite FTS5 and a weighted knowledge graph.
+Local project brain for **agentic coding IDEs** — MCP server backed by SQLite FTS5 and a weighted knowledge graph. Same `.brain/` across hosts; Cursor / Claude Code / Antigravity / Codex are adapters (Cursor is deepest today while we dogfood there).
 
 **Version:** `0.4.2`
+
+**License:** Apache-2.0 (see repo root [LICENSE](../LICENSE) and [NOTICE](../NOTICE)). Copyright © 2026 Noyal Bastin Benny.
+
+PyPI / `uvx` install is deferred until the installable name is finalized and the repo is public. Local editable install only for now.
 
 ## Requirements
 
@@ -18,8 +22,8 @@ From the MemNetwork repo root:
 bash brainkm/scripts/setup_dev.sh
 source .venv/bin/activate
 pip install -e "./brainkm[tui]"   # optional but recommended
-brainkm configure                 # guided setup (pick Cursor / Claude / Antigravity / Codex)
-# or: brainkm install --dev --client antigravity
+brainkm configure                 # guided setup — pick any apps you use
+# or: brainkm install --dev --client cursor|claude|antigravity|codex|generic
 brainkm version
 ```
 
@@ -33,11 +37,12 @@ pip install -e "./brainkm[dev,graphify]"
 
 **Memory path:** hooks + `capture.auto_observe` fill the brain; MCP `remember` is pin/correct only.
 
-| Client | Hooks | MCP |
-|--------|-------|-----|
-| Cursor | `.cursor/hooks.json` | `.cursor/mcp.json` |
-| Claude Code | `.claude/settings.json` | project `.mcp.json` |
-| Antigravity | `.agents/hooks.json` | `.agents/mcp_config.json` (HTTP: `serverUrl`) |
+| Client | Hooks | MCP | Maturity note |
+|--------|-------|-----|---------------|
+| Cursor | `.cursor/hooks.json` | `.cursor/mcp.json` | Deepest dogfood path today |
+| Claude Code | `.claude/settings.json` | project `.mcp.json` | First-class |
+| Antigravity | `.agents/hooks.json` | `.agents/mcp_config.json` (HTTP: `serverUrl`) | First-class |
+| Codex / generic | via `install` / `connect` | host MCP or shared HTTP | MCP-first; hooks as available |
 
 Claude native Auto Memory (`MEMORY.md`) stays separate — brainkm does not write it. Shared multi-app: Dashboard → Start Brain (or `brainkm serve` + `connect --http`). Verify with `brainkm doctor`.
 ## Code graph (Graphify)

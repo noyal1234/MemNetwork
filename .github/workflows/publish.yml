@@ -1,0 +1,65 @@
+# Publish brainkm to PyPI via Trusted Publishing (OIDC).
+#
+# Do not run a real publish until:
+# 1. The installable package/CLI name is finalized (may rename from brainkm).
+# 2. The GitHub repo is public (or otherwise allowed for your PyPI publisher).
+# 3. A Trusted Publisher is configured on PyPI for this repo + workflow.
+#
+# Package name and version come from brainkm/pyproject.toml — update that
+# file (and docs) when renaming; this workflow needs no package-name hardcoding.
+
+name: publish
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tooling
+        run: python -m pip install --upgrade pip build
+
+      - name: Build sdist and wheel
+        working-directory: brainkm
+        run: python -m build
+
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: brainkm/dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    environment:
+      name: pypi
+      # Update this URL to https://pypi.org/p/<final-pkg> after the installable name is locked.
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/

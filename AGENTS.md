@@ -62,3 +62,4 @@ When shipping a release, keep these in lockstep:
 4. Hook/rule templates: `hooks/cursor/brainkm.mdc` (sync workspace `.cursor/rules/brainkm.mdc`), plus Claude/Antigravity rules + routing skills under `hooks/{claude,antigravity}/`
 5. `pytest tests/test_version.py` (asserts pyproject == `__version__`)
 6. Prefer adding a brief row to the Implementation status table in `AI_PROJECT_BRIEF.md`
+7. Public/PyPI first publish: follow [docs/PUBLIC_RELEASE_CHECKLIST.md](docs/PUBLIC_RELEASE_CHECKLIST.md) (installable name must be final; Apache-2.0 + CLA already in place)
