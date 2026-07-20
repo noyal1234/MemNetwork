@@ -131,7 +131,7 @@ Manual fallbacks when hooks are unavailable: `brainkm handover`, `brainkm captur
 | **Provenance** | `distilled_from` edges + optional MCP `include_sources`; `brainkm provenance <id>`. |
 | **Transcript distill** | Session JSONL → chunks → neurons. Chat becomes durable memory instead of a disposable scrollback. |
 | **Plan-file ingest** | Pulls `.cursor/plans/*.plan.md` so plan changes become recallable context. |
-| **`remember` (pin/correct)** | Explicit durable pin or fix a wrong auto-capture — not the everyday store path. |
+| **`remember` (pin/correct/archive)** | Explicit durable pin, fix a wrong auto-capture, or archive noise — not the everyday store path. |
 | **Supersede / conflict** | New truth can replace old (“we switched off Redis”) instead of stacking contradictory ADD-only facts. |
 | **Confidence + review queue** | Low-confidence auto-captures wait for `brainkm review approve` / `reject` (also on the configure Dashboard Review Queue — `y` / `n`) — you gate what the agent trusts. |
 

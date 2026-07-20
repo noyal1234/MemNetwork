@@ -1383,6 +1383,11 @@ def repair_cmd(
         "--backfill-supersedes",
         help="Chain near-duplicate decision neurons into supersedes edges",
     ),
+    dry_run_supersedes: bool = typer.Option(
+        False,
+        "--dry-run-supersedes",
+        help="Preview supersedes pairs without writing edges (report-only)",
+    ),
 ) -> None:
     """Rebuild FTS5 index, re-scan for leaked secrets, and run integrity check."""
     from brainkm.services.repair import repair_brain
@@ -1391,12 +1396,18 @@ def repair_cmd(
         project_dir=project_dir,
         backfill_links=backfill_links,
         backfill_supersedes=backfill_supersedes,
+        backfill_supersedes_dry_run=dry_run_supersedes,
+    )
+    supersedes_label = (
+        "supersedes_candidates"
+        if dry_run_supersedes and not backfill_supersedes
+        else "supersedes_backfilled"
     )
     typer.echo(
         f"Rebuilt FTS5 ({result.fts_rows_rebuilt} rows), "
         f"secrets_archived={result.secrets_archived}, "
         f"links_backfilled={result.links_backfilled}, "
-        f"supersedes_backfilled={result.supersedes_backfilled}, "
+        f"{supersedes_label}={result.supersedes_backfilled}, "
         f"integrity_ok={result.integrity_ok}"
     )
     if not result.integrity_ok:

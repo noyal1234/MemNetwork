@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Literal
 
 from brainkm.models.brain_config import GraphConfig, RecallConfig, SemanticConfig
+from brainkm.models.schemas import ImpactSummary
 from brainkm.services.abstention import should_abstain_for_query
 from brainkm.services.intent import QueryIntent, route_query
 from brainkm.services.semantic import reciprocal_rank_fusion, vector_search_nodes
@@ -207,8 +208,7 @@ class TraversalResult:
     intent: str | None = None
     resolved_id: str | None = None
     hint: str | None = None
-    impact_summary: object | None = None
-    activation_meta: dict[str, _ActivationMeta] | None = None
+    impact_summary: ImpactSummary | None = None
 
 
 @dataclass
@@ -831,5 +831,4 @@ def traverse(
         resolved_id=start_id,
         hint=hint,
         impact_summary=impact,
-        activation_meta=neighbor_activations,
     )

@@ -19,7 +19,7 @@ When working in this repository, read **`docs/AI_PROJECT_BRIEF.md`** first for p
 - **Tokens:** Hard 1500-token cap on agent-facing packs (`pack_text` + compact MCP JSON; `include_structured` is opt-in).
 - **Security:** Never store secrets in neurons; use `adapters/redaction.py` (V1).
 - **Compaction:** Architectural truth lives in `brain.db`, not the chat window — PreCompact handover before Cursor compacts.
-- **Capture:** Hooks + `capture.auto_observe` fill the brain; MCP `remember` is **pin/correct only**.
+- **Capture:** Hooks + `capture.auto_observe` fill the brain; MCP `remember` is **pin/correct/archive** only (not ordinary session notes).
 - **Hygiene:** Prefer `brainkm hygiene` (or injection noise gate) over injecting junk; packs are hints — always verify in source.
 - **Setup:** Prefer `brainkm configure` (TUI) over memorizing `serve` / `connect`.
 

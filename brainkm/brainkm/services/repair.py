@@ -69,6 +69,7 @@ def repair_brain(
     rescan_secrets: bool = True,
     backfill_links: bool = False,
     backfill_supersedes: bool = False,
+    backfill_supersedes_dry_run: bool = False,
 ) -> RepairResult:
     migrate(project_dir=project_dir, run_integrity_check=False)
     conn = connect(brain_db_path(project_dir))
@@ -82,10 +83,15 @@ def repair_brain(
             from brainkm.services.backfill import backfill_neuron_links
 
             links_added = backfill_neuron_links(conn).edges_added
-        if backfill_supersedes:
+        if backfill_supersedes or backfill_supersedes_dry_run:
             from brainkm.services.backfill import backfill_supersedes as _backfill_supersedes
 
-            supersedes_added = _backfill_supersedes(conn).edges_added
+            bf = _backfill_supersedes(
+                conn,
+                dry_run=backfill_supersedes_dry_run and not backfill_supersedes,
+            )
+            # Dry-run reports candidate pairs; apply reports edges written.
+            supersedes_added = bf.pairs if bf.dry_run else bf.edges_added
         count = rebuild_fts5(conn)
         conn.commit()
         issues = check_fts_integrity(conn)

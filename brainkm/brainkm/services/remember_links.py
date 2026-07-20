@@ -122,6 +122,11 @@ def _insert_edge(
     )
 
 
+def _escape_like(value: str) -> str:
+    """Escape LIKE wildcards so mention text cannot widen the match."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _resolve_code_file_id(conn: sqlite3.Connection, path: str) -> str | None:
     """Prefer exact file-node path match; fall back to basename / suffix."""
     # Exact path, prefer subtype=file
@@ -138,18 +143,25 @@ def _resolve_code_file_id(conn: sqlite3.Connection, path: str) -> str | None:
         return row[0]
 
     base = path.rsplit("/", 1)[-1]
-    # Suffix match (handles shortened paths like brainkm/services/x.py vs full)
+    esc_base = _escape_like(base)
+    esc_path = _escape_like(path)
+    # Basename exact, then `/`-bounded suffix (shortened relative paths).
+    # ESCAPE '\' keeps %/_ in mentions literal.
     row = conn.execute(
         """
         SELECT id FROM nodes
         WHERE kind = 'code' AND valid_until IS NULL
-          AND (path = ? OR path LIKE ? OR path LIKE ?)
+          AND (
+            path = ?
+            OR path LIKE ? ESCAPE '\\'
+            OR path LIKE ? ESCAPE '\\'
+          )
         ORDER BY
           CASE WHEN subtype = 'file' THEN 0 ELSE 1 END,
           LENGTH(path) ASC
         LIMIT 1
         """,
-        (base, f"%/{base}", f"%{path}"),
+        (base, f"%/{esc_base}", f"%/{esc_path}"),
     ).fetchone()
     return row[0] if row else None
 

@@ -24,7 +24,7 @@ brainkm --help
 | `brainkm migrate` | Apply pending SQLite migrations | `--project-dir` | `brainkm migrate` |
 | `brainkm configure` | Launch Textual config dashboard (wizard / status / forms / actions) | `--project-dir` | `brainkm configure` |
 
-> **Tip:** Prefer `brainkm configure` (0.5.0): app checkboxes (Cursor / Claude / Antigravity / Codex) → one app = silent stdio; two+ = shared HTTP + **Start Brain**. Semantic Quality consent is separate. Power users: `serve` + `connect --http`. Requires `pip install -e "./brainkm[tui]"`. Semantic weights: `pip install -e "./brainkm[semantic]"`. Design notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
+> **Tip:** Prefer `brainkm configure` (0.6.0): app checkboxes (Cursor / Claude / Antigravity / Codex) → one app = silent stdio; two+ = shared HTTP + **Start Brain**. Semantic Quality consent is separate. Power users: `serve` + `connect --http`. Requires `pip install -e "./brainkm[tui]"`. Semantic weights: `pip install -e "./brainkm[semantic]"`. Design notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
 >
 > **Dashboard:** the **MCP Doctor** panel shows the same wiring report as `brainkm doctor` (color-coded). **Review Queue** lists low-confidence auto-captures for `y` approve / `n` reject.
 
@@ -116,7 +116,7 @@ Safe to re-run; archives via `forget` (reversible with audit log). SessionStart/
 | `brainkm import` | Merge or replace neurons from JSON export | `--project-dir`, `--replace` | `brainkm import export.json --replace` |
 | `brainkm team-export` | Export curated neurons to `.brain/team/neurons.json` | `--project-dir` | `brainkm team-export` |
 | `brainkm team-import` | Import `.brain/team/neurons.json` (confidence merge) | `--project-dir` | `brainkm team-import` |
-| `brainkm repair` | Rebuild FTS5 + integrity check; optional edge backfills | `--project-dir`, `--backfill-links`, `--backfill-supersedes` | `brainkm repair --backfill-links --backfill-supersedes` |
+| `brainkm repair` | Rebuild FTS5 + integrity check; optional edge backfills | `--project-dir`, `--backfill-links`, `--backfill-supersedes`, `--dry-run-supersedes` | `brainkm repair --backfill-links --dry-run-supersedes` |
 
 ---
 

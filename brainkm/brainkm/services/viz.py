@@ -630,6 +630,8 @@ class VizServerHandle:
     """Background viz HTTP server started for the TUI (or other callers)."""
 
     url: str
+    base_url: str
+    token: str
     port: int
     node_count: int
     edge_count: int
@@ -715,7 +717,9 @@ def start_viz_server(
     server, bound_port = _bind_viz_server(port)
     _VizHandler.bound_port = bound_port
     token = _VizHandler.access_token
-    url = f"http://127.0.0.1:{bound_port}/?token={token}"
+    base_url = f"http://127.0.0.1:{bound_port}"
+    # Browser entry URL (query token). API callers must use base_url + ?token=.
+    url = f"{base_url}/?token={token}"
 
     thread = threading.Thread(target=server.serve_forever, daemon=True, name="brainkm-viz")
     thread.start()
@@ -729,6 +733,8 @@ def start_viz_server(
 
     return VizServerHandle(
         url=url,
+        base_url=base_url,
+        token=token,
         port=bound_port,
         node_count=node_count,
         edge_count=edge_count,

@@ -11,6 +11,7 @@ from brainkm.models.schemas import (
     SessionStatusRequest,
     TraverseRequest,
 )
+from brainkm.services.decision_trail import should_include_history
 from brainkm.services.memory import supersede_neuron
 from brainkm.services.recall_limit import RecallLimitState
 from brainkm.tools.dispatch import (
@@ -205,6 +206,82 @@ def test_traverse_one_hop(runtime, tmp_path) -> None:
         conn.close()
 
 
+def test_recall_and_traverse_overlays_fit_token_budget(runtime, tmp_path) -> None:
+    """decision_trail / linked_neurons must share the single total_tokens budget."""
+    from brainkm.services.memory import token_count
+
+    conn = connect(tmp_path / ".brain" / "brain.db")
+    try:
+        old = handle_remember(
+            conn,
+            RememberRequest(
+                title="Budget policy v1",
+                body="Use a soft 2000 token pack",
+                subtype="decision",
+            ),
+        )
+        new = handle_remember(
+            conn,
+            RememberRequest(
+                title="Budget policy v2",
+                body="Use a hard 1500 token pack",
+                subtype="decision",
+            ),
+        )
+        supersede_neuron(conn, old.node_id, replacement_id=new.node_id)
+        conn.commit()
+
+        budget = 400
+        recall = handle_recall(
+            conn,
+            RecallRequest(query="why did we choose the token budget", limit=10),
+            config=BrainConfig(
+                budget={"total_tokens": budget},
+                recall={"abstain_on_low_confidence": False},
+            ),
+            project_dir=tmp_path,
+        )
+        nodes_tokens = sum(
+            token_count(f"{n.title}\n{n.content or ''}") for n in recall.nodes
+        )
+        trail_tokens = sum(
+            token_count(f"{e.title}\n{e.subtype or ''}") for e in recall.decision_trail
+        )
+        assert nodes_tokens + trail_tokens <= budget
+
+        insert_node(conn, node_id="fn", kind="code", subtype="function", title="budget_fn")
+        insert_node(
+            conn, node_id="caller", kind="code", subtype="function", title="caller_fn"
+        )
+        insert_edge(
+            conn, edge_id="e1", from_id="caller", to_id="fn", relationship="calls"
+        )
+        insert_edge(
+            conn,
+            edge_id="e2",
+            from_id=new.node_id,
+            to_id="caller",
+            relationship="about_symbol",
+        )
+        conn.commit()
+
+        traverse = handle_traverse(
+            conn,
+            TraverseRequest(from_ref="budget_fn", max_hops=1),
+            config=BrainConfig(budget={"total_tokens": budget}),
+            project_dir=tmp_path,
+        )
+        graph_tokens = sum(
+            token_count(f"{n.title}\n{n.content or ''}") for n in traverse.nodes
+        )
+        linked_tokens = sum(
+            token_count(f"{n.title}\n{n.content or ''}") for n in traverse.linked_neurons
+        )
+        assert graph_tokens + linked_tokens <= budget
+    finally:
+        conn.close()
+
+
 def test_traverse_linked_neurons(runtime, tmp_path) -> None:
     conn = connect(tmp_path / ".brain" / "brain.db")
     try:
@@ -330,6 +407,45 @@ def test_forget_helper_soft_archives(runtime, tmp_path) -> None:
         archived = handle_forget(conn, ForgetRequest(node_id=created.node_id, reason="test"))
         assert archived.archived is True
         assert archived.valid_until is not None
+    finally:
+        conn.close()
+
+
+def test_recall_decision_trail_auto_on_temporal_intent(runtime, tmp_path) -> None:
+    """Temporal intents auto-attach decision_trail without include_history=True."""
+    conn = connect(tmp_path / ".brain" / "brain.db")
+    try:
+        old = handle_remember(
+            conn,
+            RememberRequest(
+                title="Auth: sessions",
+                body="Use server sessions",
+                subtype="decision",
+            ),
+        )
+        newest = handle_remember(
+            conn,
+            RememberRequest(
+                title="Auth: JWT",
+                body="Use JWT for API auth",
+                subtype="decision",
+            ),
+        )
+        supersede_neuron(conn, old.node_id, replacement_id=newest.node_id)
+        conn.commit()
+
+        recall = handle_recall(
+            conn,
+            RecallRequest(query="what was the previous auth history for JWT", limit=5),
+            config=BrainConfig(recall={"abstain_on_low_confidence": False}),
+            project_dir=tmp_path,
+        )
+        assert recall.intent == "temporal" or should_include_history(
+            include_history=None, intent=recall.intent, query=recall.query
+        )
+        ids = [e.node_id for e in recall.decision_trail]
+        assert newest.node_id in ids
+        assert old.node_id in ids
     finally:
         conn.close()
 

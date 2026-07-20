@@ -9,7 +9,7 @@ description: >-
 # MemNetwork Backend Development
 
 Guide for implementing features in the **brainkm** Python package.
-Current version: **0.5.0** (keep in lockstep with `pyproject.toml` and `__version__` — see the release checklist in `AGENTS.md`). Feature history lives in the Implementation status table of `docs/AI_PROJECT_BRIEF.md`; do not re-derive it here.
+Current version: **0.6.0** (keep in lockstep with `pyproject.toml` and `__version__` — see the release checklist in `AGENTS.md`). Feature history lives in the Implementation status table of `docs/AI_PROJECT_BRIEF.md`; do not re-derive it here.
 
 ## When to use this skill
 
@@ -82,7 +82,7 @@ Python **3.11 or 3.12** recommended.
 ## Invariants (do not regress)
 
 - **Token budget** — `budget.total_tokens` (default 1500) enforced end-to-end on agent-facing MCP payloads and the SessionStart snapshot; lean `context_pack` by default (`include_structured` opt-in)
-- **Capture** — hooks + `auto_observe` fill the brain; MCP `remember` descriptions/docs stay pin/correct (do not re-promote as the everyday store path)
+- **Capture** — hooks + `auto_observe` fill the brain; MCP `remember` descriptions/docs stay pin/correct/archive (do not re-promote as the everyday store path)
 - **Redaction** — every neuron write path (MCP `remember`, observe, capture, handover, plan ingest, import, supersede) funnels through `remember_neuron`, which redacts and injection-scans
 - **Abstention** — `recall` returns `[]` on low confidence (percentile default P10); max 3 recalls/turn
 - **Soft delete only** — `remember action=archive` / `forget_neuron` sets `valid_until`; hard delete is a `brainkm repair` admin path

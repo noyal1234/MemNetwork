@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
 from brainkm.adapters.embeddings import (
     HASHING_MODEL,
     HashingEmbedder,
@@ -36,7 +40,12 @@ def test_get_embedder_cache_holds_both_prefer_flags() -> None:
 
 
 
-def test_onnx_embedder_falls_back_without_cache() -> None:
+def test_onnx_embedder_falls_back_without_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Isolate from the developer's real ~/.cache/brainkm/onnx weights.
+    monkeypatch.setenv("BRAINKM_ONNX_CACHE", str(tmp_path / "empty-onnx"))
     get_embedder.cache_clear()
     emb = OnnxMiniLMEmbedder()
     vec = emb.embed("test phrase")

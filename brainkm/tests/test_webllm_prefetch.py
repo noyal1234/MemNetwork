@@ -77,7 +77,10 @@ def test_viz_webllm_config_endpoint(
 
     handle = start_viz_server(demo=True, open_browser=False, port=0)
     try:
-        with urlopen(f"{handle.url}/api/webllm-config", timeout=2) as resp:  # noqa: S310
+        with urlopen(  # noqa: S310
+            f"{handle.base_url}/api/webllm-config?token={handle.token}",
+            timeout=2,
+        ) as resp:
             data = json.loads(resp.read().decode())
         assert data["cached"] is True
         assert data["use_local"] is True
@@ -85,7 +88,7 @@ def test_viz_webllm_config_endpoint(
         assert data["app_config"]["model_list"][0]["model"].startswith("http://")
 
         with urlopen(  # noqa: S310
-            f"{handle.url}/models/{mid}/mlc-chat-config.json",
+            f"{handle.base_url}/models/{mid}/mlc-chat-config.json?token={handle.token}",
             timeout=2,
         ) as resp:
             assert b'"model"' in resp.read()

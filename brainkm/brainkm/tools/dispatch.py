@@ -31,10 +31,14 @@ from brainkm.models.schemas import (
     TraverseResponse,
 )
 from brainkm.services.brain_stats import collect_brain_stats
-from brainkm.services.confidence import score_confidence
+from brainkm.services.confidence import pack_confidence, score_confidence
 from brainkm.services.config_loader import load_brain_config
 from brainkm.services.context_pack import compile_context_pack
-from brainkm.services.decision_trail import build_decision_trail, should_include_history
+from brainkm.services.decision_trail import (
+    build_decision_trail,
+    should_include_history,
+    trim_decision_trail,
+)
 from brainkm.services.impact import linked_memories_for_code_nodes
 from brainkm.services.learning import persist_neuron_hits
 from brainkm.services.mcp_results import (
@@ -252,7 +256,16 @@ def handle_recall(
         if neuron is not None:
             nodes.append(neuron)
 
-    nodes = trim_neurons_to_budget(nodes, budget=config.budget.total_tokens)
+    total_budget = config.budget.total_tokens
+    want_history = should_include_history(
+        include_history=request.include_history,
+        intent=result.intent,
+        query=request.query,
+    )
+    # Reserve up to 1/4 of the budget for decision_trail so the MCP payload
+    # stays inside the agent-facing token cap.
+    trail_budget = (total_budget // 4) if want_history else 0
+    nodes = trim_neurons_to_budget(nodes, budget=max(100, total_budget - trail_budget))
 
     want_sources = (
         request.include_sources
@@ -267,17 +280,16 @@ def handle_recall(
                 sources[node.node_id] = [ProvenanceSource(**item) for item in compact]
 
     decision_trail = []
-    if should_include_history(
-        include_history=request.include_history,
-        intent=result.intent,
-        query=request.query,
-    ):
+    if want_history:
         decision_ids = [
             n.node_id
             for n in nodes
             if n.kind == "memory" and (n.subtype or "") in {"decision", "rule", "fact"}
         ][:3]
-        decision_trail = build_decision_trail(conn, decision_ids)
+        decision_trail = trim_decision_trail(
+            build_decision_trail(conn, decision_ids),
+            budget=trail_budget,
+        )
 
     top_score = None
     if result.nodes:
@@ -310,7 +322,10 @@ def handle_recall(
     nodes_tokens = sum(
         token_count(f"{node.title}\n{node.content or ''}") for node in nodes
     )
-    chunk_budget = max(0, config.budget.total_tokens - nodes_tokens)
+    trail_tokens = sum(
+        token_count(f"{entry.title}\n{entry.subtype or ''}") for entry in decision_trail
+    )
+    chunk_budget = max(0, total_budget - nodes_tokens - trail_tokens)
     chunks = budget_session_chunk_excerpts(
         result.session_chunks,
         budget=chunk_budget,
@@ -355,15 +370,8 @@ def handle_context_pack(
     if hint != result.graph_hint:
         result = result.model_copy(update={"graph_hint": hint})
 
-    # Confidence from pack density (neurons kept vs abstain-like emptiness).
     kept = len(result.truncation.included_ids)
-    confidence = score_confidence(
-        abstained=kept == 0,
-        top_score=12.0 if kept >= 4 else (6.0 if kept >= 1 else None),
-        result_count=kept,
-        min_bm25_strength=config.recall.min_bm25_strength,
-    )
-    result = result.model_copy(update={"confidence": confidence})
+    result = result.model_copy(update={"confidence": pack_confidence(kept)})
 
     hit_ids = filter_active_memory_ids(conn, list(result.truncation.included_ids))
     persist_neuron_hits(
@@ -446,27 +454,21 @@ def handle_traverse(
         neuron = ranked_to_neuron(conn, ranked)
         if neuron is not None:
             nodes.append(neuron)
-    nodes = trim_neurons_to_budget(nodes, budget=config.budget.total_tokens)
+
+    total_budget = config.budget.total_tokens
+    # Fit graph neighbors + linked memories inside one shared token budget.
+    linked_budget = max(100, total_budget // 4)
+    nodes = trim_neurons_to_budget(nodes, budget=max(100, total_budget - linked_budget))
 
     linked = linked_memories_for_code_nodes(
         conn,
         [n.node_id for n in nodes if n.kind == "code"],
     )
-    # Keep linked memories inside remaining budget.
-    linked = trim_neurons_to_budget(
-        linked,
-        budget=max(100, config.budget.total_tokens // 4),
-    )
+    linked = trim_neurons_to_budget(linked, budget=linked_budget)
 
     hint = result.hint
     if project_dir is not None:
         hint = _maybe_queue_graph_sync(project_dir, config, existing_hint=hint)
-
-    from brainkm.models.schemas import ImpactSummary
-
-    impact = result.impact_summary
-    if impact is not None and not isinstance(impact, ImpactSummary):
-        impact = ImpactSummary.model_validate(impact)
 
     record_mcp_tool_use(conn, None, "traverse", result_count=len(nodes))
     _maintenance(conn)
@@ -477,7 +479,7 @@ def handle_traverse(
         nodes=nodes,
         hops_explored=result.hops_explored,
         hint=hint,
-        impact_summary=impact,  # type: ignore[arg-type]
+        impact_summary=result.impact_summary,
         linked_neurons=linked,
     )
 

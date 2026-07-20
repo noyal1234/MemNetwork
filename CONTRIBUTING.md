@@ -46,7 +46,7 @@ host wiring. See [docs/INSTALL.md](docs/INSTALL.md) and [AGENTS.md](AGENTS.md).
 
 - Config: `get_settings()` for env; `BrainConfig` for `.brain/config.json`.
 - Agent-facing packs: hard ~1500-token cap.
-- Capture: hooks + `capture.auto_observe`; MCP `remember` is pin/correct only.
+- Capture: hooks + `capture.auto_observe`; MCP `remember` is pin/correct/archive only.
 
 More detail: [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md).
 

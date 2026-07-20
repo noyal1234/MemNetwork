@@ -95,16 +95,28 @@ def should_include_history(
     intent: str | None,
     query: str,
 ) -> bool:
-    """Auto-enable history for decision/why/history intents unless explicitly off."""
+    """Auto-enable history for why/temporal intents unless explicitly off.
+
+    ``classify_intent`` emits locate|why|impact|temporal|debug|general — older
+    labels like ``decision`` / ``history`` / ``rule`` are not real intents.
+    """
     if include_history is not None:
         return include_history
     intent_l = (intent or "").lower()
-    if intent_l in {"decision", "why", "history", "rule"}:
+    if intent_l in {"why", "temporal"}:
         return True
     q = query.lower()
     return any(
         token in q
-        for token in ("why ", "why did", "history", "instead of", "rather than", "supersede")
+        for token in (
+            "why ",
+            "why did",
+            "history",
+            "previously",
+            "instead of",
+            "rather than",
+            "supersede",
+        )
     )
 
 
@@ -118,3 +130,26 @@ def format_decision_history_section(entries: list[DecisionTrailEntry]) -> list[s
         lines.append(f"- [{status}] {entry.title}")
     lines.append("")
     return lines
+
+
+def trim_decision_trail(
+    entries: list[DecisionTrailEntry],
+    *,
+    budget: int,
+) -> list[DecisionTrailEntry]:
+    """Keep newest-first trail entries within a token budget."""
+    from brainkm.services.memory import token_count
+
+    if budget <= 0 or not entries:
+        return []
+    kept: list[DecisionTrailEntry] = []
+    used = 0
+    for entry in entries:
+        cost = token_count(f"{entry.title}\n{entry.subtype or ''}")
+        if used + cost > budget and kept:
+            break
+        if used + cost > budget:
+            break
+        kept.append(entry)
+        used += cost
+    return kept

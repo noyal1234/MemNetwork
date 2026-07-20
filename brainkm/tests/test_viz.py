@@ -15,6 +15,12 @@ from brainkm.services import viz as viz_mod
 from brainkm.services.viz import start_viz_server
 
 
+def _api(handle, path: str) -> str:
+    """Build an authenticated API URL from VizServerHandle fields."""
+    sep = "&" if "?" in path else "?"
+    return f"{handle.base_url}{path}{sep}token={handle.token}"
+
+
 def test_viz_static_package_data_includes_ui_assets() -> None:
     """Wheel / installable package must ship viz_static assets (not just source tree)."""
     root = resources.files("brainkm") / "services" / "viz_static"
@@ -29,7 +35,7 @@ def test_start_viz_server_demo_serves_graph(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr("webbrowser.open", lambda *_a, **_k: True)
     handle = start_viz_server(demo=True, open_browser=False, port=0)
     try:
-        with urlopen(f"{handle.url}/api/graph", timeout=2) as resp:  # noqa: S310
+        with urlopen(_api(handle, "/api/graph"), timeout=2) as resp:  # noqa: S310
             body = json.loads(resp.read().decode())
         assert len(body["nodes"]) > 0
         assert len(body["edges"]) > 0
@@ -45,19 +51,19 @@ def test_demo_serves_static_assets_and_version(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr("webbrowser.open", lambda *_a, **_k: True)
     handle = start_viz_server(demo=True, open_browser=False, port=0)
     try:
-        with urlopen(f"{handle.url}/", timeout=2) as resp:  # noqa: S310
+        with urlopen(f"{handle.base_url}/?token={handle.token}", timeout=2) as resp:  # noqa: S310
             html = resp.read().decode()
         assert "Neural Cosmos" in html
         assert "/app.js" in html
 
-        with urlopen(f"{handle.url}/styles.css", timeout=2) as resp:  # noqa: S310
+        with urlopen(f"{handle.base_url}/styles.css", timeout=2) as resp:  # noqa: S310
             assert resp.status == 200
             assert b"--bg" in resp.read()
 
-        with urlopen(f"{handle.url}/app.js", timeout=2) as resp:  # noqa: S310
+        with urlopen(f"{handle.base_url}/app.js", timeout=2) as resp:  # noqa: S310
             assert b"createChatController" in resp.read()
 
-        with urlopen(f"{handle.url}/api/version", timeout=2) as resp:  # noqa: S310
+        with urlopen(_api(handle, "/api/version"), timeout=2) as resp:  # noqa: S310
             ver = json.loads(resp.read().decode())
         assert ver["node_count"] == handle.node_count
         assert ver["edge_count"] == handle.edge_count
@@ -71,7 +77,7 @@ def test_demo_search_returns_fts_hits(monkeypatch: pytest.MonkeyPatch) -> None:
     handle = start_viz_server(demo=True, open_browser=False, port=0)
     try:
         q = quote("SQLite")
-        with urlopen(f"{handle.url}/api/search?q={q}&limit=5", timeout=2) as resp:  # noqa: S310
+        with urlopen(_api(handle, f"/api/search?q={q}&limit=5"), timeout=2) as resp:  # noqa: S310
             data = json.loads(resp.read().decode())
         assert data["query"] == "SQLite"
         assert isinstance(data["results"], list)
@@ -112,7 +118,7 @@ def test_live_graph_reflects_writes_after_start(
     monkeypatch.setattr("webbrowser.open", lambda *_a, **_k: True)
     handle = start_viz_server(project_dir=tmp_path, demo=False, open_browser=False, port=0)
     try:
-        with urlopen(f"{handle.url}/api/graph", timeout=2) as resp:  # noqa: S310
+        with urlopen(_api(handle, "/api/graph"), timeout=2) as resp:  # noqa: S310
             before = json.loads(resp.read().decode())
         assert any(n["id"] == "n1" for n in before["nodes"])
         assert not any(n["id"] == "n2" for n in before["nodes"])
@@ -132,11 +138,11 @@ def test_live_graph_reflects_writes_after_start(
         conn.commit()
         conn.close()
 
-        with urlopen(f"{handle.url}/api/graph", timeout=2) as resp:  # noqa: S310
+        with urlopen(_api(handle, "/api/graph"), timeout=2) as resp:  # noqa: S310
             after = json.loads(resp.read().decode())
         assert any(n["id"] == "n2" for n in after["nodes"])
 
-        with urlopen(f"{handle.url}/api/version", timeout=2) as resp:  # noqa: S310
+        with urlopen(_api(handle, "/api/version"), timeout=2) as resp:  # noqa: S310
             ver = json.loads(resp.read().decode())
         assert ver["node_count"] == 2
     finally:

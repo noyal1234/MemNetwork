@@ -428,7 +428,7 @@ Each action is a button that spawns a Textual `Worker`. Output is captured line-
 
 **Purpose:** Guided alternative to manually running `brainkm install --client …` + doctor commands. Activated automatically when `.brain/` does not exist, or via the `w` keybinding.
 
-**Steps (sequential screens) — as of 0.5.0:**
+**Steps (sequential screens) — as of 0.6.0:**
 
 ```mermaid
 flowchart LR

@@ -24,3 +24,12 @@ def score_confidence(
     if strength >= floor:
         return "medium"
     return "low"
+
+
+def pack_confidence(kept_count: int) -> Confidence:
+    """Derive confidence from context_pack density (included neuron/graph ids)."""
+    if kept_count <= 0:
+        return "low"
+    if kept_count >= 4:
+        return "high"
+    return "medium"

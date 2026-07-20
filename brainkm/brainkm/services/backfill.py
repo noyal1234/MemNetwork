@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from brainkm.services.memory import supersede_neuron
 from brainkm.services.neuron_index import index_neuron_links
@@ -25,6 +25,8 @@ class BackfillSupersedesResult:
     scanned: int
     pairs: int
     edges_added: int
+    dry_run: bool = False
+    preview: list[tuple[str, str]] = field(default_factory=list)
 
 
 def backfill_neuron_links(
@@ -92,15 +94,46 @@ def _title_tokens(title: str) -> set[str]:
     return {t.lower() for t in _TOKEN.findall(title) if len(t) > 2}
 
 
+def _conflict_allows_supersede(
+    conn: sqlite3.Connection,
+    *,
+    new_id: str,
+    old_id: str,
+    new_title: str,
+    new_content: str,
+) -> bool:
+    """Require detect_conflicts to surface old_id before archiving an active neuron."""
+    from brainkm.services.remember_links import detect_conflicts
+
+    # Confirm a real conflict/near-dup signal — shared title tokens alone
+    # must not archive live decisions.
+    suggestions = detect_conflicts(
+        conn,
+        title=new_title,
+        content=new_content,
+        exclude_id=new_id,
+        similarity_threshold=0.65,
+    )
+    return any(
+        s.node_id == old_id and (s.conflict or s.similarity >= 0.9)
+        for s in suggestions
+    )
+
+
 def backfill_supersedes(
     conn: sqlite3.Connection,
     *,
     limit: int = 200,
     min_token_overlap: float = 0.55,
+    dry_run: bool = False,
+    require_conflict: bool = True,
 ) -> BackfillSupersedesResult:
     """Chain near-duplicate decision neurons by temporal order (newer supersedes older).
 
     Idempotent: skips pairs that already have a supersedes edge.
+    When ``require_conflict`` is True (default), active older neurons are only
+    archived when ``detect_conflicts`` also flags the pair — token Jaccard alone
+    is not enough to soft-delete live decisions.
     """
     rows = conn.execute(
         """
@@ -115,20 +148,27 @@ def backfill_supersedes(
 
     scanned = len(rows)
     pairs = 0
+    preview: list[tuple[str, str]] = []
     edges_before = conn.execute(
         "SELECT COUNT(*) FROM edges WHERE relationship = 'supersedes'"
     ).fetchone()[0]
 
-    # Only consider active+archived decisions; newer active supersedes older.
-    by_tokens: list[tuple[str, set[str], str | None]] = [
-        (row["id"], _title_tokens(row["title"] or ""), row["valid_until"]) for row in rows
+    by_row: list[tuple[str, set[str], str | None, str, str]] = [
+        (
+            row["id"],
+            _title_tokens(row["title"] or ""),
+            row["valid_until"],
+            row["title"] or "",
+            row["content"] or "",
+        )
+        for row in rows
     ]
 
-    for i, (old_id, old_tok, old_until) in enumerate(by_tokens):
+    for i, (old_id, old_tok, old_until, _old_title, _old_content) in enumerate(by_row):
         if not old_tok:
             continue
-        best: tuple[str, float] | None = None
-        for new_id, new_tok, new_until in by_tokens[i + 1 :]:
+        best: tuple[str, float, str, str] | None = None
+        for new_id, new_tok, new_until, new_title, new_content in by_row[i + 1 :]:
             if new_until is not None:
                 continue  # prefer active replacement
             if not new_tok:
@@ -137,10 +177,10 @@ def backfill_supersedes(
             if overlap < min_token_overlap:
                 continue
             if best is None or overlap > best[1]:
-                best = (new_id, overlap)
+                best = (new_id, overlap, new_title, new_content)
         if best is None:
             continue
-        new_id = best[0]
+        new_id, _overlap, new_title, new_content = best
         exists = conn.execute(
             """
             SELECT 1 FROM edges
@@ -150,7 +190,23 @@ def backfill_supersedes(
         ).fetchone()
         if exists:
             continue
-        # Only supersede if old is still active; otherwise just ensure edge for history.
+
+        # Active older neurons need a conflict/near-dup signal before archive.
+        if old_until is None and require_conflict:
+            if not _conflict_allows_supersede(
+                conn,
+                new_id=new_id,
+                old_id=old_id,
+                new_title=new_title,
+                new_content=new_content,
+            ):
+                continue
+
+        preview.append((new_id, old_id))
+        if dry_run:
+            pairs += 1
+            continue
+
         if old_until is None:
             try:
                 supersede_neuron(conn, old_id, replacement_id=new_id)
@@ -177,5 +233,7 @@ def backfill_supersedes(
     return BackfillSupersedesResult(
         scanned=scanned,
         pairs=pairs,
-        edges_added=max(0, int(edges_after) - int(edges_before)),
+        edges_added=0 if dry_run else max(0, int(edges_after) - int(edges_before)),
+        dry_run=dry_run,
+        preview=preview,
     )

@@ -11,12 +11,25 @@ from brainkm.models.brain_config import RecallConfig
 # SQLite FTS5 bm25() returns negative values; lower (more negative) is a better match.
 CorpusBroadQuery = "memory OR decision OR rule OR fact OR code OR error"
 
+# Below this active-node count, BM25 magnitudes are too small for the absolute
+# min_bm25_strength floor — skip it so fresh brains still recall (percentile mode
+# and CMA benches remain unaffected once the corpus grows).
+SMALL_CORPUS_THRESHOLD = 20
+
 
 def best_bm25_score(scores: list[float]) -> float | None:
     """Return the strongest BM25 score from a result set."""
     if not scores:
         return None
     return min(scores)
+
+
+def active_corpus_size(conn: sqlite3.Connection) -> int:
+    """Count active (non-archived) nodes used for retrieval."""
+    row = conn.execute(
+        "SELECT COUNT(*) FROM nodes WHERE valid_until IS NULL"
+    ).fetchone()
+    return int(row[0]) if row else 0
 
 
 def corpus_bm25_percentile(
@@ -56,6 +69,7 @@ def should_abstain(
     recall: RecallConfig,
     *,
     corpus_threshold: float | None = None,
+    active_nodes: int | None = None,
 ) -> bool:
     """Return True when recall should return no neurons."""
     if not recall.abstain_on_low_confidence:
@@ -65,7 +79,13 @@ def should_abstain(
     if best is None:
         return True
 
-    if recall.min_bm25_strength is not None and abs(best) < recall.min_bm25_strength:
+    # Absolute strength floor is unreliable on tiny corpora (BM25 magnitudes stay low).
+    apply_floor = active_nodes is None or active_nodes >= SMALL_CORPUS_THRESHOLD
+    if (
+        apply_floor
+        and recall.min_bm25_strength is not None
+        and abs(best) < recall.min_bm25_strength
+    ):
         return True
 
     if recall.abstain_mode == "absolute":
@@ -152,14 +172,21 @@ def should_abstain_for_query(
 
     record_query_score(seed_scores, project_dir=project_dir)
     corpus_threshold = resolve_corpus_threshold(conn, recall, project_dir=project_dir)
-    abstain = should_abstain(seed_scores, recall, corpus_threshold=corpus_threshold)
+    nodes = active_corpus_size(conn)
+    abstain = should_abstain(
+        seed_scores,
+        recall,
+        corpus_threshold=corpus_threshold,
+        active_nodes=nodes,
+    )
     best = best_bm25_score(seed_scores)
     get_logger("services.abstention").debug(
-        "abstain=%s best=%s threshold=%s mode=%s percentile=%s",
+        "abstain=%s best=%s threshold=%s mode=%s percentile=%s active_nodes=%s",
         abstain,
         best,
         corpus_threshold,
         recall.abstain_mode,
         recall.abstain_percentile,
+        nodes,
     )
     return abstain

@@ -119,7 +119,7 @@ MemNetwork/
 
 ## 4. MCP tool contract (V1 / current)
 
-**Package version:** `0.5.0`
+**Package version:** `0.6.0`
 
 | Tool | Purpose |
 |------|---------|
@@ -346,7 +346,8 @@ All distill modes share Cursor chrome cleaning (`clean_cursor_text` / `is_distil
 | **Nodal adopt** | Done | Lifecycle ladder (observation TTL, episode, `distilled_from`); `about_file`/`about_symbol` + hook file seeds; concept materializer; Seed→Expand→Diversify→Budget→Abstain; pack quotas; `consolidate --llm`; temporal supersede meta; team tags; skill pack; scorecard bench; `file-history` / `provenance` / `demo` CLI |
 | **0.4.1** | Done | Claude Code silent memory parity: `.claude/settings.json` hooks + `hookSpecificOutput`; SubagentStart/Stop + Stop; Claude-default `auto_observe`; `.claude/rules` + routing skill; doctor dry-run; TUI copy/dashboard Claude hooks status; coexistence with CLAUDE.md / Auto Memory |
 | **0.4.2** | Done | Antigravity first-class client (`.agents/` MCP `serverUrl` + named hooks, PreInvocation inject, synthetic precompact, idle Stop distill, AGY transcript JSONL); `distill_mode` peers `claude` (`claude -p` + live sampling) + `antigravity` (`agy -p`); legacy `mcp`→`claude`; TUI Antigravity checkbox + dashboard AGY hooks; doctor multi-path probes + `--mirror-global` |
-| **0.5.0** | Done | MCP surface 8→5 (drop session_status/forget/graph_sync from MCP); `remember` pin/correct/archive; `recall` decision_trail + confidence; `traverse` impact_summary + linked neurons; self-healing stale-graph queue; about_*/supersedes pipeline + `repair --backfill-*`; shared-brain security polish (HTTP Bearer, viz token, redaction, Groq consent, graphify allowlist); TUI MCP Doctor + Review Queue |
+| **0.5.0** | Done | Shared-brain security + ops polish: HTTP MCP loopback guard + Bearer token (`.brain/mcp_http_token`, `connect` headers); viz per-run `?token=` / no wildcard CORS; expanded redaction; Groq `cloud_distill_acknowledged`; graphify `extract_extra_args` allowlist + graph-import sanitize; TUI MCP Doctor panel + Review Queue (`y`/`n`) + brain-status sidebar; client routing skill / hook parity |
+| **0.6.0** | Done | Unified-brain MCP surface 8→5 (drop `session_status`/`forget`/`graph_sync` from MCP); `remember` pin/correct/archive; `recall` decision_trail + confidence; `traverse` impact_summary + linked neurons; shared token budget for overlays; corpus-aware abstention floor; self-healing stale-graph queue; about_*/supersedes backfill (`repair --backfill-*`, `--dry-run-supersedes`); viz `base_url`/`token` handle fields |
 | **CMA scorecard** | Done | Headline **recall@budget** (gold-in-pack ≤1500): CMA **0.833**, LME-S full-500 **0.892** @ 373 tok; CMA micro **100%** is a regression gate; LME dual-grain fts-blob R@5 **0.934**; `run_cma.sh` + dated `docs/benchmarks/` artifacts |
 | **End-task A/B** | Done | Harness `brainkm/scripts/endtask_harness.py` + fixture `endtask_v1` (12 knowledge / 8 change); dry-run smoke artifact; live claim needs `CURSOR_API_KEY` + `--repeats 3` |
 | **License** | Done | Apache-2.0 ([LICENSE](../LICENSE), [NOTICE](../NOTICE)); copyright Noyal Bastin Benny; [CLA](../CLA.md) + [CONTRIBUTING](../CONTRIBUTING.md) for future relicense option |
