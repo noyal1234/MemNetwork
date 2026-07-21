@@ -23,7 +23,7 @@ brainkm install --dev
 brainkm graph sync          # optional: first code graph
 brainkm graph status
 pytest
-brainkm version   # expect 0.7.0
+brainkm version   # expect 0.8.0
 ```
 
 Restart Cursor or reload MCP servers after `brainkm install --dev`.
@@ -58,6 +58,7 @@ The wizard asks **which coding apps you use** in plain language:
 - **Two or more** → shared brain across apps; on the last screen click **Start Brain** (or use Dashboard → Start Brain). You only start it once while you work — not every chat.
 - **Claude Code** → writes `.claude/settings.json` hooks + project `.mcp.json` (not `.claude/hooks.json`). Dashboard shows Claude hooks status when present.
 - **Antigravity** → writes `.agents/mcp_config.json` (HTTP uses `serverUrl`) + `.agents/hooks.json` + rules/skills. Dashboard shows AGY hooks when `.agents/` is present.
+- **Codex CLI** → writes `.codex/config.toml` (`[mcp_servers.brainkm]`), `.codex/hooks.json` (PascalCase nested schema), skill, and upserts `AGENTS.md`. Trust the project `.codex/` layer, then open `/hooks` in Codex and trust brainkm commands.
 
 You do **not** need to memorize `serve` / `connect` commands.
 
@@ -89,11 +90,14 @@ bash brainkm/scripts/setup_dev.sh
 | `brainkm install --dev` | Writes `.cursor/mcp.json`, `.cursor/hooks.json`, `.cursor/rules/brainkm.mdc`, `.brain/` scaffolding |
 | `brainkm install --dev --client claude` | Writes project `.mcp.json`, `.claude/settings.json` hooks (PascalCase), `.claude/rules/brainkm.md`, skill, `CLAUDE.md`; enables `auto_observe` |
 | `brainkm install --dev --client antigravity` | Writes `.agents/mcp_config.json`, `.agents/hooks.json` (named `brainkm` handler), rules/skill, `AGENTS.md`; `auto_observe`; distill `antigravity` if `agy` on PATH |
+| `brainkm install --dev --client codex` | Writes `.codex/config.toml` `[mcp_servers.brainkm]`, `.codex/hooks.json` (Stop → session-end), rules/skill, `AGENTS.md`; `auto_observe`; distill `codex` if `codex` on PATH |
 | `brainkm graph sync` | Builds `graphify-out/graph.json` and imports into `brain.db` |
 
 Claude Code loads hooks from **`.claude/settings.json`** only (not `.claude/hooks.json`). Verify with `brainkm doctor`.
 
 Antigravity workspace MCP/hooks live under **`.agents/`**. HTTP shared brain uses `serverUrl` (not `url`). Optional: `brainkm connect antigravity --http --mirror-global` merges into `~/.gemini/config/mcp_config.json` when the CLI ignores workspace config.
+
+Codex CLI reads MCP from **`.codex/config.toml`** (not JSON `mcp.json`). Project-local `.codex/` loads only when the project is trusted; hooks also need `/hooks` trust in the Codex UI. Distill uses `capture.distill_mode: codex` (`codex exec --sandbox read-only --ask-for-approval never`) when the CLI is on PATH; otherwise install falls back to `rules`.
 
 ## Example vs live Cursor config
 
@@ -146,9 +150,11 @@ brainkm serve --project-dir /path/to/other-project
 # wire additional clients
 brainkm connect claude --http --project-dir /path/to/other-project
 brainkm connect antigravity --http --project-dir /path/to/other-project
-brainkm connect codex --http --project-dir /path/to/other-project
+brainkm connect codex --http --hooks --project-dir /path/to/other-project
 brainkm doctor --project-dir /path/to/other-project
 ```
+
+For Codex: trust the project's `.codex/` layer, then open `/hooks` and trust the brainkm commands.
 
 ## MCP config reference (after `install --dev`)
 

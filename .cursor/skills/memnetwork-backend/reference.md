@@ -112,6 +112,7 @@ Troubleshooting:
 | `cursor` | Cursor agent CLI when installed; else Cursor-aware heuristic distill (strips `<user_query>` / tool_use chrome). Optional pre-distilled JSON at `.brain/pending/cursor-distill/<session_id>.json` | `agent` / `cursor-agent` on PATH (optional) |
 | `claude` | Live MCP sampling when registered; else `claude -p --bare`; else rules. Legacy `mcp` coerces to `claude` | `claude` on PATH (optional) |
 | `antigravity` | `agy -p` / `agy --print`; else rules | `agy` on PATH (optional) |
+| `codex` | `codex exec --sandbox read-only --ask-for-approval never --ephemeral`; else rules | `codex` on PATH (optional) |
 
 Set in `.brain/config.json`:
 

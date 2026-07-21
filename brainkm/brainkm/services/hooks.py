@@ -54,6 +54,13 @@ _CLAUDE_INJECT_EVENTS = frozenset(
     {"sessionStart", "postCompact", "preToolUse", "subagentStart"}
 )
 
+# Codex uses the same PascalCase hookEventName envelope as Claude for inject events.
+_CODEX_INJECT_EVENTS = frozenset(
+    {"sessionStart", "userPromptSubmit", "preToolUse", "postCompact"}
+)
+# Codex Stop / compact events must emit valid JSON (plain text is invalid for Stop).
+_CODEX_CONTINUE_EVENTS = frozenset({"sessionEnd", "stop", "preCompact", "postToolUse"})
+
 
 @dataclass(frozen=True)
 class HookRunResult:
@@ -110,6 +117,41 @@ def build_claude_hook_stdout(result: HookRunResult, event: str) -> dict[str, obj
     if event == "preToolUse":
         specific["permissionDecision"] = "allow"
     return {"hookSpecificOutput": specific}
+
+
+def build_codex_hook_stdout(result: HookRunResult, event: str) -> dict[str, object]:
+    """Build Codex CLI hook stdout (always JSON — Stop rejects plain text).
+
+    Inject events use Claude-compatible ``hookSpecificOutput.additionalContext``.
+    Capture / continue events return ``{"continue": true}`` and never ``decision: block``.
+    """
+    if event in _CODEX_INJECT_EVENTS:
+        if result.skipped or not result.additional_context:
+            if event == "preToolUse":
+                return {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PreToolUse",
+                        "permissionDecision": "allow",
+                    }
+                }
+            if event == "postCompact":
+                return {"continue": True}
+            return {"continue": True}
+
+        hook_event_name = _CLAUDE_EVENT_NAMES.get(event, event)
+        specific: dict[str, object] = {
+            "hookEventName": hook_event_name,
+            "additionalContext": result.additional_context,
+        }
+        # Prefer additionalContext-only for PreToolUse; Codex denies via
+        # permissionDecision=deny / exit 2 — we never block from brainkm.
+        out: dict[str, object] = {"hookSpecificOutput": specific, "continue": True}
+        return out
+
+    if event in _CODEX_CONTINUE_EVENTS or event in _CLAUDE_EVENT_NAMES:
+        return {"continue": True}
+
+    return {"continue": True}
 
 
 def _parse_hook_object(raw: str) -> dict[str, object]:
@@ -311,7 +353,11 @@ def run_session_end(
     project_dir: Path | None = None,
     config: BrainConfig | None = None,
 ) -> HookRunResult:
-    """SessionEnd — capture transcript into neurons + chunk_sources."""
+    """SessionEnd — capture transcript into neurons + chunk_sources.
+
+    Codex maps Stop → this handler (no SessionEnd). When ``stop_hook_active`` is
+    true the turn was already continued by a prior Stop hook — skip re-capture.
+    """
     cfg = config or load_brain_config(project_dir)
     cwd = project_dir if project_dir is not None else Path.cwd()
 
@@ -322,6 +368,25 @@ def run_session_end(
             skipped=True,
             reason="capture.transcripts disabled",
         )
+
+    # Guard Codex Stop re-entry before parsing the transcript path.
+    if raw.strip():
+        try:
+            preview = _parse_hook_object(raw)
+        except (json.JSONDecodeError, ValueError):
+            preview = {}
+        if bool(preview.get("stop_hook_active") or preview.get("stopHookActive")):
+            session_id = _session_id_from_payload(preview)
+            logger.info(
+                "hook=SessionEnd session_id=%s skipped=stop_hook_active",
+                session_id,
+            )
+            return HookRunResult(
+                hook="SessionEnd",
+                session_id=session_id,
+                skipped=True,
+                reason="stop_hook_active",
+            )
 
     payload = parse_precompact_hook_payload(raw, cwd=cwd)
     session_id = payload.session_id or payload.conversation_id

@@ -112,21 +112,30 @@ class CodexClientAdapter:
     def hook_events(self) -> list[str]:
         return [
             "sessionStart",
-            "sessionEnd",
-            "preCompact",
+            "userPromptSubmit",
             "preToolUse",
             "postToolUse",
+            "preCompact",
+            "postCompact",
+            "stop",  # Codex has no SessionEnd — Stop runs session-end capture
         ]
 
     def transcript_style(self) -> str:
-        return "generic_jsonl"
+        return "codex_jsonl"
 
     def agents_snippet(self) -> str:
         return (
             AGENTS_SNIPPET
-            + "\nInstalled for Codex via `brainkm connect codex`. "
-            "Desktop plugin hooks may be silent — mirror hooks with "
-            "`brainkm connect codex --hooks` if needed.\n"
+            + "\nInstalled for OpenAI Codex CLI via `brainkm install --client codex`.\n"
+            + "\n## Coexistence with Codex\n\n"
+            + "- **AGENTS.md** = authored project instructions (static).\n"
+            + "- **brainkm** = searchable project brain (decisions, graph, compaction survival).\n"
+            + "- MCP lives in `.codex/config.toml` under `[mcp_servers.brainkm]` "
+            "(not a JSON mcp.json).\n"
+            + "- Trust this project's `.codex/` layer, then open `/hooks` in Codex and "
+            "trust the brainkm hooks — Codex skips untrusted project hooks.\n"
+            + "- Shared with Cursor / Claude / Antigravity: one `brainkm serve` + "
+            "`connect --http`.\n"
         )
 
     def config_dir_name(self) -> str:

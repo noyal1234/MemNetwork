@@ -359,7 +359,7 @@ Footer {
 
 | Form section | Config model | Key fields |
 |---|---|---|
-| **Capture** | `CaptureConfig` | `distill_mode` (select: `rules` / `cursor` / `ollama` / `groq`), `max_auto_neurons_per_session`, `max_neurons_per_plan` |
+| **Capture** | `CaptureConfig` | `distill_mode` (select: `cursor` / `claude` / `antigravity` / `codex` / `ollama` / `groq`; `rules` advanced), `max_auto_neurons_per_session`, `max_neurons_per_plan` |
 | **Ollama** | `OllamaConfig` | `model` (text), `auto_select_model` (switch), `timeout_seconds` (int), `base_url` (text) |
 | **Groq** | `GroqConfig` | `model` (text), `timeout_seconds` (int), `base_url` (text) |
 | **Budget** | `BudgetConfig` | `total_tokens` (int slider 100–8000), `dynamic_reallocation` (switch), session_start sub-fields, pre_tool sub-fields |
@@ -429,7 +429,7 @@ Each action is a button that spawns a Textual `Worker`. Output is captured line-
 
 **Purpose:** Guided alternative to manually running `brainkm install --client …` + doctor commands. Activated automatically when `.brain/` does not exist, or via the `w` keybinding.
 
-**Steps (sequential screens) — as of 0.7.0:**
+**Steps (sequential screens) — as of 0.8.0:**
 
 ```mermaid
 flowchart LR

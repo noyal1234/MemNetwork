@@ -436,6 +436,89 @@ def inspect_antigravity_wiring(project_dir: Path) -> list[str]:
     return notes
 
 
+def _codex_hooks_wired(hooks_path: Path) -> bool:
+    if not hooks_path.is_file():
+        return False
+    try:
+        data = json.loads(hooks_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return False
+    hooks = data.get("hooks") if isinstance(data, dict) else None
+    if not isinstance(hooks, dict):
+        return False
+    blob = json.dumps(hooks)
+    return "brainkm" in blob and "--client codex" in blob and "SessionStart" in hooks
+
+
+def inspect_codex_wiring(project_dir: Path) -> list[str]:
+    """Doctor notes for Codex CLI MCP (config.toml) + hooks trust requirements."""
+    from brainkm.services.mcp_transport import read_codex_mcp_server_entry
+
+    notes: list[str] = []
+    root = resolve_project_dir(project_dir)
+    config_path = root / ".codex" / "config.toml"
+    hooks_path = root / ".codex" / "hooks.json"
+    legacy_mcp = root / ".codex" / "mcp.json"
+
+    if legacy_mcp.is_file() and not config_path.is_file():
+        notes.append(
+            "Legacy .codex/mcp.json found — Codex reads `.codex/config.toml` "
+            "`[mcp_servers.brainkm]`; re-run `brainkm install --client codex`"
+        )
+
+    if not config_path.is_file():
+        notes.append(
+            "Codex .codex/config.toml missing — run `brainkm install --client codex` or connect"
+        )
+    else:
+        entry = read_codex_mcp_server_entry(config_path)
+        if entry is None:
+            notes.append(
+                "Codex config.toml missing `[mcp_servers.brainkm]` — "
+                "run `brainkm connect codex`"
+            )
+        else:
+            transport, _ = _inspect_mcp_entry(entry)
+            if transport is None:
+                notes.append("Codex brainkm MCP entry incomplete (need command/args or url)")
+            if transport == "http" and not mcp_entry_has_bearer_header(entry):
+                notes.append(
+                    "Codex HTTP MCP missing http_headers Authorization Bearer — "
+                    "run `brainkm connect codex --http`"
+                )
+
+    if not _codex_hooks_wired(hooks_path):
+        notes.append(
+            "Codex hooks missing or lack `--client codex` / PascalCase events — "
+            "run `brainkm connect codex --hooks`"
+        )
+    else:
+        # Schema sanity: Stop should call session-end (Codex has no SessionEnd).
+        try:
+            data = json.loads(hooks_path.read_text(encoding="utf-8"))
+            stop_groups = (data.get("hooks") or {}).get("Stop") if isinstance(data, dict) else None
+            stop_blob = json.dumps(stop_groups) if stop_groups else ""
+            if "session-end" not in stop_blob:
+                notes.append(
+                    "Codex Stop hook should run `brainkm session-end` "
+                    "(Codex has no SessionEnd)"
+                )
+            if "SessionEnd" in (data.get("hooks") or {}):
+                notes.append(
+                    "Codex hooks include SessionEnd — Codex does not fire that event; "
+                    "prefer Stop → session-end"
+                )
+        except json.JSONDecodeError:
+            notes.append("Codex hooks.json is not valid JSON")
+
+        notes.append(
+            "Codex requires trusting the project `.codex/` layer and `/hooks` "
+            "trust for brainkm commands — untrusted project hooks are skipped"
+        )
+
+    return notes
+
+
 def _client_status(project_dir: Path, client: str) -> ClientWireStatus:
     mcp_path = mcp_config_path_for_client(project_dir, client)
     hooks_path = hooks_path_for_client(project_dir, client)
@@ -451,6 +534,8 @@ def _client_status(project_dir: Path, client: str) -> ClientWireStatus:
         hooks_present = _cursor_hooks_have_brainkm(
             project_dir / ".cursor" / "hooks.json"
         )
+    elif client == "codex":
+        hooks_present = _codex_hooks_wired(project_dir / ".codex" / "hooks.json")
     else:
         hooks_present = bool(hooks_path and hooks_path.is_file())
     status = ClientWireStatus(
@@ -463,6 +548,27 @@ def _client_status(project_dir: Path, client: str) -> ClientWireStatus:
     if not status.present:
         status.notes.append("mcp config missing — run brainkm connect")
         return status
+
+    if client == "codex":
+        from brainkm.services.mcp_transport import read_codex_mcp_server_entry
+
+        entry = read_codex_mcp_server_entry(mcp_path)
+        if entry is None:
+            status.notes.append("brainkm server entry missing or incomplete")
+            return status
+        transport, url = _inspect_mcp_entry(entry)
+        status.transport = transport
+        status.url = url
+        status.has_bearer = mcp_entry_has_bearer_header(entry)
+        if transport is None:
+            status.notes.append("brainkm server entry missing or incomplete")
+        if transport == "http" and not status.has_bearer:
+            status.notes.append(
+                "HTTP MCP entry missing Authorization Bearer header — "
+                "run `brainkm connect <client> --http`"
+            )
+        return status
+
     try:
         data = json.loads(mcp_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
@@ -549,6 +655,10 @@ def build_mcp_doctor_report(
     agy_status = next((c for c in clients if c.client == "antigravity"), None)
     if agy_status and (agy_status.present or (root / ".agents").is_dir()):
         client_notes.extend(inspect_antigravity_wiring(root))
+
+    codex_status = next((c for c in clients if c.client == "codex"), None)
+    if codex_status and (codex_status.present or (root / ".codex").is_dir()):
+        client_notes.extend(inspect_codex_wiring(root))
 
     if cfg.capture.distill_mode == "mcp":
         client_notes.append(

@@ -19,12 +19,12 @@ brainkm --help
 | `brainkm version` | Print installed package version | — | `brainkm version` |
 | `brainkm install` | Scaffold `.brain/`, MCP config, hooks, rule | `--project-dir`, `--dev`, `--force`, `--no-graph`, `--client cursor\|claude\|antigravity\|codex\|generic`, `--http`, `--host`, `--port` | `brainkm install --dev --client antigravity` |
 | `brainkm serve` | Shared HTTP MCP server (alias of `mcp --http`) | `--project-dir`, `--host`, `--port`, `--allow-remote` | `brainkm serve --project-dir .` |
-| `brainkm connect` | Wire a client to stdio or shared HTTP (writes Bearer token into client MCP config) | `--project-dir`, `--http/--stdio`, `--hooks/--no-hooks`, `--host`, `--port`, `--dev`, `--mirror-global` (Antigravity) | `brainkm connect antigravity --http` |
+| `brainkm connect` | Wire a client to stdio or shared HTTP (writes Bearer token into client MCP config) | `--project-dir`, `--http/--stdio`, `--hooks/--no-hooks`, `--host`, `--port`, `--dev`, `--mirror-global` (Antigravity) | `brainkm connect codex --http --hooks` |
 | `brainkm doctor` | Health + client wiring + auto_observe / dual-writer / missing Bearer checks | `--project-dir`, `--host`, `--port` | `brainkm doctor` |
 | `brainkm migrate` | Apply pending SQLite migrations | `--project-dir` | `brainkm migrate` |
 | `brainkm configure` | Launch Textual config dashboard (wizard / status / forms / actions) | `--project-dir` | `brainkm configure` |
 
-> **Tip:** Prefer `brainkm configure` (0.7.0): app checkboxes (Cursor / Claude / Antigravity / Codex) → one app = silent stdio; two+ = shared HTTP + **Start Brain**. Semantic Quality consent is separate. Power users: `serve` + `connect --http`. Requires `pip install -e "./brainkm[tui]"`. Semantic weights: `pip install -e "./brainkm[semantic]"`. Design notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
+> **Tip:** Prefer `brainkm configure` (0.8.0): app checkboxes (Cursor / Claude / Antigravity / Codex) → one app = silent stdio; two+ = shared HTTP + **Start Brain**. Codex writes `.codex/config.toml` + hooks (trust project + `/hooks`). Semantic Quality consent is separate. Power users: `serve` + `connect --http`. Requires `pip install -e "./brainkm[tui]"`. Semantic weights: `pip install -e "./brainkm[semantic]"`. Design notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
 >
 > **Dashboard:** the **MCP Doctor** panel shows the same wiring report as `brainkm doctor` (color-coded). **Review Queue** lists low-confidence auto-captures for `y` approve / `n` reject.
 
@@ -37,11 +37,11 @@ brainkm --help
 | `brainkm capture` | Ingest transcript JSONL → chunks + distilled neurons | `--project-dir`, `--session-id` | `brainkm capture path/to/transcript.jsonl` |
 | `brainkm handover` | PreCompact durable distill + WAL checkpoint | `--project-dir`, `--session-id`, `--stdin` | `brainkm handover --stdin` |
 
-Distill backend is selected by `capture.distill_mode` in `.brain/config.json`: `rules` \| `cursor` \| `claude` \| `antigravity` \| `ollama` \| `groq` (legacy `mcp` coerces to `claude`).
+Distill backend is selected by `capture.distill_mode` in `.brain/config.json`: `rules` \| `cursor` \| `claude` \| `antigravity` \| `codex` \| `ollama` \| `groq` (legacy `mcp` coerces to `claude`).
 
 **Groq (cloud):** also set `capture.cloud_distill_acknowledged: true` (wizard sets this when you pick groq). Without consent, Groq mode falls back to `rules` and never uploads transcripts.
 
-All modes clean host chrome before extract. PreCompact / synthetic-precompact handover allows up to `handover.precompact_distill_timeout_seconds` (default **30s**) before falling back to `rules`. `claude` uses live MCP sampling when registered, else `claude -p`; `antigravity` uses `agy -p`.
+All modes clean host chrome before extract. PreCompact / synthetic-precompact handover allows up to `handover.precompact_distill_timeout_seconds` (default **30s**) before falling back to `rules`. `claude` uses live MCP sampling when registered, else `claude -p`; `antigravity` uses `agy -p`; `codex` uses `codex exec --sandbox read-only --ask-for-approval never`.
 
 ---
 

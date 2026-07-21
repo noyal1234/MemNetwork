@@ -17,6 +17,7 @@ from brainkm.services.install import (
     resolve_project_dir,
     write_antigravity_hooks,
     write_claude_settings_hooks,
+    write_codex_hooks,
 )
 from brainkm.services.mcp_http_auth import ensure_mcp_http_token, restrict_secret_file
 from brainkm.services.mcp_transport import (
@@ -25,6 +26,7 @@ from brainkm.services.mcp_transport import (
     build_mcp_config,
     mcp_http_url,
     normalize_mcp_entry_transport_fields,
+    write_codex_mcp_config,
 )
 
 logger = get_logger("services.connect")
@@ -70,7 +72,7 @@ def mcp_config_path_for_client(project_dir: Path, client: str) -> Path:
     if kind == "claude":
         return project_dir / ".mcp.json"
     if kind == "codex":
-        return project_dir / ".codex" / "mcp.json"
+        return project_dir / ".codex" / "config.toml"
     if kind == "antigravity":
         return project_dir / ".agents" / "mcp_config.json"
     return project_dir / ".brain" / "mcp.http.example.json"
@@ -127,21 +129,39 @@ def run_connect(
     )
 
     http_token = ensure_mcp_http_token(root) if transport == "http" else None
-    payload = build_mcp_config(
-        dev=dev,
-        transport=transport,
-        host=host,
-        port=port,
-        client=kind,
-        http_token=http_token,
-    )
     mcp_path = mcp_config_path_for_client(root, kind)
-    _merge_mcp_file(mcp_path, payload)
+    if kind == "codex":
+        write_codex_mcp_config(
+            mcp_path,
+            dev=dev,
+            transport=transport,
+            host=host,
+            port=port,
+            http_token=http_token,
+        )
+    else:
+        payload = build_mcp_config(
+            dev=dev,
+            transport=transport,
+            host=host,
+            port=port,
+            client=kind,
+            http_token=http_token,
+        )
+        _merge_mcp_file(mcp_path, payload)
     if http_token:
         restrict_secret_file(mcp_path)
     result.files_written.append(mcp_path)
 
     if kind == "antigravity" and mirror_global:
+        payload = build_mcp_config(
+            dev=dev,
+            transport=transport,
+            host=host,
+            port=port,
+            client=kind,
+            http_token=http_token,
+        )
         for gpath in antigravity_global_mcp_paths()[:1]:  # shared ~/.gemini/config only
             try:
                 _merge_mcp_file(gpath, payload)
@@ -172,6 +192,13 @@ def run_connect(
             elif kind == "antigravity":
                 write_antigravity_hooks(hooks_path, brainkm_bin)
                 result.files_written.append(hooks_path)
+            elif kind == "codex":
+                write_codex_hooks(hooks_path, brainkm_bin)
+                result.files_written.append(hooks_path)
+                result.warnings.append(
+                    "Codex: trust the project `.codex/` layer, then open `/hooks` "
+                    "and trust brainkm commands."
+                )
             elif kind == "cursor":
                 hooks_payload = build_hooks_config(brainkm_bin)
                 if hooks_path.is_file():
@@ -202,7 +229,7 @@ def run_connect(
             "http_port": port,
             "allow_remote": bool(getattr(cfg.mcp, "allow_remote", False)),
         }
-        if transport == "http" or kind in ("claude", "antigravity"):
+        if transport == "http" or kind in ("claude", "antigravity", "codex"):
             capture = data.setdefault("capture", {})
             if isinstance(capture, dict):
                 capture["auto_observe"] = True

@@ -41,7 +41,7 @@ class CaptureConfig(BaseModel):
     plan_files: bool = True
     plan_glob: str = ".cursor/plans/*.plan.md"
     distill_mode: Literal[
-        "cursor", "claude", "antigravity", "ollama", "groq", "rules", "mcp"
+        "cursor", "claude", "antigravity", "codex", "ollama", "groq", "rules", "mcp"
     ] = "cursor"
     max_auto_neurons_per_session: int = Field(default=50, ge=1, le=500)
     max_neurons_per_plan: int = Field(default=20, ge=1, le=200)

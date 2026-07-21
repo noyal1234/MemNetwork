@@ -15,10 +15,10 @@ from brainkm.services.ollama_advisor import probe_ollama
 logger = get_logger("services.distill_status")
 
 # Backend / doctor order (rules remains a real mode + timeout fallback).
-DISTILL_MODES = ("cursor", "claude", "antigravity", "rules", "ollama", "groq")
+DISTILL_MODES = ("cursor", "claude", "antigravity", "codex", "rules", "ollama", "groq")
 
 # Primary TUI pickers: rules is intentionally omitted — advanced/offline fallback.
-PRIMARY_DISTILL_MODES = ("cursor", "claude", "antigravity", "ollama", "groq")
+PRIMARY_DISTILL_MODES = ("cursor", "claude", "antigravity", "codex", "ollama", "groq")
 
 DISTILL_MODE_LABELS: dict[str, str] = {
     "cursor": (
@@ -27,6 +27,7 @@ DISTILL_MODE_LABELS: dict[str, str] = {
     ),
     "claude": "claude — Claude Code CLI (claude -p) + optional MCP sampling",
     "antigravity": "antigravity — Antigravity CLI (agy -p)",
+    "codex": "codex — OpenAI Codex CLI (codex exec)",
     "rules": "rules — advanced raw pattern fallback (no Cursor cleanup)",
     "ollama": "ollama — local LLM (needs Ollama daemon)",
     "groq": "groq — cloud LLM (needs GROQ_API_KEY)",
@@ -63,6 +64,7 @@ def build_distill_status(
     """Probe all distill backends and return one status row per mode."""
     from brainkm.adapters.antigravity_distill import resolve_agy_bin
     from brainkm.adapters.claude_distill import resolve_claude_bin
+    from brainkm.adapters.codex_distill import resolve_codex_bin
 
     cfg_path = config_path(project_dir)
     active_mode = "cursor"
@@ -84,6 +86,7 @@ def build_distill_status(
     groq = probe_groq(groq_base, get_settings().groq_api_key, model=groq_model)
     claude_bin = resolve_claude_bin()
     agy_bin = resolve_agy_bin()
+    codex_bin = resolve_codex_bin()
 
     statuses: list[DistillModeStatus] = [
         DistillModeStatus(
@@ -110,6 +113,13 @@ def build_distill_status(
             detail=("agy CLI" if agy_bin else "agy not on PATH"),
             is_default=False,
             is_active=active_mode == "antigravity",
+        ),
+        DistillModeStatus(
+            mode="codex",
+            ready=bool(codex_bin),
+            detail=("codex CLI" if codex_bin else "codex not on PATH"),
+            is_default=False,
+            is_active=active_mode == "codex",
         ),
         DistillModeStatus(
             mode="rules",
@@ -147,7 +157,7 @@ def format_distill_status_line(statuses: list[DistillModeStatus]) -> str:
         if item.mode == "rules" and not item.is_active:
             continue
         mark = "OK" if item.ready else "unreachable"
-        if item.mode in ("cursor", "rules", "claude") and item.ready:
+        if item.mode in ("cursor", "rules", "claude", "codex") and item.ready:
             mark = "OK"
         if not item.ready and item.mode == "groq" and item.detail:
             short = item.detail.split("(")[0].strip()

@@ -68,7 +68,9 @@ def test_connect_claude_writes_project_mcp(tmp_path: Path) -> None:
 def test_connect_codex_writes_codex_dir(tmp_path: Path) -> None:
     migrate(project_dir=tmp_path, run_integrity_check=False)
     run_connect("codex", tmp_path, transport="http", hooks=True, dev=True)
-    assert (tmp_path / ".codex" / "mcp.json").is_file()
+    assert (tmp_path / ".codex" / "config.toml").is_file()
+    assert (tmp_path / ".codex" / "hooks.json").is_file()
+    assert not (tmp_path / ".codex" / "mcp.json").exists()
 
 
 def test_doctor_flags_dual_writer(tmp_path: Path) -> None:

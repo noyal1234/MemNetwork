@@ -65,22 +65,23 @@ Shipped adapters below. **Cursor is deepest today** (dogfood); others are first-
 
 | Event | Cursor | Claude | Antigravity | Codex | Notes |
 |-------|--------|--------|-------------|-------|-------|
-| SessionStart injection | yes | yes | via PreInvocation | yes | AGY: `injectSteps.ephemeralMessage`; Claude: `hookSpecificOutput` |
-| SessionEnd distill + observe promote | yes | yes | idle Stop + debounce | yes | Primary memory path |
+| SessionStart injection | yes | yes | via PreInvocation | yes | AGY: ephemeral; Claude/Codex: `hookSpecificOutput` |
+| SessionEnd distill + observe promote | yes | yes | idle Stop + debounce | Stop → session-end | Codex has no SessionEnd |
 | PreCompact handover | yes | yes | synthetic on PreInvocation | yes | AGY has no host PreCompact |
-| PostCompact refresh | — | yes | — | — | Claude-only |
-| PostToolUse observe | yes | yes | yes (AGY tool names) | yes | Claude/AGY install enable `auto_observe` |
-| UserPromptSubmit | yes | yes | — | — | Gist only |
+| PostCompact refresh | — | yes | — | yes | Claude + Codex |
+| PostToolUse observe | yes | yes | yes (AGY tool names) | yes | Matchers include Bash/apply_patch/MCP |
+| UserPromptSubmit | yes | yes | — | yes | Gist only |
 | PostToolUseFailure | — | yes | — | — | Cursor: failure on PostToolUse |
-| SubagentStart / SubagentStop | — | yes | — | — | Claude: SubagentStart injects frozen pack; SubagentStop promotes |
-| Stop | — | yes | yes (tiered) | — | AGY: distill only when `fullyIdle` |
+| SubagentStart / SubagentStop | — | yes | — | — | Claude: SubagentStart injects frozen pack |
+| Stop | — | yes | yes (tiered) | capture | Codex Stop runs `session-end` (JSON `continue`) |
 
 | Host | Hooks / rules | MCP config |
 |------|---------------|------------|
 | Cursor | `.cursor/hooks.json`, rules | `.cursor/mcp.json` |
 | Claude Code | `.claude/settings.json` | project `.mcp.json` |
 | Antigravity | `.agents/hooks.json`, `.agents/rules` | `.agents/mcp_config.json` (HTTP: `serverUrl`) |
-| Codex / generic | as installed by `connect` / `install` | host MCP config or shared HTTP |
+| Codex CLI | `.codex/hooks.json`, `AGENTS.md`, `.codex/skills/` | `.codex/config.toml` `[mcp_servers.brainkm]` |
+| generic | CLI fallbacks | `.brain/mcp.http.example.json` or shared HTTP |
 
 ### Distill modes (client peers)
 
@@ -89,6 +90,7 @@ Shipped adapters below. **Cursor is deepest today** (dogfood); others are first-
 | `cursor` | Cursor Agent CLI + heuristics |
 | `claude` | `claude -p` (+ MCP sampling when live); legacy `mcp` coerces to `claude` |
 | `antigravity` | `agy -p` |
+| `codex` | `codex exec` (read-only, unattended) |
 | `groq` / `ollama` / `rules` | Shared third-party / offline |
 
 ### Coexistence with host-native memory
@@ -98,6 +100,7 @@ Shipped adapters below. **Cursor is deepest today** (dogfood); others are first-
 | Host rules / Memories / codebase index | Static policy, cross-project prefs, symbol search (Cursor, Claude, AGY, …) |
 | `CLAUDE.md` / Auto Memory | Claude static instructions + private notes — brainkm does not write Auto Memory |
 | `.agents/rules` / `AGENTS.md` (Antigravity) | Authored static instructions; grant `mcp(brainkm/*)` |
+| `AGENTS.md` / `.codex/` (Codex CLI) | Authored instructions + trusted project hooks; MCP in `config.toml` |
 | brainkm (`.brain/brain.db`) | Searchable decisions, Graphify, session/compaction survival — **shared across hosts** |
 
 ### Shared localhost brain
@@ -111,11 +114,13 @@ brainkm serve --project-dir .
 brainkm connect cursor --http
 brainkm connect claude --http --hooks
 brainkm connect antigravity --http --hooks
-brainkm connect codex --http
+brainkm connect codex --http --hooks
 brainkm doctor
 ```
 
 One HTTP process + one `.brain/brain.db`. `install --http` (or multi-app wizard) enables `mcp.transport=http` and `capture.auto_observe`.
+
+**Codex notes:** MCP lives in `.codex/config.toml` (not JSON). Trust the project `.codex/` layer, then open `/hooks` in Codex and trust the brainkm commands — untrusted project hooks are skipped. Distill peer: `capture.distill_mode: codex` → `codex exec` (read-only, unattended; rules fallback).
 
 Manual fallbacks when hooks are unavailable: `brainkm handover`, `brainkm capture`.
 
@@ -175,7 +180,7 @@ Optional semantic stack: `pip install -e "./brainkm[semantic]"` + `brainkm seman
 | Feature | Benefit |
 |---------|---------|
 | **Distill mode: `rules`** | Zero-dependency default. Offline extract with no API key — always works. |
-| **Distill mode: `cursor` / `claude` / `antigravity`** | Host-peer distill (`agent` / `claude -p` / `agy -p`) when that CLI is available. |
+| **Distill mode: `cursor` / `claude` / `antigravity` / `codex`** | Host-peer distill (`agent` / `claude -p` / `agy -p` / `codex exec`) when that CLI is available. |
 | **Distill mode: `ollama`** | Local LLM distill on your machine — private, no cloud. |
 | **Distill mode: `groq`** | Fast cloud distill when you want quality without a local GPU (`GROQ_API_KEY` in env only). |
 | **Distill mode: `mcp`** (legacy → `claude`) | Host MCP sampling when the client supports it. |

@@ -49,6 +49,7 @@ Full clone setup: [docs/INSTALL.md](docs/INSTALL.md).
 | `brainkm/brainkm/hooks/cursor/` | Yes | Cursor hooks + `brainkm.mdc` + routing skill |
 | `brainkm/brainkm/hooks/claude/` | Yes | Claude settings hooks, rules, routing skill |
 | `brainkm/brainkm/hooks/antigravity/` | Yes | Antigravity `.agents/` hooks, rules, routing skill |
+| `brainkm/brainkm/hooks/codex/` | Yes | Codex CLI hooks, rules, routing skill (`.codex/config.toml` MCP) |
 
 Client wiring is installed by `brainkm install --client …` / `brainkm configure`.
 
@@ -59,7 +60,7 @@ When shipping a release, keep these in lockstep:
 1. `brainkm/pyproject.toml` → `version`
 2. `brainkm/brainkm/__init__.py` → `__version__`
 3. Docs status tables / expect strings: `docs/AI_PROJECT_BRIEF.md`, `docs/INSTALL.md`, `docs/FEATURES.md`, `docs/CLI_COMMANDS.md`, `README.md`, `brainkm/README.md`, `.cursor/skills/memnetwork-backend/SKILL.md`
-4. Hook/rule templates: `hooks/cursor/brainkm.mdc` (sync workspace `.cursor/rules/brainkm.mdc`), plus Claude/Antigravity rules + routing skills under `hooks/{claude,antigravity}/`
+4. Hook/rule templates: `hooks/cursor/brainkm.mdc` (sync workspace `.cursor/rules/brainkm.mdc`), plus Claude/Antigravity/Codex rules + routing skills under `hooks/{claude,antigravity,codex}/`
 5. `pytest tests/test_version.py` (asserts pyproject == `__version__`)
 6. Prefer adding a brief row to the Implementation status table in `AI_PROJECT_BRIEF.md`
 7. Public/PyPI first publish: follow [docs/PUBLIC_RELEASE_CHECKLIST.md](docs/PUBLIC_RELEASE_CHECKLIST.md) (installable name must be final; Apache-2.0 + CLA already in place)

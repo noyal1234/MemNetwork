@@ -60,6 +60,10 @@ def get_distill_adapter(
         from brainkm.adapters.antigravity_distill import AntigravityDistillAdapter
 
         return AntigravityDistillAdapter(config, project_dir=project_dir)
+    if mode == "codex":
+        from brainkm.adapters.codex_distill import CodexDistillAdapter
+
+        return CodexDistillAdapter(config, project_dir=project_dir)
     from brainkm.adapters.distill_rules import RulesDistillAdapter
 
     return RulesDistillAdapter()

@@ -1,0 +1,91 @@
+{
+  "description": "brainkm lifecycle hooks for OpenAI Codex CLI.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "brainkm session-start --stdin --client codex",
+            "timeout": 30,
+            "statusMessage": "Loading brainkm context"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "brainkm user-prompt --stdin --client codex",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|apply_patch|Edit|Write|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "brainkm pre-tool --stdin --client codex",
+            "timeout": 15,
+            "statusMessage": "brainkm pre-tool"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|apply_patch|Edit|Write|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "brainkm post-tool --stdin --client codex",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "brainkm handover --stdin --client codex",
+            "timeout": 30,
+            "statusMessage": "brainkm handover"
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "brainkm post-compact --stdin --client codex",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "brainkm session-end --stdin --client codex",
+            "timeout": 120,
+            "statusMessage": "brainkm capture"
+          }
+        ]
+      }
+    ]
+  }
+}

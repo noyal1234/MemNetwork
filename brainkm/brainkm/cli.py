@@ -113,7 +113,7 @@ def _hook_client_option() -> str:
     return typer.Option(
         "cursor",
         "--client",
-        help="Hook host: cursor | claude | antigravity (stdout envelope + fail-soft)",
+        help="Hook host: cursor | claude | antigravity | codex (stdout envelope + fail-soft)",
     )
 
 
@@ -145,8 +145,8 @@ def handover_cmd(
     # Hook mode (--stdin): keep stdout JSON-clean (empty). Manual CLI keeps status lines.
     hook_mode = bool(stdin)
     # Hooks must never block the host. Manual CLI still surfaces checkpoint failure
-    # for Cursor; Claude/Antigravity stay fail-soft in both modes.
-    fail_soft = kind in ("claude", "antigravity") or hook_mode
+    # for Cursor; Claude/Antigravity/Codex stay fail-soft in both modes.
+    fail_soft = kind in ("claude", "antigravity", "codex") or hook_mode
 
     try:
         if stdin:
@@ -164,6 +164,22 @@ def handover_cmd(
     except Exception as exc:
         logger.error("handover failed: %s", exc)
         if fail_soft:
+            if kind == "codex" and hook_mode:
+                from brainkm.services.hooks import HookRunResult, build_codex_hook_stdout
+
+                typer.echo(
+                    json.dumps(
+                        build_codex_hook_stdout(
+                            HookRunResult(
+                                hook="PreCompact",
+                                session_id=None,
+                                skipped=True,
+                                reason=str(exc),
+                            ),
+                            "preCompact",
+                        )
+                    )
+                )
             raise typer.Exit(code=0) from exc
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
@@ -178,6 +194,22 @@ def handover_cmd(
                 f"{result.chunk_count} chunks, {result.neuron_count} neurons "
                 f"({result.distill_mode}){export_note}"
             )
+    elif kind == "codex":
+        from brainkm.services.hooks import HookRunResult, build_codex_hook_stdout
+
+        typer.echo(
+            json.dumps(
+                build_codex_hook_stdout(
+                    HookRunResult(
+                        hook="PreCompact",
+                        session_id=result.session_id,
+                        skipped=result.skipped,
+                        reason=result.reason,
+                    ),
+                    "preCompact",
+                )
+            )
+        )
 
     if not result.checkpoint_ok:
         if fail_soft:
@@ -415,13 +447,15 @@ def _run_stdin_hook(
     from brainkm.services.hooks import (
         build_antigravity_hook_stdout,
         build_claude_hook_stdout,
+        build_codex_hook_stdout,
         build_cursor_hook_stdout,
         normalize_antigravity_stdin,
     )
 
     kind = (client or "cursor").strip().lower()
     # All hook hosts are fail-soft so a broken hook never blocks the agent.
-    fail_soft = kind in ("cursor", "claude", "antigravity")
+    # Codex exit code 2 means "block" for PreToolUse/Stop — always exit 0 on errors.
+    fail_soft = kind in ("cursor", "claude", "antigravity", "codex")
 
     try:
         payload = sys.stdin.read()
@@ -452,6 +486,22 @@ def _run_stdin_hook(
                         )
                     )
                 )
+            elif kind == "codex":
+                from brainkm.services.hooks import HookRunResult
+
+                typer.echo(
+                    json.dumps(
+                        build_codex_hook_stdout(
+                            HookRunResult(
+                                hook=handler_name,
+                                session_id=None,
+                                skipped=True,
+                                reason=str(exc),
+                            ),
+                            event or "stop",
+                        )
+                    )
+                )
             raise typer.Exit(code=0) from exc
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
@@ -465,6 +515,9 @@ def _run_stdin_hook(
             payload_out = build_claude_hook_stdout(result, event)
             if payload_out is not None:
                 typer.echo(json.dumps(payload_out))
+            return
+        if kind == "codex":
+            typer.echo(json.dumps(build_codex_hook_stdout(result, event)))
             return
         if kind == "antigravity":
             typer.echo(json.dumps(build_antigravity_hook_stdout(result, event)))
@@ -523,6 +576,7 @@ def session_end_cmd(
     _run_stdin_hook(
         "SessionEnd",
         lambda raw: run_session_end(raw, project_dir=project_dir),
+        event="sessionEnd",
         client=client,
     )
 
@@ -836,6 +890,7 @@ def user_prompt_cmd(
     _run_stdin_hook(
         "UserPromptSubmit",
         lambda raw: run_user_prompt_submit(raw, project_dir=project_dir),
+        event="userPromptSubmit",
         client=client,
     )
 

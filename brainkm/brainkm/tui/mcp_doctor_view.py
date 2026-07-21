@@ -51,7 +51,7 @@ def _client_row(
         state = "warning"
     elif client.notes:
         state = "warning"
-    elif not client.hooks_present and client.client in ("cursor", "claude", "antigravity"):
+    elif not client.hooks_present and client.client in ("cursor", "claude", "antigravity", "codex"):
         state = "warning"
 
     if client.notes and state != "error":
@@ -122,9 +122,13 @@ def mcp_doctor_panel_items(
         )
 
     for client in report.clients:
-        if not client.present and not client.notes:
-            # Skip quiet absent clients (generic/codex noise).
-            if client.client in ("generic", "codex"):
+        if not client.present:
+            if client.client == "generic":
+                continue
+            # Show absent Codex only when a `.codex/` tree triggered inspect notes.
+            if client.client == "codex" and not any(
+                "Codex" in note or "codex" in note for note in report.client_notes
+            ):
                 continue
         items.append(_client_row(client, config_transport=transport))
 

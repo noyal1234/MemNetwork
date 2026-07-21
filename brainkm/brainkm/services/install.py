@@ -293,6 +293,139 @@ def write_claude_settings_hooks(
     return merged
 
 
+def _codex_hook_command(
+    brainkm_bin: str,
+    *args: str,
+    timeout: int | None = None,
+    status_message: str | None = None,
+) -> dict[str, object]:
+    """One Codex CLI command-hook entry (nested under matcher groups)."""
+    cmd = f"{shlex.quote(brainkm_bin)} {' '.join(args)} --client codex"
+    entry: dict[str, object] = {"type": "command", "command": cmd}
+    if timeout is not None:
+        entry["timeout"] = timeout
+    if status_message is not None:
+        entry["statusMessage"] = status_message
+    return entry
+
+
+def build_codex_hooks_config(
+    brainkm_bin: str,
+    *,
+    config: BrainConfig | None = None,
+) -> dict[str, object]:
+    """Codex CLI hooks for ``.codex/hooks.json`` (PascalCase nested schema).
+
+    Codex has no SessionEnd — Stop runs ``session-end`` for capture/distill.
+    Tool matchers include ``Bash`` (Codex 0.130+ routes many edits through shell)
+    plus ``apply_patch`` / ``Edit`` / ``Write`` and MCP ``mcp__.*``.
+    """
+    _ = config
+    tool_matcher = "Bash|apply_patch|Edit|Write|mcp__.*"
+    return {
+        "description": "brainkm lifecycle hooks for OpenAI Codex CLI.",
+        "hooks": {
+            "SessionStart": _claude_event_group(
+                _codex_hook_command(
+                    brainkm_bin,
+                    "session-start",
+                    "--stdin",
+                    timeout=30,
+                    status_message="Loading brainkm context",
+                ),
+                matcher="startup|resume|clear",
+            ),
+            "UserPromptSubmit": _claude_event_group(
+                _codex_hook_command(brainkm_bin, "user-prompt", "--stdin", timeout=15),
+            ),
+            "PreToolUse": _claude_event_group(
+                _codex_hook_command(
+                    brainkm_bin,
+                    "pre-tool",
+                    "--stdin",
+                    timeout=15,
+                    status_message="brainkm pre-tool",
+                ),
+                matcher=tool_matcher,
+            ),
+            "PostToolUse": _claude_event_group(
+                _codex_hook_command(brainkm_bin, "post-tool", "--stdin", timeout=15),
+                matcher=tool_matcher,
+            ),
+            "PreCompact": _claude_event_group(
+                _codex_hook_command(
+                    brainkm_bin,
+                    "handover",
+                    "--stdin",
+                    timeout=30,
+                    status_message="brainkm handover",
+                ),
+                matcher="manual|auto",
+            ),
+            "PostCompact": _claude_event_group(
+                _codex_hook_command(brainkm_bin, "post-compact", "--stdin", timeout=30),
+                matcher="manual|auto",
+            ),
+            "Stop": _claude_event_group(
+                _codex_hook_command(
+                    brainkm_bin,
+                    "session-end",
+                    "--stdin",
+                    timeout=120,
+                    status_message="brainkm capture",
+                ),
+            ),
+        },
+    }
+
+
+def merge_codex_hooks_json(
+    existing: dict[str, object],
+    incoming_hooks: dict[str, object],
+) -> dict[str, object]:
+    """Merge brainkm Codex hooks without clobbering foreign matcher groups."""
+    merged = dict(existing)
+    if "description" in incoming_hooks and "description" not in merged:
+        merged["description"] = incoming_hooks["description"]
+    incoming = incoming_hooks.get("hooks")
+    if not isinstance(incoming, dict):
+        return merged
+
+    existing_hooks = merged.get("hooks")
+    hooks_out: dict[str, object] = (
+        dict(existing_hooks) if isinstance(existing_hooks, dict) else {}
+    )
+    for event, groups in incoming.items():
+        if not isinstance(groups, list):
+            continue
+        current = hooks_out.get(event)
+        if isinstance(current, list):
+            hooks_out[event] = _merge_claude_event_groups(current, groups)
+        else:
+            hooks_out[event] = list(groups)
+    merged["hooks"] = hooks_out
+    return merged
+
+
+def write_codex_hooks(
+    hooks_path: Path,
+    brainkm_bin: str,
+    *,
+    config: BrainConfig | None = None,
+) -> dict[str, object]:
+    """Write/merge Codex hooks into ``.codex/hooks.json``."""
+    incoming = build_codex_hooks_config(brainkm_bin, config=config)
+    if hooks_path.is_file():
+        existing = json.loads(hooks_path.read_text(encoding="utf-8"))
+        if not isinstance(existing, dict):
+            existing = {}
+    else:
+        existing = {}
+    merged = merge_codex_hooks_json(existing, incoming)
+    _write_json(hooks_path, merged)
+    return merged
+
+
 def _agy_hook_command(brainkm_bin: str, *args: str, timeout: int | None = None) -> dict[str, object]:
     cmd = f"{shlex.quote(brainkm_bin)} {' '.join(args)} --client antigravity"
     entry: dict[str, object] = {"type": "command", "command": cmd}
@@ -719,6 +852,33 @@ def run_install(
             result.warnings.append(
                 "claude CLI not on PATH — prefer distill_mode=claude after installing Claude Code CLI."
             )
+    if adapter.kind == "codex":
+        if _cli_on_path("codex"):
+            cfg = cfg.model_copy(
+                update={
+                    "capture": cfg.capture.model_copy(
+                        update={"distill_mode": "codex", "auto_observe": True}
+                    )
+                }
+            )
+        else:
+            cfg = cfg.model_copy(
+                update={"capture": cfg.capture.model_copy(update={"auto_observe": True})}
+            )
+            if cfg.capture.distill_mode in ("cursor", "mcp", "claude", "antigravity"):
+                cfg = cfg.model_copy(
+                    update={
+                        "capture": cfg.capture.model_copy(update={"distill_mode": "rules"})
+                    }
+                )
+            result.warnings.append(
+                "codex CLI not on PATH — distill_mode set to rules (or keep groq/ollama); "
+                "install Codex CLI for distill_mode=codex."
+            )
+        result.warnings.append(
+            "Codex: trust the project `.codex/` layer, then open `/hooks` and trust "
+            "brainkm commands — untrusted project hooks are skipped."
+        )
 
     cursor_dir = root / ".cursor"
     brainkm_bin = resolve_hook_command(dev=dev)
@@ -919,14 +1079,73 @@ def run_install(
         else:
             result.files_written.append(agents_path)
 
-    if adapter.kind in ("codex", "generic"):
+    if adapter.kind == "codex":
+        from brainkm.services.mcp_transport import write_codex_mcp_config
+
+        codex_dir = root / ".codex"
+        codex_dir.mkdir(parents=True, exist_ok=True)
+
+        mcp_path = codex_dir / "config.toml"
+        write_codex_mcp_config(
+            mcp_path,
+            dev=dev,
+            transport=transport,
+            host=cfg.mcp.http_host,
+            port=cfg.mcp.http_port,
+            http_token=http_token,
+        )
+        result.files_written.append(mcp_path)
+        if http_token:
+            restrict_secret_file(mcp_path)
+
+        hooks_path = codex_dir / "hooks.json"
+        write_codex_hooks(hooks_path, brainkm_bin, config=cfg)
+        result.files_written.append(hooks_path)
+
+        rule_src = (
+            Path(__file__).resolve().parents[1] / "hooks" / "codex" / "rules" / "brainkm.md"
+        )
+        if rule_src.is_file():
+            rule_dst = codex_dir / "rules" / "brainkm.md"
+            if rule_dst.is_file() and not force:
+                result.files_skipped.append(rule_dst)
+            else:
+                _write_text(rule_dst, rule_src.read_text(encoding="utf-8"))
+                result.files_written.append(rule_dst)
+
+        skill_src = (
+            Path(__file__).resolve().parents[1]
+            / "hooks"
+            / "codex"
+            / "skills"
+            / "brainkm-routing"
+            / "SKILL.md"
+        )
+        if skill_src.is_file():
+            skill_dst = codex_dir / "skills" / "brainkm-routing" / "SKILL.md"
+            if skill_dst.is_file() and not force:
+                result.files_skipped.append(skill_dst)
+            else:
+                _write_text(skill_dst, skill_src.read_text(encoding="utf-8"))
+                result.files_written.append(skill_dst)
+
+        agents_path = root / "AGENTS.md"
+        action = upsert_project_md_snippet(
+            agents_path, adapter.agents_snippet(), force=force
+        )
+        if action == "skipped":
+            result.files_skipped.append(agents_path)
+        else:
+            result.files_written.append(agents_path)
+
+    if adapter.kind == "generic":
         from brainkm.services.connect import run_connect
 
         connect_result = run_connect(
             adapter.kind,
             root,
-            transport=transport if adapter.kind == "codex" else ("http" if http else transport),
-            hooks=adapter.kind == "codex",
+            transport="http" if http else transport,
+            hooks=False,
             host=cfg.mcp.http_host,
             port=cfg.mcp.http_port,
             dev=dev,
@@ -937,7 +1156,9 @@ def run_install(
 
     agents_md = root / "AGENTS.md"
     snippet = adapter.agents_snippet()
-    if adapter.kind == "generic" or not agents_md.is_file():
+    if adapter.kind == "generic" or (
+        adapter.kind not in ("claude", "antigravity", "codex") and not agents_md.is_file()
+    ):
         if agents_md.is_file() and not force:
             existing = agents_md.read_text(encoding="utf-8")
             if "brainkm — project memory routing" not in existing:

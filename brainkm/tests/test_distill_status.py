@@ -37,6 +37,9 @@ def test_build_distill_status_defaults(tmp_path: Path) -> None:
             "brainkm.services.distill_status.probe_groq",
             return_value=GroqStatus(reachable=False, error="GROQ_API_KEY not set"),
         ),
+        patch("brainkm.adapters.codex_distill.resolve_codex_bin", return_value=None),
+        patch("brainkm.adapters.claude_distill.resolve_claude_bin", return_value=None),
+        patch("brainkm.adapters.antigravity_distill.resolve_agy_bin", return_value=None),
     ):
         statuses = build_distill_status(project_dir=tmp_path)
 
@@ -45,6 +48,7 @@ def test_build_distill_status_defaults(tmp_path: Path) -> None:
     assert by_mode["cursor"].is_default is True
     assert by_mode["cursor"].is_active is True
     assert "heuristic" in by_mode["cursor"].detail
+    assert by_mode["codex"].ready is False
     assert by_mode["rules"].ready is True
     assert by_mode["ollama"].ready is False
     assert by_mode["groq"].ready is False

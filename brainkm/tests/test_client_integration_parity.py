@@ -16,6 +16,7 @@ from brainkm.services.hooks import build_claude_hook_stdout, run_subagent_start
 from brainkm.services.install import (
     build_antigravity_hooks_config,
     build_claude_hooks_config,
+    build_codex_hooks_config,
     build_hooks_config,
     run_install,
     upsert_project_md_snippet,
@@ -51,6 +52,14 @@ def test_antigravity_hooks_template_matches_builder() -> None:
         .read_text(encoding="utf-8")
     )
     built = build_antigravity_hooks_config("brainkm")
+    assert template == built
+
+
+def test_codex_hooks_template_matches_builder_parity() -> None:
+    template = json.loads(
+        resources.files("brainkm.hooks.codex").joinpath("hooks.json").read_text(encoding="utf-8")
+    )
+    built = build_codex_hooks_config("brainkm")
     assert template == built
 
 
