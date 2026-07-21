@@ -22,7 +22,7 @@ _CURSOR_EXPECTED_HOOK_EVENTS = (
     "preCompact",
     "preToolUse",
     "postToolUse",
-    "userPromptSubmit",
+    "beforeSubmitPrompt",
 )
 
 

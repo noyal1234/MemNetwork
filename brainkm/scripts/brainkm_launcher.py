@@ -40,6 +40,12 @@ def _bootstrap_editable_source() -> None:
     except ModuleNotFoundError:
         pass
 
+    # Repo-root cwd (e.g. git hooks) can register a broken namespace package for
+    # the outer ``brainkm/`` directory. Drop it before inserting the real src root.
+    for key in list(sys.modules):
+        if key == "brainkm" or key.startswith("brainkm."):
+            del sys.modules[key]
+
     # When installed as .venv/bin/brainkm: parents[2] is the repo root.
     here = Path(__file__).resolve()
     candidates = (

@@ -62,7 +62,7 @@ def test_build_hooks_config_includes_all_events() -> None:
     assert "preCompact" in events
     assert "preToolUse" in events
     assert "postToolUse" in events
-    assert "userPromptSubmit" in events
+    assert "beforeSubmitPrompt" in events
     assert "postToolUseFailure" not in events
     assert "handover --stdin" in str(events["preCompact"])
     assert events["postToolUse"][0]["matcher"] == "Write|Edit|Shell"

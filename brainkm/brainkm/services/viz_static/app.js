@@ -17,6 +17,7 @@ const KIND_COLORS = {
   code: '#06b6d4',
   procedure: '#f59e0b',
   session: '#10b981',
+  commit: '#e11d48',
 };
 const CODE_SUBTYPE_COLORS = {
   file: '#06b6d4',
@@ -79,7 +80,7 @@ const FORCE_LINK_DISTANCE = (e) => 55 + (1 - visualWeight(e)) * 45;
 // ── State ────────────────────────────────────────────────────
 let allNodes = [];
 let allEdges = [];
-let activeKinds = new Set(['memory', 'code', 'procedure', 'session']);
+let activeKinds = new Set(['memory', 'code', 'procedure', 'session', 'commit']);
 let activeRels = new Set();
 let searchQuery = '';
 let searchHits = [];
@@ -645,7 +646,7 @@ function refreshGraph({ preserve = true } = {}) {
 }
 
 function updateCounts() {
-  ['memory', 'code', 'procedure', 'session'].forEach((k) => {
+  ['memory', 'code', 'procedure', 'session', 'commit'].forEach((k) => {
     document.getElementById(`count-${k}`).textContent =
       allNodes.filter((n) => n.kind === k && (showArchived || !n.valid_until)).length;
   });

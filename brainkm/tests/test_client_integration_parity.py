@@ -145,7 +145,7 @@ def test_inspect_cursor_wiring_missing_user_prompt(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     notes = inspect_cursor_wiring(tmp_path)
-    assert any("userPromptSubmit" in n for n in notes)
+    assert any("beforeSubmitPrompt" in n for n in notes)
     assert any("Shell" in n for n in notes)
 
 
@@ -154,7 +154,7 @@ def test_doctor_report_uses_client_notes_label(tmp_path: Path) -> None:
     # Stale hooks on purpose
     hooks = tmp_path / ".cursor" / "hooks.json"
     data = json.loads(hooks.read_text(encoding="utf-8"))
-    data["hooks"].pop("userPromptSubmit", None)
+    data["hooks"].pop("beforeSubmitPrompt", None)
     hooks.write_text(json.dumps(data), encoding="utf-8")
 
     report = build_mcp_doctor_report(tmp_path)

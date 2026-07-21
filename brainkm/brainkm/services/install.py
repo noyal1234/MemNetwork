@@ -140,7 +140,7 @@ def build_hooks_config(
                     "timeout": 5,
                 }
             ],
-            "userPromptSubmit": [
+            "beforeSubmitPrompt": [
                 {
                     "command": f"{bin_q} user-prompt --stdin",
                     "timeout": 5,

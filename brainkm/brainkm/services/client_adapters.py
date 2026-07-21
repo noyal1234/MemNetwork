@@ -57,7 +57,7 @@ class CursorClientAdapter:
             "preCompact",
             "preToolUse",
             "postToolUse",
-            "userPromptSubmit",
+            "beforeSubmitPrompt",
         ]
 
     def transcript_style(self) -> str:
