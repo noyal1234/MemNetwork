@@ -1,0 +1,83 @@
+{
+  "measured_at": "2026-07-21T10:55:58.464727+00:00",
+  "host": {
+    "platform": "darwin",
+    "python": "3.12.13",
+    "ram_gb": 16.0,
+    "logical_cpus": 12
+  },
+  "serve": {
+    "port": 18765,
+    "pid": 70102
+  },
+  "cold_start_s": 1.413,
+  "cold_start": {
+    "n": 11.0,
+    "rss_min_mb": 2.25390625,
+    "rss_median_mb": 41.7890625,
+    "rss_p95_mb": 56.3984375,
+    "rss_max_mb": 57.16796875,
+    "cpu_median_pct": 91.3,
+    "cpu_p95_pct": 97.3,
+    "cpu_max_pct": 98.8,
+    "cpu_mean_pct": 77.54545454545455
+  },
+  "idle": {
+    "n": 39.0,
+    "rss_min_mb": 57.2265625,
+    "rss_median_mb": 57.2265625,
+    "rss_p95_mb": 57.2265625,
+    "rss_max_mb": 57.2265625,
+    "cpu_median_pct": 0.1,
+    "cpu_p95_pct": 0.3,
+    "cpu_max_pct": 2.2,
+    "cpu_mean_pct": 0.16923076923076924
+  },
+  "health_load": {
+    "n": 29.0,
+    "rss_min_mb": 57.2265625,
+    "rss_median_mb": 57.66796875,
+    "rss_p95_mb": 57.703125,
+    "rss_max_mb": 57.74609375,
+    "cpu_median_pct": 21.0,
+    "cpu_p95_pct": 23.4,
+    "cpu_max_pct": 27.1,
+    "cpu_mean_pct": 19.427586206896553
+  },
+  "health_requests": {
+    "ok": 1156,
+    "err": 0
+  },
+  "mcp_warmup": {
+    "calls": 20,
+    "errors": 0,
+    "elapsed_s": 3.969
+  },
+  "mcp_tool_load": {
+    "calls": 20,
+    "errors": 0,
+    "elapsed_s": 3.15,
+    "n": 20.0,
+    "rss_min_mb": 111.3203125,
+    "rss_median_mb": 112.091796875,
+    "rss_p95_mb": 112.6953125,
+    "rss_max_mb": 112.796875,
+    "cpu_median_pct": 64.65,
+    "cpu_p95_pct": 74.2,
+    "cpu_max_pct": 75.8,
+    "cpu_mean_pct": 64.325
+  },
+  "post_load_idle": {
+    "n": 15.0,
+    "rss_min_mb": 112.796875,
+    "rss_median_mb": 112.796875,
+    "rss_p95_mb": 112.796875,
+    "rss_max_mb": 112.796875,
+    "cpu_median_pct": 0.1,
+    "cpu_p95_pct": 0.5,
+    "cpu_max_pct": 1.3,
+    "cpu_mean_pct": 0.20666666666666667
+  },
+  "brain_db_mb": 11.3,
+  "brainkm_version": "0.8.1"
+}

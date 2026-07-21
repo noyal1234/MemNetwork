@@ -19,6 +19,7 @@ Long agent sessions burn tokens and lose context. Compaction summarizes the chat
 - **Survive compaction** — PreCompact / synthetic-precompact handover + SessionEnd capture keep truth in SQLite before the window shrinks.
 - **Inject only high-signal context** — hard token budget, abstention on weak matches, noise gates so junk stays out.
 - **One brain, many hosts** — switch or combine Cursor, Claude, Antigravity, Codex (or another MCP client) without forking project memory.
+- **Lightweight local runtime** — shared `brainkm serve` idles ~55–70 MB RAM / ≪1% CPU; active MCP rounds peak ~110 MB ([footprint](benchmarks/2026-07-21-footprint.md)). Optional configure TUI is separate.
 
 ---
 

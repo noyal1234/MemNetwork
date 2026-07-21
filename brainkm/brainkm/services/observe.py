@@ -92,18 +92,24 @@ def _extract_path(payload: dict[str, object]) -> str | None:
 
 
 def _one_line_outcome(payload: dict[str, object], *, failed: bool) -> str:
+    """First line of the outcome — no hard char clip.
+
+    Storage size is enforced later via ``capture.observe_max_body_tokens``.
+    Premature char truncation (e.g. 120) mangled short durable facts before
+    they reached the token budget and degraded promoted neuron quality.
+    """
     if failed:
         for key in ("error", "message", "failure", "stderr"):
             value = payload.get(key)
             if isinstance(value, str) and value.strip():
-                return value.strip().splitlines()[0][:200]
+                return value.strip().splitlines()[0].strip()
         tool_result = payload.get("tool_result") or payload.get("result")
         if isinstance(tool_result, str) and tool_result.strip():
-            return tool_result.strip().splitlines()[0][:200]
+            return tool_result.strip().splitlines()[0].strip()
         return "tool failed"
     status = payload.get("status")
     if isinstance(status, str) and status.strip():
-        return status.strip()[:120]
+        return status.strip().splitlines()[0].strip()
     return "ok"
 
 
@@ -164,10 +170,15 @@ def record_observation(
 
     path = _extract_path(payload)
     outcome = _one_line_outcome(payload, failed=failed)
+    max_tok = config.capture.observe_max_body_tokens
+    body = outcome
+    if token_count(body) > max_tok:
+        body = body[: max_tok * 4]
+    # Fingerprint the body we will store so dedup matches retained text.
     fp = observation_fingerprint(
         tool=tool_name,
         path=path,
-        outcome=outcome,
+        outcome=body,
         failed=failed,
     )
     if _recent_fingerprint_hit(
@@ -180,10 +191,6 @@ def record_observation(
     title = f"{'FAIL' if failed else 'tool'}: {tool_name}"
     if path:
         title = f"{title} → {path}"
-    body = outcome
-    max_tok = config.capture.observe_max_body_tokens
-    if token_count(body) > max_tok:
-        body = body[: max_tok * 4]
 
     tags = [f"{FP_TAG_PREFIX}{fp}", f"tool:{tool_name}"]
     if failed:

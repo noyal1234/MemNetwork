@@ -12,12 +12,25 @@ brainkm bench run eval --project-dir .
 (+ pack noise). Framed on brainkm’s product contract, not chat-haystack top-K.
 **Shared-protocol footnote (vs agentmemory):** LongMemEval-S `recall_any@K`.
 **Regression gate (coding shape):** Common Memory Axes (CMA) ability micro-avg.
+**Resource footprint:** idle / load RSS+CPU for `brainkm serve` —
+[2026-07-21-footprint](benchmarks/2026-07-21-footprint.md).
 Head-to-head notes: [benchmarks/COMPARISON.md](benchmarks/COMPARISON.md).
 
 ```bash
 bash brainkm/scripts/run_cma.sh
 # or: brainkm bench run cma --write-scorecard docs/benchmarks/YYYY-MM-DD-cma.md
 ```
+
+### Runtime footprint (CPU / RAM)
+
+Not a retrieval bench — grounds the “lightweight local runtime” README claim:
+
+```bash
+python brainkm/scripts/footprint_harness.py \
+  --out docs/benchmarks/YYYY-MM-DD-footprint.md
+```
+
+Latest: [2026-07-21-footprint.md](benchmarks/2026-07-21-footprint.md) — idle **~55–70 MB** / **≪1% CPU**; MCP tool load peak **~110 MB**.
 
 Individual suites:
 

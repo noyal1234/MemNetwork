@@ -6,13 +6,14 @@
 
 **Local project memory for agentic coding IDEs.**
 
-One SQLite brain. Eight MCP tools. Thin host adapters.  
+One SQLite brain. Six MCP tools. Thin host adapters.  
 The `brainkm` package remembers *why* you chose something, maps how your code connects, and injects bounded context — so agents stop re-reading files and re-explaining past decisions, even after chat compaction.
 
 [![Version](https://img.shields.io/badge/version-0.8.1-3d9a8b?style=flat-square)](brainkm/pyproject.toml)
 [![Python](https://img.shields.io/badge/python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](brainkm/pyproject.toml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-red?style=flat-square)](LICENSE)
-[![MCP](https://img.shields.io/badge/MCP-8%20tools-1a2332?style=flat-square)](docs/FEATURES.md)
+[![MCP](https://img.shields.io/badge/MCP-6%20tools-1a2332?style=flat-square)](docs/FEATURES.md)
+[![Footprint](https://img.shields.io/badge/idle-~55--70MB%20RAM-2d6a4f?style=flat-square)](docs/benchmarks/2026-07-21-footprint.md)
 
 [Features](docs/FEATURES.md) · [Install](docs/INSTALL.md) · [Benchmarks](docs/BENCHMARKS.md) · [Architecture](docs/AI_PROJECT_BRIEF.md) · [Security](docs/SECURITY.md)
 
@@ -44,6 +45,7 @@ Long agent sessions burn tokens and lose context. Compaction summarizes the chat
 - **Stop dumping whole modules** — bounded `context_pack` (≤1500 tokens) instead of five-file reads
 - **Survive compaction** — PreCompact handover + SessionEnd capture keep truth in SQLite
 - **One brain, many hosts** — same `.brain/` across Cursor, Claude Code, Antigravity, Codex, and any MCP client
+- **Lightweight local runtime** — shared `brainkm serve` idles **~55–70 MB RAM** / **≪1% CPU**; active MCP rounds peak ~**110 MB**, then CPU drops again. Method + numbers: [footprint](docs/benchmarks/2026-07-21-footprint.md) (optional configure TUI is separate, ~160 MB)
 
 MemNetwork is **not** a Cursor plugin and **not** a second `@codebase`. Cursor is one first-class host (deepest today while we dogfood there). The brain and MCP API stay the same; adapters fill host gaps.
 
@@ -70,7 +72,7 @@ Optional guided UI (`brainkm[tui]` → `brainkm configure`):
 - Hooks + `auto_observe` fill the brain (SessionEnd distill, PostToolUse observations)
 - Neurons for facts, decisions, rules, and known errors — inspectable SQLite rows
 - Supersede / conflict handling so new truth replaces old
-- `remember` is **pin or correct only** — not the everyday store path
+- `remember` is **pin / correct / archive only** — not the everyday store path
 
 ### Navigate code structure
 - Graphify AST graph: files, classes, functions, import/call edges
@@ -91,6 +93,7 @@ Optional guided UI (`brainkm[tui]` → `brainkm configure`):
 - Adapters: Cursor · Claude Code · Antigravity · Codex · generic MCP
 - **Guided TUI** (`[tui]` extra) — recommended, not required
 - Secrets redacted on write and before injection — brain stays on disk
+- **Small always-on footprint** — one shared localhost MCP server (**~55–70 MB** idle RSS, near-zero CPU); active tools ~**110 MB**; optional TUI separate — [measured](docs/benchmarks/2026-07-21-footprint.md)
 
 Full catalog → [docs/FEATURES.md](docs/FEATURES.md)
 
@@ -129,7 +132,7 @@ flowchart LR
 |-------|------|
 | **Memory** | SQLite FTS5 neurons — decisions, rules, facts, errors |
 | **Code graph** | Graphify AST neighbors for `traverse` / packs |
-| **MCP** | stdio or localhost HTTP — 8 agent-facing tools |
+| **MCP** | stdio or localhost HTTP — **6** agent-facing tools |
 | **CLI / TUI** | Typer core; Textual configure when `[tui]` is installed |
 
 **Layering:** MCP tool → service → adapter → SQLite. Deep dive → [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md)
@@ -142,8 +145,10 @@ flowchart LR
 | Where is symbol X defined? | Host codebase index / Grep |
 | Why did we choose X over Y? | **`recall`** |
 | What calls / imports X? | **`traverse`** |
+| What changed in this file recently / why? | **`trace_changes`** |
 | Understand one module (3+ files) | **`context_pack`**, then verify in source |
 | Pin a decision / fix bad memory | **`remember`** |
+| Brain health / empty graph? | **`brain_stats`** |
 | Cross-project prefs / static policy | Host Memories / rules — not brainkm |
 
 </details>
@@ -173,7 +178,7 @@ pip install -e "./brainkm[tui]"
 brainkm configure
 ```
 
-- **One app** → that host starts the brain (stdio). No extra terminal.
+- **One app** → silent memory; that host starts the brain for you (no extra terminal).
 - **Two or more** → shared localhost brain; click **Start Brain** once from the TUI.
 
 **Without TUI** — core CLI only:
@@ -214,11 +219,13 @@ Full setup notes → [docs/INSTALL.md](docs/INSTALL.md)
 |----------|------|
 | Why did we choose X? | `recall` |
 | What calls / imports X? | `traverse` |
+| What changed in this file recently / why? | `trace_changes` |
 | Understand this module without dumping files | `context_pack` |
-| Pin a decision / fix bad memory | `remember` |
+| Pin / correct / archive memory | `remember` |
+| Is the brain healthy / graph stale? | `brain_stats` |
 
 <details>
-<summary><strong>MCP tools (5)</strong></summary>
+<summary><strong>MCP tools (6)</strong></summary>
 
 | Tool | Purpose |
 |------|---------|
@@ -227,6 +234,7 @@ Full setup notes → [docs/INSTALL.md](docs/INSTALL.md)
 | `context_pack` | Task pack under token budget; auto-queues stale graph refresh |
 | `traverse` | Impact analysis: neighborhood + `impact_summary` + linked neurons |
 | `brain_stats` | Health: counts, usage, abstention, dead neurons, hygiene hint |
+| `trace_changes` | Live git history + uncommitted diff, joined to commit↔session↔decision links |
 
 </details>
 
@@ -249,6 +257,7 @@ Full setup notes → [docs/INSTALL.md](docs/INSTALL.md)
 | “Where is symbol X?” | Host codebase index / Grep |
 | “Why did we choose X?” | **brainkm `recall`** |
 | “What calls X?” | **brainkm `traverse` / `context_pack`** |
+| “What changed here?” | **brainkm `trace_changes`** |
 | Hosted multi-tenant memory | Mem0 / Zep — not the goal here |
 
 </details>
@@ -257,19 +266,21 @@ Full setup notes → [docs/INSTALL.md](docs/INSTALL.md)
 
 ## Benchmarks
 
-Public comparison uses **Common Memory Axes (CMA)** — ability accuracy + pack tokens + latency — for a coding-agent project brain (not a chat-assistant leaderboard).
+Public comparison uses **Common Memory Axes (CMA)** — ability accuracy + pack tokens + latency — for a coding-agent project brain (not a chat-assistant leaderboard). Headline product metric: **recall@budget** (gold fact inside a ≤1500-token pack).
 
-Latest CMA v3 (brainkm **0.4.1**, semantic off) — [full scorecard](docs/benchmarks/2026-07-18-cma-v3.md):
+Latest CMA v3 budget scorecard (brainkm **0.5.0**, semantic off) — [full write-up](docs/benchmarks/2026-07-19-cma-v3-budget.md):
 
 | Metric | Result |
 |--------|--------|
-| Ability micro-avg | **96.7%** (hard subset **93.8%**) |
-| Mean pack tokens | **~322** / 1500 |
-| Recall / pack p95 | **~8 / 14 ms** |
-| vs BM25 / title-scan | brain **1.00** vs **0.88** / **0.83** |
+| **recall@budget** | **0.833** (floor ≥0.80) |
+| Mean pack tokens | **~323** / 1500 |
+| Ability micro-avg (regression gate) | **100%** (hard subset **100%**) |
+| Recall / pack p95 | **~13 / 18 ms** |
+| vs BM25 / title-scan (full) | brain **1.00** vs **0.88** / **0.83** |
+| Hard-slice lift vs BM25 | brain **1.00** vs **0.55** (**+0.45**) |
 | Decision + structure | **8/8** |
 
-Product eval highlights: task success **23/23**, gold-fact coverage **100%** with brain vs **85%** selective-read, token proxy **~15.7×** vs naive multi-file dump.
+Also: LongMemEval-S full-500 footnote — **recall@budget 0.892** @ ~373 tokens ([artifact](docs/benchmarks/2026-07-19-longmemeval-s-full.md)). Runtime footprint: [2026-07-21-footprint](docs/benchmarks/2026-07-21-footprint.md).
 
 ```bash
 brainkm bench run cma     # public scorecard
@@ -299,7 +310,7 @@ Methodology and what we refuse to claim → [docs/BENCHMARKS.md](docs/BENCHMARKS
 
 **brainkm 0.8.1** — Project brain with six MCP tools (`remember` pin/correct/archive, `recall` + decision trail, `context_pack`, `traverse` impact, `brain_stats`, `trace_changes`), first-class Cursor / Claude / Antigravity / Codex CLI hosts (Codex: `config.toml` MCP + `codex exec` distill; AGY Stop routes into the project `.brain/`), git commit↔session joins (`git-note` / post-commit hook), hardened shared HTTP, viz access tokens, and included `brainkm viz`.
 
-- [x] Local SQLite brain + 5 MCP tools
+- [x] Local SQLite brain + **6** MCP tools
 - [x] Cursor / Claude / Antigravity / Codex adapters
 - [x] Compaction survival (PreCompact + SessionEnd)
 - [x] Shared HTTP MCP Bearer auth + loopback bind guards

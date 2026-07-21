@@ -1,0 +1,36 @@
+{
+  "long_lived_serve": {
+    "label": "long_lived_serve_idle",
+    "n": 31,
+    "rss_median_mb": 66.1,
+    "rss_max_mb": 66.1,
+    "cpu_mean_pct": 0.11,
+    "cpu_max_pct": 0.2
+  },
+  "graph_sync_skip_extract": {
+    "label": "graph_sync_skip_extract",
+    "n": 33,
+    "rss_median_mb": 60.9,
+    "rss_max_mb": 90.7,
+    "cpu_mean_pct": 85.53,
+    "cpu_max_pct": 99.8,
+    "elapsed_s": null
+  },
+  "cli_version_ephemeral": {
+    "label": "cli_version_ephemeral",
+    "n": 8,
+    "rss_median_mb": 20.1,
+    "rss_max_mb": 29.0,
+    "cpu_mean_pct": 37.6,
+    "cpu_max_pct": 64.6,
+    "elapsed_s": 0.473
+  },
+  "configure_tui": {
+    "label": "configure_tui_idle",
+    "n": 20,
+    "rss_median_mb": 162.7,
+    "rss_max_mb": 162.7,
+    "cpu_mean_pct": 0.0,
+    "cpu_max_pct": 0.0
+  }
+}

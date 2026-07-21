@@ -140,6 +140,37 @@ def test_observe_caps_and_dedup(tmp_path: Path) -> None:
         conn.close()
 
 
+def test_observe_keeps_status_past_old_char_clip(tmp_path: Path) -> None:
+    """Status bodies must not be hard-clipped at 120 chars before token budget."""
+    migrate(project_dir=tmp_path, run_integrity_check=False)
+    cfg = BrainConfig(capture=CaptureConfig(auto_observe=True))
+    status = (
+        "Missing AGY rules/skills — .agents/ only has mcp_config.json + hooks.json. "
+        "Full install would also add .agents/rules/brainkm.md"
+    )
+    assert len(status) > 120
+    conn = connect(brain_db_path(tmp_path))
+    try:
+        result = record_observation(
+            conn,
+            session_id="sess-long-status",
+            tool_name="UserPrompt",
+            payload={"status": status, "path": "rules/brainkm.md"},
+            config=cfg,
+        )
+        conn.commit()
+        assert result.stored and result.node_id
+        row = conn.execute(
+            "SELECT content FROM nodes WHERE id = ?",
+            (result.node_id,),
+        ).fetchone()
+        assert row is not None
+        assert row["content"] == status
+        assert "brainkm.md" in row["content"]
+    finally:
+        conn.close()
+
+
 def test_observe_promote_failure_to_error_neuron(tmp_path: Path) -> None:
     migrate(project_dir=tmp_path, run_integrity_check=False)
     cfg = BrainConfig(capture=CaptureConfig(auto_observe=True))
