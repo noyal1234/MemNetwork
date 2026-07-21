@@ -9,7 +9,7 @@
 One SQLite brain. Eight MCP tools. Thin host adapters.  
 The `brainkm` package remembers *why* you chose something, maps how your code connects, and injects bounded context — so agents stop re-reading files and re-explaining past decisions, even after chat compaction.
 
-[![Version](https://img.shields.io/badge/version-0.6.0-3d9a8b?style=flat-square)](brainkm/pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.7.0-3d9a8b?style=flat-square)](brainkm/pyproject.toml)
 [![Python](https://img.shields.io/badge/python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](brainkm/pyproject.toml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-red?style=flat-square)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-8%20tools-1a2332?style=flat-square)](docs/FEATURES.md)
@@ -189,7 +189,7 @@ brainkm doctor
 Restart the IDE or reload MCP servers. Ask the agent (or call tools) using the [Usage](#usage) table below.
 
 ```bash
-brainkm version   # expect 0.6.0
+brainkm version   # expect 0.7.0
 ```
 
 Full setup notes → [docs/INSTALL.md](docs/INSTALL.md)
@@ -235,7 +235,7 @@ Full setup notes → [docs/INSTALL.md](docs/INSTALL.md)
 
 | Host | Role today |
 |------|------------|
-| **Any MCP client** | Core contract: 5 tools + optional `brainkm serve` |
+| **Any MCP client** | Core contract: 6 tools + optional `brainkm serve` |
 | **Cursor** | Deepest maturity (hooks, PreCompact, distill) |
 | **Claude Code** | First-class hooks + MCP |
 | **Antigravity** | First-class `.agents/` MCP (`serverUrl`) + hooks |
@@ -296,7 +296,7 @@ Methodology and what we refuse to claim → [docs/BENCHMARKS.md](docs/BENCHMARKS
 
 ## Status
 
-**brainkm 0.6.0** — Unified project brain with a focused five-tool MCP surface (`remember` pin/correct/archive, `recall` + decision trail, `context_pack`, `traverse` impact, `brain_stats`), hardened shared HTTP, viz access tokens, and included `brainkm viz`.
+**brainkm 0.7.0** — Project brain with six MCP tools (`remember` pin/correct/archive, `recall` + decision trail, `context_pack`, `traverse` impact, `brain_stats`, `trace_changes`), git commit↔session joins (`git-note` / post-commit hook), hardened shared HTTP, viz access tokens, and included `brainkm viz`.
 
 - [x] Local SQLite brain + 5 MCP tools
 - [x] Cursor / Claude / Antigravity / Codex adapters

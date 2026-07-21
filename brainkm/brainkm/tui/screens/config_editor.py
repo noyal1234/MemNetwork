@@ -110,7 +110,11 @@ class ConfigEditorScreen(Screen):
     @work(thread=True, group="config-load", exit_on_error=False)
     def _load_config(self) -> dict[str, Any]:
         try:
-            from brainkm.services.config_loader import config_path, load_brain_config
+            from brainkm.services.config_loader import (
+                config_path,
+                load_brain_config,
+                raw_config_has_commit_trace,
+            )
 
             cfg = load_brain_config(self._project_dir)
             cfg_dict = cfg.model_dump()
@@ -118,6 +122,11 @@ class ConfigEditorScreen(Screen):
             cp = config_path(self._project_dir)
             if cp.is_file():
                 raw = json.loads(cp.read_text(encoding="utf-8"))
+                # Grandfather: missing key displays as Off (do not imply schema default).
+                if not raw_config_has_commit_trace(self._project_dir):
+                    git = dict(cfg_dict.get("git") or {})
+                    git["commit_trace"] = False
+                    cfg_dict["git"] = git
             else:
                 raw = cfg_dict
             return {"parsed": cfg_dict, "raw": raw, "path": str(cp)}
@@ -192,6 +201,13 @@ class ConfigEditorScreen(Screen):
             self._raw_config = result.get("raw") or self._raw_config
             self._dirty = False
             self.notify("✓ Config saved", severity="information")
+        for warn in result.get("commit_trace_warnings") or []:
+            self.notify(escape_markup(str(warn)), severity="warning")
+        if result.get("commit_trace_hook_error"):
+            self.notify(
+                escape_markup(f"Commit-trace hook: {result['commit_trace_hook_error']}"),
+                severity="warning",
+            )
         if result.get("api_key_saved"):
             self._api_key_dirty = False
             try:
@@ -420,6 +436,32 @@ class ConfigEditorScreen(Screen):
                     **result,
                     "error": f"Config saved but .env write failed: {exc}",
                 }
+
+        # Keep post-commit hook in sync with explicit git.commit_trace.
+        try:
+            from brainkm.services.config_loader import should_install_commit_hook
+            from brainkm.services.git_note import (
+                install_post_commit_hook,
+                uninstall_post_commit_hook,
+            )
+            from brainkm.services.install import resolve_hook_command, resolve_project_dir
+            from brainkm.models.brain_config import BrainConfig
+
+            root = resolve_project_dir(self._project_dir)
+            validated = BrainConfig.model_validate(output)
+            if should_install_commit_hook(root, validated):
+                hook_result = install_post_commit_hook(
+                    root,
+                    brainkm_bin=resolve_hook_command(dev=True),
+                )
+                result["commit_trace_hook"] = (
+                    str(hook_result.path) if hook_result.path else None
+                )
+                result["commit_trace_warnings"] = list(hook_result.warnings)
+            else:
+                result["commit_trace_hook_removed"] = uninstall_post_commit_hook(root)
+        except Exception as exc:
+            result["commit_trace_hook_error"] = str(exc)
 
         return result
 

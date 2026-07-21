@@ -202,6 +202,11 @@ class DashboardScreen(Screen):
                 "ok" if brain.get("code_node_count", 0) else "muted",
             ),
             (
+                "Commit Trace",
+                str(brain.get("commit_trace_label") or "?"),
+                str(brain.get("commit_trace_color") or "muted"),
+            ),
+            (
                 "review",
                 f"{self._pending_review_count} items",
                 "warning" if self._pending_review_count else "ok",

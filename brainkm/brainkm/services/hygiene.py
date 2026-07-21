@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
 from brainkm.services.memory import forget_neuron
 from brainkm.services.quality import passes_stored_neuron_gate
@@ -15,6 +16,50 @@ class HygieneResult:
     archived: int
     kept: int
     archived_ids: tuple[str, ...]
+
+
+def archive_expired_commits(
+    conn: sqlite3.Connection,
+    *,
+    retention_days: int = 90,
+    dry_run: bool = False,
+    limit: int | None = None,
+) -> list[str]:
+    """Soft-archive old commit nodes with no relates_to edges to active memories."""
+    from brainkm.services.git_note import COMMIT_KIND
+
+    cutoff = (datetime.now(UTC) - timedelta(days=max(7, retention_days))).isoformat()
+    sql = """
+        SELECT c.id
+        FROM nodes c
+        WHERE c.kind = ?
+          AND c.valid_until IS NULL
+          AND c.created_at < ?
+          AND NOT EXISTS (
+            SELECT 1 FROM edges e
+            JOIN nodes m ON m.id = e.to_id
+            WHERE e.from_id = c.id
+              AND e.relationship = 'relates_to'
+              AND m.valid_until IS NULL
+              AND m.kind IN ('memory', 'procedure', 'concept')
+          )
+        ORDER BY c.created_at ASC
+    """
+    params: list[object] = [COMMIT_KIND, cutoff]
+    if limit is not None:
+        sql += " LIMIT ?"
+        params.append(int(limit))
+    rows = conn.execute(sql, params).fetchall()
+    archived: list[str] = []
+    for (node_id,) in rows:
+        archived.append(node_id)
+        if not dry_run:
+            forget_neuron(
+                conn,
+                node_id,
+                reason=f"hygiene: commit older than {retention_days}d without active links",
+            )
+    return archived
 
 
 def purge_noisy_neurons(
@@ -59,6 +104,26 @@ def purge_noisy_neurons(
             for node_id in ttl_ids:
                 if node_id not in archived_ids:
                     archived_ids.append(node_id)
+            commit_ids = archive_expired_commits(
+                conn,
+                retention_days=config.git.commit_retention_days,
+                dry_run=dry_run,
+                limit=limit,
+            )
+            for node_id in commit_ids:
+                if node_id not in archived_ids:
+                    archived_ids.append(node_id)
+    else:
+        # auto_hygiene path without config: still sweep commits at default retention
+        commit_ids = archive_expired_commits(
+            conn,
+            retention_days=90,
+            dry_run=dry_run,
+            limit=limit,
+        )
+        for node_id in commit_ids:
+            if node_id not in archived_ids:
+                archived_ids.append(node_id)
     if decay:
         from brainkm.services.consolidate import decay_unused_neurons
 

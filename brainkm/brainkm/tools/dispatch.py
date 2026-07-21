@@ -27,6 +27,11 @@ from brainkm.models.schemas import (
     RememberResponse,
     SessionStatusRequest,
     SessionStatusResponse,
+    TraceChangesRequest,
+    TraceChangesResponse,
+    TraceCommitEntry,
+    TraceLinkedNeuron,
+    TraceUncommitted,
     TraverseRequest,
     TraverseResponse,
 )
@@ -53,6 +58,7 @@ from brainkm.services.provenance import compact_sources_for_node
 from brainkm.services.recall import recall_live
 from brainkm.services.recall_limit import get_recall_limit_state
 from brainkm.services.remember_links import detect_conflicts
+from brainkm.services.change_trace import change_trace
 from brainkm.services.search import traverse
 from brainkm.services.session_activity import (
     flush_stale_session_hits,
@@ -497,6 +503,62 @@ def handle_forget(conn: sqlite3.Connection, request: ForgetRequest) -> ForgetRes
     )
 
 
+def handle_trace_changes(
+    conn: sqlite3.Connection,
+    request: TraceChangesRequest,
+    *,
+    config: BrainConfig,
+    project_dir: Path,
+) -> TraceChangesResponse:
+    result = change_trace(
+        conn,
+        request.path,
+        project_dir=project_dir,
+        config=config,
+        limit=request.limit,
+        session_id=request.session_id,
+    )
+    record_mcp_tool_use(
+        conn,
+        request.session_id,
+        "trace_changes",
+        result_count=len(result.commits),
+    )
+    _maintenance(conn)
+    conn.commit()
+    return TraceChangesResponse(
+        path=result.path,
+        pack_text=result.pack_text,
+        commits=[
+            TraceCommitEntry(
+                git_hash=c.git_hash,
+                subject=c.subject,
+                author_date=c.author_date,
+                commit_node_id=c.commit_node_id,
+                session_id=c.session_id,
+                linked_neurons=[
+                    TraceLinkedNeuron(
+                        node_id=n.node_id,
+                        kind=n.kind,
+                        subtype=n.subtype,
+                        title=n.title,
+                    )
+                    for n in c.linked_neurons
+                ],
+            )
+            for c in result.commits
+        ],
+        uncommitted=TraceUncommitted(
+            dirty=result.uncommitted.dirty,
+            diff_stat=result.uncommitted.diff_stat,
+            agent_touched=result.uncommitted.agent_touched,
+            session_ids=list(result.uncommitted.session_ids),
+        ),
+        truncation=result.truncation,
+        hint=result.hint,
+    )
+
+
 def handle_brain_stats(
     conn: sqlite3.Connection,
     request: BrainStatsRequest,
@@ -624,6 +686,17 @@ async def dispatch_tool(name: str, arguments: dict[str, Any], runtime: BrainRunt
         result = await _run_write(
             runtime,
             handle_brain_stats,
+            request,
+            config=config,
+            project_dir=runtime.project_dir,
+        )
+        return result.model_dump()
+
+    if name == "trace_changes":
+        request = TraceChangesRequest.model_validate(arguments)
+        result = await _run_write(
+            runtime,
+            handle_trace_changes,
             request,
             config=config,
             project_dir=runtime.project_dir,

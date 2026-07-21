@@ -210,6 +210,37 @@ SECTION_FIELDS: dict[str, list[dict[str, Any]]] = {
             "help": "Merge near-duplicates after capture (can be slow)",
         },
     ],
+    "git": [
+        {
+            "key": "commit_trace",
+            "label": "Commit Trace Hook",
+            "type": "bool",
+            "help": (
+                "Post-commit hook runs brainkm git-note (sha→session joins). "
+                "trace_changes still reads live git either way."
+            ),
+        },
+        {
+            "key": "commit_retention_days",
+            "label": "Commit Retention (days)",
+            "type": "int",
+            "min": 7,
+            "max": 3650,
+            "help": "Hygiene soft-archives unlinked commit nodes older than this",
+        },
+        {
+            "key": "enabled",
+            "label": "Stamp Git on Capture",
+            "type": "bool",
+            "help": "Attach HEAD hash/branch to neurons when capturing sessions",
+        },
+        {
+            "key": "link_on_capture",
+            "label": "Link on Capture",
+            "type": "bool",
+            "help": "When Stamp Git is on, write git_hash onto new session neurons",
+        },
+    ],
     "injection": [
         {
             "key": "session_start",

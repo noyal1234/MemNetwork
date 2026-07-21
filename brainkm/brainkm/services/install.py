@@ -959,6 +959,21 @@ def run_install(
     result.files_written.append(example_dst)
 
     config_dst = brain_root / "config.json"
+    from brainkm.services.config_loader import (
+        grandfather_commit_trace_if_needed,
+        raw_config_has_commit_trace,
+        should_install_commit_hook,
+    )
+
+    grandfathered = False
+    if config_dst.is_file() and not raw_config_has_commit_trace(root):
+        cfg = grandfather_commit_trace_if_needed(root, cfg)
+        grandfathered = True
+        result.warnings.append(
+            "git.commit_trace was unset — left Off (grandfather). "
+            "Enable in brainkm configure → Git, or set git.commit_trace=true."
+        )
+
     # Claude / Antigravity install always persists auto_observe + distill defaults.
     must_save_config = (
         force
@@ -966,6 +981,7 @@ def run_install(
         or http
         or adapter.kind in ("claude", "antigravity")
         or not config_dst.is_file()
+        or grandfathered
     )
     if not must_save_config:
         result.files_skipped.append(config_dst)
@@ -976,6 +992,35 @@ def run_install(
     for entry in GITIGNORE_ENTRIES:
         if _ensure_gitignore_entry(root, entry):
             result.files_written.append(root / ".gitignore")
+
+    if should_install_commit_hook(root, cfg):
+        try:
+            from brainkm.services.git_note import install_post_commit_hook
+
+            hook_result = install_post_commit_hook(
+                root,
+                brainkm_bin=resolve_hook_command(dev=dev),
+            )
+            result.warnings.extend(hook_result.warnings)
+            if hook_result.installed and hook_result.path is not None:
+                result.files_written.append(hook_result.path)
+            elif hook_result.skipped and not hook_result.warnings:
+                result.warnings.append(
+                    "git.commit_trace enabled but post-commit hook not installed "
+                    "(not a git repo?)"
+                )
+        except Exception as exc:
+            result.warnings.append(f"commit-trace hook skipped: {exc}")
+    elif cfg.git.commit_trace and config_dst.is_file() and not raw_config_has_commit_trace(root):
+        pass  # already warned via grandfather
+    elif not cfg.git.commit_trace:
+        try:
+            from brainkm.services.git_note import uninstall_post_commit_hook
+
+            if uninstall_post_commit_hook(root):
+                result.warnings.append("removed brainkm post-commit hook (commit_trace=false)")
+        except Exception as exc:
+            result.warnings.append(f"commit-trace uninstall skipped: {exc}")
 
     migrate(project_dir=root, run_integrity_check=True)
 

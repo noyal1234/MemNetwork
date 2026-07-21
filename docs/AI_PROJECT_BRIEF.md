@@ -64,7 +64,7 @@ flowchart LR
 | **Memory** | SQLite FTS5 BM25 | Neurons (`kind=memory`) — facts, decisions, rules |
 | **Code graph** | Graphify AST adapter | `code` nodes, import/call edges |
 | **Temporal** | `valid_from` / `valid_until`, `supersedes` | Evolving facts without full GraphRAG |
-| **MCP** | `mcp` SDK stdio **or** localhost HTTP (`brainkm serve`) | 5 tools: remember (pin/correct/archive), recall (+decision trail), context_pack (self-healing), traverse (impact), brain_stats |
+| **MCP** | `mcp` SDK stdio **or** localhost HTTP (`brainkm serve`) | 6 tools: remember (pin/correct/archive), recall (+decision trail), context_pack (self-healing), traverse (impact), brain_stats, trace_changes (live git + joins) |
 | **CLI** | Typer | install, serve, connect, doctor, export, bench, repair, handover, review, hygiene, migrate, configure |
 | **TUI** | Textual (optional `[tui]` extra) | `brainkm configure` — guided app checkboxes, Start Brain, dashboard, config editor, actions |
 | **Optional T1** | sqlite-vec + ONNX MiniLM | Semantic search when `semantic: true` |
@@ -119,7 +119,7 @@ MemNetwork/
 
 ## 4. MCP tool contract (V1 / current)
 
-**Package version:** `0.6.0`
+**Package version:** `0.7.0`
 
 | Tool | Purpose |
 |------|---------|
@@ -128,10 +128,11 @@ MemNetwork/
 | `context_pack` | Task-specific compiled pack (graph + neurons + procedures + decision history). Prefer before 3+ file reads; for pure blast-radius use `traverse`. Auto-queues graph refresh when stale. Lean MCP payload by default (`include_structured=true` for arrays) |
 | `traverse` | **Impact analysis**: AST neighborhood + `impact_summary` (hop counts, high fan-in risk) + linked decision/error neurons. Defaults: `direction=both`, structural edges |
 | `brain_stats` | Health summary: neuron/graph counts, MCP usage (7d), abstention rate, dead-neuron count, `hygiene_hint`; optional `session_id` adds per-session fields |
+| `trace_changes` | **Change history**: live `git log --follow` + uncommitted `git diff` for a path, joined to commit nodes from `brainkm git-note` (sha→session→decisions). Diffs are not ingested |
 
 Removed from MCP (still available via CLI/hooks/services): `session_status`, `forget` → `remember action=archive`, `graph_sync` → auto-queue on stale reads + `brainkm graph sync`.
 
-CLI-only (not MCP): `install`, `serve`, `connect`, `doctor`, `export`, `bench`, `repair` (`--backfill-links`, `--backfill-supersedes`), `handover`, `review`, `hygiene`, `migrate`, `configure`.
+CLI-only (not MCP): `install`, `serve`, `connect`, `doctor`, `export`, `bench`, `repair` (`--backfill-links`, `--backfill-supersedes`), `handover`, `review`, `hygiene`, `migrate`, `configure`, `git-note`, `trace`.
 
 Shared localhost brain: prefer **`brainkm configure`** (multi-app → Start Brain). Power path: `brainkm serve` + `brainkm connect <client> --http` so Cursor / Claude / Antigravity / Codex share one HTTP MCP process and `.brain/brain.db`. Antigravity HTTP MCP uses `serverUrl`. Hooks remain the primary memory writers (`capture.auto_observe`).
 
@@ -164,6 +165,7 @@ MemNetwork **complements** Cursor, Claude Code, and Antigravity — it does not 
 | "Where is auth middleware defined?" | **@codebase** or `context_pack` | Semantic/symbol lookup across source |
 | "Why did we choose JWT over session cookies?" | **`recall`** | Decision lives in chat/plan distill, not in code index |
 | "What connects `AuthService` to `UserRepo`?" | **`traverse`** | Focused AST neighborhood (callers/callees/imports) |
+| "What changed in `auth.py` recently and why?" | **`trace_changes`** | Live git timeline + brain commit joins |
 | "What failed last time we touched payments?" | **`recall`** (subtype `error`) | Known failure modes are neurons |
 | Read 5+ files to understand one module | **`context_pack`** then targeted reads | Bounded pack vs multi-file dumps; never skip reading source you will change |
 
@@ -348,6 +350,7 @@ All distill modes share Cursor chrome cleaning (`clean_cursor_text` / `is_distil
 | **0.4.2** | Done | Antigravity first-class client (`.agents/` MCP `serverUrl` + named hooks, PreInvocation inject, synthetic precompact, idle Stop distill, AGY transcript JSONL); `distill_mode` peers `claude` (`claude -p` + live sampling) + `antigravity` (`agy -p`); legacy `mcp`→`claude`; TUI Antigravity checkbox + dashboard AGY hooks; doctor multi-path probes + `--mirror-global` |
 | **0.5.0** | Done | Shared-brain security + ops polish: HTTP MCP loopback guard + Bearer token (`.brain/mcp_http_token`, `connect` headers); viz per-run `?token=` / no wildcard CORS; expanded redaction; Groq `cloud_distill_acknowledged`; graphify `extract_extra_args` allowlist + graph-import sanitize; TUI MCP Doctor panel + Review Queue (`y`/`n`) + brain-status sidebar; client routing skill / hook parity |
 | **0.6.0** | Done | Unified-brain MCP surface 8→5 (drop `session_status`/`forget`/`graph_sync` from MCP); `remember` pin/correct/archive; `recall` decision_trail + confidence; `traverse` impact_summary + linked neurons; shared token budget for overlays; corpus-aware abstention floor; self-healing stale-graph queue; about_*/supersedes backfill (`repair --backfill-*`, `--dry-run-supersedes`); viz `base_url`/`token` handle fields |
+| **0.7.0** | Done | Git change trace: MCP `trace_changes` + CLI `git-note`/`trace`; live git log/diff joins (no diff ingest); post-commit hook via `git.commit_trace` (new brains on, grandfather Off); merge/empty skip; commit retention hygiene; husky/`core.hooksPath` skip+warn; TUI Git section + dashboard Commit Trace status |
 | **CMA scorecard** | Done | Headline **recall@budget** (gold-in-pack ≤1500): CMA **0.833**, LME-S full-500 **0.892** @ 373 tok; CMA micro **100%** is a regression gate; LME dual-grain fts-blob R@5 **0.934**; `run_cma.sh` + dated `docs/benchmarks/` artifacts |
 | **End-task A/B** | Done | Harness `brainkm/scripts/endtask_harness.py` + fixture `endtask_v1` (12 knowledge / 8 change); dry-run smoke artifact; live claim needs `CURSOR_API_KEY` + `--repeats 3` |
 | **License** | Done | Apache-2.0 ([LICENSE](../LICENSE), [NOTICE](../NOTICE)); copyright Noyal Bastin Benny; [CLA](../CLA.md) + [CONTRIBUTING](../CONTRIBUTING.md) for future relicense option |

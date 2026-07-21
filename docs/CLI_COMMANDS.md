@@ -24,7 +24,7 @@ brainkm --help
 | `brainkm migrate` | Apply pending SQLite migrations | `--project-dir` | `brainkm migrate` |
 | `brainkm configure` | Launch Textual config dashboard (wizard / status / forms / actions) | `--project-dir` | `brainkm configure` |
 
-> **Tip:** Prefer `brainkm configure` (0.6.0): app checkboxes (Cursor / Claude / Antigravity / Codex) → one app = silent stdio; two+ = shared HTTP + **Start Brain**. Semantic Quality consent is separate. Power users: `serve` + `connect --http`. Requires `pip install -e "./brainkm[tui]"`. Semantic weights: `pip install -e "./brainkm[semantic]"`. Design notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
+> **Tip:** Prefer `brainkm configure` (0.7.0): app checkboxes (Cursor / Claude / Antigravity / Codex) → one app = silent stdio; two+ = shared HTTP + **Start Brain**. Semantic Quality consent is separate. Power users: `serve` + `connect --http`. Requires `pip install -e "./brainkm[tui]"`. Semantic weights: `pip install -e "./brainkm[semantic]"`. Design notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
 >
 > **Dashboard:** the **MCP Doctor** panel shows the same wiring report as `brainkm doctor` (color-coded). **Review Queue** lists low-confidence auto-captures for `y` approve / `n` reject.
 
@@ -92,7 +92,11 @@ Multi-IDE opt-in: set `graphify.auto_sync.watch_filesystem: true` in `.brain/con
 | `brainkm consolidate` | Merge near-duplicate neurons (sleep-time pass) | `--project-dir`, `--dry-run`, `--limit`, `--llm` | `brainkm consolidate --llm` |
 | `brainkm provenance` | Print provenance chain for a node | `node_id`, `--project-dir` | `brainkm provenance <id>` |
 | `brainkm file-history` | Memories linked to a code path via about_file/about_symbol | `path`, `--project-dir`, `--limit` | `brainkm file-history src/auth.py` |
+| `brainkm git-note` | Record HEAD (or `--hash`) as a commit join node for `trace_changes` (post-commit hook calls this) | `--project-dir`, `--hash`, `--session-id` | `brainkm git-note` |
+| `brainkm trace` | Live git change history for a path + brain joins (same as MCP `trace_changes`) | `path`, `--project-dir`, `--limit`, `--session-id` | `brainkm trace src/auth.py` |
 | `brainkm demo` | Alias for `brainkm viz --demo` | `--project-dir`, `--port`, `--no-open` | `brainkm demo` |
+
+Enable the post-commit hook via **Config → Git → Commit Trace Hook** (`git.commit_trace`) or `brainkm install` on a new brain. Existing configs without the key stay Off until toggled.
 
 Safe to re-run; archives via `forget` (reversible with audit log). SessionStart/context packs also skip noisy neurons at injection time.
 

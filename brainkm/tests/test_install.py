@@ -148,7 +148,11 @@ def test_run_install_writes_cursor_and_brain_files(tmp_path: Path) -> None:
 def test_run_install_skips_existing_config_without_force(tmp_path: Path) -> None:
     brain_dir = tmp_path / ".brain"
     brain_dir.mkdir()
-    (brain_dir / "config.json").write_text('{"version": 1}\n', encoding="utf-8")
+    # Explicit commit_trace so grandfathering does not force a rewrite.
+    (brain_dir / "config.json").write_text(
+        '{"version": 1, "git": {"commit_trace": false}}\n',
+        encoding="utf-8",
+    )
 
     result = run_install(tmp_path, dev=True, force=False)
     assert tmp_path / ".brain" / "config.json" in result.files_skipped

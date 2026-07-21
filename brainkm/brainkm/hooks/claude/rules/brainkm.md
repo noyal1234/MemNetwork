@@ -6,6 +6,8 @@ This project uses **brainkm** — a local SQLite project brain at `.brain/brain.
 
 - Prefer MCP **`traverse`** for call/import/flow and blast-radius questions ("what calls X?",
   "what breaks if I change Y?") — pass a symbol or path; then confirm with targeted reads.
+- Prefer MCP **`trace_changes`** for "what changed in this file recently and why?" — live
+  git log joined to commit↔session↔decision links (diffs stay in git).
 - Prefer MCP **`context_pack`** for multi-file task context (include a **symbol or file path**
   in the query or `seed_refs`), **then verify in source** before editing — packs are hints,
   never a substitute for reading the code you will change.
@@ -20,6 +22,7 @@ This project uses **brainkm** — a local SQLite project brain at `.brain/brain.
 |---------------|-----------|-----|
 | "Where is symbol X defined?" | Grep / project search | Semantic/symbol locate |
 | "What calls / imports X?" / "impact of changing Y" | **`traverse`** (symbol/path), then verify | Focused AST neighborhood |
+| "What changed in file Y recently / why?" | **`trace_changes`** (path) | Live git timeline + commit joins |
 | "Why did we choose X?" | **`recall`** | Decisions live in neurons, not the code index |
 | Understand one module (would open 3+ files) | **`context_pack`** then targeted reads | Bounded pack vs file dumps |
 

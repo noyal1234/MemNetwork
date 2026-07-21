@@ -18,13 +18,21 @@ REQUIRED_OUTPUT_KEYS = {
         "linked_neurons",
     },
     "brain_stats": {"neurons_by_kind", "graph_nodes", "hygiene_hint"},
+    "trace_changes": {"path", "pack_text", "commits", "uncommitted", "truncation"},
 }
 
-EXPECTED_TOOLS = {"remember", "recall", "context_pack", "traverse", "brain_stats"}
+EXPECTED_TOOLS = {
+    "remember",
+    "recall",
+    "context_pack",
+    "traverse",
+    "brain_stats",
+    "trace_changes",
+}
 
 
 def test_tool_definitions_include_response_models() -> None:
-    assert len(TOOL_DEFINITIONS) == 5
+    assert len(TOOL_DEFINITIONS) == 6
     names = {entry[0] for entry in TOOL_DEFINITIONS}
     assert names == EXPECTED_TOOLS
     for entry in TOOL_DEFINITIONS:
@@ -54,3 +62,5 @@ def test_tool_descriptions_mention_when_not_to_use() -> None:
     assert "traverse" in by_name["recall"].lower() or "context_pack" in by_name["recall"]
     assert "traverse" in by_name["context_pack"]
     assert "impact" in by_name["traverse"].lower() or "blast" in by_name["traverse"].lower()
+    assert "git" in by_name["trace_changes"].lower()
+    assert "traverse" in by_name["trace_changes"].lower()

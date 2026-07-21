@@ -1,7 +1,7 @@
 ---
 name: brainkm-routing
 description: >-
-  When to use brainkm MCP tools (recall, context_pack, traverse) vs Cursor search.
+  When to use brainkm MCP tools (recall, context_pack, traverse, trace_changes) vs Cursor search.
   Prefer file-seeded recall and verify packs in source. Install with brainkm install.
 ---
 
@@ -15,6 +15,7 @@ brainkm is this project's brain (`.brain/brain.db`). It complements Cursor — i
 |----------|------|
 | Why did we choose X? Past decision / pivot | `recall` (uses `decision_trail`) |
 | What calls / imports X? Blast radius / impact | `traverse` (`impact_summary` + linked neurons) |
+| What changed in this file recently and why? | `trace_changes` (live git + commit joins) |
 | Understand a module before editing 3+ files | `context_pack` (include path or symbol) |
 | What did we learn about `auth.ts`? | `recall` / `context_pack` with that path in the query |
 | Pin, correct, or archive durable truth | `remember` (`action=pin\|correct\|archive`; hooks are primary capture) |

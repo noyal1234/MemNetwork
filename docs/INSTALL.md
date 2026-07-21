@@ -23,10 +23,27 @@ brainkm install --dev
 brainkm graph sync          # optional: first code graph
 brainkm graph status
 pytest
-brainkm version   # expect 0.6.0
+brainkm version   # expect 0.7.0
 ```
 
 Restart Cursor or reload MCP servers after `brainkm install --dev`.
+
+### Optional: commit change trace
+
+New installs default `git.commit_trace=true` and write a merge-safe `.git/hooks/post-commit` that runs `brainkm git-note` (sha→session joins; diffs stay in git). Existing projects that never set the key stay **Off** until you enable them.
+
+```bash
+# TUI: Config → Git → Commit Trace Hook → Save
+brainkm configure
+
+# Or set in .brain/config.json then reinstall:
+# "git": { "commit_trace": true, "commit_retention_days": 90 }
+brainkm install --dev
+
+brainkm trace path/to/file.py   # same as MCP trace_changes
+```
+
+Dashboard **STATUS → Commit Trace** shows `on` / `off` / `on · no hook` / `skipped` (husky/lefthook/`core.hooksPath`).
 
 ### Easiest path: guided setup (recommended)
 

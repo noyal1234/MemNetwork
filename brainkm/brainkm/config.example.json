@@ -122,6 +122,11 @@
     "unused_days": 90,
     "consolidate_on_session_end": false
   },
-  "git": { "enabled": false, "link_on_capture": true },
+  "git": {
+    "enabled": false,
+    "link_on_capture": true,
+    "commit_trace": true,
+    "commit_retention_days": 90
+  },
   "team": { "auto_import_on_install": true, "team_dir": "team" }
 }

@@ -242,6 +242,22 @@ class GroqConfig(BaseModel):
 class GitConfig(BaseModel):
     enabled: bool = False
     link_on_capture: bool = True
+    commit_trace: bool = Field(
+        default=True,
+        description=(
+            "Install a post-commit hook that runs `brainkm git-note` to store "
+            "sha→session→neuron joins (diffs stay in git, queried live by trace)."
+        ),
+    )
+    commit_retention_days: int = Field(
+        default=90,
+        ge=7,
+        le=3650,
+        description=(
+            "Hygiene soft-archives kind=commit nodes older than this many days "
+            "when they have no relates_to edges to active memories."
+        ),
+    )
 
 
 class TeamConfig(BaseModel):

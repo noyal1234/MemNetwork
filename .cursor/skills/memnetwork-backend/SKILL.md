@@ -9,7 +9,7 @@ description: >-
 # MemNetwork Backend Development
 
 Guide for implementing features in the **brainkm** Python package.
-Current version: **0.6.0** (keep in lockstep with `pyproject.toml` and `__version__` — see the release checklist in `AGENTS.md`). Feature history lives in the Implementation status table of `docs/AI_PROJECT_BRIEF.md`; do not re-derive it here.
+Current version: **0.7.0** (keep in lockstep with `pyproject.toml` and `__version__` — see the release checklist in `AGENTS.md`). Feature history lives in the Implementation status table of `docs/AI_PROJECT_BRIEF.md`; do not re-derive it here.
 
 ## When to use this skill
 
@@ -86,7 +86,7 @@ Python **3.11 or 3.12** recommended.
 - **Redaction** — every neuron write path (MCP `remember`, observe, capture, handover, plan ingest, import, supersede) funnels through `remember_neuron`, which redacts and injection-scans
 - **Abstention** — `recall` returns `[]` on low confidence (percentile default P10); max 3 recalls/turn
 - **Soft delete only** — `remember action=archive` / `forget_neuron` sets `valid_until`; hard delete is a `brainkm repair` admin path
-- **MCP surface** — 5 tools (`remember`, `recall`, `context_pack`, `traverse`, `brain_stats`); graph sync auto-queues on stale reads; session_status stays hook/CLI-only
+- **MCP surface** — 6 tools (`remember`, `recall`, `context_pack`, `traverse`, `brain_stats`, `trace_changes`); graph sync auto-queues on stale reads; session_status stays hook/CLI-only
 
 ## Security
 

@@ -1,6 +1,6 @@
 # brainkm — Features
 
-**brainkm** is a local, project-scoped brain for **agentic coding IDEs** — anything that can speak MCP. One `.brain/brain.db`, eight tools, and thin host adapters. It remembers *why* you chose something, maps how your code connects, and injects bounded context so agents stop re-reading files and re-explaining past decisions — even after chat compaction.
+**brainkm** is a local, project-scoped brain for **agentic coding IDEs** — anything that can speak MCP. One `.brain/brain.db`, six tools, and thin host adapters. It remembers *why* you chose something, maps how your code connects, and injects bounded context so agents stop re-reading files and re-explaining past decisions — even after chat compaction.
 
 It is **not** a Cursor-only product. Cursor is a first-class host and currently the **deepest** path (hooks + PreCompact + distill) because that is where we dogfood hardest. Claude Code, Antigravity, Codex, and generic MCP clients share the same brain; adapter depth follows what each IDE exposes.
 
@@ -24,7 +24,7 @@ Long agent sessions burn tokens and lose context. Compaction summarizes the chat
 
 ## Agent tools (MCP)
 
-Five sharp tools the agent (or you) can call. Typed `outputSchema` so clients know the shape of every response.
+Six sharp tools the agent (or you) can call. Typed `outputSchema` so clients know the shape of every response.
 
 | Tool | What it does |
 |------|----------------|
@@ -33,6 +33,7 @@ Five sharp tools the agent (or you) can call. Typed `outputSchema` so clients kn
 | **`context_pack`** | Compile a task pack: decisions + code neighborhood + procedures (+ decision history), under a hard token cap. Auto-queues graph refresh when stale. Prefer before opening 3+ files. |
 | **`traverse`** | Impact analysis: AST neighborhood + `impact_summary` (hop counts, high fan-in risk) + linked decision/error neurons. Prefer for blast-radius. |
 | **`brain_stats`** | Health snapshot: neuron/graph counts, MCP usage, abstention rate, dead neurons, hygiene hint. Optional per-session breakdown. |
+| **`trace_changes`** | File change history: **live** `git log --follow` + uncommitted `git diff`, joined to brain commit↔session↔decision links from `brainkm git-note`. Diffs stay in git (not ingested). |
 
 Graph refresh and session context are automatic (hooks + stale-graph auto-queue). Manual CLI: `brainkm graph sync`, `brainkm hygiene`, `brainkm repair --backfill-links --backfill-supersedes`.
 
@@ -127,6 +128,7 @@ Manual fallbacks when hooks are unavailable: `brainkm handover`, `brainkm captur
 | **Hooks + `auto_observe`** | Primary fill path: SessionEnd distill, capped PostToolUse / prompt / failure observations → promote. Agents do not need to call `remember` every turn. |
 | **Neurons** | Project facts, decisions, rules, and known errors — searchable, inspectable rows, not chat sludge. Lifecycle: observation → episode → semantic memory → procedure. |
 | **File / symbol links** | `about_file` / `about_symbol` edges attach memories to code nodes; `brainkm file-history` lists them. |
+| **Commit trace joins** | New brains default `git.commit_trace=true` (post-commit → `brainkm git-note`). Existing configs that never set the key stay **Off** until enabled in `brainkm configure` → Git (grandfather). Hygiene soft-archives unlinked commit nodes older than `git.commit_retention_days` (default 90). Merges/empty commits are skipped. `trace_changes` / `brainkm trace` always read live git. |
 | **Concepts** | Deterministic `kind=concept` nodes from tags/paths/symbols (LLM distill enriches tags only). |
 | **Provenance** | `distilled_from` edges + optional MCP `include_sources`; `brainkm provenance <id>`. |
 | **Transcript distill** | Session JSONL → chunks → neurons. Chat becomes durable memory instead of a disposable scrollback. |
@@ -256,6 +258,7 @@ Headline targets (see [BENCHMARKS.md](BENCHMARKS.md)): **`bench run cma`** for p
 | Where is symbol X defined? | Host codebase index / Grep |
 | Why did we choose X over Y? | **brainkm `recall`** |
 | What calls / imports X? Impact of changing Y? | **`traverse`** (symbol/path) |
+| What changed in this file recently, and why? | **`trace_changes`** (path) — live git + brain joins |
 | Understand one module (would open 3+ files) | **`context_pack`**, then verify in source |
 | Cross-project personal prefs | Host Memories (not brainkm) |
 | Static team policy | Host rules files — brainkm stores *learned* project context |

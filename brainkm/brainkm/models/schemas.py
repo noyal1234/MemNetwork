@@ -356,3 +356,53 @@ class GraphSyncResponse(BaseModel):
     message: str | None = None
     nodes_imported: int | None = None
     edges_imported: int | None = None
+
+
+class TraceChangesRequest(BaseModel):
+    path: str = Field(
+        ...,
+        min_length=1,
+        description="Source file path to trace (live git log --follow + brain joins)",
+    )
+    session_id: str | None = Field(
+        default=None,
+        description="Optional session id for uncommitted file_seed attribution",
+    )
+    limit: int = Field(
+        default=10,
+        ge=1,
+        le=40,
+        description="Max commits from live git log",
+    )
+
+
+class TraceLinkedNeuron(BaseModel):
+    node_id: str
+    kind: str
+    subtype: str | None = None
+    title: str
+
+
+class TraceCommitEntry(BaseModel):
+    git_hash: str
+    subject: str
+    author_date: str | None = None
+    commit_node_id: str | None = None
+    session_id: str | None = None
+    linked_neurons: list[TraceLinkedNeuron] = Field(default_factory=list)
+
+
+class TraceUncommitted(BaseModel):
+    dirty: bool = False
+    diff_stat: str | None = None
+    agent_touched: bool = False
+    session_ids: list[str] = Field(default_factory=list)
+
+
+class TraceChangesResponse(BaseModel):
+    path: str
+    pack_text: str
+    commits: list[TraceCommitEntry] = Field(default_factory=list)
+    uncommitted: TraceUncommitted = Field(default_factory=TraceUncommitted)
+    truncation: TruncationManifest
+    hint: str | None = None

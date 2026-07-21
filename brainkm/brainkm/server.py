@@ -26,6 +26,8 @@ from brainkm.models.schemas import (
     RecallResponse,
     RememberRequest,
     RememberResponse,
+    TraceChangesRequest,
+    TraceChangesResponse,
     TraverseRequest,
     TraverseResponse,
 )
@@ -90,6 +92,18 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
         ),
         BrainStatsRequest,
         BrainStatsResponse,
+    ),
+    (
+        "trace_changes",
+        (
+            "Change history for a file: live git log --follow (real commits/diffs stay "
+            "in git) joined to brain commit↔session↔decision links from git-note. "
+            "Includes an uncommitted section from working-tree git diff + file_seed. "
+            "Prefer for 'what changed here recently and why?'. Not for AST blast-radius "
+            "(traverse) or decisions-only (recall)."
+        ),
+        TraceChangesRequest,
+        TraceChangesResponse,
     ),
 ]
 

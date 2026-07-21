@@ -364,6 +364,7 @@ Footer {
 | **Groq** | `GroqConfig` | `model` (text), `timeout_seconds` (int), `base_url` (text) |
 | **Budget** | `BudgetConfig` | `total_tokens` (int slider 100–8000), `dynamic_reallocation` (switch), session_start sub-fields, pre_tool sub-fields |
 | **Recall** | `RecallConfig` | `abstain_on_low_confidence` (switch), `abstain_mode` (select), `abstain_percentile` (float, default 0.10), `min_recall_score` (float) |
+| **Git** | `GitConfig` | `commit_trace` (post-commit `git-note`), `commit_retention_days`, `enabled` (stamp on capture), `link_on_capture` |
 | **Injection** | `InjectionConfig` | `session_start` (switch), `frozen_snapshot` (switch), `max_recalls_per_turn` (int, default 3) |
 | **Handover** | `HandoverConfig` | `precompact_enabled` (switch), `precompact_distill_timeout_seconds` (int, default 30), `export_markdown` (switch) |
 | **Graphify** | `GraphifyConfig` | `enabled` (switch), `code_only` (switch), `auto_sync.enabled` (switch), `extract_timeout_seconds` (int) |
@@ -428,7 +429,7 @@ Each action is a button that spawns a Textual `Worker`. Output is captured line-
 
 **Purpose:** Guided alternative to manually running `brainkm install --client …` + doctor commands. Activated automatically when `.brain/` does not exist, or via the `w` keybinding.
 
-**Steps (sequential screens) — as of 0.6.0:**
+**Steps (sequential screens) — as of 0.7.0:**
 
 ```mermaid
 flowchart LR
@@ -639,6 +640,8 @@ what was consciously deferred.
 Dashboard layout matches the Design 1 / DESIGN.md Cyber-Industrial mockup:
 
 - Left **STATUS** sidebar merges brain + channel rows (no separate Channels panel).
+  Includes **Commit Trace** (`on` / `off` / `on · no hook` / `skipped`) from
+  `build_brain_status_summary` (`git.commit_trace` + post-commit marker).
 - Right stack: Ollama/Groq doctors, Graph Viewer with Sync · Extract · Status,
   Review Queue filling remaining height.
 - Sharp borders, ASCII panel titles, bracket-style buttons; error/offline uses

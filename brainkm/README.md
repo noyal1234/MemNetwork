@@ -4,7 +4,7 @@ Local project brain for **agentic coding IDEs** — MCP server backed by SQLite 
 
 **Product overview** (hero, features, benchmarks, multi-host setup): see the repo root [README.md](../README.md).
 
-**Version:** `0.6.0`
+**Version:** `0.7.0`
 
 **License:** Apache-2.0 (see repo root [LICENSE](../LICENSE) and [NOTICE](../NOTICE)). Copyright © 2026 Noyal Bastin Benny.
 
@@ -37,7 +37,7 @@ source .venv/bin/activate
 pip install -e "./brainkm[dev,graphify]"
 ```
 
-**Memory path:** hooks + `capture.auto_observe` fill the brain; MCP `remember` is pin/correct/archive only.
+**Memory path:** hooks + `capture.auto_observe` fill the brain; MCP `remember` is pin/correct/archive only. Optional **commit trace**: `git.commit_trace` → post-commit `brainkm git-note`; MCP `trace_changes` / CLI `brainkm trace` read live git.
 
 | Client | Hooks | MCP | Maturity note |
 |--------|-------|-----|---------------|

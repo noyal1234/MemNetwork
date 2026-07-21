@@ -1316,6 +1316,98 @@ def file_history_cmd(
         conn.close()
 
 
+@app.command("git-note")
+def git_note_cmd(
+    project_dir: Path | None = typer.Option(
+        None,
+        "--project-dir",
+        help="Target project root (defaults to cwd)",
+    ),
+    git_hash: str | None = typer.Option(
+        None,
+        "--hash",
+        help="Commit SHA (defaults to HEAD)",
+    ),
+    session_id: str | None = typer.Option(
+        None,
+        "--session-id",
+        help="Session to link (defaults to recent file_seed / activity)",
+    ),
+) -> None:
+    """Record HEAD (or --hash) as a commit join node for trace_changes."""
+    from brainkm.db.connection import connect
+    from brainkm.db.migrate import migrate
+    from brainkm.db.paths import brain_db_path
+    from brainkm.services.git_note import note_commit
+    from brainkm.services.install import resolve_project_dir
+
+    root = resolve_project_dir(project_dir)
+    migrate(project_dir=root, run_integrity_check=False)
+    conn = connect(brain_db_path(root))
+    try:
+        result = note_commit(
+            conn,
+            project_dir=root,
+            git_hash=git_hash,
+            session_id=session_id,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    if result is None:
+        typer.echo("git-note: no git HEAD (not a repository?)")
+        raise typer.Exit(code=1)
+    if result.skipped:
+        typer.echo(
+            f"skipped sha={result.git_hash[:12]} reason={result.skip_reason or '-'}"
+        )
+        return
+    typer.echo(
+        f"commit={result.git_hash[:12]} id={result.commit_id} "
+        f"created={result.created} files={result.files_linked} "
+        f"neurons={result.neurons_linked} session={result.session_id or '-'}"
+    )
+
+
+@app.command("trace")
+def trace_cmd(
+    path: str = typer.Argument(..., help="Source file path to trace"),
+    project_dir: Path | None = typer.Option(None, "--project-dir"),
+    limit: int = typer.Option(10, "--limit", help="Max commits from git log"),
+    session_id: str | None = typer.Option(
+        None,
+        "--session-id",
+        help="Session id for uncommitted file_seed attribution",
+    ),
+) -> None:
+    """Live git change history for a path, joined to brain commit links."""
+    from brainkm.db.connection import connect
+    from brainkm.db.migrate import migrate
+    from brainkm.db.paths import brain_db_path
+    from brainkm.services.change_trace import change_trace
+    from brainkm.services.config_loader import load_brain_config
+    from brainkm.services.install import resolve_project_dir
+
+    root = resolve_project_dir(project_dir)
+    migrate(project_dir=root, run_integrity_check=False)
+    cfg = load_brain_config(root)
+    conn = connect(brain_db_path(root))
+    try:
+        result = change_trace(
+            conn,
+            path,
+            project_dir=root,
+            config=cfg,
+            limit=limit,
+            session_id=session_id,
+        )
+    finally:
+        conn.close()
+    typer.echo(result.pack_text.rstrip())
+    if result.hint:
+        typer.echo(f"hint: {result.hint}", err=True)
+
+
 @app.command("demo")
 def demo_cmd(
     project_dir: Path | None = typer.Option(None, "--project-dir"),
