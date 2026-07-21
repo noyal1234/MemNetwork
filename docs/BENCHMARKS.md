@@ -190,6 +190,19 @@ Naive multi-file dump vs `context_pack`. **Not** the task-success metric; use fo
 
 Average **~94% reduction (~15.7×)** across 4 scenarios.
 
+### Antigravity Live Benchmark (Token Usage Reduction & Quality Run)
+
+Live evaluation of Antigravity AI agent queries (`.agents/` configuration, HTTP MCP `serverUrl`, distill adapter) comparing naive context loading vs. `brainkm context_pack`:
+
+| Scenario ID | Query / Intent | Without Brain | With Brain (Pack Text) | Payload (JSON) | Token Reduction | Savings | Key Artifact |
+|-------------|----------------|---------------|------------------------|----------------|-----------------|---------|--------------|
+| `antigravity_class_lookup` | `AntigravityDistillAdapter build_antigravity_hook_stdout` | 20,293 | 733 | 1,102 | **96.4%** | **27.7×** | [2026-07-21-antigravity-live](benchmarks/2026-07-21-antigravity-live.md) |
+| `antigravity_pipeline` | `antigravity hook distill transcript integration` | 20,293 | 1,084 | 1,550 | **94.7%** | **18.7×** | [2026-07-21-antigravity-live](benchmarks/2026-07-21-antigravity-live.md) |
+| `antigravity_mcp_config` | `antigravity mcp serverUrl hooks .agents/mcp_config.json` | 20,293 | 1,132 | 1,585 | **94.4%** | **17.9×** | [2026-07-21-antigravity-live](benchmarks/2026-07-21-antigravity-live.md) |
+
+Average **95.2% token reduction (~21.4× savings)** across Antigravity scenarios while surfacing exact AST nodes and historical project decisions without noise. Full report: [docs/benchmarks/2026-07-21-antigravity-live.md](benchmarks/2026-07-21-antigravity-live.md).
+
+
 ### Regression canaries (not headline claims)
 
 | Suite | Result | DB |
