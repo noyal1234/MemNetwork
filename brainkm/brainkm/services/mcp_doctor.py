@@ -417,6 +417,37 @@ def inspect_antigravity_wiring(project_dir: Path) -> list[str]:
             "Antigravity hooks missing or lack `--client antigravity` — "
             "run `brainkm connect antigravity --hooks`"
         )
+    else:
+        # Auto-heal first so doctor is not a manual chore for users.
+        from brainkm.services.antigravity_session import heal_antigravity_wiring
+
+        heal = heal_antigravity_wiring(project_dir, rewrite_hooks=True)
+        if heal.changed:
+            parts: list[str] = []
+            if heal.hooks_rewritten:
+                parts.append("rewrote hooks with --project-dir")
+            if heal.shadow_removed:
+                parts.append("removed shadow .agents/.brain")
+            if heal.sessions_merged:
+                parts.append(f"merged {heal.sessions_merged} agy session(s)")
+            notes.append("Antigravity auto-heal: " + "; ".join(parts))
+        try:
+            hooks_data = json.loads(hooks_path.read_text(encoding="utf-8"))
+            blob = json.dumps(hooks_data.get("brainkm") or {})
+            if "--project-dir" not in blob:
+                notes.append(
+                    "Antigravity hooks still lack `--project-dir` after auto-heal — "
+                    "re-run `brainkm connect antigravity --hooks`"
+                )
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    shadow = project_dir / ".agents" / ".brain"
+    if shadow.is_dir():
+        notes.append(
+            "Shadow brain at `.agents/.brain` remains after auto-heal — "
+            "check permissions or remove it manually"
+        )
 
     for gpath in antigravity_global_mcp_paths():
         if not gpath.is_file():

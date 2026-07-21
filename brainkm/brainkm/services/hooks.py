@@ -359,6 +359,9 @@ def run_session_end(
     Codex maps Stop → this handler (no SessionEnd). When ``stop_hook_active`` is
     true the turn was already continued by a prior Stop hook — skip re-capture.
     """
+    from brainkm.config import apply_project_env
+
+    apply_project_env(project_dir)
     cfg = config or load_brain_config(project_dir)
     cwd = project_dir if project_dir is not None else Path.cwd()
 
@@ -476,8 +479,14 @@ def run_pre_tool_use(
     config: BrainConfig | None = None,
 ) -> HookRunResult:
     """PreToolUse — match configured tools and inject a bounded context_pack when seeded."""
-    cfg = config or load_brain_config(project_dir)
     data = _parse_hook_object(raw)
+    # AGY payloads include workspacePaths; resolve before loading BrainConfig.
+    if data.get("workspacePaths") or data.get("workspace_paths") or data.get("conversationId"):
+        from brainkm.services.antigravity_session import resolve_antigravity_project_dir
+
+        data = normalize_antigravity_stdin(data, event="PreToolUse")
+        project_dir = resolve_antigravity_project_dir(data, explicit=project_dir)
+    cfg = config or load_brain_config(project_dir)
     tool_name = _tool_name_from_payload(data)
     session_id = _session_id_from_payload(data)
 
@@ -610,8 +619,13 @@ def run_post_tool_use(
     failed: bool = False,
 ) -> HookRunResult:
     """PostToolUse — observations, graph sync, co-activation / procedure promotion."""
-    cfg = config or load_brain_config(project_dir)
     data = _parse_hook_object(raw)
+    if data.get("workspacePaths") or data.get("workspace_paths") or data.get("conversationId"):
+        from brainkm.services.antigravity_session import resolve_antigravity_project_dir
+
+        data = normalize_antigravity_stdin(data, event="PostToolUse")
+        project_dir = resolve_antigravity_project_dir(data, explicit=project_dir)
+    cfg = config or load_brain_config(project_dir)
     session_id = _session_id_from_payload(data)
     tool_name = _tool_name_from_payload(data) or ""
 
@@ -852,11 +866,17 @@ def run_agent_stop(
     client: str = "cursor",
 ) -> HookRunResult:
     """Stop — flush use counts; Antigravity idle Stop also distills/handover with debounce."""
-    cfg = config or load_brain_config(project_dir)
     data = _parse_hook_object(raw) if raw.strip() else {}
     kind = (client or "cursor").strip().lower()
     if kind == "antigravity":
         data = normalize_antigravity_stdin(data, event="Stop")
+        from brainkm.services.antigravity_session import resolve_antigravity_project_dir
+
+        project_dir = resolve_antigravity_project_dir(data, explicit=project_dir)
+    from brainkm.config import apply_project_env
+
+    apply_project_env(project_dir)
+    cfg = config or load_brain_config(project_dir)
     session_id = _session_id_from_payload(data)
 
     if kind == "antigravity" and session_id:
@@ -905,15 +925,15 @@ def _run_antigravity_stop(
 
     from brainkm.services.antigravity_session import (
         get_agy_session,
+        parse_antigravity_stop_gates,
+        resolve_antigravity_transcript,
         save_agy_session,
         should_run_distill,
     )
     from brainkm.services.handover import run_handover
     from brainkm.services.observe import promote_session_observations
 
-    fully_idle = bool(data.get("fullyIdle", data.get("fully_idle", False)))
-    termination = str(data.get("terminationReason") or data.get("termination_reason") or "")
-    force = termination in {"error", "max_steps_exceeded"}
+    fully_idle, force = parse_antigravity_stop_gates(data)
     state = get_agy_session(project_dir, session_id)
 
     conn = connect(brain_db_path(project_dir))
@@ -926,9 +946,10 @@ def _run_antigravity_stop(
                 project_dir=project_dir,
             )
             logger.info(
-                "hook=Stop(agy) session_id=%s observe_promoted=%d",
+                "hook=Stop(agy) session_id=%s observe_promoted=%d project=%s",
                 session_id,
                 promo.promoted,
+                project_dir,
             )
         flushed = flush_use_counts(conn, session_id)
         conn.commit()
@@ -937,35 +958,39 @@ def _run_antigravity_stop(
 
     do_distill = should_run_distill(state, fully_idle=fully_idle, force=force)
     if do_distill:
-        transcript = data.get("transcript_path") or data.get("transcriptPath")
-        if isinstance(transcript, str) and transcript.strip():
-            tpath = Path(transcript).expanduser()
-            if tpath.is_file():
+        tpath = resolve_antigravity_transcript(data)
+        if tpath is not None:
+            try:
+                run_handover(
+                    tpath,
+                    project_dir=project_dir,
+                    config=config,
+                    session_id=session_id,
+                )
+            except Exception:  # noqa: BLE001
+                logger.warning("Antigravity Stop handover failed", exc_info=True)
+            else:
+                state.last_distill_at = time.time()
                 try:
-                    run_handover(
-                        tpath,
-                        project_dir=project_dir,
-                        config=config,
-                        session_id=session_id,
-                    )
-                except Exception:  # noqa: BLE001
-                    logger.warning("Antigravity Stop handover failed", exc_info=True)
-                else:
-                    state.last_distill_at = time.time()
-                    try:
-                        state.transcript_byte_offset = tpath.stat().st_size
-                        state.last_handover_transcript_bytes = state.transcript_byte_offset
-                        state.last_handover_at = state.last_distill_at
-                    except OSError:
-                        pass
-                    save_agy_session(project_dir, state)
+                    state.transcript_byte_offset = tpath.stat().st_size
+                    state.last_handover_transcript_bytes = state.transcript_byte_offset
+                    state.last_handover_at = state.last_distill_at
+                except OSError:
+                    pass
+                save_agy_session(project_dir, state)
+        else:
+            logger.warning(
+                "hook=Stop(agy) session_id=%s distill skipped: no transcript path",
+                session_id,
+            )
 
     logger.info(
-        "hook=Stop(agy) session_id=%s fully_idle=%s distill=%s flushed=%d",
+        "hook=Stop(agy) session_id=%s fully_idle=%s distill=%s flushed=%d project=%s",
         session_id,
         fully_idle,
         do_distill,
         flushed,
+        project_dir,
     )
     return HookRunResult(
         hook="Stop",
@@ -988,15 +1013,33 @@ def run_pre_invocation(
 
     from brainkm.services.antigravity_session import (
         get_agy_session,
+        resolve_antigravity_project_dir,
+        resolve_antigravity_transcript,
         save_agy_session,
         should_inject_pack,
         should_synthetic_handover,
     )
     from brainkm.services.handover import run_handover
 
-    cfg = config or load_brain_config(project_dir)
     data = _parse_hook_object(raw) if raw.strip() else {}
     data = normalize_antigravity_stdin(data, event=event)
+    project_dir = resolve_antigravity_project_dir(data, explicit=project_dir)
+    # Self-heal on every AGY session start: fix hooks + remove shadow brains.
+    from brainkm.services.antigravity_session import heal_antigravity_wiring
+
+    heal = heal_antigravity_wiring(project_dir, rewrite_hooks=True)
+    if heal.changed:
+        logger.info(
+            "hook=PreInvocation agy_heal hooks_rewritten=%s shadow_removed=%s "
+            "sessions_merged=%d",
+            heal.hooks_rewritten,
+            heal.shadow_removed,
+            heal.sessions_merged,
+        )
+    from brainkm.config import apply_project_env
+
+    apply_project_env(project_dir)
+    cfg = config or load_brain_config(project_dir)
     session_id = _session_id_from_payload(data) or resolve_session_id(data)
     invocation_num = int(data.get("invocationNum") or data.get("invocation_num") or 0)
     steps = int(data.get("initialNumSteps") or data.get("initial_num_steps") or 0)
@@ -1013,14 +1056,11 @@ def run_pre_invocation(
     migrate(project_dir=project_dir, run_integrity_check=invocation_num == 0)
     state = get_agy_session(project_dir, session_id or "unknown")
 
-    transcript = data.get("transcript_path") or data.get("transcriptPath")
     transcript_bytes = 0
-    tpath: Path | None = None
-    if isinstance(transcript, str) and transcript.strip():
-        tpath = Path(transcript).expanduser()
+    tpath = resolve_antigravity_transcript(data)
+    if tpath is not None:
         try:
-            if tpath.is_file():
-                transcript_bytes = tpath.stat().st_size
+            transcript_bytes = tpath.stat().st_size
         except OSError:
             transcript_bytes = 0
 

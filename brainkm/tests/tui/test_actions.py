@@ -81,6 +81,15 @@ async def test_action_button_does_not_crash(tui_project: Path, button_id: str, m
             app.screen._viz_handle = None
 
 
+def test_actions_graph_sync_has_no_sticky_primary() -> None:
+    """Purple fill is focus-only on Actions — permanent -primary looked like dual selection."""
+    from brainkm.tui.screens import actions as actions_mod
+
+    src = Path(actions_mod.__file__).read_text(encoding="utf-8")
+    assert 'id="btn-graph-sync", classes="-primary"' not in src
+    assert 'id="btn-graph-sync"' in src
+
+
 async def test_viz_demo_writes_url_to_log(tui_project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("webbrowser.open", lambda *_a, **_k: True)
     app = BrainkmConfigureApp(project_dir=tui_project)

@@ -258,6 +258,7 @@ def test_antigravity_transcript_fixture() -> None:
 def test_agy_session_inject_and_stop_gates() -> None:
     from brainkm.services.antigravity_session import (
         AgySessionState,
+        parse_antigravity_stop_gates,
         should_inject_pack,
         should_run_distill,
         should_synthetic_handover,
@@ -282,3 +283,208 @@ def test_agy_session_inject_and_stop_gates() -> None:
     assert should_synthetic_handover(
         AgySessionState(conversation_id="c2"), transcript_bytes=0, steps=40
     )
+
+    idle, force = parse_antigravity_stop_gates({"fullyIdle": True})
+    assert idle and not force
+    idle, force = parse_antigravity_stop_gates({"terminationReason": "model_stop"})
+    assert idle and not force
+    idle, force = parse_antigravity_stop_gates(
+        {"fullyIdle": False, "terminationReason": "error"}
+    )
+    assert not idle and force
+
+
+def test_resolve_antigravity_project_dir_from_workspace_and_agents_cwd(
+    tmp_path: Path,
+) -> None:
+    from brainkm.services.antigravity_session import resolve_antigravity_project_dir
+
+    project = tmp_path / "proj"
+    agents = project / ".agents"
+    agents.mkdir(parents=True)
+    (project / ".brain").mkdir()
+
+    resolved = resolve_antigravity_project_dir(
+        {"workspacePaths": [str(project)]},
+        cwd=agents,
+    )
+    assert resolved == project.resolve()
+
+    # cwd=.agents with no workspacePaths still walks up.
+    resolved_cwd = resolve_antigravity_project_dir({}, cwd=agents)
+    assert resolved_cwd == project.resolve()
+
+    # Explicit --project-dir wins.
+    other = tmp_path / "other"
+    other.mkdir()
+    assert (
+        resolve_antigravity_project_dir(
+            {"workspacePaths": [str(project)]},
+            explicit=other,
+            cwd=agents,
+        )
+        == other.resolve()
+    )
+
+
+def test_resolve_antigravity_transcript_from_artifact_dir(tmp_path: Path) -> None:
+    from brainkm.services.antigravity_session import resolve_antigravity_transcript
+
+    artifact = tmp_path / "brain" / "conv"
+    logs = artifact / ".system_generated" / "logs"
+    logs.mkdir(parents=True)
+    transcript = logs / "transcript.jsonl"
+    transcript.write_text("{}\n", encoding="utf-8")
+
+    found = resolve_antigravity_transcript(
+        {"artifactDirectoryPath": str(artifact)}
+    )
+    assert found == transcript
+
+
+def test_heal_antigravity_wiring_removes_shadow_and_rewrites_hooks(
+    tmp_path: Path,
+) -> None:
+    from brainkm.services.antigravity_session import (
+        heal_antigravity_wiring,
+        load_agy_sessions,
+    )
+    from brainkm.services.install import resolve_hook_command
+
+    project = tmp_path / "proj"
+    agents = project / ".agents"
+    (project / ".brain").mkdir(parents=True)
+    agents.mkdir(parents=True)
+
+    # Old hooks without --project-dir (pre-fix).
+    old = {
+        "brainkm": {
+            "enabled": True,
+            "Stop": [
+                {
+                    "type": "command",
+                    "command": f"{resolve_hook_command(dev=True)} agent-stop --stdin "
+                    "--event Stop --client antigravity",
+                }
+            ],
+        }
+    }
+    (agents / "hooks.json").write_text(json.dumps(old), encoding="utf-8")
+
+    shadow = agents / ".brain"
+    shadow.mkdir()
+    # Force-write into the shadow path directly.
+    (shadow / "agy_sessions.json").write_text(
+        json.dumps(
+            {
+                "shadow-only": {
+                    "last_inject_invocation": 0,
+                    "last_inject_pack_hash": "",
+                    "last_distill_at": 99.0,
+                    "last_handover_at": 99.0,
+                    "last_handover_transcript_bytes": 1,
+                    "transcript_byte_offset": 1,
+                    "bootstrap_done": True,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = heal_antigravity_wiring(project, rewrite_hooks=True)
+    assert result.hooks_rewritten is True
+    assert result.shadow_removed is True
+    assert result.sessions_merged >= 1
+    assert not shadow.exists()
+    assert "--project-dir" in (agents / "hooks.json").read_text(encoding="utf-8")
+    assert "shadow-only" in load_agy_sessions(project)
+
+    # Idempotent.
+    again = heal_antigravity_wiring(project, rewrite_hooks=True)
+    assert again.changed is False
+
+
+def test_build_antigravity_hooks_includes_project_dir(tmp_path: Path) -> None:
+    incoming = build_antigravity_hooks_config("/bin/brainkm", project_dir=tmp_path)
+    blob = json.dumps(incoming)
+    assert "--project-dir" in blob
+    assert str(tmp_path.resolve()) in blob
+    assert "--client antigravity" in blob
+
+
+def test_agent_stop_uses_workspace_not_agents_cwd(tmp_path: Path) -> None:
+    """Regression: AGY Stop must distill into project .brain, not .agents/.brain."""
+    from brainkm.db.connection import connect
+    from brainkm.db.migrate import migrate
+    from brainkm.db.paths import brain_db_path
+    from brainkm.models.brain_config import BrainConfig, CaptureConfig
+    from brainkm.services.hooks import run_agent_stop
+
+    project = tmp_path / "proj"
+    agents = project / ".agents"
+    agents.mkdir(parents=True)
+    migrate(project_dir=project)
+
+    transcript = tmp_path / "t.jsonl"
+    # Minimal AGY-shaped round so rules distill can produce something or at least ingest chunks.
+    transcript.write_text(
+        json.dumps(
+            {
+                "type": "USER_INPUT",
+                "content": "<USER_REQUEST>\nRemember: use shared project brain for AGY hooks.\n</USER_REQUEST>",
+                "status": "DONE",
+            }
+        )
+        + "\n"
+        + json.dumps(
+            {
+                "type": "MODEL_RESPONSE",
+                "content": "Decision: Antigravity hooks must target the project .brain directory.",
+                "status": "DONE",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = {
+        "conversationId": "agy-shadow-fix",
+        "fullyIdle": True,
+        "terminationReason": "model_stop",
+        "transcriptPath": str(transcript),
+        "workspacePaths": [str(project)],
+    }
+    # Simulate AGY hook cwd = .agents (no --project-dir).
+    import os
+
+    old = os.getcwd()
+    try:
+        os.chdir(agents)
+        result = run_agent_stop(
+            json.dumps(payload),
+            project_dir=None,
+            client="antigravity",
+            config=BrainConfig(
+                capture=CaptureConfig(
+                    distill_mode="rules",
+                    auto_observe=False,
+                )
+            ),
+        )
+    finally:
+        os.chdir(old)
+
+    assert result.skipped is False
+    assert (project / ".brain" / "agy_sessions.json").is_file()
+    assert not (agents / ".brain").exists()
+    conn = connect(brain_db_path(project))
+    try:
+        row = conn.execute(
+            "SELECT distill_mode, neuron_count FROM ingested_sessions WHERE session_id=?",
+            ("agy-shadow-fix",),
+        ).fetchone()
+    finally:
+        conn.close()
+    assert row is not None
+    assert row[0] == "rules"
+    assert int(row[1]) >= 0

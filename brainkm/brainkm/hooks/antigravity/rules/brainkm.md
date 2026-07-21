@@ -57,10 +57,10 @@ Grant **`mcp(brainkm/*)`** (or always-allow brainkm tools) so recall/context_pac
 
 ## Lifecycle (Antigravity)
 
-- **PreInvocation** injects a throttled frozen pack (`injectSteps.ephemeralMessage`).
-- **Stop** (when fully idle) distills the transcript; synthetic precompact also runs on long PreInvocation turns.
+- **PreInvocation** injects a throttled frozen pack (`injectSteps.ephemeralMessage`) and auto-heals wiring (hooks `--project-dir`, shadow `.agents/.brain`).
+- **Stop** (when fully idle) distills into the **project** `.brain/` (not `.agents/.brain`). Hooks bake absolute `--project-dir`; stdin `workspacePaths` is a fallback.
 - HTTP shared brain uses **`serverUrl`** in `.agents/mcp_config.json` (not `url`).
-- Distill: `capture.distill_mode: antigravity` (`agy -p`) when the CLI is installed.
+- Distill extractor is project-wide `capture.distill_mode` (e.g. `groq` or `antigravity` / `agy -p`). Put `GROQ_API_KEY` in the project `.env`.
 
 ## Manual fallback (hooks unavailable)
 

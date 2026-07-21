@@ -119,7 +119,7 @@ MemNetwork/
 
 ## 4. MCP tool contract (V1 / current)
 
-**Package version:** `0.8.0`
+**Package version:** `0.8.1`
 
 | Tool | Purpose |
 |------|---------|
@@ -312,14 +312,16 @@ Key fields:
 
 ### Local vs cloud distill
 
+`capture.distill_mode` selects the **extractor backend** for the whole project (every IDE shares it). Transcript format detection stays per-host. Mode names `cursor` / `claude` / `antigravity` / `codex` mean “use that CLI (or heuristics) as the LLM,” not “only distill that host’s files.”
+
 | Mode | When to choose | Requirements |
 |------|----------------|--------------|
 | `rules` | Zero-dependency default; offline; no API key | None |
 | `ollama` | Privacy / offline LLM distill on your machine | Ollama daemon + model (`brainkm ollama doctor`) |
-| `groq` | Higher quality / speed without local GPU/CPU load | `GROQ_API_KEY` + network + `capture.cloud_distill_acknowledged: true` (`brainkm groq doctor`) |
+| `groq` | Higher quality / speed without local GPU/CPU load (good shared default across IDEs) | `GROQ_API_KEY` in project `.env` or env + network + `capture.cloud_distill_acknowledged: true` (`brainkm groq doctor`) |
 | `cursor` | Cursor agent CLI (`agent -p`) when available; else Cursor-aware heuristic distill of cleaned transcripts | Cursor session hooks; optional `agent` CLI |
 | `claude` | Claude Code peer distill | `claude` on PATH (or live MCP sampling) |
-| `antigravity` | Antigravity peer distill | `agy` on PATH |
+| `antigravity` | Antigravity peer distill (`agy -p`) | `agy` on PATH |
 | `codex` | Codex CLI peer distill (`codex exec`, read-only / unattended) | `codex` on PATH |
 
 T0 remains **rules** — cloud and local LLM distill are opt-in. Never put API keys in `.brain/config.json` or neurons. Groq refuses upload until `cloud_distill_acknowledged` is set (wizard sets it when you pick groq).
@@ -356,6 +358,7 @@ All distill modes share Cursor chrome cleaning (`clean_cursor_text` / `is_distil
 | **0.6.0** | Done | Unified-brain MCP surface 8→5 (drop `session_status`/`forget`/`graph_sync` from MCP); `remember` pin/correct/archive; `recall` decision_trail + confidence; `traverse` impact_summary + linked neurons; shared token budget for overlays; corpus-aware abstention floor; self-healing stale-graph queue; about_*/supersedes backfill (`repair --backfill-*`, `--dry-run-supersedes`); viz `base_url`/`token` handle fields |
 | **0.7.0** | Done | Git change trace: MCP `trace_changes` + CLI `git-note`/`trace`; live git log/diff joins (no diff ingest); post-commit hook via `git.commit_trace` (new brains on, grandfather Off); merge/empty skip; commit retention hygiene; husky/`core.hooksPath` skip+warn; TUI Git section + dashboard Commit Trace status |
 | **0.8.0** | Done | Codex CLI first-class client: `.codex/config.toml` `[mcp_servers.brainkm]` (stdio/HTTP + `http_headers`), PascalCase nested hooks (Stop → session-end), Codex stdout envelopes, fail-soft, rollout JSONL capture, `distill_mode=codex` via `codex exec` (rules fallback), AGENTS.md + skill, doctor trust/`/hooks` notes; `tomlkit` dep |
+| **0.8.1** | Done | Antigravity Stop → project brain: hooks bake `--project-dir`; resolve root from `workspacePaths` / parent of `.agents` cwd; load project `.env` for `GROQ_API_KEY`; PreInvocation/doctor/connect auto-heal missing `--project-dir` + remove shadow `.agents/.brain` (merge `agy_sessions.json`); docs clarify distill mode = extractor (not transcript parser) |
 | **CMA scorecard** | Done | Headline **recall@budget** (gold-in-pack ≤1500): CMA **0.833**, LME-S full-500 **0.892** @ 373 tok; CMA micro **100%** is a regression gate; LME dual-grain fts-blob R@5 **0.934**; `run_cma.sh` + dated `docs/benchmarks/` artifacts |
 | **End-task A/B** | Done | Harness `brainkm/scripts/endtask_harness.py` + fixture `endtask_v1` (12 knowledge / 8 change); dry-run smoke artifact; live claim needs `CURSOR_API_KEY` + `--repeats 3` |
 | **License** | Done | Apache-2.0 ([LICENSE](../LICENSE), [NOTICE](../NOTICE)); copyright Noyal Bastin Benny; [CLA](../CLA.md) + [CONTRIBUTING](../CONTRIBUTING.md) for future relicense option |

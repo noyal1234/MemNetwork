@@ -191,7 +191,7 @@ def run_connect(
                         ".claude/settings.json; remove the legacy file after verifying doctor."
                     )
             elif kind == "antigravity":
-                write_antigravity_hooks(hooks_path, brainkm_bin)
+                write_antigravity_hooks(hooks_path, brainkm_bin, project_dir=root)
                 result.files_written.append(hooks_path)
             elif kind == "codex":
                 write_codex_hooks(hooks_path, brainkm_bin)

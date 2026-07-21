@@ -12,6 +12,7 @@ class ReviewTable(Static):
 
     Emits ``ReviewTable.Approved`` and ``ReviewTable.Rejected`` messages
     when the user presses ``y`` or ``n`` on a selected row.
+    Emits ``ReviewTable.DetailRequested`` on Enter for a full detail modal.
 
     Empty state uses a muted non-selectable Static so the DataTable cursor
     highlight does not paint a full-width purple bar over the placeholder.
@@ -30,6 +31,13 @@ class ReviewTable(Static):
         def __init__(self, node_id: str) -> None:
             super().__init__()
             self.node_id = node_id
+
+    class DetailRequested(Message):
+        """User asked to open the full detail view for a pending neuron."""
+
+        def __init__(self, item: dict) -> None:
+            super().__init__()
+            self.item = item
 
     def __init__(
         self,
@@ -101,11 +109,18 @@ class ReviewTable(Static):
 
     def get_selected_node_id(self) -> str | None:
         """Return the node_id of the currently selected row."""
+        item = self.get_selected_item()
+        if item is None:
+            return None
+        return item.get("node_id")
+
+    def get_selected_item(self) -> dict | None:
+        """Return the selected pending item dict, or None."""
         table = self.table
         if not self._items:
             return None
         if table.cursor_row is not None and table.cursor_row < len(self._items):
-            return self._items[table.cursor_row].get("node_id")
+            return self._items[table.cursor_row]
         return None
 
     def key_y(self) -> None:
@@ -119,3 +134,9 @@ class ReviewTable(Static):
         node_id = self.get_selected_node_id()
         if node_id:
             self.post_message(self.Rejected(node_id))
+
+    def key_enter(self) -> None:
+        """Open full detail for the selected neuron."""
+        item = self.get_selected_item()
+        if item and item.get("node_id"):
+            self.post_message(self.DetailRequested(dict(item)))

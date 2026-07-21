@@ -25,8 +25,17 @@ SECTION_FIELDS: dict[str, list[dict[str, Any]]] = {
             "options": distill_mode_select_options(),
             "help": (
                 "How to extract neurons from transcripts. "
-                "Cursor mode includes a free heuristic; Agent CLI only upgrades it. "
-                "Ollama/Groq are separate LLM backends."
+                "Choosing groq also turns on Cloud Distill Consent "
+                "(transcripts may leave this machine)."
+            ),
+        },
+        {
+            "key": "cloud_distill_acknowledged",
+            "label": "Cloud Distill Consent",
+            "type": "bool",
+            "help": (
+                "Required for distill_mode=groq. Confirms transcript excerpts may be "
+                "sent to Groq. Selecting Groq as Distill Mode turns this on automatically."
             ),
         },
         {
@@ -440,6 +449,23 @@ class ConfigForm(Vertical):
             return
 
         self._set_nested(key, value)
+        # Selecting Groq implies cloud-upload consent (same as the setup wizard).
+        # Otherwise distill_mode=groq + acknowledged=false is a silent no-op → rules.
+        if (
+            self._section == "capture"
+            and key == "distill_mode"
+            and value == "groq"
+            and not self._values.get("cloud_distill_acknowledged")
+        ):
+            self._set_nested("cloud_distill_acknowledged", True)
+            try:
+                switch = self.query_one(
+                    "#field-capture-cloud_distill_acknowledged", Switch
+                )
+                if not switch.value:
+                    switch.value = True
+            except Exception:
+                pass
         self.post_message(self.Changed(self._section, dict(self._values)))
 
     def _get_nested(self, key: str) -> Any:

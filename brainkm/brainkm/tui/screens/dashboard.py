@@ -27,6 +27,7 @@ class DashboardScreen(Screen):
         ("w", "switch_wizard", "Wizard"),
         ("y", "approve_selected", "Approve"),
         ("n", "reject_selected", "Reject"),
+        ("enter", "review_detail", "Detail"),
     ]
 
     def __init__(self, project_dir: Path | None = None) -> None:
@@ -125,7 +126,7 @@ class DashboardScreen(Screen):
                                 classes="review-title",
                             )
                             yield Static(
-                                "Low-confidence auto-captures wait here — y approve / n reject",
+                                "Low-confidence auto-captures wait here — Enter detail · y approve / n reject",
                                 id="review-hint",
                                 classes="review-hint",
                             )
@@ -581,11 +582,13 @@ class DashboardScreen(Screen):
         hint = self.query_one("#review-hint", Static)
         title.update(escape_markup(f"REVIEW QUEUE ({len(items)})"))
         if items:
-            hint.update(escape_markup("! ACTION REQUIRED — y approve / n reject"))
+            hint.update(
+                escape_markup("! ACTION REQUIRED — Enter detail · y approve / n reject")
+            )
         else:
             hint.update(
                 escape_markup(
-                    "Low-confidence auto-captures wait here — y approve / n reject"
+                    "Low-confidence auto-captures wait here — Enter detail · y approve / n reject"
                 )
             )
 
@@ -739,6 +742,33 @@ class DashboardScreen(Screen):
     def on_review_table_rejected(self, event: ReviewTable.Rejected) -> None:
         self._reject_review_item(event.node_id)
 
+    def on_review_table_detail_requested(self, event: ReviewTable.DetailRequested) -> None:
+        self._open_review_detail(event.item)
+
+    def _open_review_detail(self, item: dict) -> None:
+        from brainkm.tui.widgets.review_detail_modal import ReviewDetailModal
+
+        node_id = str(item.get("node_id") or "")
+        if not node_id:
+            return
+
+        def _after_detail(action: str | None) -> None:
+            if action == "approve":
+                self._approve_review_item(node_id)
+            elif action == "reject":
+                self._reject_review_item(node_id)
+
+        self.app.push_screen(
+            ReviewDetailModal(
+                node_id=node_id,
+                project_dir=self._project_dir,
+                title=str(item.get("title") or ""),
+                subtype=str(item.get("subtype") or ""),
+                confidence=float(item.get("confidence") or 0.0),
+            ),
+            _after_detail,
+        )
+
     def _approve_review_item(self, node_id: str) -> None:
         self.notify(f"Approving {node_id[:8]}…", severity="information")
         self._do_approve(node_id)
@@ -832,7 +862,7 @@ class DashboardScreen(Screen):
             self._handle_dashboard_action(worker.result)
 
     def _update_header_health(self) -> None:
-        """Compact glyph in the Header subtitle: brain health at a glance."""
+        """Readable counts in the Header subtitle (details live on the Dashboard)."""
         app = self.app
         update = getattr(app, "update_header_subtitle", None)
         if not callable(update):
@@ -840,23 +870,13 @@ class DashboardScreen(Screen):
         parts: list[str] = []
         neurons = self._last_brain_data.get("neuron_count")
         if neurons is not None:
-            parts.append(f"{neurons}n")
+            parts.append(f"{neurons} neurons")
         code = self._last_brain_data.get("code_node_count")
         if code is not None:
-            parts.append(f"{code}c")
-        ollama = self._last_ollama_data
-        if ollama:
-            parts.append("O✓" if ollama.get("reachable") else "Ox")
-        groq = self._last_groq_data
-        if groq:
-            if groq.get("rate_limited"):
-                parts.append("Q!")
-            else:
-                parts.append("Q✓" if groq.get("reachable") else "Qx")
-        graph = self._last_graph_data
-        if graph and not graph.get("error"):
-            parts.append("◆!" if graph.get("graph_stale") else "◆")
-        update(" ".join(parts) if parts else None)
+            parts.append(f"{code} code nodes")
+        # Ollama / Groq / graph freshness already appear in Dashboard panels —
+        # omit cryptic header glyphs (O✓ Q✓ ◆) that were hard to read.
+        update(" · ".join(parts) if parts else None)
 
     def _handle_dashboard_action(self, result: dict[str, Any]) -> None:
         action = result.get("action", "")
@@ -917,3 +937,9 @@ class DashboardScreen(Screen):
         node_id = table.get_selected_node_id()
         if node_id:
             self._reject_review_item(node_id)
+
+    def action_review_detail(self) -> None:
+        table = self.query_one("#review-table", ReviewTable)
+        item = table.get_selected_item()
+        if item:
+            self._open_review_detail(item)

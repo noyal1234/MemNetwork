@@ -69,6 +69,7 @@ async def test_save_writes_edited_value_to_the_right_project(tui_project: Path) 
 def test_capture_section_includes_auto_observe() -> None:
     keys = {f["key"] for f in SECTION_FIELDS["capture"]}
     assert "auto_observe" in keys
+    assert "cloud_distill_acknowledged" in keys
     field = next(f for f in SECTION_FIELDS["capture"] if f["key"] == "auto_observe")
     assert field["type"] == "bool"
 

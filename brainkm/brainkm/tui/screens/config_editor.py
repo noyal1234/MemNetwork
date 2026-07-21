@@ -382,6 +382,10 @@ class ConfigEditorScreen(Screen):
             return
 
         output = validated.model_dump(mode="json")
+        # Keep groq mode and cloud consent in lockstep (Config Editor parity with wizard).
+        capture = output.get("capture")
+        if isinstance(capture, dict) and capture.get("distill_mode") == "groq":
+            capture["cloud_distill_acknowledged"] = True
         try:
             api_key = self.query_one("#field-groq-api-key", Input).value.strip()
         except Exception:

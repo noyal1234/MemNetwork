@@ -4,7 +4,7 @@ Local project brain for **agentic coding IDEs** — MCP server backed by SQLite 
 
 **Product overview** (hero, features, benchmarks, multi-host setup): see the repo root [README.md](../README.md).
 
-**Version:** `0.8.0`
+**Version:** `0.8.1`
 
 **License:** Apache-2.0 (see repo root [LICENSE](../LICENSE) and [NOTICE](../NOTICE)). Copyright © 2026 Noyal Bastin Benny.
 
@@ -43,7 +43,7 @@ pip install -e "./brainkm[dev,graphify]"
 |--------|-------|-----|---------------|
 | Cursor | `.cursor/hooks.json` | `.cursor/mcp.json` | Deepest dogfood path today |
 | Claude Code | `.claude/settings.json` | project `.mcp.json` | First-class; distill via `claude -p` |
-| Antigravity | `.agents/hooks.json` | `.agents/mcp_config.json` (HTTP: `serverUrl`) | First-class; distill via `agy -p` |
+| Antigravity | `.agents/hooks.json` | `.agents/mcp_config.json` (HTTP: `serverUrl`) | First-class; Stop distill into project `.brain/` (`--project-dir` + auto-heal); extractor via `capture.distill_mode` (`agy -p` / `groq` / …) |
 | Codex CLI | `.codex/hooks.json` | `.codex/config.toml` `[mcp_servers.brainkm]` | First-class; Stop → session-end; distill via `codex exec` |
 | generic | CLI fallbacks | `.brain/mcp.http.example.json` or shared HTTP | MCP-only; manual capture/handover |
 

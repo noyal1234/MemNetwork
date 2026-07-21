@@ -23,7 +23,7 @@ brainkm install --dev
 brainkm graph sync          # optional: first code graph
 brainkm graph status
 pytest
-brainkm version   # expect 0.8.0
+brainkm version   # expect 0.8.1
 ```
 
 Restart Cursor or reload MCP servers after `brainkm install --dev`.
@@ -57,7 +57,7 @@ The wizard asks **which coding apps you use** in plain language:
 - **One app** → silent memory, no extra terminal (the app starts the brain for you).
 - **Two or more** → shared brain across apps; on the last screen click **Start Brain** (or use Dashboard → Start Brain). You only start it once while you work — not every chat.
 - **Claude Code** → writes `.claude/settings.json` hooks + project `.mcp.json` (not `.claude/hooks.json`). Dashboard shows Claude hooks status when present.
-- **Antigravity** → writes `.agents/mcp_config.json` (HTTP uses `serverUrl`) + `.agents/hooks.json` + rules/skills. Dashboard shows AGY hooks when `.agents/` is present.
+- **Antigravity** → writes `.agents/mcp_config.json` (HTTP uses `serverUrl`) + `.agents/hooks.json` + rules/skills. Dashboard shows AGY hooks when `.agents/` is present. Installed Stop/PreInvocation commands bake absolute `--project-dir` so distill always hits the **project** `.brain/` (Antigravity often runs hooks with cwd=`.agents/`). `brainkm doctor` / PreInvocation auto-heal rewrite missing `--project-dir` and remove a leftover shadow `.agents/.brain` after merging `agy_sessions.json`.
 - **Codex CLI** → writes `.codex/config.toml` (`[mcp_servers.brainkm]`), `.codex/hooks.json` (PascalCase nested schema), skill, and upserts `AGENTS.md`. Trust the project `.codex/` layer, then open `/hooks` in Codex and trust brainkm commands.
 
 You do **not** need to memorize `serve` / `connect` commands.
@@ -95,7 +95,7 @@ bash brainkm/scripts/setup_dev.sh
 
 Claude Code loads hooks from **`.claude/settings.json`** only (not `.claude/hooks.json`). Verify with `brainkm doctor`.
 
-Antigravity workspace MCP/hooks live under **`.agents/`**. HTTP shared brain uses `serverUrl` (not `url`). Optional: `brainkm connect antigravity --http --mirror-global` merges into `~/.gemini/config/mcp_config.json` when the CLI ignores workspace config.
+Antigravity workspace MCP/hooks live under **`.agents/`**. HTTP shared brain uses `serverUrl` (not `url`). Optional: `brainkm connect antigravity --http --mirror-global` merges into `~/.gemini/config/mcp_config.json` when the CLI ignores workspace config. Put `GROQ_API_KEY` (and other secrets) in the **project** `.env` — AGY hook subprocesses load it via `--project-dir` even when cwd is `.agents/`.
 
 Codex CLI reads MCP from **`.codex/config.toml`** (not JSON `mcp.json`). Project-local `.codex/` loads only when the project is trusted; hooks also need `/hooks` trust in the Codex UI. Distill uses `capture.distill_mode: codex` (`codex exec --sandbox read-only --ask-for-approval never`) when the CLI is on PATH; otherwise install falls back to `rules`.
 

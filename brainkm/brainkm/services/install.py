@@ -426,9 +426,17 @@ def write_codex_hooks(
     return merged
 
 
-def _agy_hook_command(brainkm_bin: str, *args: str, timeout: int | None = None) -> dict[str, object]:
-    cmd = f"{shlex.quote(brainkm_bin)} {' '.join(args)} --client antigravity"
-    entry: dict[str, object] = {"type": "command", "command": cmd}
+def _agy_hook_command(
+    brainkm_bin: str,
+    *args: str,
+    timeout: int | None = None,
+    project_dir: Path | None = None,
+) -> dict[str, object]:
+    parts = [shlex.quote(brainkm_bin), *args]
+    if project_dir is not None:
+        parts.extend(["--project-dir", shlex.quote(str(project_dir.resolve()))])
+    parts.extend(["--client", "antigravity"])
+    entry: dict[str, object] = {"type": "command", "command": " ".join(parts)}
     if timeout is not None:
         entry["timeout"] = timeout
     return entry
@@ -438,19 +446,29 @@ def build_antigravity_hooks_config(
     brainkm_bin: str,
     *,
     config: BrainConfig | None = None,
+    project_dir: Path | None = None,
 ) -> dict[str, object]:
-    """Named-handler hooks for ``.agents/hooks.json`` (Antigravity schema)."""
+    """Named-handler hooks for ``.agents/hooks.json`` (Antigravity schema).
+
+    ``project_dir`` is baked into each command as ``--project-dir`` so hooks still
+    hit the shared project ``.brain/`` when Antigravity runs them with cwd=``.agents``.
+    """
     _ = config
     write_matcher = (
         "write_to_file|replace_file_content|multi_replace_file_content|run_command"
     )
+
+    def _cmd(*args: str, timeout: int | None = None) -> dict[str, object]:
+        return _agy_hook_command(
+            brainkm_bin, *args, timeout=timeout, project_dir=project_dir
+        )
+
     return {
         "brainkm": {
             "enabled": True,
             # Bonus: some builds accept SessionStart (Mem0); ignored if unsupported.
             "SessionStart": [
-                _agy_hook_command(
-                    brainkm_bin,
+                _cmd(
                     "pre-invocation",
                     "--stdin",
                     "--event",
@@ -459,8 +477,7 @@ def build_antigravity_hooks_config(
                 ),
             ],
             "PreInvocation": [
-                _agy_hook_command(
-                    brainkm_bin,
+                _cmd(
                     "pre-invocation",
                     "--stdin",
                     "--event",
@@ -472,8 +489,7 @@ def build_antigravity_hooks_config(
                 {
                     "matcher": write_matcher,
                     "hooks": [
-                        _agy_hook_command(
-                            brainkm_bin,
+                        _cmd(
                             "pre-tool",
                             "--stdin",
                             "--event",
@@ -487,8 +503,7 @@ def build_antigravity_hooks_config(
                 {
                     "matcher": write_matcher,
                     "hooks": [
-                        _agy_hook_command(
-                            brainkm_bin,
+                        _cmd(
                             "post-tool",
                             "--stdin",
                             "--event",
@@ -499,8 +514,7 @@ def build_antigravity_hooks_config(
                 }
             ],
             "Stop": [
-                _agy_hook_command(
-                    brainkm_bin,
+                _cmd(
                     "agent-stop",
                     "--stdin",
                     "--event",
@@ -528,9 +542,13 @@ def write_antigravity_hooks(
     brainkm_bin: str,
     *,
     config: BrainConfig | None = None,
+    project_dir: Path | None = None,
 ) -> dict[str, object]:
     """Write/merge brainkm Antigravity hooks into ``.agents/hooks.json``."""
-    incoming = build_antigravity_hooks_config(brainkm_bin, config=config)
+    root = resolve_project_dir(project_dir) if project_dir is not None else hooks_path.parent.parent
+    incoming = build_antigravity_hooks_config(
+        brainkm_bin, config=config, project_dir=root
+    )
     if hooks_path.is_file():
         existing = json.loads(hooks_path.read_text(encoding="utf-8"))
         if not isinstance(existing, dict):
@@ -539,6 +557,10 @@ def write_antigravity_hooks(
         existing = {}
     merged = merge_antigravity_hooks_json(existing, incoming)
     _write_json(hooks_path, merged)
+    # Always clear any leftover shadow brain after wiring hooks correctly.
+    from brainkm.services.antigravity_session import heal_antigravity_wiring
+
+    heal_antigravity_wiring(root, rewrite_hooks=False)
     return merged
 
 
@@ -1098,7 +1120,7 @@ def run_install(
             restrict_secret_file(mcp_path)
 
         hooks_path = agents_dir / "hooks.json"
-        write_antigravity_hooks(hooks_path, brainkm_bin, config=cfg)
+        write_antigravity_hooks(hooks_path, brainkm_bin, config=cfg, project_dir=root)
         result.files_written.append(hooks_path)
 
         guidance = install_client_guidance_assets(root, "antigravity", force=force)

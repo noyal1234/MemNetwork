@@ -14,4 +14,4 @@ def test_pyproject_version_matches_package() -> None:
     match = re.search(r'(?m)^version\s*=\s*"([^"]+)"', text)
     assert match is not None, "version missing from pyproject.toml"
     assert match.group(1) == brainkm.__version__
-    assert brainkm.__version__ == "0.8.0"
+    assert brainkm.__version__ == "0.8.1"

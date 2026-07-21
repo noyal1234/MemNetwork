@@ -66,7 +66,7 @@ Shipped adapters below. **Cursor is deepest today** (dogfood); others are first-
 | Event | Cursor | Claude | Antigravity | Codex | Notes |
 |-------|--------|--------|-------------|-------|-------|
 | SessionStart injection | yes | yes | via PreInvocation | yes | AGY: ephemeral; Claude/Codex: `hookSpecificOutput` |
-| SessionEnd distill + observe promote | yes | yes | idle Stop + debounce | Stop → session-end | Codex has no SessionEnd |
+| SessionEnd distill + observe promote | yes | yes | idle Stop + debounce | Stop → session-end | Codex has no SessionEnd; AGY Stop writes the **project** `.brain/` (hooks bake `--project-dir`; auto-heal removes shadow `.agents/.brain`) |
 | PreCompact handover | yes | yes | synthetic on PreInvocation | yes | AGY has no host PreCompact |
 | PostCompact refresh | — | yes | — | yes | Claude + Codex |
 | PostToolUse observe | yes | yes | yes (AGY tool names) | yes | Matchers include Bash/apply_patch/MCP |
@@ -83,15 +83,20 @@ Shipped adapters below. **Cursor is deepest today** (dogfood); others are first-
 | Codex CLI | `.codex/hooks.json`, `AGENTS.md`, `.codex/skills/` | `.codex/config.toml` `[mcp_servers.brainkm]` |
 | generic | CLI fallbacks | `.brain/mcp.http.example.json` or shared HTTP |
 
-### Distill modes (client peers)
+### Distill modes (extractor backends)
 
-| Mode | Mechanism |
-|------|-----------|
-| `cursor` | Cursor Agent CLI + heuristics |
-| `claude` | `claude -p` (+ MCP sampling when live); legacy `mcp` coerces to `claude` |
-| `antigravity` | `agy -p` |
-| `codex` | `codex exec` (read-only, unattended) |
-| `groq` / `ollama` / `rules` | Shared third-party / offline |
+`capture.distill_mode` is **one project-wide setting** shared by every connected IDE. It chooses the **extractor**, not the transcript parser (parsing is already per-host).
+
+| Mode | Mechanism | Typical pick |
+|------|-----------|--------------|
+| `cursor` | Cursor Agent CLI when available; else Cursor-aware heuristics | Cursor dogfood / no cloud |
+| `claude` | `claude -p` (+ MCP sampling when live); legacy `mcp` → `claude` | Claude Code local CLI |
+| `antigravity` | `agy -p` | Antigravity local CLI |
+| `codex` | `codex exec` (read-only, unattended) | Codex CLI |
+| `groq` / `ollama` | Shared cloud / local LLM | Same backend for every IDE |
+| `rules` | Offline pattern fallback | CI / no LLM |
+
+Prefer a **generic** mode (`groq` or `ollama`) when multiple IDEs share one brain. IDE-named modes are optional when you want that product’s CLI; they still run on any host’s already-parsed rounds.
 
 ### Coexistence with host-native memory
 

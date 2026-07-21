@@ -41,9 +41,9 @@ class ActionsScreen(Screen):
 
             # --- Action buttons (horizontal rows — avoids grid gutter artifacts) ---
             with Horizontal(classes="action-buttons-row"):
-                yield Button(
-                    bracket_label("Graph Sync"), id="btn-graph-sync", classes="-primary"
-                )
+                # No permanent -primary: purple fill is reserved for focus only
+                # (otherwise Graph Sync stays purple while another button is focused).
+                yield Button(bracket_label("Graph Sync"), id="btn-graph-sync")
                 yield Button(bracket_label("Graph Status"), id="btn-graph-status")
                 yield Button(bracket_label("Ollama Doctor"), id="btn-ollama-doctor")
                 yield Button(bracket_label("Groq Doctor"), id="btn-groq-doctor")

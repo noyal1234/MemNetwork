@@ -842,3 +842,70 @@ ConfirmDiscardModal .modal-buttons Button {
     margin: 0 0 0 1;
     min-width: 12;
 }
+
+/* === Review detail modal === */
+
+ReviewDetailModal {
+    align: center middle;
+}
+
+ReviewDetailModal #review-detail-box {
+    width: 72;
+    max-width: 90%;
+    height: auto;
+    max-height: 80%;
+    border: solid $primary-container;
+    background: $surface-alt;
+    padding: 1 2;
+}
+
+ReviewDetailModal .modal-title {
+    text-style: bold;
+    color: $warning;
+    height: 1;
+    margin-bottom: 1;
+}
+
+ReviewDetailModal .modal-meta {
+    color: $text-muted;
+    height: auto;
+    margin-bottom: 1;
+}
+
+ReviewDetailModal .modal-title-line {
+    color: $text;
+    text-style: bold;
+    height: auto;
+    margin-bottom: 1;
+}
+
+ReviewDetailModal #review-detail-body-scroll {
+    height: 12;
+    max-height: 16;
+    border: solid $border;
+    background: $surface;
+    padding: 0 1;
+    margin-bottom: 1;
+}
+
+ReviewDetailModal .modal-body {
+    color: $text;
+    height: auto;
+}
+
+ReviewDetailModal .modal-hint {
+    color: $text-muted;
+    height: 1;
+    margin-bottom: 1;
+}
+
+ReviewDetailModal .modal-buttons {
+    layout: horizontal;
+    height: 3;
+    align: right middle;
+}
+
+ReviewDetailModal .modal-buttons Button {
+    margin: 0 0 0 1;
+    min-width: 12;
+}

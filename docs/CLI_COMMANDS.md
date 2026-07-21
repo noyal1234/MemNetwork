@@ -24,7 +24,7 @@ brainkm --help
 | `brainkm migrate` | Apply pending SQLite migrations | `--project-dir` | `brainkm migrate` |
 | `brainkm configure` | Launch Textual config dashboard (wizard / status / forms / actions) | `--project-dir` | `brainkm configure` |
 
-> **Tip:** Prefer `brainkm configure` (0.8.0): app checkboxes (Cursor / Claude / Antigravity / Codex) → one app = silent stdio; two+ = shared HTTP + **Start Brain**. Codex writes `.codex/config.toml` + hooks (trust project + `/hooks`). Semantic Quality consent is separate. Power users: `serve` + `connect --http`. Requires `pip install -e "./brainkm[tui]"`. Semantic weights: `pip install -e "./brainkm[semantic]"`. Design notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
+> **Tip:** Prefer `brainkm configure` (0.8.1): app checkboxes (Cursor / Claude / Antigravity / Codex) → one app = silent stdio; two+ = shared HTTP + **Start Brain**. Codex writes `.codex/config.toml` + hooks (trust project + `/hooks`). Semantic Quality consent is separate. Power users: `serve` + `connect --http`. Requires `pip install -e "./brainkm[tui]"`. Semantic weights: `pip install -e "./brainkm[semantic]"`. Design notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
 >
 > **Dashboard:** the **MCP Doctor** panel shows the same wiring report as `brainkm doctor` (color-coded). **Review Queue** lists low-confidence auto-captures for `y` approve / `n` reject.
 
@@ -39,7 +39,9 @@ brainkm --help
 
 Distill backend is selected by `capture.distill_mode` in `.brain/config.json`: `rules` \| `cursor` \| `claude` \| `antigravity` \| `codex` \| `ollama` \| `groq` (legacy `mcp` coerces to `claude`).
 
-**Groq (cloud):** also set `capture.cloud_distill_acknowledged: true` (wizard sets this when you pick groq). Without consent, Groq mode falls back to `rules` and never uploads transcripts.
+This is a **project-wide** extractor choice (which CLI/LLM extracts neurons). Transcript **parsing** is already per-host (Cursor vs Antigravity vs Claude JSONL). Mode names like `cursor` / `antigravity` mean “use that product’s CLI or heuristics as the extractor,” not “only works on that host’s transcripts.” A single generic mode (`groq` / `ollama`) for every IDE is the usual shared-brain default.
+
+**Groq (cloud):** also set `capture.cloud_distill_acknowledged: true` (wizard sets this when you pick groq). Without consent, Groq mode falls back to `rules` and never uploads transcripts. Put `GROQ_API_KEY` in the **project** `.env` (or the process environment) — never in `.brain/config.json`. Hook hosts that run with a nested cwd (e.g. Antigravity under `.agents/`) load `{project}/.env` via `--project-dir` / workspace resolution.
 
 All modes clean host chrome before extract. PreCompact / synthetic-precompact handover allows up to `handover.precompact_distill_timeout_seconds` (default **30s**) before falling back to `rules`. `claude` uses live MCP sampling when registered, else `claude -p`; `antigravity` uses `agy -p`; `codex` uses `codex exec --sandbox read-only --ask-for-approval never`.
 
@@ -162,7 +164,7 @@ These commands expect hook payload JSON on stdin (`--stdin`). Cursor / Claude / 
 | `brainkm post-compact` | PostCompact | Refresh frozen snapshot (Claude) |
 | `brainkm subagent-start` | SubagentStart | Subagent activity (Claude) |
 | `brainkm subagent-stop` | SubagentStop | Promote observations for subagent (Claude) |
-| `brainkm agent-stop` | Stop | Claude flush / AGY idle distill (`fullyIdle`) |
+| `brainkm agent-stop` | Stop | Claude flush / AGY idle distill (`fullyIdle`); AGY resolves project root from `--project-dir` / `workspacePaths` / parent of `.agents` cwd |
 
 Example debug:
 

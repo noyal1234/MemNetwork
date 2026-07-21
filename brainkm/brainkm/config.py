@@ -53,6 +53,31 @@ def get_settings() -> Settings:
     return Settings()
 
 
+def apply_project_env(project_dir: Path | None) -> Path | None:
+    """Load ``{project_dir}/.env`` into the process and refresh settings.
+
+    Antigravity (and some other hosts) run hooks with ``cwd`` set to a nested
+    customization dir (e.g. ``.agents/``). Pydantic's default ``env_file=".env"``
+    is cwd-relative, so ``GROQ_API_KEY`` in the project ``.env`` would be missed
+    and Groq distill would silently fall back to rules. Call this after resolving
+    the real project root.
+    """
+    if project_dir is None:
+        return None
+    root = project_dir.expanduser().resolve()
+    env_path = root / ".env"
+    if not env_path.is_file():
+        return None
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return None
+    # Do not override vars already set in the real environment.
+    load_dotenv(env_path, override=False)
+    get_settings.cache_clear()
+    return env_path
+
+
 def set_skip_rolling_scores(enabled: bool) -> None:
     """Toggle BRAINKM_SKIP_ROLLING_SCORES and clear the settings cache."""
     import os
