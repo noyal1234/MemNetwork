@@ -12,6 +12,7 @@ from brainkm.services.client_adapters import get_client_adapter
 from brainkm.services.config_loader import load_brain_config, save_brain_config
 from brainkm.services.install import (
     build_hooks_config,
+    install_client_guidance_assets,
     merge_hooks_json,
     resolve_hook_command,
     resolve_project_dir,
@@ -219,6 +220,13 @@ def run_connect(
                 else:
                     _write_json(hooks_path, hooks_payload)
                 result.files_written.append(hooks_path)
+
+    # Rules / skills / AGENTS|CLAUDE snippet — same assets as primary install.
+    # Multi-app wizard uses connect for secondary clients; without this they
+    # only got MCP + hooks and missed routing guidance.
+    if kind in ("cursor", "claude", "antigravity", "codex"):
+        guidance = install_client_guidance_assets(root, kind, force=False)
+        result.files_written.extend(guidance.files_written)
 
     if update_config:
         cfg = load_brain_config(root)

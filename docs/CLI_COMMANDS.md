@@ -19,7 +19,7 @@ brainkm --help
 | `brainkm version` | Print installed package version | — | `brainkm version` |
 | `brainkm install` | Scaffold `.brain/`, MCP config, hooks, rule | `--project-dir`, `--dev`, `--force`, `--no-graph`, `--client cursor\|claude\|antigravity\|codex\|generic`, `--http`, `--host`, `--port` | `brainkm install --dev --client antigravity` |
 | `brainkm serve` | Shared HTTP MCP server (alias of `mcp --http`) | `--project-dir`, `--host`, `--port`, `--allow-remote` | `brainkm serve --project-dir .` |
-| `brainkm connect` | Wire a client to stdio or shared HTTP (writes Bearer token into client MCP config) | `--project-dir`, `--http/--stdio`, `--hooks/--no-hooks`, `--host`, `--port`, `--dev`, `--mirror-global` (Antigravity) | `brainkm connect codex --http --hooks` |
+| `brainkm connect` | Wire a client to stdio or shared HTTP (MCP + hooks + routing rules/skills; writes Bearer for HTTP) | `--project-dir`, `--http/--stdio`, `--hooks/--no-hooks`, `--host`, `--port`, `--dev`, `--mirror-global` (Antigravity) | `brainkm connect codex --http --hooks` |
 | `brainkm doctor` | Health + client wiring + auto_observe / dual-writer / missing Bearer checks | `--project-dir`, `--host`, `--port` | `brainkm doctor` |
 | `brainkm migrate` | Apply pending SQLite migrations | `--project-dir` | `brainkm migrate` |
 | `brainkm configure` | Launch Textual config dashboard (wizard / status / forms / actions) | `--project-dir` | `brainkm configure` |

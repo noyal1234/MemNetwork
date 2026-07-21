@@ -64,6 +64,32 @@ def test_normalize_antigravity_stdin_tool_call() -> None:
     assert out["tool_input"]["path"] == "foo.py"
 
 
+def test_normalize_antigravity_stdin_absolute_path() -> None:
+    """AGY view_file / some write tools pass AbsolutePath instead of TargetFile."""
+    raw = {
+        "conversationId": "conv-2",
+        "toolCall": {
+            "name": "view_file",
+            "args": {"AbsolutePath": "/Users/me/proj/bar.py"},
+        },
+    }
+    out = normalize_antigravity_stdin(raw, event="PostToolUse")
+    assert out["tool_input"]["path"] == "/Users/me/proj/bar.py"
+    assert out["tool_input"]["file_path"] == "/Users/me/proj/bar.py"
+    # TargetFile wins when both are present.
+    both = {
+        "toolCall": {
+            "name": "write_to_file",
+            "args": {
+                "TargetFile": "rel.py",
+                "AbsolutePath": "/abs/rel.py",
+            },
+        }
+    }
+    out_both = normalize_antigravity_stdin(both, event="PostToolUse")
+    assert out_both["tool_input"]["path"] == "rel.py"
+
+
 def test_antigravity_stdout_envelopes() -> None:
     inject = HookRunResult(
         hook="PreInvocation",
@@ -170,6 +196,33 @@ def test_connect_antigravity_http(tmp_path: Path) -> None:
     assert entry.get("serverUrl") == "http://127.0.0.1:8765/mcp"
     assert "command" not in entry
     assert result.mcp_url is not None
+
+
+def test_connect_secondary_antigravity_writes_rules_and_skills(tmp_path: Path) -> None:
+    """Multi-app wizard path: primary Cursor install + connect Antigravity."""
+    run_install(
+        project_dir=tmp_path,
+        dev=True,
+        force=True,
+        no_graph=True,
+        client="cursor",
+        http=True,
+    )
+    assert not (tmp_path / ".agents" / "rules" / "brainkm.md").is_file()
+    result = run_connect(
+        "antigravity",
+        tmp_path,
+        transport="http",
+        hooks=True,
+        dev=True,
+    )
+    assert (tmp_path / ".agents" / "mcp_config.json").is_file()
+    assert (tmp_path / ".agents" / "hooks.json").is_file()
+    assert (tmp_path / ".agents" / "rules" / "brainkm.md").is_file()
+    assert (tmp_path / ".agents" / "skills" / "brainkm-routing" / "SKILL.md").is_file()
+    written = {p.name for p in result.files_written}
+    assert "brainkm.md" in written
+    assert "SKILL.md" in written
 
 
 def test_legacy_mcp_distill_coerces_to_claude() -> None:

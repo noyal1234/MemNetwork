@@ -709,6 +709,154 @@ def _load_package_rule_template() -> str:
         return fallback.read_text(encoding="utf-8")
 
 
+@dataclass
+class GuidanceAssetsResult:
+    """Routing rule / skill / project-md assets written by install or connect."""
+
+    files_written: list[Path] = field(default_factory=list)
+    files_skipped: list[Path] = field(default_factory=list)
+
+
+def _hooks_package_dir() -> Path:
+    return Path(__file__).resolve().parents[1] / "hooks"
+
+
+def _copy_guidance_text(
+    *,
+    src: Path | None,
+    dst: Path,
+    force: bool,
+    content: str | None = None,
+    result: GuidanceAssetsResult,
+) -> None:
+    """Write ``dst`` from ``content`` or ``src``; skip when present unless force."""
+    if content is None:
+        if src is None or not src.is_file():
+            return
+        content = src.read_text(encoding="utf-8")
+    if dst.is_file() and not force:
+        result.files_skipped.append(dst)
+        return
+    _write_text(dst, content)
+    result.files_written.append(dst)
+
+
+def install_client_guidance_assets(
+    project_dir: Path,
+    client: str,
+    *,
+    force: bool = False,
+) -> GuidanceAssetsResult:
+    """Install per-client routing rule + skill (+ AGENTS/CLAUDE snippet).
+
+    Used by both ``run_install`` and ``run_connect`` so secondary apps in the
+    multi-IDE wizard get the same guidance assets as a primary install.
+    """
+    from brainkm.services.client_adapters import get_client_adapter
+
+    root = resolve_project_dir(project_dir)
+    kind = str(client).lower()
+    adapter = get_client_adapter(kind)
+    result = GuidanceAssetsResult()
+    hooks_root = _hooks_package_dir()
+
+    if kind == "cursor":
+        cursor_dir = root / ".cursor"
+        cursor_dir.mkdir(parents=True, exist_ok=True)
+        (cursor_dir / "rules").mkdir(parents=True, exist_ok=True)
+        _copy_guidance_text(
+            src=None,
+            dst=cursor_dir / "rules" / "brainkm.mdc",
+            force=force,
+            content=_load_package_rule_template(),
+            result=result,
+        )
+        _copy_guidance_text(
+            src=hooks_root / "cursor" / "skills" / "brainkm-routing" / "SKILL.md",
+            dst=cursor_dir / "skills" / "brainkm-routing" / "SKILL.md",
+            force=force,
+            result=result,
+        )
+        return result
+
+    if kind == "antigravity":
+        agents_dir = root / ".agents"
+        agents_dir.mkdir(parents=True, exist_ok=True)
+        _copy_guidance_text(
+            src=hooks_root / "antigravity" / "rules" / "brainkm.md",
+            dst=agents_dir / "rules" / "brainkm.md",
+            force=force,
+            result=result,
+        )
+        _copy_guidance_text(
+            src=hooks_root / "antigravity" / "skills" / "brainkm-routing" / "SKILL.md",
+            dst=agents_dir / "skills" / "brainkm-routing" / "SKILL.md",
+            force=force,
+            result=result,
+        )
+        agents_path = root / "AGENTS.md"
+        action = upsert_project_md_snippet(
+            agents_path, adapter.agents_snippet(), force=force
+        )
+        if action == "skipped":
+            result.files_skipped.append(agents_path)
+        else:
+            result.files_written.append(agents_path)
+        return result
+
+    if kind == "claude":
+        claude_dir = root / ".claude"
+        claude_dir.mkdir(parents=True, exist_ok=True)
+        _copy_guidance_text(
+            src=hooks_root / "claude" / "rules" / "brainkm.md",
+            dst=claude_dir / "rules" / "brainkm.md",
+            force=force,
+            result=result,
+        )
+        _copy_guidance_text(
+            src=hooks_root / "claude" / "skills" / "brainkm-routing" / "SKILL.md",
+            dst=claude_dir / "skills" / "brainkm-routing" / "SKILL.md",
+            force=force,
+            result=result,
+        )
+        agents_path = root / "CLAUDE.md"
+        action = upsert_project_md_snippet(
+            agents_path, adapter.agents_snippet(), force=force
+        )
+        if action == "skipped":
+            result.files_skipped.append(agents_path)
+        else:
+            result.files_written.append(agents_path)
+        return result
+
+    if kind == "codex":
+        codex_dir = root / ".codex"
+        codex_dir.mkdir(parents=True, exist_ok=True)
+        _copy_guidance_text(
+            src=hooks_root / "codex" / "rules" / "brainkm.md",
+            dst=codex_dir / "rules" / "brainkm.md",
+            force=force,
+            result=result,
+        )
+        _copy_guidance_text(
+            src=hooks_root / "codex" / "skills" / "brainkm-routing" / "SKILL.md",
+            dst=codex_dir / "skills" / "brainkm-routing" / "SKILL.md",
+            force=force,
+            result=result,
+        )
+        agents_path = root / "AGENTS.md"
+        action = upsert_project_md_snippet(
+            agents_path, adapter.agents_snippet(), force=force
+        )
+        if action == "skipped":
+            result.files_skipped.append(agents_path)
+        else:
+            result.files_written.append(agents_path)
+        return result
+
+    return result
+
+
 def _ensure_gitignore_entry(project_dir: Path, entry: str) -> bool:
     gitignore = project_dir / ".gitignore"
     if gitignore.is_file():
@@ -928,29 +1076,9 @@ def run_install(
             _write_json(hooks_path, merge_hooks_json({}, hooks_payload))
             result.files_written.append(hooks_path)
 
-        rule_path = cursor_dir / "rules" / "brainkm.mdc"
-        if rule_path.is_file() and not force:
-            result.files_skipped.append(rule_path)
-        else:
-            _write_text(rule_path, _load_package_rule_template())
-            result.files_written.append(rule_path)
-
-        # Install brainkm routing skill for Cursor agents.
-        skill_src = (
-            Path(__file__).resolve().parents[1]
-            / "hooks"
-            / "cursor"
-            / "skills"
-            / "brainkm-routing"
-            / "SKILL.md"
-        )
-        if skill_src.is_file():
-            skill_dst = cursor_dir / "skills" / "brainkm-routing" / "SKILL.md"
-            if skill_dst.is_file() and not force:
-                result.files_skipped.append(skill_dst)
-            else:
-                _write_text(skill_dst, skill_src.read_text(encoding="utf-8"))
-                result.files_written.append(skill_dst)
+        guidance = install_client_guidance_assets(root, "cursor", force=force)
+        result.files_written.extend(guidance.files_written)
+        result.files_skipped.extend(guidance.files_skipped)
 
     if adapter.kind == "antigravity":
         agents_dir = root / ".agents"
@@ -973,46 +1101,9 @@ def run_install(
         write_antigravity_hooks(hooks_path, brainkm_bin, config=cfg)
         result.files_written.append(hooks_path)
 
-        rule_src = (
-            Path(__file__).resolve().parents[1]
-            / "hooks"
-            / "antigravity"
-            / "rules"
-            / "brainkm.md"
-        )
-        if rule_src.is_file():
-            rule_dst = agents_dir / "rules" / "brainkm.md"
-            if rule_dst.is_file() and not force:
-                result.files_skipped.append(rule_dst)
-            else:
-                _write_text(rule_dst, rule_src.read_text(encoding="utf-8"))
-                result.files_written.append(rule_dst)
-
-        skill_src = (
-            Path(__file__).resolve().parents[1]
-            / "hooks"
-            / "antigravity"
-            / "skills"
-            / "brainkm-routing"
-            / "SKILL.md"
-        )
-        if skill_src.is_file():
-            skill_dst = agents_dir / "skills" / "brainkm-routing" / "SKILL.md"
-            if skill_dst.is_file() and not force:
-                result.files_skipped.append(skill_dst)
-            else:
-                _write_text(skill_dst, skill_src.read_text(encoding="utf-8"))
-                result.files_written.append(skill_dst)
-
-        # Upsert AGENTS.md snippet for Antigravity (skip unless --force when present).
-        agents_path = root / "AGENTS.md"
-        action = upsert_project_md_snippet(
-            agents_path, adapter.agents_snippet(), force=force
-        )
-        if action == "skipped":
-            result.files_skipped.append(agents_path)
-        else:
-            result.files_written.append(agents_path)
+        guidance = install_client_guidance_assets(root, "antigravity", force=force)
+        result.files_written.extend(guidance.files_written)
+        result.files_skipped.extend(guidance.files_skipped)
 
     if adapter.kind == "claude":
         mcp_path = root / ".mcp.json"
@@ -1042,42 +1133,9 @@ def run_install(
                 "settings hooks with `brainkm doctor`."
             )
 
-        # Path-scoped routing rule (Claude equivalent of brainkm.mdc).
-        rule_src = (
-            Path(__file__).resolve().parents[1] / "hooks" / "claude" / "rules" / "brainkm.md"
-        )
-        if rule_src.is_file():
-            rule_dst = claude_dir / "rules" / "brainkm.md"
-            if rule_dst.is_file() and not force:
-                result.files_skipped.append(rule_dst)
-            else:
-                _write_text(rule_dst, rule_src.read_text(encoding="utf-8"))
-                result.files_written.append(rule_dst)
-
-        skill_src = (
-            Path(__file__).resolve().parents[1]
-            / "hooks"
-            / "claude"
-            / "skills"
-            / "brainkm-routing"
-            / "SKILL.md"
-        )
-        if skill_src.is_file():
-            skill_dst = claude_dir / "skills" / "brainkm-routing" / "SKILL.md"
-            if skill_dst.is_file() and not force:
-                result.files_skipped.append(skill_dst)
-            else:
-                _write_text(skill_dst, skill_src.read_text(encoding="utf-8"))
-                result.files_written.append(skill_dst)
-
-        agents_path = root / "CLAUDE.md"
-        action = upsert_project_md_snippet(
-            agents_path, adapter.agents_snippet(), force=force
-        )
-        if action == "skipped":
-            result.files_skipped.append(agents_path)
-        else:
-            result.files_written.append(agents_path)
+        guidance = install_client_guidance_assets(root, "claude", force=force)
+        result.files_written.extend(guidance.files_written)
+        result.files_skipped.extend(guidance.files_skipped)
 
     if adapter.kind == "codex":
         from brainkm.services.mcp_transport import write_codex_mcp_config
@@ -1102,41 +1160,9 @@ def run_install(
         write_codex_hooks(hooks_path, brainkm_bin, config=cfg)
         result.files_written.append(hooks_path)
 
-        rule_src = (
-            Path(__file__).resolve().parents[1] / "hooks" / "codex" / "rules" / "brainkm.md"
-        )
-        if rule_src.is_file():
-            rule_dst = codex_dir / "rules" / "brainkm.md"
-            if rule_dst.is_file() and not force:
-                result.files_skipped.append(rule_dst)
-            else:
-                _write_text(rule_dst, rule_src.read_text(encoding="utf-8"))
-                result.files_written.append(rule_dst)
-
-        skill_src = (
-            Path(__file__).resolve().parents[1]
-            / "hooks"
-            / "codex"
-            / "skills"
-            / "brainkm-routing"
-            / "SKILL.md"
-        )
-        if skill_src.is_file():
-            skill_dst = codex_dir / "skills" / "brainkm-routing" / "SKILL.md"
-            if skill_dst.is_file() and not force:
-                result.files_skipped.append(skill_dst)
-            else:
-                _write_text(skill_dst, skill_src.read_text(encoding="utf-8"))
-                result.files_written.append(skill_dst)
-
-        agents_path = root / "AGENTS.md"
-        action = upsert_project_md_snippet(
-            agents_path, adapter.agents_snippet(), force=force
-        )
-        if action == "skipped":
-            result.files_skipped.append(agents_path)
-        else:
-            result.files_written.append(agents_path)
+        guidance = install_client_guidance_assets(root, "codex", force=force)
+        result.files_written.extend(guidance.files_written)
+        result.files_skipped.extend(guidance.files_skipped)
 
     if adapter.kind == "generic":
         from brainkm.services.connect import run_connect

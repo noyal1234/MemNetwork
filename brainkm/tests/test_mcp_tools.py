@@ -513,3 +513,32 @@ def test_recall_rate_limit_anonymous_not_shared() -> None:
     assert state.check(None, cfg) is True
     assert state.check("s1", cfg) is True
     assert state.check("s1", cfg) is False
+
+
+def test_traverse_request_accepts_query_symbol_path_aliases() -> None:
+    assert TraverseRequest.model_validate({"query": "run_install"}).from_ref == "run_install"
+    assert TraverseRequest.model_validate({"symbol": "Foo.bar"}).from_ref == "Foo.bar"
+    assert TraverseRequest.model_validate({"path": "a.py"}).from_ref == "a.py"
+    # Canonical wins over aliases.
+    assert (
+        TraverseRequest.model_validate({"from_ref": "keep", "query": "other"}).from_ref
+        == "keep"
+    )
+
+
+def test_remember_request_accepts_content_text_aliases() -> None:
+    req = RememberRequest.model_validate(
+        {"title": "Auth", "content": "Use JWT for API auth"}
+    )
+    assert req.body == "Use JWT for API auth"
+    req2 = RememberRequest.model_validate(
+        {"name": "Rule", "text": "Never store secrets in neurons"}
+    )
+    assert req2.title == "Rule"
+    assert req2.body == "Never store secrets in neurons"
+    # Last-resort title from body first line.
+    req3 = RememberRequest.model_validate(
+        {"content": "Chose SQLite for V1 local brain storage."}
+    )
+    assert req3.body.startswith("Chose SQLite")
+    assert req3.title.startswith("Chose SQLite")

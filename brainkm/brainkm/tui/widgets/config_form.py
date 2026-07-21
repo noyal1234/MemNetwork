@@ -30,6 +30,16 @@ SECTION_FIELDS: dict[str, list[dict[str, Any]]] = {
             ),
         },
         {
+            "key": "auto_observe",
+            "label": "Auto Observe (hooks)",
+            "type": "bool",
+            "help": (
+                "Store capped mid-session observations from hooks "
+                "(PostToolUse, prompts, failures). Off = distill + manual pins only. "
+                "Multi-app HTTP install turns this on by default."
+            ),
+        },
+        {
             "key": "max_auto_neurons_per_session",
             "label": "Max Auto Neurons / Session",
             "type": "int",

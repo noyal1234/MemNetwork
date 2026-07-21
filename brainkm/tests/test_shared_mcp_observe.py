@@ -14,6 +14,7 @@ from brainkm.services.install import build_mcp_config, run_install
 from brainkm.services.mcp_doctor import build_mcp_doctor_report
 from brainkm.services.mcp_transport import build_mcp_config as transport_build
 from brainkm.services.observe import (
+    extract_observation_path,
     promote_session_observations,
     record_observation,
 )
@@ -197,3 +198,13 @@ def test_install_http_enables_auto_observe(tmp_path: Path) -> None:
     assert cfg["capture"]["auto_observe"] is True
     mcp = json.loads((tmp_path / ".cursor" / "mcp.json").read_text(encoding="utf-8"))
     assert mcp["mcpServers"]["brainkm"]["url"].endswith(":8765/mcp")
+
+
+def test_extract_observation_path_accepts_absolute_path() -> None:
+    assert (
+        extract_observation_path({"tool_input": {"AbsolutePath": "/tmp/x.py"}})
+        == "/tmp/x.py"
+    )
+    assert (
+        extract_observation_path({"tool_input": {"TargetFile": "rel.py"}}) == "rel.py"
+    )

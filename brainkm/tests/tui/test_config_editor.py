@@ -66,6 +66,33 @@ async def test_save_writes_edited_value_to_the_right_project(tui_project: Path) 
         assert screen.query_one("#btn-save", Button).disabled is True
 
 
+def test_capture_section_includes_auto_observe() -> None:
+    keys = {f["key"] for f in SECTION_FIELDS["capture"]}
+    assert "auto_observe" in keys
+    field = next(f for f in SECTION_FIELDS["capture"] if f["key"] == "auto_observe")
+    assert field["type"] == "bool"
+
+
+async def test_save_auto_observe_toggle(tui_project: Path) -> None:
+    """Config Editor must expose and persist capture.auto_observe."""
+    app = BrainkmConfigureApp(project_dir=tui_project)
+    async with app.run_test(size=(120, 60)) as pilot:
+        app.switch_screen("config")
+        await pilot.pause(0.6)
+        screen = app.screen
+
+        switch = screen.query_one("#field-capture-auto_observe", Switch)
+        assert switch.value is False  # schema default
+        switch.toggle()
+        await pilot.pause(0.3)
+
+        screen._save_config()
+        await pilot.pause(0.8)
+
+        saved = json.loads((tui_project / ".brain" / "config.json").read_text())
+        assert saved["capture"]["auto_observe"] is True
+
+
 async def test_invalid_value_disables_save_and_shows_error(tui_project: Path) -> None:
     app = BrainkmConfigureApp(project_dir=tui_project)
     async with app.run_test(size=(120, 60)) as pilot:

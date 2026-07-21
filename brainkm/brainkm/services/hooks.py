@@ -222,9 +222,10 @@ def normalize_antigravity_stdin(
     if tool_input:
         # Map AGY file/shell args to common observe keys.
         mapped = dict(tool_input)
-        if "TargetFile" in tool_input and "path" not in mapped:
-            mapped["path"] = tool_input["TargetFile"]
-            mapped["file_path"] = tool_input["TargetFile"]
+        filepath = tool_input.get("TargetFile") or tool_input.get("AbsolutePath")
+        if isinstance(filepath, str) and filepath.strip() and "path" not in mapped:
+            mapped["path"] = filepath
+            mapped["file_path"] = filepath
         if "CommandLine" in tool_input and "command" not in mapped:
             mapped["command"] = tool_input["CommandLine"]
         out.setdefault("tool_input", mapped)

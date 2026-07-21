@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -30,7 +30,11 @@ class RememberRequest(BaseModel):
     """Pin durable project truth, correct a wrong capture, or archive a neuron."""
 
     title: str | None = Field(default=None, min_length=1, max_length=200)
-    body: str | None = Field(default=None, min_length=1)
+    body: str | None = Field(
+        default=None,
+        min_length=1,
+        description="Neuron body text (aliases accepted at parse time: content, text)",
+    )
     kind: str = Field(default="memory")
     subtype: str = Field(default="fact")
     tags: list[str] = Field(default_factory=list)
@@ -50,6 +54,34 @@ class RememberRequest(BaseModel):
         default=None,
         description="Optional archive/correct reason for audit_log",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def map_remember_aliases(cls, data: Any) -> Any:
+        """Accept common LLM aliases (content/text → body; name/summary → title)."""
+        if not isinstance(data, dict):
+            return data
+        out = dict(data)
+        if not out.get("body"):
+            for key in ("content", "text"):
+                value = out.get(key)
+                if isinstance(value, str) and value.strip():
+                    out["body"] = value
+                    break
+        if not out.get("title"):
+            for key in ("name", "summary"):
+                value = out.get(key)
+                if isinstance(value, str) and value.strip():
+                    out["title"] = value.strip()[:200]
+                    break
+        # Last resort for pin/correct: derive a short title from the body.
+        action = str(out.get("action") or "pin").strip().lower()
+        if action != "archive" and not out.get("title"):
+            body = out.get("body")
+            if isinstance(body, str) and body.strip():
+                first = body.strip().splitlines()[0].strip()
+                out["title"] = first[:60] if first else None
+        return out
 
     @model_validator(mode="after")
     def validate_action_fields(self) -> RememberRequest:
@@ -179,9 +211,27 @@ class TruncationManifest(BaseModel):
 
 class ContextPackResponse(BaseModel):
     query: str
-    pack_text: str
-    neurons: list[NeuronResult]
-    graph_nodes: list[NeuronResult] = Field(default_factory=list)
+    pack_text: str = Field(
+        description=(
+            "Formatted pack (decisions + code neighborhood). Primary agent-facing "
+            "payload — prefer this over neurons/graph_nodes when include_structured "
+            "was false (default)."
+        ),
+    )
+    neurons: list[NeuronResult] = Field(
+        default_factory=list,
+        description=(
+            "Structured memory hits. Empty by default to save tokens; set "
+            "include_structured=true to duplicate pack_text into this array."
+        ),
+    )
+    graph_nodes: list[NeuronResult] = Field(
+        default_factory=list,
+        description=(
+            "Structured code-graph neighborhood. Empty by default; set "
+            "include_structured=true to populate (duplicates pack_text)."
+        ),
+    )
     truncation: TruncationManifest
     graph_available: bool = True
     graph_hint: str | None = None
@@ -214,9 +264,11 @@ class SessionStatusResponse(BaseModel):
 class TraverseRequest(BaseModel):
     from_ref: str = Field(
         ...,
+        min_length=1,
         description=(
             "Symbol name, file path, or node ID to traverse from. "
-            "For blast-radius: what calls/imports this symbol?"
+            "For blast-radius: what calls/imports this symbol? "
+            "Aliases accepted at parse time: query, symbol, path."
         ),
     )
     to_ref: str | None = Field(
@@ -239,6 +291,21 @@ class TraverseRequest(BaseModel):
             "in=callers/importers of from_ref; out=callees/exports from from_ref."
         ),
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def map_traverse_aliases(cls, data: Any) -> Any:
+        """Accept common LLM aliases (query/symbol/path → from_ref)."""
+        if not isinstance(data, dict):
+            return data
+        out = dict(data)
+        if not out.get("from_ref"):
+            for key in ("query", "symbol", "path"):
+                value = out.get(key)
+                if isinstance(value, str) and value.strip():
+                    out["from_ref"] = value.strip()
+                    break
+        return out
 
 
 class ImpactSummary(BaseModel):

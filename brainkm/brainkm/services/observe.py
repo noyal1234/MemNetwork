@@ -56,13 +56,27 @@ def observation_fingerprint(
 
 
 def extract_observation_path(payload: dict[str, object]) -> str | None:
-    for key in ("file_path", "path", "target_file", "filePath"):
+    for key in (
+        "file_path",
+        "path",
+        "target_file",
+        "filePath",
+        "TargetFile",
+        "AbsolutePath",
+    ):
         value = payload.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()[:240]
     tool_input = payload.get("tool_input") or payload.get("input")
     if isinstance(tool_input, dict):
-        for key in ("file_path", "path", "target_file", "command"):
+        for key in (
+            "file_path",
+            "path",
+            "target_file",
+            "TargetFile",
+            "AbsolutePath",
+            "command",
+        ):
             value = tool_input.get(key)
             if isinstance(value, str) and value.strip():
                 return value.strip()[:240]

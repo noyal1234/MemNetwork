@@ -17,6 +17,9 @@ graphify-out/
 .cursor/hooks.json
 .cursor/rules/
 
+# --- Antigravity (machine-local / install output) ---
+.agents/
+
 # --- Python packaging ---
 dist/
 build/
@@ -29,3 +32,5 @@ Thumbs.db
 
 # --- Local env ---
 .env
+.brain/mcp_http_token
+.brain/exports/

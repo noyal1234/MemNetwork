@@ -44,6 +44,7 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
         (
             "Pin durable project truth, correct a wrong auto-capture (action=correct + "
             "target_node_id writes a supersedes edge), or archive noise (action=archive). "
+            "Requires title+body for pin/correct (body aliases: content, text). "
             "Hooks (not this tool) are the primary memory path — do not use for ordinary "
             "session notes."
         ),
@@ -66,7 +67,9 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
         (
             "Compile a bounded task pack (decisions + code neighborhood + procedures). "
             "Prefer before reading 3+ source files — include a symbol or path "
-            "(or seed_refs). Auto-queues graph refresh when stale. For pure "
+            "(or seed_refs). Results are in pack_text by default; neurons/graph_nodes "
+            "arrays stay empty unless include_structured=true (duplicates pack_text, "
+            "costs more tokens). Auto-queues graph refresh when stale. For pure "
             "call/import/blast-radius questions use traverse."
         ),
         ContextPackRequest,
@@ -77,8 +80,9 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
         (
             "Impact analysis: AST neighborhood (callers/callees/imports) plus "
             "impact_summary (hop counts, high fan-in risk) and linked decision/error "
-            "neurons. Prefer for 'what breaks if I change Y?'. Not for decisions-only "
-            "(recall) or multi-file task packs (context_pack)."
+            "neurons. Prefer for 'what breaks if I change Y?'. Pass from_ref (or "
+            "alias query/symbol/path). Not for decisions-only (recall) or multi-file "
+            "task packs (context_pack)."
         ),
         TraverseRequest,
         TraverseResponse,
