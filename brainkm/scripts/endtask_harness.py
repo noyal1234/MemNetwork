@@ -54,6 +54,20 @@ from brainkm.services.endtask_bench import (  # noqa: E402
     select_tasks,
     write_ndjson,
 )
+from brainkm.services.endtask_protocol import (  # noqa: E402
+    PROTOCOL_VERSION,
+    RunManifest,
+    build_run_id,
+    count_mcp_activity,
+    enrich_record_protocol_fields,
+    fixture_version,
+    git_short_sha,
+    render_protocol_markdown,
+    select_tasks_for_tier,
+    utc_now_iso,
+    write_manifest_json,
+    write_protocol_ndjson,
+)
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -66,9 +80,25 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Path to endtask_v1.json (default: packaged fixture)",
     )
     p.add_argument("--smoke", action="store_true", help="Only tasks marked smoke=true")
+    p.add_argument(
+        "--tier",
+        choices=("core", "full"),
+        default=None,
+        help="endtask_protocol tier (core=6 tasks, full=all). Ignored if --smoke/--tasks set.",
+    )
     p.add_argument("--tasks", type=str, default="", help="Comma-separated task ids")
     p.add_argument("--limit", type=int, default=None, help="Max tasks after filter")
     p.add_argument("--repeats", type=int, default=1)
+    p.add_argument(
+        "--require-mcp",
+        action="store_true",
+        help="Fail with-arm if MCP_db==0; fail without if MCP_db>0",
+    )
+    p.add_argument(
+        "--protocol-scorecard",
+        action="store_true",
+        help="Write uniform endtask_protocol/1 markdown (manifest + mcp_ok + nullable tokens)",
+    )
     p.add_argument(
         "--backend",
         choices=("cursor", "groq"),
@@ -236,12 +266,16 @@ def main(argv: list[str] | None = None) -> int:
     model = _resolve_model(backend, args.model)
     fixture = load_endtask_fixture(args.fixture)
     task_ids = [t.strip() for t in args.tasks.split(",") if t.strip()] or None
-    tasks = select_tasks(
-        fixture,
-        task_ids=task_ids,
-        smoke_only=args.smoke,
-        limit=args.limit,
-    )
+    if task_ids or args.smoke:
+        tasks = select_tasks(
+            fixture,
+            task_ids=task_ids,
+            smoke_only=args.smoke,
+            limit=args.limit,
+        )
+    else:
+        tier = args.tier or "full"
+        tasks = select_tasks_for_tier(fixture, tier=tier, limit=args.limit)
     if backend == "groq":
         skipped_change = [t for t in tasks if t.get("class") == "change"]
         tasks = [t for t in tasks if t.get("class") == "knowledge"]
@@ -262,11 +296,13 @@ def main(argv: list[str] | None = None) -> int:
         print("No tasks selected after filters", file=sys.stderr)
         return 2
 
+    tier_label = args.tier or ("smoke" if args.smoke else "full")
     plan = plan_runs(
         fixture, tasks=tasks, repeats=args.repeats, model=model, arms=arms
     )
     print(
-        f"End-task plan: backend={backend} {plan.estimated_runs} runs "
+        f"End-task plan: backend={backend} tier={tier_label} protocol={PROTOCOL_VERSION} "
+        f"{plan.estimated_runs} runs "
         f"({len(tasks)} tasks × {len(arms)} arms × {plan.repeats} repeats) "
         f"model={plan.model} est≈${plan.estimated_usd:.2f}"
     )
@@ -473,6 +509,9 @@ def _run_cursor_suite(
                     "input_tokens": None,
                     "output_tokens": None,
                 }
+                mcp_calls = 0
+                mcp_tools: dict = {}
+                since_iso = utc_now_iso()
                 try:
                     if arm == "with_brainkm":
                         seed_info = seed_endtask_brain(
@@ -489,6 +528,10 @@ def _run_cursor_suite(
                         model=model,
                         api_key=api_key,
                     )
+                    brain_db = worktree / ".brain" / "brain.db"
+                    mcp_calls, mcp_tools = count_mcp_activity(
+                        brain_db, since_iso=since_iso
+                    )
                     if status.startswith("startup_error"):
                         grade = EndTaskGradeResult(
                             passed=False, detail=status, method="error"
@@ -501,6 +544,19 @@ def _run_cursor_suite(
                             worktree=worktree,
                             use_ollama_tiebreak=args.ollama_tiebreak,
                         )
+                    if args.require_mcp:
+                        if arm == "with_brainkm" and mcp_calls < 1:
+                            grade = EndTaskGradeResult(
+                                passed=False,
+                                detail=f"{grade.detail}; mcp_unused(MCP_db=0)",
+                                method=grade.method,
+                            )
+                        elif arm == "without" and mcp_calls > 0:
+                            grade = EndTaskGradeResult(
+                                passed=False,
+                                detail=f"{grade.detail}; mcp_leak(MCP_db={mcp_calls})",
+                                method=grade.method,
+                            )
                 except Exception as exc:  # noqa: BLE001
                     error = str(exc)
                     status = "error"
@@ -513,6 +569,8 @@ def _run_cursor_suite(
                         remove_worktree(repo, worktree)
 
                 proxy = estimate_tokens_proxy(final_text)
+                prompt_tok = tokens.get("context_tokens")
+                completion_tok = tokens.get("output_tokens")
                 rec = EndTaskRunRecord(
                     task_id=str(task["id"]),
                     task_class=str(task["class"]),
@@ -531,14 +589,27 @@ def _run_cursor_suite(
                     error=error,
                     final_text_preview=(final_text or "")[:400],
                     dry_run=False,
+                    tokens_source="host_usage" if prompt_tok is not None else "unavailable",
+                    prompt_tokens=prompt_tok,  # type: ignore[arg-type]
+                    completion_tokens=completion_tok,  # type: ignore[arg-type]
+                )
+                enrich_record_protocol_fields(
+                    rec,
+                    mcp_calls=mcp_calls,
+                    mcp_tools=mcp_tools,
+                    tokens_source=rec.tokens_source,  # type: ignore[arg-type]
                 )
                 records.append(rec)
                 print(
                     f"  pass={rec.passed} status={rec.status} "
                     f"tokens={rec.context_tokens or rec.tokens_proxy} "
+                    f"mcp_db={mcp_calls} mcp_ok={rec.mcp_ok} "
                     f"detail={rec.grade_detail[:120]}"
                 )
 
+    sha = git_short_sha(repo)
+    tier_label = args.tier or "full"
+    started = utc_now_iso()
     report = EndTaskReport(
         records=records,
         model=model,
@@ -546,12 +617,34 @@ def _run_cursor_suite(
         fixture_id=str(fixture.get("id") or "endtask_v1"),
         notes=[
             "backend=cursor",
+            f"protocol={PROTOCOL_VERSION}",
+            f"tier={tier_label}",
             f"repeats={plan.repeats}",
+            "tokens_source=host_usage when SDK returns usage",
             "Nondeterministic — re-run with --repeats 3 before publishing claims.",
         ],
     )
-    _write_outputs(args, report, backend="cursor")
-    print("\n" + render_endtask_markdown(report))
+    manifest = RunManifest(
+        protocol_version=PROTOCOL_VERSION,
+        fixture_id=report.fixture_id,
+        fixture_version=fixture_version(fixture),
+        tier=tier_label,
+        host="cursor",
+        host_cli_version="cursor-sdk",
+        model=model,
+        repo_git_sha=sha,
+        harness_git_sha=sha,
+        started_at=started,
+        finished_at=utc_now_iso(),
+        run_id=build_run_id(host="cursor", tier=tier_label, short_sha=sha),
+        tokens_supported=True,
+        notes=list(report.notes),
+    )
+    _write_outputs(args, report, backend="cursor", manifest=manifest)
+    if args.protocol_scorecard or args.tier:
+        print("\n" + render_protocol_markdown(report, manifest=manifest))
+    else:
+        print("\n" + render_endtask_markdown(report))
     return 0
 
 
@@ -560,23 +653,41 @@ def _write_outputs(
     report: EndTaskReport,
     *,
     backend: str = "cursor",
+    manifest: RunManifest | None = None,
 ) -> None:
     from datetime import date
 
     today = date.today().isoformat()
     ndjson = args.write_ndjson
     md = args.write_md
+    tier = getattr(args, "tier", None) or "full"
     if ndjson is None and md is None:
         out_dir = _REPO / "docs" / "benchmarks"
         suffix = "dry" if report.dry_run else backend
+        if getattr(args, "tier", None):
+            suffix = f"{backend}-{tier}"
         ndjson = out_dir / f"{today}-endtask-{suffix}.ndjson"
         md = out_dir / f"{today}-endtask-{suffix}.md"
+    use_protocol = bool(
+        manifest and (getattr(args, "protocol_scorecard", False) or getattr(args, "tier", None))
+    )
     if ndjson is not None:
-        write_ndjson(ndjson, report.records)
+        if use_protocol and manifest is not None:
+            write_protocol_ndjson(ndjson, report.records, manifest=manifest)
+            write_manifest_json(
+                ndjson.with_name(ndjson.stem + ".manifest.json"), manifest
+            )
+        else:
+            write_ndjson(ndjson, report.records)
         print(f"Wrote NDJSON: {ndjson}")
     if md is not None:
         md.parent.mkdir(parents=True, exist_ok=True)
-        md.write_text(render_endtask_markdown(report), encoding="utf-8")
+        if use_protocol and manifest is not None:
+            md.write_text(
+                render_protocol_markdown(report, manifest=manifest), encoding="utf-8"
+            )
+        else:
+            md.write_text(render_endtask_markdown(report), encoding="utf-8")
         print(f"Wrote scorecard: {md}")
 
 

@@ -51,6 +51,13 @@ class EndTaskRunRecord:
     error: str | None = None
     final_text_preview: str = ""
     dry_run: bool = False
+    # endtask_protocol/1 fields (nullable tokens; MCP integrity)
+    mcp_calls: int = 0
+    mcp_tools: dict[str, int] = field(default_factory=dict)
+    mcp_ok: bool = True
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    tokens_source: str = "unavailable"
 
 
 @dataclass

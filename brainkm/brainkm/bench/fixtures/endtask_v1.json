@@ -2,6 +2,18 @@
   "id": "endtask_v1",
   "version": 1,
   "description": "End-task A/B: agent with brainkm MCP vs without, on MemNetwork repo tasks",
+  "core_task_ids": [
+    "k_budget_cap",
+    "k_remember_role",
+    "k_fusion_mode",
+    "k_layers",
+    "c_budget_default",
+    "c_endtask_fixture_present"
+  ],
+  "tiers": {
+    "core": "6 pinned tasks (mixed knowledge+change) × 2 arms × repeats — required before claiming host measured under endtask_protocol/1",
+    "full": "All 20 tasks × 2 arms × repeats — Cursor-class / public H2H"
+  },
   "seed_neurons": [
     {
       "id": "et_dec_budget_1500",

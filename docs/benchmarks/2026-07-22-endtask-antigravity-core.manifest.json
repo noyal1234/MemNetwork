@@ -1,0 +1,25 @@
+{
+  "protocol_version": "endtask_protocol/1",
+  "fixture_id": "endtask_v1",
+  "fixture_version": 1,
+  "tier": "core",
+  "brainkm_version": "0.8.1",
+  "host": "antigravity",
+  "host_cli_version": "CLI error: bubbletea: error opening TTY: bubbletea: could not open TTY: open /de",
+  "model": "agy-default",
+  "repo_git_sha": "20df13c",
+  "harness_git_sha": "20df13c",
+  "started_at": "2026-07-22T09:48:09.284931+00:00",
+  "finished_at": "2026-07-22T10:29:59.130314+00:00",
+  "run_id": "2026-07-22-antigravity-core-20df13c",
+  "tokens_supported": false,
+  "notes": [
+    "protocol=endtask_protocol/1",
+    "tier=core",
+    "host=antigravity; tokens_supported=false",
+    "MCP via session_activity; prefer --home-mcp-swap",
+    "print-timeout=5m",
+    "home-mcp-swap enabled",
+    "require-mcp enabled"
+  ]
+}
