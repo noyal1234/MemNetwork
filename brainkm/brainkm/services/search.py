@@ -6,7 +6,7 @@ import math
 import re
 import sqlite3
 from collections import defaultdict, deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
@@ -165,23 +165,48 @@ def fts_search_nodes(
     query: str,
     *,
     limit: int = 20,
+    exclude_kinds: frozenset[str] | None = None,
 ) -> list[tuple[str, float]]:
-    """Return (node_id, bm25_score) pairs from nodes_fts."""
+    """Return (node_id, bm25_score) pairs from nodes_fts.
+
+    SQLite FTS5 ``bm25()`` is more-negative-better; callers gate on magnitude.
+    """
     match_query = sanitize_fts_query(query)
-    rows = conn.execute(
-        """
-        SELECT n.id, bm25(nodes_fts) AS score
-        FROM nodes_fts
-        JOIN nodes n ON n.rowid = nodes_fts.rowid
-        WHERE nodes_fts MATCH ?
-          AND (n.valid_until IS NULL)
-        ORDER BY score
-        LIMIT ?
-        """,
-        (match_query, limit),
-    ).fetchall()
+    excluded = exclude_kinds or frozenset()
+    if excluded:
+        placeholders = ",".join("?" for _ in excluded)
+        rows = conn.execute(
+            f"""
+            SELECT n.id, bm25(nodes_fts) AS score
+            FROM nodes_fts
+            JOIN nodes n ON n.rowid = nodes_fts.rowid
+            WHERE nodes_fts MATCH ?
+              AND (n.valid_until IS NULL)
+              AND n.kind NOT IN ({placeholders})
+            ORDER BY score
+            LIMIT ?
+            """,
+            (match_query, *sorted(excluded), limit),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """
+            SELECT n.id, bm25(nodes_fts) AS score
+            FROM nodes_fts
+            JOIN nodes n ON n.rowid = nodes_fts.rowid
+            WHERE nodes_fts MATCH ?
+              AND (n.valid_until IS NULL)
+            ORDER BY score
+            LIMIT ?
+            """,
+            (match_query, limit),
+        ).fetchall()
     hits = [(row[0], float(row[1])) for row in rows]
     return filter_fts_hits_by_overlap(conn, hits, query)
+
+
+# Concept stubs are indexing glue — exclude from recall/context_pack seeds.
+_RECALL_SEED_EXCLUDE_KINDS = frozenset({"concept"})
 
 
 @dataclass(frozen=True)
@@ -209,6 +234,7 @@ class TraversalResult:
     resolved_id: str | None = None
     hint: str | None = None
     impact_summary: ImpactSummary | None = None
+    fts_bm25_by_id: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -571,7 +597,12 @@ def hybrid_seed(
     prefer_vector: bool = True,
 ) -> list[tuple[str, float]]:
     """FTS seeds fused with vector hits via RRF when semantic is enabled."""
-    fts = fts_search_nodes(conn, query, limit=fts_limit)
+    fts = fts_search_nodes(
+        conn,
+        query,
+        limit=fts_limit,
+        exclude_kinds=_RECALL_SEED_EXCLUDE_KINDS,
+    )
     sem = semantic or SemanticConfig()
     if not sem.enabled or not prefer_vector:
         return [(node_id, max(0.1, abs(score))) for node_id, score in fts]
@@ -629,8 +660,21 @@ def recall_with_bfs(
 
         if is_off_domain_query(query):
             return TraversalResult(
-                nodes=[], hops_explored=0, abstained=True, intent=routing.intent.value
+                nodes=[],
+                hops_explored=0,
+                abstained=True,
+                intent=routing.intent.value,
+                fts_bm25_by_id={},
             )
+
+    # Abstain / per-result confidence use direct FTS BM25 (concepts excluded from seeds).
+    fts_only = fts_search_nodes(
+        conn,
+        query,
+        limit=fts_limit,
+        exclude_kinds=_RECALL_SEED_EXCLUDE_KINDS,
+    )
+    fts_bm25_by_id = {node_id: score for node_id, score in fts_only}
 
     seeds = hybrid_seed(
         conn,
@@ -652,7 +696,6 @@ def recall_with_bfs(
     seeds = list(seed_map.items())
 
     # Abstain on FTS BM25 distribution when available — skip when path seeds rescue.
-    fts_only = fts_search_nodes(conn, query, limit=fts_limit)
     seed_scores = [score for _, score in fts_only] if fts_only else [s for _, s in seeds]
 
     if path_seeds:
@@ -665,12 +708,20 @@ def recall_with_bfs(
         project_dir=project_dir,
     ):
         return TraversalResult(
-            nodes=[], hops_explored=0, abstained=True, intent=routing.intent.value
+            nodes=[],
+            hops_explored=0,
+            abstained=True,
+            intent=routing.intent.value,
+            fts_bm25_by_id=fts_bm25_by_id,
         )
 
     if not seeds:
         return TraversalResult(
-            nodes=[], hops_explored=0, abstained=False, intent=routing.intent.value
+            nodes=[],
+            hops_explored=0,
+            abstained=False,
+            intent=routing.intent.value,
+            fts_bm25_by_id=fts_bm25_by_id,
         )
 
     seed_activations = {node_id: max(0.1, float(score)) for node_id, score in seeds}
@@ -730,6 +781,7 @@ def recall_with_bfs(
         hops_explored=hops,
         abstained=False,
         intent=routing.intent.value,
+        fts_bm25_by_id=fts_bm25_by_id,
     )
 
 

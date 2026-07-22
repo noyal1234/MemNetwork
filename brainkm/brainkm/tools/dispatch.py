@@ -36,7 +36,7 @@ from brainkm.models.schemas import (
     TraverseResponse,
 )
 from brainkm.services.brain_stats import collect_brain_stats
-from brainkm.services.confidence import pack_confidence, score_confidence
+from brainkm.services.confidence import confidence_for_top_result, pack_confidence
 from brainkm.services.config_loader import load_brain_config
 from brainkm.services.context_pack import compile_context_pack
 from brainkm.services.decision_trail import (
@@ -297,13 +297,12 @@ def handle_recall(
             budget=trail_budget,
         )
 
-    top_score = None
-    if result.nodes:
-        top_score = result.nodes[0].score
-    confidence = score_confidence(
+    top_node_id = result.nodes[0].node_id if result.nodes else None
+    confidence = confidence_for_top_result(
         abstained=result.abstained,
-        top_score=top_score,
         result_count=len(nodes),
+        top_node_id=top_node_id,
+        fts_bm25_by_id=result.fts_bm25_by_id,
         min_bm25_strength=config.recall.min_bm25_strength,
     )
 

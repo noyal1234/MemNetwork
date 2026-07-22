@@ -123,9 +123,9 @@ class RecallConfig(BaseModel):
             "memory": 8,
             "code": 12,
             "procedure": 3,
-            "concept": 4,
+            "concept": 0,
         },
-        description="Cap hits per node kind after score sort",
+        description="Cap hits per node kind after score sort (0 = never surface)",
     )
     include_sources: bool = Field(
         default=False,
@@ -159,6 +159,11 @@ class RecallConfig(BaseModel):
         if self.abstain_mode == "absolute" and self.min_recall_score is None:
             msg = "min_recall_score is required when abstain_mode is 'absolute'"
             raise ValueError(msg)
+        # Concept tags are indexing glue — never surface in agent packs
+        # (even when older config.json still lists concept: 4).
+        kinds = dict(self.max_per_kind)
+        kinds["concept"] = 0
+        self.max_per_kind = kinds
         return self
 
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from brainkm.models.brain_config import BrainConfig, GraphConfig, RecallConfig, SemanticConfig
@@ -19,6 +19,7 @@ class LiveRecallResult:
     abstained: bool
     session_chunks: tuple[SessionChunkHit, ...] = ()
     intent: str | None = None
+    fts_bm25_by_id: dict[str, float] = field(default_factory=dict)
 
 
 def recall_live(
@@ -39,23 +40,37 @@ def recall_live(
         graph = graph or config.graph
         recall = recall or config.recall
         semantic = semantic or config.semantic_config()
+    recall_cfg = recall or RecallConfig()
     traversal = recall_with_bfs(
         conn,
         query,
         graph=graph,
-        recall=recall,
+        recall=recall_cfg,
         semantic=semantic,
         fts_limit=fts_limit,
         project_dir=project_dir,
         extra_seed_ids=extra_seed_ids,
     )
-    neuron_ids = {ranked.node_id for ranked in traversal.nodes}
-    supplemental = deduped_session_chunks(conn, query, neuron_ids)
+    nodes = traversal.nodes[:limit]
+    # Skip supplemental transcript chunks when abstained or the pack is empty.
+    if traversal.abstained or not nodes:
+        supplemental: tuple[SessionChunkHit, ...] = ()
+    else:
+        neuron_ids = {ranked.node_id for ranked in nodes}
+        supplemental = tuple(
+            deduped_session_chunks(
+                conn,
+                query,
+                neuron_ids,
+                min_bm25_strength=recall_cfg.min_bm25_strength,
+            )
+        )
     return LiveRecallResult(
         query=query,
-        nodes=traversal.nodes[:limit],
+        nodes=nodes,
         source="live_db",
         abstained=traversal.abstained,
-        session_chunks=tuple(supplemental),
+        session_chunks=supplemental,
         intent=traversal.intent,
+        fts_bm25_by_id=dict(traversal.fts_bm25_by_id),
     )

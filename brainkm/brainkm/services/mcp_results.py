@@ -6,7 +6,51 @@ import sqlite3
 
 from brainkm.models.schemas import NeuronResult, SessionChunkResult
 from brainkm.services.memory import token_count
+from brainkm.services.remember_links import extract_path_mentions
 from brainkm.services.search import RankedNode
+
+
+def resolve_display_path(
+    conn: sqlite3.Connection,
+    *,
+    node_id: str,
+    title: str,
+    content: str | None,
+    existing_path: str | None,
+) -> str | None:
+    """Fill a user-facing path with deterministic tie-breaks.
+
+    Order:
+    1. Existing ``nodes.path``
+    2. Earliest path mention in title+content (``extract_path_mentions`` finditer order)
+    3. ``about_file`` target whose path appears earliest in that mention list
+    4. Else earliest ``about_file`` by ``edges.rowid``
+    """
+    if existing_path:
+        return existing_path
+    blob = f"{title}\n{content or ''}"
+    mentions = extract_path_mentions(blob)
+    if mentions:
+        return mentions[0]
+
+    rows = conn.execute(
+        """
+        SELECT n.path
+        FROM edges e
+        JOIN nodes n ON n.id = e.to_id
+        WHERE e.from_id = ?
+          AND e.relationship = 'about_file'
+          AND n.path IS NOT NULL
+          AND n.path != ''
+          AND (n.valid_until IS NULL)
+        ORDER BY e.rowid ASC
+        """,
+        (node_id,),
+    ).fetchall()
+    about_paths = [row[0] for row in rows if row[0]]
+    if not about_paths:
+        return None
+    return about_paths[0]
 
 
 def ranked_to_neuron(conn: sqlite3.Connection, ranked: RankedNode) -> NeuronResult | None:
@@ -19,6 +63,13 @@ def ranked_to_neuron(conn: sqlite3.Connection, ranked: RankedNode) -> NeuronResu
     ).fetchone()
     if row is None:
         return None
+    path = resolve_display_path(
+        conn,
+        node_id=row["id"],
+        title=row["title"] or "",
+        content=row["content"],
+        existing_path=row["path"] or ranked.path,
+    )
     return NeuronResult(
         node_id=row["id"],
         kind=row["kind"],
@@ -27,7 +78,7 @@ def ranked_to_neuron(conn: sqlite3.Connection, ranked: RankedNode) -> NeuronResu
         content=row["content"],
         score=ranked.score,
         activation=ranked.activation,
-        path=row["path"] or ranked.path,
+        path=path,
         relationship=ranked.relationship,
         via=ranked.via,
     )

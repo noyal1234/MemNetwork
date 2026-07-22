@@ -6,6 +6,7 @@ import re
 
 from brainkm.adapters.cursor_clean import distillable_round, is_distill_noise
 from brainkm.models.distill import DistilledNeuron, TranscriptRound
+from brainkm.services.quality import INTERROGATIVE_LEAD
 
 DECISION_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\b(?:decided|decision|chose|choose|going with|we'll use)\b", re.I), "decision"),
@@ -97,6 +98,8 @@ def distill_round(
             continue
         subtype = _classify_sentence(sentence)
         if subtype == "fact" and len(sentence) < 40:
+            continue
+        if sentence.rstrip().endswith("?") or INTERROGATIVE_LEAD.match(sentence):
             continue
 
         neuron = DistilledNeuron(

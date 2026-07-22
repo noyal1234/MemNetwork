@@ -29,6 +29,12 @@ TRANSCRIPT_CHROME = re.compile(
     r"<timestamp>|"
     r"\[tool_use:",
 )
+# Raw user questions are not durable project memory.
+INTERROGATIVE_LEAD = re.compile(
+    r"^(?:can you|could you|would you|will you|what|where|when|why|how|"
+    r"is there|are there|do we|does|did|should we|should i|please)\b",
+    re.IGNORECASE,
+)
 
 
 def normalize_fingerprint(title: str, body: str) -> str:
@@ -51,6 +57,12 @@ def passes_quality_gate(item: DistilledNeuron) -> bool:
     if MARKDOWN_TITLE.match(title) or title.startswith("##"):
         return False
     if TRANSCRIPT_CHROME.search(title) or TRANSCRIPT_CHROME.search(body):
+        return False
+    if INTERROGATIVE_LEAD.match(title) or (
+        title.rstrip().endswith("?") and INTERROGATIVE_LEAD.match(body[:80])
+    ):
+        return False
+    if body.rstrip().endswith("?") and INTERROGATIVE_LEAD.match(body):
         return False
     # Use noise heuristics for chrome/boilerplate, but skip the length check (already handled).
     if len(title) >= 20 and is_distill_noise(title):
@@ -78,6 +90,11 @@ def passes_noise_gate(*, title: str, content: str | None) -> bool:
     if MARKDOWN_TITLE.match(t) or t.startswith("##"):
         return False
     if TRANSCRIPT_CHROME.search(t) or TRANSCRIPT_CHROME.search(body):
+        return False
+    if INTERROGATIVE_LEAD.match(t) or (
+        (t.rstrip().endswith("?") or body.rstrip().endswith("?"))
+        and INTERROGATIVE_LEAD.match(body)
+    ):
         return False
     if "[tool_use:" in t.lower() or "[tool_use:" in body.lower():
         return False

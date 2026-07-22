@@ -22,6 +22,7 @@ from brainkm.adapters.distill_rules import (
 from brainkm.logging_config import get_logger
 from brainkm.models.brain_config import BrainConfig
 from brainkm.models.distill import DistilledNeuron, TranscriptRound
+from brainkm.services.quality import INTERROGATIVE_LEAD
 
 logger = get_logger("adapters.cursor_distill")
 
@@ -136,6 +137,9 @@ def distill_cursor_round(
                 continue
             subtype = _classify_sentence(sentence)
             if subtype == "fact" and len(sentence) < 40:
+                continue
+            # User questions are not durable facts.
+            if sentence.rstrip().endswith("?") or INTERROGATIVE_LEAD.match(sentence):
                 continue
 
             body = sentence[:400].strip()
