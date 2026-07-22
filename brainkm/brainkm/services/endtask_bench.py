@@ -628,6 +628,55 @@ def groq_chat(
     return text, tokens, "finished"
 
 
+def gemini_chat(
+    prompt: str,
+    *,
+    model: str = "gemini-2.5-flash",
+    api_key: str | None = None,
+    timeout_seconds: float = 60.0,
+) -> tuple[str, dict[str, int | None], str]:
+    """Call Google Gemini generateContent REST API. Returns (text, usage_dict, status)."""
+    import os
+    import httpx
+
+    key = (api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or "").strip()
+    if not key:
+        return "", {}, "startup_error:GEMINI_API_KEY or GOOGLE_API_KEY not set"
+
+    resolved_model = model.strip() or "gemini-2.5-flash"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{resolved_model}:generateContent?key={key}"
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"maxOutputTokens": 600, "temperature": 0.1},
+    }
+    try:
+        response = httpx.post(url, json=payload, timeout=timeout_seconds)
+    except Exception as exc:  # noqa: BLE001
+        return "", {}, f"error:{exc}"
+
+    if response.status_code == 401 or response.status_code == 403:
+        return "", {}, "startup_error:unauthorized (check GEMINI_API_KEY / GOOGLE_API_KEY)"
+    if response.status_code == 429:
+        return "", {}, "error:rate_limited"
+    if response.status_code >= 400:
+        detail = (response.text or "")[:200]
+        return "", {}, f"error:http_{response.status_code}:{detail}"
+
+    body = response.json()
+    candidates = body.get("candidates") or []
+    text = ""
+    if candidates:
+        parts = (candidates[0].get("content") or {}).get("parts") or []
+        if parts:
+            text = parts[0].get("text", "") or ""
+    meta = body.get("usageMetadata") or {}
+    return text, {
+        "prompt_tokens": meta.get("promptTokenCount"),
+        "completion_tokens": meta.get("candidatesTokenCount"),
+        "total_tokens": meta.get("totalTokenCount"),
+    }, "finished"
+
+
 def run_groq_knowledge_arm(
     task: dict[str, Any],
     *,

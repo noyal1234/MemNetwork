@@ -76,9 +76,16 @@ python brainkm/scripts/endtask_harness.py --backend cursor --repeats 3 \
 Fixture: `endtask_v1.json` (12 knowledge + 8 change). Publish with **repeats ≥ 3**.
 Latest Groq smoke: [2026-07-19-endtask-groq.md](benchmarks/2026-07-19-endtask-groq.md).
 
-**Deferred (public headline):** full-agent Cursor vs Antigravity A/B with in-built tools.
-Do not publish Cursor-only endtask scorecards until an Antigravity counterpart exists;
-pack-vs-dump (`compare` + Antigravity live) remains the token-savings claim.
+**Full-tool endtask (both hosts measured):** Cursor
+[2026-07-21-endtask-cursor](benchmarks/2026-07-21-endtask-cursor.md) · Antigravity Path A
+[2026-07-22-antigravity-endtask](benchmarks/2026-07-22-antigravity-endtask.md)
+(framed under the pack-vs-dump host sections below). AGY MCP ground truth =
+`.brain/brain.db` `session_activity` (`source=mcp`); re-run with
+`--home-mcp-swap --require-mcp`.
+
+**Pack-vs-dump (public token claim):** `compare`, Antigravity live, and
+`brainkm/scripts/antigravity_trajectory_bench.py` (Antigravity-**themed** scenarios;
+`--mode tokens-only` by default — **not** an IDE tool-loop bench).
 
 ## Headline: recall@budget (≤1500-token pack)
 
@@ -194,22 +201,45 @@ Hardware / corpus: macOS (darwin), hashing embedder (semantic off), **populated*
 | **Latency loaded** | recall / pack p95 | **648 / 758 ms** | Live brain; targets ≤1200 / ≤1500 ms |
 | **Eval aggregate** | All cases | **84/84 (100%)** | Includes regression canaries below |
 
-### Token proxy (`compare` — generous baseline)
+### Cursor-framed pack-vs-dump (`compare` / `compare_v1`)
 
-Naive multi-file dump vs `context_pack` (**no in-built agent tool loop** — counts dump tokens vs pack tokens only). **Not** full-agent task success; use for pack-vs-dump savings demos only. Cursor-framed scenarios live in `compare_v1`.
+Same metric class as the Antigravity Live section below: **full multi-file dump** vs
+`brainkm context_pack` (**no in-built agent tool loop** — Grep/Read/edit not in the
+loop). Cursor-shaped queries (token budget, MCP dispatch, Graphify routing, session
+snapshot) live in `compare_v1`. **Not** the Cursor full-agent endtask suite
+([2026-07-21-endtask-cursor](benchmarks/2026-07-21-endtask-cursor.md)).
 
-| Scenario | Without | With | Savings |
-|----------|---------|------|---------|
+| Scenario | Without (dump) | With (pack) | Savings |
+|----------|----------------|-------------|---------|
 | token_budget | 9987 | 607 | 16.5× |
 | mcp_dispatch | 7014 | 457 | 15.3× |
 | graphify_routing | 11074 | 898 | 12.3× |
 | session_snapshot | 5241 | 347 | 15.1× |
 
-Average **~94% reduction (~15.7×)** across 4 scenarios.
+Average **~94% token reduction (~15.7×)** across 4 Cursor-framed scenarios.
+Reproduce: `brainkm bench run compare`.
+
+> #### End-task A/B scorecard — Cursor (full tool run)
+>
+> **Finding:** On a saturated fixture (both arms **60/60**), brainkm still cut
+> **~5% mean prompt tokens** (76 940 vs 80 762) across **120** live Cursor agent
+> runs (`composer-2.5`, MCP stdio injected per arm). That is the first measured
+> *session-level* savings claim — distinct from the ~94% pack-vs-dump figure above.
+>
+> | Arm | Pass | Mean prompt tokens |
+> |-----|------|--------------------|
+> | **with brainkm** | **60/60** | **76 940** (**−5%** vs without) |
+> | without | 60/60 | 80 762 |
+>
+> **Roadmap:** treat **5% → ~20%** session token reduction as the next product
+> target (fewer post-pack re-reads / redundant Grep·Read loops while keeping
+> pass rate). Full scorecard:
+> [2026-07-21-endtask-cursor](benchmarks/2026-07-21-endtask-cursor.md).
 
 ### Antigravity Live Benchmark (Token Usage Reduction & Quality Run)
 
-Pack-vs-dump on Antigravity-shaped queries (`.agents/` / HTTP MCP `serverUrl` / distill adapter): **full multi-file dump** vs `brainkm context_pack`. Same metric class as `compare` — **not** a full-agent suite with Grep/Read/edit.
+Pack-vs-dump on Antigravity-shaped queries (`.agents/` / HTTP MCP `serverUrl` / distill adapter): **full multi-file dump** vs `brainkm context_pack`. Same metric class as `compare` above — **not** a full-agent suite with Grep/Read/edit (that is Path A endtask).
+
 
 | Scenario ID | Query / Intent | Without Brain | With Brain (Pack Text) | Payload (JSON) | Token Reduction | Savings | Key Artifact |
 |-------------|----------------|---------------|------------------------|----------------|-----------------|---------|--------------|
@@ -219,6 +249,36 @@ Pack-vs-dump on Antigravity-shaped queries (`.agents/` / HTTP MCP `serverUrl` / 
 
 Average **95.2% token reduction (~21.4× savings)** across Antigravity scenarios while surfacing exact AST nodes and historical project decisions without noise. Full report: [docs/benchmarks/2026-07-21-antigravity-live.md](benchmarks/2026-07-21-antigravity-live.md).
 
+> #### End-task A/B scorecard — Antigravity (full tool run)
+>
+> **Finding:** With MCP integrity enforced (`session_activity` + `--home-mcp-swap
+> --require-mcp`), brainkm moved **pass rate from 5/9 → 8/9** on live `agy --print`
+> tasks while every with-arm actually called MCP (`mcp_ok` **9/9**, mean
+> **MCP_db=1.8**) and the without arm stayed clean (**MCP_db=0**). That is a
+> real quality lift on a hard AGY CLI tool loop — not a pack-vs-dump proxy.
+>
+> | Arm | Pass | Mean native tools | Mean MCP_db | mcp_ok |
+> |-----|------|-------------------|-------------|--------|
+> | **with brainkm** | **8/9** | 32.0 | **1.8** | **9/9** |
+> | without | 5/9 | 28.6 | 0.0 | 9/9 |
+>
+> Native tool hops are **not** lower yet (with ≈ without); AGY does not expose
+> Cursor-style session token usage in print-mode transcripts. Significance today
+> is **reliability + answer quality under proven MCP use**. Scale is smaller
+> than Cursor (18 vs 120 runs) — treat as Path A twin, not a substitute sample.
+> Full scorecard:
+> [2026-07-22-antigravity-endtask](benchmarks/2026-07-22-antigravity-endtask.md).
+> Harness: `brainkm/scripts/antigravity_endtask_harness.py`.
+
+### Pack-vs-dump proxy script (Antigravity-themed)
+
+[`brainkm/scripts/antigravity_trajectory_bench.py`](../brainkm/scripts/antigravity_trajectory_bench.py)
+re-runs the same **dump vs `context_pack`** economics on AGY-shaped questions.
+Default `--mode tokens-only` needs no API key. Optional `--mode llm` calls Groq/Gemini
+and only scores keyword hits when an arm **finishes** (413 / rate-limit dump failures
+are failures, not “0% decisions after 5 tool hops”).
+
+Latest: [2026-07-22-antigravity-trajectory-live.md](benchmarks/2026-07-22-antigravity-trajectory-live.md).
 
 ### Regression canaries (not headline claims)
 
