@@ -145,51 +145,47 @@ Catalog → [docs/FEATURES.md](docs/FEATURES.md)
 
 ## How it works
 
-```mermaid
-flowchart LR
-  subgraph hosts [Agent IDEs]
-    Cursor[Cursor]
-    Claude[Claude Code]
-    AGY[Antigravity]
-    Other[Codex / MCP]
-  end
+Two entry paths into one local brain: **MCP tools** (agent-called) and **hook CLI** (host subprocesses). Both go through services → adapters → SQLite. Event names differ by IDE; the store does not.
 
-  subgraph pkg [brainkm]
-    MCP[MCP server]
-    Services[Services]
-    Adapters[Adapters]
-  end
+<div align="center">
+  <img src="docs/assets/architecture.svg" alt="MemNetwork architecture: MCP tools and hook CLI share services into .brain/brain.db; host lifecycle events differ" width="960" />
+</div>
 
-  subgraph brain [Per-project .brain]
-    DB[(brain.db)]
-    Graph[Graphify AST]
-  end
+<br/>
 
-  hosts --> MCP
-  MCP --> Services --> Adapters
-  Adapters --> DB
-  Adapters --> Graph
-  Services -->|"pack ≤1500 tokens"| hosts
-```
+### Data flow (what actually moves)
 
-| Layer | Role |
-|-------|------|
-| **Memory** | SQLite FTS5 neurons — decisions, rules, facts, errors |
-| **Code graph** | Graphify AST neighbors for `traverse` / packs |
-| **MCP** | stdio or localhost HTTP — **6** agent-facing tools |
-| **CLI / TUI** | Typer core; Textual `configure` when `[tui]` is installed |
+| Direction | Mechanism | What lands where |
+|-----------|-----------|------------------|
+| **OUT (to the agent)** | SessionStart / PreInvocation / SubagentStart inject a frozen pack; agents also call MCP tools | Bounded `pack_text` / tool JSON — default hard cap `budget.total_tokens` = **1500** |
+| **IN (to the brain)** | PreCompact → `handover`; SessionEnd or Stop → distill; PostToolUse may queue graph sync; optional `auto_observe` | Neurons + session chunks in `.brain/brain.db` (all writes via `remember_neuron` + redaction) |
+| **Code graph** | Graphify extract → `graph.json` → import into SQLite code nodes/edges | Powers `traverse` / `context_pack` neighborhoods; PostToolUse on Write/Edit queues refresh |
+| **Share** | stdio (`brainkm mcp`) or shared localhost HTTP (`brainkm serve` + `connect`) | Same project `.brain/` across Cursor / Antigravity / Claude / Codex |
 
-**Layering:** MCP tool → service → adapter → SQLite. Deep dive → [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md)
+Hooks are the **primary** memory path. MCP `remember` is pin / correct / archive only — not ordinary session notes.
+
+### Stack layers
+
+| Layer | Reality in this repo | Role |
+|-------|----------------------|------|
+| **Hosts** | Cursor · Antigravity · Claude Code · Codex · generic MCP | Chat + host-specific hooks; symbol locate stays with the host index / Grep |
+| **MCP server** | `server.py` `TOOL_DEFINITIONS` — **6** tools | Agent-facing contract (stdio or HTTP) |
+| **Hook CLI** | `brainkm session-start` / `handover` / `session-end` / `agent-stop` / … | Separate processes; persist activity in SQLite (not in-memory across hooks) |
+| **Services** | `services/` — memory, recall, context_pack, capture, hooks, handover, budget, WriteQueue, … | Business logic; handlers stay thin |
+| **Adapters** | Graphify, distill backends, transcripts, redaction, optional embeddings | I/O and extractors |
+| **`.brain/`** | `brain.db` (+ Graphify `graph.json` on disk before import) | Neurons, code graph tables, chunks, commit↔session joins |
+
+Strict path: **MCP tool → service → adapter → SQLite** (DB-touching handlers use `WriteQueue`). Deep dive → [docs/AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md)
 
 ### MCP tools
 
 | Tool | Use when |
 |------|----------|
-| **`recall`** | “Why did we choose X?” |
+| **`recall`** | “Why did we choose X?” — decisions + optional supersede trail |
 | **`context_pack`** | Task context across 3+ files (then verify in source) |
 | **`traverse`** | “What calls / imports X?” / blast-radius |
-| **`trace_changes`** | “What changed in this file recently and why?” |
-| **`remember`** | Pin, correct, or archive a decision |
+| **`trace_changes`** | “What changed in this file recently and why?” (live git + brain joins) |
+| **`remember`** | Pin, correct, or archive — not everyday notes |
 | **`brain_stats`** | Graph empty? Brain health? |
 
 <details>
@@ -207,15 +203,15 @@ flowchart LR
 
 </details>
 
-### Supported hosts
+### Supported hosts (lifecycle is not identical)
 
-| Host | Adapter highlights | Guide |
-|------|--------------------|-------|
-| **Cursor** | `.cursor/` — PreCompact + SessionEnd | [install/cursor.md](docs/install/cursor.md) |
-| **Google Antigravity** | `.agents/` (`serverUrl`) — Stop → project `.brain/` | [install/antigravity.md](docs/install/antigravity.md) |
-| **Claude Code** | `.claude/settings.json` + `.mcp.json` — Subagent/PostCompact | [install/claude-code.md](docs/install/claude-code.md) |
-| **OpenAI Codex** | `.codex/config.toml` + `/hooks` trust — Stop → session-end | [install/codex.md](docs/install/codex.md) |
-| **Generic MCP** | stdio / HTTP — manual `capture` / `handover` | [install/generic.md](docs/install/generic.md) |
+| Host | Compaction / end capture | Guide |
+|------|--------------------------|-------|
+| **Cursor** | Native **PreCompact** → handover; **SessionEnd** → distill | [install/cursor.md](docs/install/cursor.md) |
+| **Google Antigravity** | **No host PreCompact** — synthetic handover on **PreInvocation**; idle **Stop** → distill into project `.brain/` | [install/antigravity.md](docs/install/antigravity.md) |
+| **Claude Code** | **PreCompact** + **PostCompact**; SessionEnd distill; SubagentStart/Stop | [install/claude-code.md](docs/install/claude-code.md) |
+| **OpenAI Codex** | **No SessionEnd** — **Stop** runs session-end; PreCompact + PostCompact; `/hooks` trust required | [install/codex.md](docs/install/codex.md) |
+| **Generic MCP** | No hooks — manual `capture` / `handover` | [install/generic.md](docs/install/generic.md) |
 
 ---
 
