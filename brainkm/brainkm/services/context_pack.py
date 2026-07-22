@@ -251,7 +251,20 @@ def derive_pre_tool_query(payload: dict[str, object]) -> str | None:
                 continue
         if isinstance(raw, dict):
             parts: list[str] = []
-            for field in ("path", "file_path", "filePath", "target_file", "command", "query"):
+            for field in (
+                "path",
+                "file_path",
+                "filePath",
+                "target_file",
+                "TargetFile",
+                "AbsolutePath",
+                "command",
+                "CommandLine",
+                "DirectoryPath",
+                "SearchPath",
+                "Url",
+                "query",
+            ):
                 value = raw.get(field)
                 if value is not None and str(value).strip():
                     parts.append(str(value).strip())

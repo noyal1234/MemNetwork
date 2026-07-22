@@ -39,7 +39,7 @@ Agents burn tokens re-reading files and lose decisions when chat compacts. Host 
 | | |
 |---|---|
 | **Stop re-explaining pivots** | “We chose JWT over sessions” lives in SQLite neurons, not only in chat history. |
-| **Cut token dumps** | Bounded `context_pack` (≤1,500 tokens) instead of multi-file raw reads — **95.2%** avg reduction in live tests. |
+| **Cut token dumps** | Bounded `context_pack` (≤1,500 tokens) vs naive multi-file dumps (**no agent tool loop**) — **95.2%** avg in live pack-vs-dump tests. |
 | **Survive compaction** | PreCompact handover + SessionEnd distill keep truth in `.brain/brain.db`. |
 | **One brain, many hosts** | Same local store across Cursor, Antigravity, Claude Code, Codex, and any MCP client (~55–70 MB idle). |
 
@@ -53,12 +53,12 @@ Not a Cursor plugin. Not a second `@codebase`. Cursor locates symbols; MemNetwor
 
 | `brainkm configure` | Host setup wizard |
 |---------------------|-------------------|
-| <img src="docs/assets/Dashboard.jpg" alt="brainkm configure dashboard" width="480" /> | <img src="docs/assets/Config.jpg" alt="brainkm configure wizard" width="480" /> |
+| <img src="docs/assets/Dashboard.png" alt="brainkm configure dashboard" width="480" /> | <img src="docs/assets/Config.png" alt="brainkm configure wizard" width="480" /> |
 | *Live status, graph health, review queue* | *One-click MCP + hooks for each IDE* |
 
 | `brainkm viz` — Neural Cosmos | Blast-radius inspector |
 |-------------------------------|-------------------------|
-| <img src="docs/assets/MemNetwork.jpg" alt="MemNetwork graph explorer" width="480" /> | <img src="docs/assets/NodeView.jpg" alt="Node blast-radius view" width="480" /> |
+| <img src="docs/assets/MemNetwork.png" alt="MemNetwork graph explorer" width="480" /> | <img src="docs/assets/NodeView.png" alt="Node blast-radius view" width="480" /> |
 | *AST + memory graph in the browser* | *Calls, imports, downstream impact* |
 
 </div>
@@ -67,14 +67,16 @@ Not a Cursor plugin. Not a second `@codebase`. Cursor locates symbols; MemNetwor
 
 ## Results
 
-Live Antigravity + Cursor runs on a populated project graph (~1.5k code nodes + decision neurons):
+**Pack-vs-dump** (naive multi-file context load vs `context_pack` — **not** a full-agent run with Grep/Read/edit tools):
 
-| Scenario | Without brain | With `brainkm` | Savings |
-|----------|---------------|----------------|---------|
+| Scenario | Without brain (full file dump) | With `brainkm` | Savings |
+|----------|--------------------------------|----------------|---------|
 | AST class & handler lookup | 20,293 tok | **733** | **96.4%** (27.7×) |
 | Hook & distill pipeline | 20,293 tok | **1,084** | **94.7%** (18.7×) |
 | MCP / config query | 20,293 tok | **1,132** | **94.4%** (17.9×) |
 | **Average** | **20,293** | **~983** | **95.2%** (21.4×) |
+
+Same method on the Cursor-framed `compare` suite averages **~94%**. Full-agent A/B (Cursor / Antigravity with in-built tools) is deferred until both hosts are measured the same way.
 
 Every pack stays under the hard **1,500-token** cap. Typical latency: **~13–18 ms**. Idle shared server: **~55–70 MB RAM**.
 
@@ -239,7 +241,7 @@ flowchart LR
 - [x] Local SQLite brain + **6** MCP tools
 - [x] Cursor / Claude / Antigravity / Codex adapters
 - [x] Compaction survival (PreCompact + SessionEnd)
-- [x] Live Antigravity & Cursor benchmarks (**95.2%** token reduction)
+- [x] Pack-vs-dump token benchmarks (**95.2%** live / **~94%** `compare`; full-agent A/B deferred)
 - [x] Shared HTTP MCP Bearer auth + loopback guards
 - [x] Browser graph explorer (`brainkm viz`) + optional TUI (`brainkm configure`)
 - [ ] PyPI / `uvx` one-liner (deferred — public release)

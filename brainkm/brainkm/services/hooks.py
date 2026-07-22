@@ -248,6 +248,7 @@ def _pattern_matches_tool(pattern: str, tool_name: str) -> bool:
             "terminal",
             "run_command",
         ),
+        "view": ("view", "view_file", "read_file"),
     }
     candidates = aliases.get(normalized_pattern, (normalized_pattern,))
     return any(candidate in normalized_tool for candidate in candidates)
@@ -272,6 +273,13 @@ def build_antigravity_hook_stdout(
             }
         return {}
     if event in ("PreToolUse", "preToolUse"):
+        if result.additional_context:
+            return {
+                "decision": "allow",
+                "injectSteps": [
+                    {"ephemeralMessage": result.additional_context},
+                ],
+            }
         return {"decision": "allow"}
     if event in ("PostToolUse", "postToolUse", "PostInvocation", "postInvocation"):
         return {}
@@ -958,26 +966,29 @@ def _run_antigravity_stop(
 
     do_distill = should_run_distill(state, fully_idle=fully_idle, force=force)
     if do_distill:
-        tpath = resolve_antigravity_transcript(data)
-        if tpath is not None:
-            try:
-                run_handover(
-                    tpath,
-                    project_dir=project_dir,
-                    config=config,
-                    session_id=session_id,
-                )
-            except Exception:  # noqa: BLE001
-                logger.warning("Antigravity Stop handover failed", exc_info=True)
-            else:
-                state.last_distill_at = time.time()
+        from brainkm.services.antigravity_session import resolve_all_antigravity_transcripts
+
+        tpaths = resolve_all_antigravity_transcripts(data)
+        if tpaths:
+            for tpath in tpaths:
                 try:
-                    state.transcript_byte_offset = tpath.stat().st_size
-                    state.last_handover_transcript_bytes = state.transcript_byte_offset
-                    state.last_handover_at = state.last_distill_at
-                except OSError:
-                    pass
-                save_agy_session(project_dir, state)
+                    run_handover(
+                        tpath,
+                        project_dir=project_dir,
+                        config=config,
+                        session_id=session_id,
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.warning("Antigravity Stop handover failed for %s", tpath, exc_info=True)
+            primary_path = tpaths[0]
+            state.last_distill_at = time.time()
+            try:
+                state.transcript_byte_offset = primary_path.stat().st_size
+                state.last_handover_transcript_bytes = state.transcript_byte_offset
+                state.last_handover_at = state.last_distill_at
+            except OSError:
+                pass
+            save_agy_session(project_dir, state)
         else:
             logger.warning(
                 "hook=Stop(agy) session_id=%s distill skipped: no transcript path",

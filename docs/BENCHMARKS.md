@@ -76,6 +76,10 @@ python brainkm/scripts/endtask_harness.py --backend cursor --repeats 3 \
 Fixture: `endtask_v1.json` (12 knowledge + 8 change). Publish with **repeats ≥ 3**.
 Latest Groq smoke: [2026-07-19-endtask-groq.md](benchmarks/2026-07-19-endtask-groq.md).
 
+**Deferred (public headline):** full-agent Cursor vs Antigravity A/B with in-built tools.
+Do not publish Cursor-only endtask scorecards until an Antigravity counterpart exists;
+pack-vs-dump (`compare` + Antigravity live) remains the token-savings claim.
+
 ## Headline: recall@budget (≤1500-token pack)
 
 brainkm’s contract is not “gold in top-5 of an unbounded list” — it is **gold fact
@@ -192,7 +196,7 @@ Hardware / corpus: macOS (darwin), hashing embedder (semantic off), **populated*
 
 ### Token proxy (`compare` — generous baseline)
 
-Naive multi-file dump vs `context_pack`. **Not** the task-success metric; use for savings demos only.
+Naive multi-file dump vs `context_pack` (**no in-built agent tool loop** — counts dump tokens vs pack tokens only). **Not** full-agent task success; use for pack-vs-dump savings demos only. Cursor-framed scenarios live in `compare_v1`.
 
 | Scenario | Without | With | Savings |
 |----------|---------|------|---------|
@@ -205,7 +209,7 @@ Average **~94% reduction (~15.7×)** across 4 scenarios.
 
 ### Antigravity Live Benchmark (Token Usage Reduction & Quality Run)
 
-Live evaluation of Antigravity AI agent queries (`.agents/` configuration, HTTP MCP `serverUrl`, distill adapter) comparing naive context loading vs. `brainkm context_pack`:
+Pack-vs-dump on Antigravity-shaped queries (`.agents/` / HTTP MCP `serverUrl` / distill adapter): **full multi-file dump** vs `brainkm context_pack`. Same metric class as `compare` — **not** a full-agent suite with Grep/Read/edit.
 
 | Scenario ID | Query / Intent | Without Brain | With Brain (Pack Text) | Payload (JSON) | Token Reduction | Savings | Key Artifact |
 |-------------|----------------|---------------|------------------------|----------------|-----------------|---------|--------------|

@@ -1,13 +1,18 @@
 ---
 name: brainkm-routing
 description: >-
-  When to use brainkm MCP tools (recall, context_pack, traverse, trace_changes) vs Cursor search.
-  Prefer file-seeded recall and verify packs in source. Install with brainkm install.
+  When to use brainkm MCP tools (recall, context_pack, traverse, trace_changes) vs
+  Grep / project search in Antigravity. Prefer file-seeded recall and verify packs in
+  source. Install with brainkm install --client antigravity.
 ---
 
 # brainkm tool routing
 
-brainkm is this project's brain (`.brain/brain.db`). It complements Cursor — it does not replace `@codebase`.
+brainkm is this project's brain (`.brain/brain.db`). It complements Antigravity — it does
+not replace Grep / project search for symbol locate.
+
+Dispatch via `call_mcp_tool` with server `brainkm` and tool name `recall` / `traverse` /
+`context_pack` / `trace_changes` / `brain_stats` / `remember`.
 
 ## Use first
 
@@ -19,6 +24,17 @@ brainkm is this project's brain (`.brain/brain.db`). It complements Cursor — i
 | Understand a module before editing 3+ files | `context_pack` (include path or symbol) |
 | What did we learn about `auth.ts`? | `recall` / `context_pack` with that path in the query |
 | Pin, correct, or archive durable truth | `remember` (`action=pin\|correct\|archive`; hooks are primary capture) |
+
+## MUST (Antigravity)
+
+1. Blast-radius / call/import flow: you **MUST** call `traverse` — never text search alone.
+2. Decisions / "why X": you **MUST** call `recall` unless the PreInvocation ephemeral pack
+   already answers that **exact** question.
+3. Before opening 3+ files for one task: you **MUST** call `context_pack`, then verify in source.
+4. "What changed in this file and why": you **MUST** call `trace_changes`.
+5. PreInvocation pack is frozen — if insufficient, you **MUST** still call the live tool.
+
+Symbol locate still uses Grep / project search first — do **not** force `recall` before every search.
 
 ## Rules
 

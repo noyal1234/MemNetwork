@@ -1690,11 +1690,19 @@ def doctor_cmd(
     project_dir: Path | None = typer.Option(None, "--project-dir"),
     host: str | None = typer.Option(None, "--host"),
     port: int | None = typer.Option(None, "--port"),
+    client: str | None = typer.Option(
+        None,
+        "--client",
+        help="Target client to inspect specifically: cursor | claude | antigravity | codex | generic",
+    ),
 ) -> None:
     """Check shared MCP health, client wiring, and auto_observe."""
     from brainkm.services.mcp_doctor import build_mcp_doctor_report, format_mcp_doctor_report
 
     report = build_mcp_doctor_report(project_dir, host=host, port=port)
+    if client:
+        target = client.strip().lower()
+        report.clients = [c for c in report.clients if c.client == target]
     typer.echo(format_mcp_doctor_report(report))
     if report.config_transport == "http" and not report.health_ok:
         raise typer.Exit(code=1)

@@ -100,6 +100,26 @@ def resolve_antigravity_transcript(data: dict[str, object]) -> Path | None:
     return None
 
 
+def resolve_all_antigravity_transcripts(data: dict[str, object]) -> list[Path]:
+    """Return all existing main and subagent transcript paths from Stop / PreInvocation stdin."""
+    found: list[Path] = []
+    primary = resolve_antigravity_transcript(data)
+    if primary:
+        found.append(primary)
+
+    for key in ("artifactDirectoryPath", "artifact_directory_path"):
+        value = data.get(key)
+        if not isinstance(value, str) or not value.strip():
+            continue
+        root = Path(value.strip()).expanduser()
+        logs_dir = root / ".system_generated" / "logs"
+        if logs_dir.is_dir():
+            for jsonl_file in logs_dir.rglob("*.jsonl"):
+                if jsonl_file.is_file() and jsonl_file not in found:
+                    found.append(jsonl_file)
+    return found
+
+
 def parse_antigravity_stop_gates(data: dict[str, object]) -> tuple[bool, bool]:
     """Return ``(fully_idle, force)`` for Stop distill gating.
 

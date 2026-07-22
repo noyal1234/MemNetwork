@@ -488,3 +488,23 @@ def test_agent_stop_uses_workspace_not_agents_cwd(tmp_path: Path) -> None:
     assert row is not None
     assert row[0] == "rules"
     assert int(row[1]) >= 0
+
+
+def test_inspect_antigravity_wiring_rules_and_doctor_client(tmp_path: Path) -> None:
+    from brainkm.services.mcp_doctor import build_mcp_doctor_report, inspect_antigravity_wiring
+
+    run_install(
+        project_dir=tmp_path,
+        dev=True,
+        force=True,
+        no_graph=True,
+        client="antigravity",
+    )
+    notes = inspect_antigravity_wiring(tmp_path)
+    assert not any("lacks imperative routing directives" in n for n in notes)
+
+    report = build_mcp_doctor_report(tmp_path)
+    report.clients = [c for c in report.clients if c.client == "antigravity"]
+    assert len(report.clients) == 1
+    assert report.clients[0].client == "antigravity"
+

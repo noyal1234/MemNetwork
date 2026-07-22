@@ -449,6 +449,23 @@ def inspect_antigravity_wiring(project_dir: Path) -> list[str]:
             "check permissions or remove it manually"
         )
 
+    rules_path = project_dir / ".agents" / "rules" / "brainkm.md"
+    if not rules_path.is_file():
+        notes.append(
+            "Antigravity rules missing at .agents/rules/brainkm.md — "
+            "run `brainkm connect antigravity`"
+        )
+    else:
+        try:
+            content = rules_path.read_text(encoding="utf-8")
+            if "MUST" not in content and "MANDATORY" not in content:
+                notes.append(
+                    "Antigravity .agents/rules/brainkm.md lacks imperative routing directives — "
+                    "re-run `brainkm connect antigravity`"
+                )
+        except OSError:
+            notes.append("Could not read .agents/rules/brainkm.md")
+
     for gpath in antigravity_global_mcp_paths():
         if not gpath.is_file():
             continue
@@ -464,6 +481,66 @@ def inspect_antigravity_wiring(project_dir: Path) -> list[str]:
                     ".agents/mcp_config.json (`brainkm connect antigravity`)"
                 )
             break
+
+    notes.extend(_probe_antigravity_session_start_stdout(project_dir))
+    return notes
+
+
+def _probe_antigravity_session_start_stdout(project_dir: Path) -> list[str]:
+    """Dry-run pre-invocation --client antigravity; expect injectSteps envelope."""
+    notes: list[str] = []
+    brainkm_bin = resolve_hook_command(dev=False)
+    cmd = [
+        brainkm_bin,
+        "pre-invocation",
+        "--stdin",
+        "--event",
+        "PreInvocation",
+        "--client",
+        "antigravity",
+        "--project-dir",
+        str(project_dir),
+    ]
+    if brainkm_bin == "brainkm" and not shutil.which("brainkm"):
+        notes.append("brainkm not on PATH — cannot dry-run Antigravity PreInvocation stdout")
+        return notes
+    try:
+        proc = subprocess.run(
+            cmd,
+            input='{"session_id":"doctor-probe"}\n',
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+            cwd=str(project_dir),
+        )
+    except FileNotFoundError:
+        notes.append(f"hook binary missing: {brainkm_bin}")
+        return notes
+    except subprocess.TimeoutExpired:
+        notes.append("Antigravity PreInvocation dry-run timed out")
+        return notes
+
+    if proc.returncode != 0:
+        notes.append(f"Antigravity PreInvocation dry-run exited {proc.returncode}")
+        return notes
+
+    out = (proc.stdout or "").strip()
+    if not out:
+        notes.append("Antigravity PreInvocation dry-run: empty stdout (ok if pack empty)")
+        return notes
+    try:
+        payload = json.loads(out)
+    except json.JSONDecodeError:
+        notes.append("Antigravity PreInvocation dry-run: stdout is not valid JSON")
+        return notes
+
+    if isinstance(payload, dict):
+        steps = payload.get("injectSteps")
+        if isinstance(steps, list):
+            notes.append("Antigravity PreInvocation dry-run: injectSteps envelope ok")
+        else:
+            notes.append("Antigravity PreInvocation dry-run: valid JSON stdout")
     return notes
 
 

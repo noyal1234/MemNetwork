@@ -8,7 +8,9 @@
 
 ## Executive Summary
 
-This live benchmark evaluates the token usage reduction and contextual quality when using **`brainkm`** as the augmented project brain for **Antigravity** agent workflows vs. naive multi-file context window loading (Without Brain).
+This live benchmark evaluates the token usage reduction and contextual quality when using **`brainkm`** as the augmented project brain for **Antigravity**-shaped workflows vs. naive multi-file context window loading (Without Brain).
+
+**Method (pack-vs-dump):** counts tokens in a **full file dump** vs a compiled `context_pack`. It does **not** run a full agent with in-built Grep/Read/edit tools.
 
 ### Headline Results
 

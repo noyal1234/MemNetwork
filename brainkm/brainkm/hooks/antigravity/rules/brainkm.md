@@ -4,17 +4,11 @@ This project uses **brainkm** — a local SQLite project brain at `.brain/brain.
 
 ## Before reading many files
 
-- Prefer MCP **`traverse`** for call/import/flow and blast-radius questions ("what calls X?",
-  "what breaks if I change Y?") — pass a symbol or path; then confirm with targeted reads.
-- Prefer MCP **`trace_changes`** for "what changed in this file recently and why?" — live
-  git log joined to commit↔session↔decision links (diffs stay in git).
-- Prefer MCP **`context_pack`** for multi-file task context (include a **symbol or file path**
-  in the query or `seed_refs`), **then verify in source** before editing — packs are hints,
-  never a substitute for reading the code you will change.
-- Use **`recall`** for architectural decisions, rules, and past pivots — not chat history alone.
-- Memory accumulates from **hooks** (PreInvocation inject, Stop distill, PostToolUse observations).
-  Call **`remember` only to pin** durable project truth or **correct** a wrong auto-capture —
-  not for ordinary session learning.
+- **MUST call** MCP **`traverse`** for call/import/flow and blast-radius questions ("what calls X?", "what breaks if I change Y?") — pass a symbol or path before editing multi-file code.
+- **MUST call** MCP **`trace_changes`** for "what changed in this file recently and why?" — live git log joined to commit↔session↔decision links.
+- **MUST call** MCP **`context_pack`** for multi-file task context (include a symbol or file path in the query or `seed_refs`), then verify in source before editing.
+- **MUST call** MCP **`recall`** for architectural decisions, rules, and past pivots before proposing architectural changes.
+- Memory accumulates from **hooks** (PreInvocation inject, Stop distill, PostToolUse observations). Call **`remember` only to pin** durable project truth or **correct** a wrong auto-capture.
 
 ## Tool routing (locate vs flow vs decisions)
 
@@ -26,15 +20,35 @@ This project uses **brainkm** — a local SQLite project brain at `.brain/brain.
 | "Why did we choose X?" | **`recall`** | Decisions live in neurons, not the code index |
 | Understand one module (would open 3+ files) | **`context_pack`** then targeted reads | Bounded pack vs file dumps |
 
-Do **not** treat brainkm as a second project search index. Use Grep/search to **locate**; use
-Graphify (`traverse` for flow, `context_pack` for task packs) to explain structure. Never skip
-reading source because a pack abstained or looked incomplete — prefer fewer injected tokens over
-trusting noise.
+Do **not** treat brainkm as a second project search index. Use Grep/search to **locate**; use Graphify (`traverse` for flow, `context_pack` for task packs) to explain structure. Never skip reading source because a pack abstained or looked incomplete — prefer fewer injected tokens over trusting noise.
 
-If `traverse` / `context_pack` results look empty or wrong, check **`brain_stats`** first —
-a stale or missing code graph is the usual cause; reads auto-queue a refresh, or run
-`brainkm graph sync`. Empty `traverse` responses include a `hint`, `resolved_id`, and
-`impact_summary` when the graph matched but had no neighbors.
+If `traverse` / `context_pack` results look empty or wrong, check **`brain_stats`** first — a stale or missing code graph is the usual cause; reads auto-queue a refresh, or run `brainkm graph sync`. Empty `traverse` responses include a `hint`, `resolved_id`, and `impact_summary` when the graph matched but had no neighbors.
+
+## 🚨 MANDATORY BRAINKM ROUTING FOR ANTIGRAVITY
+1. **BEFORE proposing architectural changes or refactors**, you MUST execute `mcp_brainkm_recall` to fetch past architectural decisions.
+2. **BEFORE editing functions across multiple files**, you MUST execute `mcp_brainkm_traverse` with the symbol/path to analyze blast radius and dependencies.
+3. **BEFORE modifying existing files**, check `mcp_brainkm_trace_changes` for recent commits and decision context.
+
+## MANDATORY BRAINKM TOOL ROUTING (Antigravity)
+
+Dispatch brainkm tools via Antigravity's lazy MCP wrapper: `call_mcp_tool` with server
+`brainkm` and tool name `recall` / `traverse` / `context_pack` / `trace_changes` /
+`brain_stats` / `remember`. Do **not** invent names like `mcp_brainkm_recall`.
+
+1. Blast-radius / "what calls X" / impact of changing Y: you **MUST** call `traverse`
+   (pass a symbol or path). **Never** rely on text search alone for call/import flow.
+2. "Why did we choose X" / past decisions / pivots: you **MUST** call `recall` unless the
+   PreInvocation ephemeral pack already answers that **exact** question.
+3. Before opening 3+ files for one module/task: you **MUST** call `context_pack` (include
+   a path or symbol), then verify in source.
+4. Git history joins / "what changed in this file and why": you **MUST** call
+   `trace_changes`.
+5. PreInvocation injects a **frozen** snapshot. If it is insufficient for the current
+   question, you **MUST** still call the live tool — the ephemeral message is **not** a
+   substitute for `traverse`, `trace_changes`, or a fresh `recall` / `context_pack`.
+
+Symbol locate ("where is X defined?") still uses Grep / project search first — do **not**
+force `recall` before every search or file read.
 
 ## What lives in the brain
 

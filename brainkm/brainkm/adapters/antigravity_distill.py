@@ -53,6 +53,17 @@ class AntigravityDistillAdapter:
         max_total: int,
     ) -> list[DistilledNeuron]:
         if not self._agy_bin:
+            from brainkm.adapters.groq_distill import GroqDistillAdapter
+            from brainkm.config import get_settings
+
+            if get_settings().groq_api_key and self._config.capture.cloud_distill_acknowledged:
+                logger.info("agy CLI not found; using Groq distill fallback")
+                groq_adapter = GroqDistillAdapter(self._config)
+                return groq_adapter.distill_rounds(
+                    rounds,
+                    round_chunk_ids=round_chunk_ids,
+                    max_total=max_total,
+                )
             logger.info("agy CLI not found; using rules distill")
             return self._fallback.distill_rounds(
                 rounds,
