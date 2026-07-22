@@ -9,20 +9,20 @@
 One SQLite brain. Six MCP tools. Bounded context packs.  
 Survive chat compaction — share memory across Cursor, Antigravity, Claude Code, and Codex.
 
-[![Version](https://img.shields.io/badge/version-0.8.1-3d9a8b?style=flat-square)](brainkm/pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.8.2-3d9a8b?style=flat-square)](brainkm/pyproject.toml)
 [![Python](https://img.shields.io/badge/python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](brainkm/pyproject.toml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-red?style=flat-square)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-6%20tools-1a2332?style=flat-square)](docs/FEATURES.md)
-[![Token Reduction](https://img.shields.io/badge/token%20reduction-95.2%25-2d6a4f?style=flat-square)](docs/benchmarks/2026-07-21-antigravity-live.md)
+[![Token Reduction](https://img.shields.io/badge/token%20reduction-95.2%25-2d6a4f?style=flat-square)](docs/BENCHMARKS.md)
 [![Footprint](https://img.shields.io/badge/idle-~55--70MB%20RAM-2d6a4f?style=flat-square)](docs/benchmarks/2026-07-21-footprint.md)
 
 <br/>
 
-[![Cursor](https://img.shields.io/badge/Cursor-000000?style=flat-square&logo=cursor&logoColor=white)](docs/INSTALL.md#cursor)
-[![Google Antigravity](https://img.shields.io/badge/Google%20Antigravity-4285F4?style=flat-square&logo=google&logoColor=white)](docs/INSTALL.md#antigravity)
-[![Claude Code](https://img.shields.io/badge/Claude%20Code-D97706?style=flat-square&logo=anthropic&logoColor=white)](docs/INSTALL.md#claude-code)
-[![OpenAI Codex](https://img.shields.io/badge/OpenAI%20Codex-00A67E?style=flat-square&logo=openai&logoColor=white)](docs/INSTALL.md#codex)
-[![Generic MCP](https://img.shields.io/badge/Generic%20MCP-6E56CF?style=flat-square)](docs/INSTALL.md)
+[![Cursor](https://img.shields.io/badge/Cursor-000000?style=flat-square&logo=cursor&logoColor=white)](docs/install/cursor.md)
+[![Google Antigravity](https://img.shields.io/badge/Google%20Antigravity-4285F4?style=flat-square&logo=google&logoColor=white)](docs/install/antigravity.md)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-D97706?style=flat-square&logo=anthropic&logoColor=white)](docs/install/claude-code.md)
+[![OpenAI Codex](https://img.shields.io/badge/OpenAI%20Codex-00A67E?style=flat-square&logo=openai&logoColor=white)](docs/install/codex.md)
+[![Generic MCP](https://img.shields.io/badge/Generic%20MCP-6E56CF?style=flat-square)](docs/install/generic.md)
 
 <br/>
 
@@ -80,7 +80,7 @@ Same method on the Cursor-framed `compare` suite averages **~94%**. Full-agent A
 
 Every pack stays under the hard **1,500-token** cap. Typical latency: **~13–18 ms**. Idle shared server: **~55–70 MB RAM**.
 
-Full CMA / LongMemEval scorecard → [docs/BENCHMARKS.md](docs/BENCHMARKS.md) · method → [live run](docs/benchmarks/2026-07-21-antigravity-live.md) · [footprint](docs/benchmarks/2026-07-21-footprint.md)
+Full scorecard → [docs/BENCHMARKS.md](docs/BENCHMARKS.md) · pack-vs-dump method → [live run](docs/benchmarks/2026-07-21-antigravity-live.md) · [footprint](docs/benchmarks/2026-07-21-footprint.md)
 
 ---
 
@@ -124,10 +124,10 @@ Restart the IDE (or reload MCP servers), then optionally:
 
 ```bash
 brainkm viz       # browser graph explorer
-brainkm version   # expect 0.8.1
+brainkm version   # expect 0.8.2
 ```
 
-Full setup → [docs/INSTALL.md](docs/INSTALL.md)
+Full setup → [docs/INSTALL.md](docs/INSTALL.md) · per host → [Cursor](docs/install/cursor.md) · [Antigravity](docs/install/antigravity.md) · [Claude](docs/install/claude-code.md) · [Codex](docs/install/codex.md)
 
 ---
 
@@ -209,13 +209,13 @@ flowchart LR
 
 ### Supported hosts
 
-| Host | Adapter highlights |
-|------|--------------------|
-| **Cursor** | `.cursor/rules` + hooks — PreCompact + SessionEnd |
-| **Google Antigravity** | `.agents/mcp_config.json` (`serverUrl`) — Stop distill into project `.brain/` |
-| **Claude Code** | MCP settings + `claude -p` session-end distill |
-| **OpenAI Codex** | `.codex/config.toml` + hooks — `codex exec` distill |
-| **Generic MCP** | `brainkm serve` (stdio / HTTP) — manual `capture` / `handover` |
+| Host | Adapter highlights | Guide |
+|------|--------------------|-------|
+| **Cursor** | `.cursor/` — PreCompact + SessionEnd | [install/cursor.md](docs/install/cursor.md) |
+| **Google Antigravity** | `.agents/` (`serverUrl`) — Stop → project `.brain/` | [install/antigravity.md](docs/install/antigravity.md) |
+| **Claude Code** | `.claude/settings.json` + `.mcp.json` — Subagent/PostCompact | [install/claude-code.md](docs/install/claude-code.md) |
+| **OpenAI Codex** | `.codex/config.toml` + `/hooks` trust — Stop → session-end | [install/codex.md](docs/install/codex.md) |
+| **Generic MCP** | stdio / HTTP — manual `capture` / `handover` | [install/generic.md](docs/install/generic.md) |
 
 ---
 
@@ -224,7 +224,8 @@ flowchart LR
 | Doc | Contents |
 |-----|----------|
 | [FEATURES.md](docs/FEATURES.md) | Feature catalog + tool definitions |
-| [INSTALL.md](docs/INSTALL.md) | Multi-client install |
+| [INSTALL.md](docs/INSTALL.md) | Clone + multi-client overview |
+| [install/](docs/install/) | Per-host wiring (Cursor / AGY / Claude / Codex / generic) |
 | [AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md) | Architecture + MCP contract |
 | [BENCHMARKS.md](docs/BENCHMARKS.md) | CMA scorecard + eval targets |
 | [CLI_COMMANDS.md](docs/CLI_COMMANDS.md) | CLI reference |
@@ -236,7 +237,7 @@ flowchart LR
 
 ## Status
 
-**brainkm 0.8.1** — six MCP tools, first-class Cursor / Claude / Antigravity / Codex hosts, git commit↔session joins, shared HTTP hardening, included `brainkm viz`.
+**brainkm 0.8.2** — six MCP tools, first-class Cursor / Claude / Antigravity / Codex hosts, per-host install guides, git commit↔session joins, shared HTTP hardening, included `brainkm viz`.
 
 - [x] Local SQLite brain + **6** MCP tools
 - [x] Cursor / Claude / Antigravity / Codex adapters

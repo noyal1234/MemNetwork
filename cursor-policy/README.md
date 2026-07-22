@@ -13,4 +13,4 @@ brainkm configure
 
 Or `brainkm install --dev` (Cursor) / `--client claude` / `--client antigravity` to add host wiring and `.brain/` scaffolding. Add or restore `memnetwork-*.mdc` rules locally under `.cursor/rules/` as needed for your machine.
 
-The installed host rules treat hooks as the primary memory path; MCP `remember` is pin/correct/archive only. Package version: **0.8.1**.
+The installed host rules treat hooks as the primary memory path; MCP `remember` is pin/correct/archive only. Package version: **0.8.2**.

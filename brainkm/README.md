@@ -4,7 +4,7 @@ Local project brain for **agentic coding IDEs** — MCP server backed by SQLite 
 
 **Product overview** (hero, features, benchmarks, multi-host setup): see the repo root [README.md](../README.md).
 
-**Version:** `0.8.1`
+**Version:** `0.8.2`
 
 **License:** Apache-2.0 (see repo root [LICENSE](../LICENSE) and [NOTICE](../NOTICE)). Copyright © 2026 Noyal Bastin Benny.
 
@@ -39,13 +39,13 @@ pip install -e "./brainkm[dev,graphify]"
 
 **Memory path:** hooks + `capture.auto_observe` fill the brain; MCP `remember` is pin/correct/archive only. Optional **commit trace**: `git.commit_trace` → post-commit `brainkm git-note`; MCP `trace_changes` / CLI `brainkm trace` read live git.
 
-| Client | Hooks | MCP | Maturity note |
-|--------|-------|-----|---------------|
-| Cursor | `.cursor/hooks.json` | `.cursor/mcp.json` | Deepest dogfood path today |
-| Claude Code | `.claude/settings.json` | project `.mcp.json` | First-class; distill via `claude -p` |
-| Antigravity | `.agents/hooks.json` | `.agents/mcp_config.json` (HTTP: `serverUrl`) | First-class; Stop distill into project `.brain/` (`--project-dir` + auto-heal); extractor via `capture.distill_mode` (`agy -p` / `groq` / …) |
-| Codex CLI | `.codex/hooks.json` | `.codex/config.toml` `[mcp_servers.brainkm]` | First-class; Stop → session-end; distill via `codex exec` |
-| generic | CLI fallbacks | `.brain/mcp.http.example.json` or shared HTTP | MCP-only; manual capture/handover |
+| Client | Hooks | MCP | Guide |
+|--------|-------|-----|-------|
+| Cursor | `.cursor/hooks.json` | `.cursor/mcp.json` | [install/cursor.md](../docs/install/cursor.md) |
+| Claude Code | `.claude/settings.json` | project `.mcp.json` | [install/claude-code.md](../docs/install/claude-code.md) |
+| Antigravity | `.agents/hooks.json` | `.agents/mcp_config.json` (HTTP: `serverUrl`) | [install/antigravity.md](../docs/install/antigravity.md) |
+| Codex CLI | `.codex/hooks.json` | `.codex/config.toml` `[mcp_servers.brainkm]` | [install/codex.md](../docs/install/codex.md) |
+| generic | CLI fallbacks | `.brain/mcp.http.example.json` or shared HTTP | [install/generic.md](../docs/install/generic.md) |
 
 Claude native Auto Memory (`MEMORY.md`) stays separate — brainkm does not write it. Codex: trust the project `.codex/` layer and `/hooks` before hooks fire. Shared multi-app: Dashboard → Start Brain (or `brainkm serve` + `connect --http`). Verify with `brainkm doctor`.
 ## Code graph (Graphify)

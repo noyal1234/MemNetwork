@@ -213,12 +213,12 @@ Optional semantic stack: `pip install -e "./brainkm[semantic]"` + `brainkm seman
 | Feature | Benefit |
 |---------|---------|
 | **`brainkm configure` TUI** | **Recommended setup:** pick coding apps (checkboxes), Semantic Quality consent, Start Brain for shared mode, live status (incl. MCP Doctor), validated config edits. |
-| **`brainkm install`** | Scaffolds `.brain/`, MCP config, hooks, and rules for **Cursor**, **Claude Code**, **Antigravity**, **Codex**, or **generic** MCP hosts (`--http` for shared). |
+| **`brainkm install`** | Scaffolds `.brain/`, MCP config, hooks, and rules for **Cursor**, **Claude Code**, **Antigravity**, **Codex**, or **generic** MCP hosts (`--http` for shared). Per-host exclusivity: [install/](install/). |
 | **`serve` / `connect` / `doctor`** | Shared HTTP brain wiring and health checks (TUI Start/Stop wraps serve) — one brain for every connected IDE. |
 | **`migrate`** | Applies pending SQLite migrations when the package advances. |
 | **Multi-root config** | Point `project_roots` at monorepo packages so one brain spans related trees. |
 
-> Public one-command install (`uvx` / PyPI / MCP Registry) is deferred until the repo is public and the installable package name is finalized. Local path: [INSTALL.md](INSTALL.md). License: Apache-2.0.
+> Public one-command install (`uvx` / PyPI / MCP Registry) is deferred until the repo is public and the installable package name is finalized. Local path: [INSTALL.md](INSTALL.md) · per-host: [install/](install/). License: Apache-2.0.
 
 ---
 
@@ -283,7 +283,7 @@ Always verify packs in source before editing. Empty or wrong graph? Check `brain
 
 Clone-local setup and MCP wiring:
 
-→ **[INSTALL.md](INSTALL.md)** · **[README.md](../README.md)**
+→ **[INSTALL.md](INSTALL.md)** · **[install/](install/)** (per host) · **[README.md](../README.md)**
 
 ```bash
 bash brainkm/scripts/setup_dev.sh

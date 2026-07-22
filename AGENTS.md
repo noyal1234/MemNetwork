@@ -36,7 +36,7 @@ brainkm version
 
 Python **3.11 or 3.12** recommended. Avoid 3.14+ for now (some deps may not have wheels).
 
-Full clone setup: [docs/INSTALL.md](docs/INSTALL.md).
+Full clone setup: [docs/INSTALL.md](docs/INSTALL.md). Per-host: [docs/install/](docs/install/).
 
 ## Client install assets
 

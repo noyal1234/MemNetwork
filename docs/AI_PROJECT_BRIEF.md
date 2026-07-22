@@ -81,7 +81,8 @@ MemNetwork/
 ├── docs/
 │   ├── AI_PROJECT_BRIEF.md        # This file
 │   ├── CLI_COMMANDS.md            # Full CLI catalog
-│   ├── INSTALL.md                 # Clone + MCP setup
+│   ├── INSTALL.md                 # Clone + multi-host overview
+│   ├── install/                   # Per-host guides (cursor, antigravity, …)
 │   └── TUI_APP_PLAN.md            # brainkm configure (shipped)
 ├── .cursor/
 │   ├── skills/memnetwork-backend/
@@ -119,7 +120,7 @@ MemNetwork/
 
 ## 4. MCP tool contract (V1 / current)
 
-**Package version:** `0.8.1`
+**Package version:** `0.8.2`
 
 | Tool | Purpose |
 |------|---------|
@@ -359,6 +360,7 @@ All distill modes share Cursor chrome cleaning (`clean_cursor_text` / `is_distil
 | **0.7.0** | Done | Git change trace: MCP `trace_changes` + CLI `git-note`/`trace`; live git log/diff joins (no diff ingest); post-commit hook via `git.commit_trace` (new brains on, grandfather Off); merge/empty skip; commit retention hygiene; husky/`core.hooksPath` skip+warn; TUI Git section + dashboard Commit Trace status |
 | **0.8.0** | Done | Codex CLI first-class client: `.codex/config.toml` `[mcp_servers.brainkm]` (stdio/HTTP + `http_headers`), PascalCase nested hooks (Stop → session-end), Codex stdout envelopes, fail-soft, rollout JSONL capture, `distill_mode=codex` via `codex exec` (rules fallback), AGENTS.md + skill, doctor trust/`/hooks` notes; `tomlkit` dep |
 | **0.8.1** | Done | Antigravity Stop → project brain: hooks bake `--project-dir`; resolve root from `workspacePaths` / parent of `.agents` cwd; load project `.env` for `GROQ_API_KEY`; PreInvocation/doctor/connect auto-heal missing `--project-dir` + remove shadow `.agents/.brain` (merge `agy_sessions.json`); docs clarify distill mode = extractor (not transcript parser) |
+| **0.8.2** | Done | README badge fixes (token reduction → BENCHMARKS.md; host badges → per-IDE guides); new `docs/install/{cursor,antigravity,claude-code,codex,generic}.md` exclusivity pages; INSTALL index + version lockstep |
 | **CMA scorecard** | Done | Headline **recall@budget** (gold-in-pack ≤1500): CMA **0.833**, LME-S full-500 **0.892** @ 373 tok; CMA micro **100%** is a regression gate; LME dual-grain fts-blob R@5 **0.934**; `run_cma.sh` + dated `docs/benchmarks/` artifacts |
 | **End-task A/B** | Done | Harness `brainkm/scripts/endtask_harness.py` + fixture `endtask_v1` (12 knowledge / 8 change); dry-run smoke artifact; live claim needs `CURSOR_API_KEY` + `--repeats 3` |
 | **License** | Done | Apache-2.0 ([LICENSE](../LICENSE), [NOTICE](../NOTICE)); copyright Noyal Bastin Benny; [CLA](../CLA.md) + [CONTRIBUTING](../CONTRIBUTING.md) for future relicense option |

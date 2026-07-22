@@ -41,6 +41,7 @@ _PKG = _REPO / "brainkm"
 if str(_PKG) not in sys.path:
     sys.path.insert(0, str(_PKG))
 
+from brainkm import __version__ as _BRAINKM_VERSION  # noqa: E402
 from brainkm.db.connection import connect  # noqa: E402
 from brainkm.db.paths import brain_db_path  # noqa: E402
 from brainkm.services.config_loader import load_brain_config  # noqa: E402
@@ -375,7 +376,7 @@ def generate_markdown(scorecard: PackVsDumpScorecard) -> str:
         f"> **Mode:** `{scorecard.mode}`  ",
         f"> **LLM driver:** "
         f"{'`none` (local sizes only)' if scorecard.mode == 'tokens-only' else f'`{scorecard.driver}` (live API)'}  ",
-        f"> **brainkm:** 0.8.1 · live `.brain/brain.db`",
+        f"> **brainkm:** {_BRAINKM_VERSION} · live `.brain/brain.db`",
         "",
         "## Method (read this first)",
         "",

@@ -1,15 +1,29 @@
 # Installing MemNetwork / brainkm
 
-Clone this repo on a new machine and run brainkm as a Cursor MCP server.
+Clone this repo on a new machine and run brainkm as an MCP server for your coding IDE(s).
 
 **License:** Apache-2.0 — [LICENSE](../LICENSE), [NOTICE](../NOTICE). Copyright © 2026 Noyal Bastin Benny. Contributions: [CONTRIBUTING.md](../CONTRIBUTING.md) + [CLA.md](../CLA.md).
 
 **Public install:** PyPI / `uvx` one-liner is deferred until the repository is public and the installable package name is finalized. Until then, use the clone + editable install below. See [PUBLIC_RELEASE_CHECKLIST.md](PUBLIC_RELEASE_CHECKLIST.md).
 
+## Per-host guides
+
+Each IDE has different MCP paths, hook events, and trust quirks. Pick yours:
+
+| Host | Guide | Exclusive highlights |
+|------|-------|----------------------|
+| **Cursor** | [install/cursor.md](install/cursor.md) | PreCompact + SessionEnd; `.cursor/mcp.json` + `brainkm.mdc` |
+| **Google Antigravity** | [install/antigravity.md](install/antigravity.md) | `.agents/` + `serverUrl`; Stop → project `.brain/` (`--project-dir` bake) |
+| **Claude Code** | [install/claude-code.md](install/claude-code.md) | Hooks in `.claude/settings.json`; Subagent + PostCompact |
+| **OpenAI Codex** | [install/codex.md](install/codex.md) | `.codex/config.toml`; trust project + `/hooks`; Stop → session-end |
+| **Generic MCP** | [install/generic.md](install/generic.md) | No hooks — manual `capture` / `handover` |
+
+Same `.brain/brain.db` across all hosts. Multi-app: `brainkm configure` → **Start Brain**.
+
 ## Prerequisites
 
 - Python **3.11 or 3.12** (`requires-python = ">=3.11"` in `brainkm/pyproject.toml`)
-- [Cursor](https://cursor.com) with MCP and hooks support (PreCompact requires ~0.46+)
+- At least one supported host (Cursor ~0.46+ for PreCompact, Claude Code, Antigravity, Codex CLI, or any MCP client)
 
 ## Clone and setup
 
@@ -23,10 +37,10 @@ brainkm install --dev
 brainkm graph sync          # optional: first code graph
 brainkm graph status
 pytest
-brainkm version   # expect 0.8.1
+brainkm version   # expect 0.8.2
 ```
 
-Restart Cursor or reload MCP servers after `brainkm install --dev`.
+Restart your IDE or reload MCP servers after `brainkm install --dev`.
 
 ### Optional: commit change trace
 
