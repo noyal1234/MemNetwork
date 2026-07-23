@@ -35,8 +35,14 @@ class RememberRequest(BaseModel):
         min_length=1,
         description="Neuron body text (aliases accepted at parse time: content, text)",
     )
-    kind: str = Field(default="memory")
-    subtype: str = Field(default="fact")
+    kind: Literal["memory"] = Field(
+        default="memory",
+        description="MCP remember only creates durable memory neurons",
+    )
+    subtype: Literal["fact", "decision", "pattern", "context", "rule", "error"] = Field(
+        default="fact",
+        description="Durable memory subtype (fact|decision|pattern|context|rule|error)",
+    )
     tags: list[str] = Field(default_factory=list)
     session_id: str | None = None
     action: Literal["pin", "correct", "archive"] = Field(
@@ -291,6 +297,10 @@ class TraverseRequest(BaseModel):
             "in=callers/importers of from_ref; out=callees/exports from from_ref."
         ),
     )
+    session_id: str | None = Field(
+        default=None,
+        description="Optional session id for per-session MCP telemetry (brain_stats)",
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -331,6 +341,14 @@ class TraverseResponse(BaseModel):
     linked_neurons: list[NeuronResult] = Field(
         default_factory=list,
         description="Decision/error memories linked to impacted code nodes (via=code id)",
+    )
+    candidates: list[dict[str, str]] = Field(
+        default_factory=list,
+        description="Up to 3 alternate node id/label hints when from_ref is ambiguous",
+    )
+    abstain_reason: Literal["unresolved", "ambiguous"] | None = Field(
+        default=None,
+        description="When abstained: unresolved (no match) vs ambiguous (multiple)",
     )
 
 
@@ -378,6 +396,14 @@ class BrainStatsResponse(BaseModel):
     hygiene_hint: str | None = Field(
         default=None,
         description="Suggested hygiene action when dead/noisy neurons accumulate",
+    )
+    outbound_gate_7d: dict[str, int] = Field(
+        default_factory=dict,
+        description="Outbound injection-gate fires in 7d keyed by block|strip|noise",
+    )
+    traverse_abstain_7d: dict[str, int] = Field(
+        default_factory=dict,
+        description="Traverse abstentions in 7d keyed by unresolved|ambiguous",
     )
     # Optional session-scoped fields (populated when request.session_id is set)
     session_id: str | None = None
@@ -429,7 +455,10 @@ class TraceChangesRequest(BaseModel):
     path: str = Field(
         ...,
         min_length=1,
-        description="Source file path to trace (live git log --follow + brain joins)",
+        description=(
+            "Single project-relative source file/directory path to trace "
+            "(no globs or git pathspec magic)"
+        ),
     )
     session_id: str | None = Field(
         default=None,

@@ -165,15 +165,24 @@ def record_mcp_tool_use(
     *,
     abstained: bool = False,
     result_count: int | None = None,
+    abstain_reason: str | None = None,
 ) -> None:
-    """Log an MCP tool invocation (works without a real session_id)."""
+    """Log an MCP tool invocation (works without a real session_id).
+
+    ``abstain_reason`` (e.g. ``unresolved`` / ``ambiguous``) is encoded into the
+    logged tool_name as ``traverse:ambiguous:0`` so brain_stats can distinguish
+    failure modes.
+    """
     if not tool_name:
         return
     sid = session_id or ANON_SESSION_ID
     source = "mcp_abstained" if abstained else "mcp"
     # Encode light result metadata in tool_name suffix when useful for stats.
     logged_name = tool_name
-    if result_count is not None and tool_name in {"recall", "context_pack", "traverse"}:
+    if abstained and abstain_reason and tool_name == "traverse":
+        count = 0 if result_count is None else result_count
+        logged_name = f"{tool_name}:{abstain_reason}:{count}"
+    elif result_count is not None and tool_name in {"recall", "context_pack", "traverse"}:
         logged_name = f"{tool_name}:{result_count}"
     conn.execute(
         """

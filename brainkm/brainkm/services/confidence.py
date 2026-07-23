@@ -57,10 +57,36 @@ def confidence_for_top_result(
     )
 
 
-def pack_confidence(kept_count: int) -> Confidence:
-    """Derive confidence from context_pack density (included neuron/graph ids)."""
-    if kept_count <= 0:
-        return "low"
-    if kept_count >= 4:
-        return "high"
-    return "medium"
+def pack_confidence(
+    *,
+    kept_count: int = 0,
+    top_score: float | None = None,
+    top_node_id: str | None = None,
+    fts_bm25_by_id: Mapping[str, float] | None = None,
+    min_bm25_strength: float | None = 3.0,
+    abstained: bool = False,
+    graph_only_explicit_seeds: bool = False,
+) -> Confidence:
+    """Derive pack confidence from retrieval strength (not item density).
+
+    Prefer BM25 of the top included memory. Graph-only packs with explicit
+    ``seed_refs`` may be ``medium``; procedures alone never raise confidence.
+    """
+    if fts_bm25_by_id is not None and top_node_id:
+        return confidence_for_top_result(
+            abstained=abstained,
+            result_count=max(kept_count, 1),
+            top_node_id=top_node_id,
+            fts_bm25_by_id=fts_bm25_by_id,
+            min_bm25_strength=min_bm25_strength,
+        )
+    if top_score is not None:
+        return score_confidence(
+            abstained=abstained,
+            top_score=top_score,
+            result_count=max(kept_count, 1),
+            min_bm25_strength=min_bm25_strength,
+        )
+    if graph_only_explicit_seeds and kept_count > 0:
+        return "medium"
+    return "low"

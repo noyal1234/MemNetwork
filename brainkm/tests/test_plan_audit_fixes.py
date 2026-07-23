@@ -217,6 +217,15 @@ def test_context_pack_include_structured_pack_text_reserves_overhead(runtime, tm
         assert token_count(structured.pack_text) <= budget
         # Both modes reserve MCP JSON overhead for pack_text fitting.
         assert token_count(structured.pack_text) <= budget - MCP_JSON_OVERHEAD_TOKENS + 50
+        # Joint cap: structured arrays share the remainder after pack_text.
+        structured_tokens = sum(
+            token_count(f"{n.title}\n{n.content or ''}")
+            for n in list(structured.neurons) + list(structured.graph_nodes)
+        )
+        assert (
+            token_count(structured.pack_text) + structured_tokens
+            <= budget + MCP_JSON_OVERHEAD_TOKENS
+        )
     finally:
         conn.close()
 

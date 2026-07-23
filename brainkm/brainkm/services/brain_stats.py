@@ -106,6 +106,8 @@ def collect_brain_stats(
         abstention_rate_7d=abstention_rate,
         dead_neuron_count=dead_count,
         hygiene_hint=hygiene_hint,
+        outbound_gate_7d=_outbound_gate_stats(conn),
+        traverse_abstain_7d=_traverse_abstain_stats(conn),
         **session_fields,
     )
 
@@ -189,6 +191,58 @@ def _base_tool_name(tool_name: str | None) -> str:
     if not tool_name:
         return "unknown"
     return tool_name.split(":", 1)[0]
+
+
+def _outbound_gate_stats(conn: sqlite3.Connection) -> dict[str, int]:
+    """Aggregate outbound_gate fires (block/strip/noise) over 7 days."""
+    out: dict[str, int] = {"block": 0, "strip": 0, "noise": 0}
+    try:
+        rows = conn.execute(
+            """
+            SELECT tool_name FROM session_activity
+            WHERE kind = 'outbound_gate'
+              AND created_at >= ?
+            """,
+            (_cutoff_iso(7),),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return out
+    for (tool_name,) in rows:
+        if not tool_name:
+            continue
+        # Encoded as reason:count
+        reason, _, count_s = str(tool_name).partition(":")
+        if reason not in out:
+            continue
+        try:
+            out[reason] += max(1, int(count_s or "1"))
+        except ValueError:
+            out[reason] += 1
+    return out
+
+
+def _traverse_abstain_stats(conn: sqlite3.Connection) -> dict[str, int]:
+    """Count traverse abstentions by unresolved|ambiguous over 7 days."""
+    out: dict[str, int] = {"unresolved": 0, "ambiguous": 0}
+    try:
+        rows = conn.execute(
+            """
+            SELECT tool_name FROM session_activity
+            WHERE kind = 'tool_use'
+              AND source = 'mcp_abstained'
+              AND tool_name LIKE 'traverse:%'
+              AND created_at >= ?
+            """,
+            (_cutoff_iso(7),),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return out
+    for (tool_name,) in rows:
+        parts = str(tool_name or "").split(":")
+        # traverse:ambiguous:0 or traverse:unresolved:0
+        if len(parts) >= 2 and parts[1] in out:
+            out[parts[1]] += 1
+    return out
 
 
 def _mcp_usage_stats(

@@ -45,6 +45,7 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
             "Pin durable project truth, correct a wrong auto-capture (action=correct + "
             "target_node_id writes a supersedes edge), or archive noise (action=archive). "
             "Requires title+body for pin/correct (body aliases: content, text). "
+            "kind is always memory; subtype is fact|decision|pattern|context|rule|error. "
             "Hooks (not this tool) are the primary memory path — do not use for ordinary "
             "session notes."
         ),
@@ -65,12 +66,13 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
     (
         "context_pack",
         (
-            "Compile a bounded task pack (decisions + code neighborhood + procedures). "
-            "Prefer before reading 3+ source files — include a symbol or path "
-            "(or seed_refs). Results are in pack_text by default; neurons/graph_nodes "
-            "arrays stay empty unless include_structured=true (duplicates pack_text, "
-            "costs more tokens). Auto-queues graph refresh when stale. For pure "
-            "call/import/blast-radius questions use traverse."
+            "Compile a bounded task pack (decisions + code neighborhood + "
+            "query-relevant procedures). Prefer before reading 3+ source files — "
+            "include a symbol or path (or seed_refs). Confidence reflects retrieval "
+            "match strength, not pack density. Results are in pack_text by default; "
+            "neurons/graph_nodes stay empty unless include_structured=true "
+            "(shares the same token budget with pack_text). Auto-queues graph refresh "
+            "when stale. For pure call/import/blast-radius questions use traverse."
         ),
         ContextPackRequest,
         ContextPackResponse,
@@ -81,8 +83,9 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
             "Impact analysis: AST neighborhood (callers/callees/imports) plus "
             "impact_summary (hop counts, high fan-in risk) and linked decision/error "
             "neurons. Prefer for 'what breaks if I change Y?'. Pass from_ref (or "
-            "alias query/symbol/path). Not for decisions-only (recall) or multi-file "
-            "task packs (context_pack)."
+            "alias query/symbol/path); abstains when the ref is ambiguous. Optional "
+            "session_id attributes usage to per-session brain_stats. Not for "
+            "decisions-only (recall) or multi-file task packs (context_pack)."
         ),
         TraverseRequest,
         TraverseResponse,
@@ -90,9 +93,11 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
     (
         "brain_stats",
         (
-            "Brain health summary: neuron/graph counts, last graph import, staleness, "
-            "review queue, abstention calibration, hygiene hint. Use before trusting "
-            "traverse/context_pack when results look empty."
+            "Brain health / ops summary: neuron/graph counts, last graph import, "
+            "staleness, review queue, abstention calibration, hygiene hint. "
+            "Not a retrieval-correctness score — do not treat as proof packs/recalls "
+            "were on-topic. Use before trusting traverse/context_pack when results "
+            "look empty."
         ),
         BrainStatsRequest,
         BrainStatsResponse,
@@ -100,11 +105,11 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
     (
         "trace_changes",
         (
-            "Change history for a file: live git log --follow (real commits/diffs stay "
-            "in git) joined to brain commit↔session↔decision links from git-note. "
-            "Includes an uncommitted section from working-tree git diff + file_seed. "
-            "Prefer for 'what changed here recently and why?'. Not for AST blast-radius "
-            "(traverse) or decisions-only (recall)."
+            "Change history for a single project-relative path: live git log "
+            "--follow joined to brain commit↔session↔decision links. Rejects globs "
+            "and git pathspec magic. Git subjects/diff text are sanitized for "
+            "injection. Prefer for 'what changed here recently and why?'. Not for "
+            "AST blast-radius (traverse) or decisions-only (recall)."
         ),
         TraceChangesRequest,
         TraceChangesResponse,

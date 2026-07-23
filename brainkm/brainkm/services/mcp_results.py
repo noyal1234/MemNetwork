@@ -54,6 +54,8 @@ def resolve_display_path(
 
 
 def ranked_to_neuron(conn: sqlite3.Connection, ranked: RankedNode) -> NeuronResult | None:
+    from brainkm.services.outbound import filter_outbound_text
+
     row = conn.execute(
         """
         SELECT id, kind, subtype, title, content, path
@@ -63,19 +65,35 @@ def ranked_to_neuron(conn: sqlite3.Connection, ranked: RankedNode) -> NeuronResu
     ).fetchone()
     if row is None:
         return None
+    title = row["title"] or ""
+    content = row["content"]
+    kind = row["kind"]
+    # Agent-facing memory/procedure/concept bodies must pass the outbound gate.
+    # Code graph nodes keep structural metadata; still strip injection from text.
+    if kind in {"memory", "procedure", "concept"}:
+        cleaned = filter_outbound_text(title, content, require_noise_gate=True)
+        if cleaned is None:
+            return None
+        title, content = cleaned.title, cleaned.content or None
+    elif content:
+        cleaned = filter_outbound_text(title, content, require_noise_gate=False)
+        if cleaned is None:
+            content = None
+        else:
+            title, content = cleaned.title, cleaned.content or None
     path = resolve_display_path(
         conn,
         node_id=row["id"],
-        title=row["title"] or "",
-        content=row["content"],
+        title=title,
+        content=content,
         existing_path=row["path"] or ranked.path,
     )
     return NeuronResult(
         node_id=row["id"],
-        kind=row["kind"],
+        kind=kind,
         subtype=row["subtype"],
-        title=row["title"],
-        content=row["content"],
+        title=title,
+        content=content,
         score=ranked.score,
         activation=ranked.activation,
         path=path,

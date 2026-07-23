@@ -235,6 +235,8 @@ class TraversalResult:
     hint: str | None = None
     impact_summary: ImpactSummary | None = None
     fts_bm25_by_id: dict[str, float] = field(default_factory=dict)
+    candidates: list[dict[str, str]] = field(default_factory=list)
+    abstain_reason: str | None = None  # "unresolved" | "ambiguous" | None
 
 
 @dataclass
@@ -781,7 +783,7 @@ def recall_with_bfs(
 
 
 def resolve_node_ref(conn: sqlite3.Connection, ref: str) -> str | None:
-    """Resolve a node ID, path, or title fragment to a node id."""
+    """Resolve a node ID, path, or title fragment to a node id (best-effort)."""
     by_id = conn.execute(
         "SELECT id FROM nodes WHERE id = ? AND valid_until IS NULL",
         (ref,),
@@ -798,6 +800,126 @@ def resolve_node_ref(conn: sqlite3.Connection, ref: str) -> str | None:
 
     hits = fts_search_nodes(conn, ref, limit=1)
     return hits[0][0] if hits else None
+
+
+@dataclass(frozen=True)
+class TraverseRefResolution:
+    """Result of strict traverse from_ref / to_ref resolution."""
+
+    resolved_id: str | None
+    hint: str | None = None
+    candidates: list[dict[str, str]] = field(default_factory=list)
+    abstain_reason: str | None = None  # "unresolved" | "ambiguous"
+
+
+def resolve_traverse_ref(conn: sqlite3.Connection, ref: str) -> TraverseRefResolution:
+    """Resolve traverse refs with abstention on ambiguous FTS matches.
+
+    Exact id or path wins. Otherwise FTS top-3:
+    - exact title match (prefer code on collision) resolves;
+    - single hit resolves;
+    - top BM25 clearly stronger (|top| >= 2×|second| and top > 0) resolves;
+    - exact ties / ratio < 2 → abstain as ``ambiguous`` (prefer abstain over
+      wrong blast-radius; the 2× floor is a conservative untuned heuristic).
+
+    Candidate labels are outbound-sanitized before inclusion in hints.
+    """
+    from brainkm.services.outbound import sanitize_untrusted_agent_text
+
+    cleaned = (ref or "").strip()
+    if not cleaned:
+        return TraverseRefResolution(
+            resolved_id=None,
+            hint=UNRESOLVED_TRAVERSE_HINT,
+            abstain_reason="unresolved",
+        )
+
+    by_id = conn.execute(
+        "SELECT id FROM nodes WHERE id = ? AND valid_until IS NULL",
+        (cleaned,),
+    ).fetchone()
+    if by_id:
+        return TraverseRefResolution(resolved_id=by_id[0])
+
+    by_path = conn.execute(
+        "SELECT id, title, path FROM nodes WHERE path = ? AND valid_until IS NULL LIMIT 1",
+        (cleaned,),
+    ).fetchone()
+    if by_path:
+        return TraverseRefResolution(resolved_id=by_path[0])
+
+    hits = fts_search_nodes(conn, cleaned, limit=3)
+    if not hits:
+        return TraverseRefResolution(
+            resolved_id=None,
+            hint=UNRESOLVED_TRAVERSE_HINT,
+            abstain_reason="unresolved",
+        )
+
+    def _row(node_id: str):
+        return conn.execute(
+            "SELECT id, kind, title, path FROM nodes WHERE id = ?",
+            (node_id,),
+        ).fetchone()
+
+    def _candidate(node_id: str, score: float) -> dict[str, str]:
+        row = _row(node_id)
+        label = node_id
+        if row:
+            raw_label = (row["path"] or row["title"] or node_id)[:120]
+            label = sanitize_untrusted_agent_text(
+                raw_label,
+                placeholder="[redacted candidate]",
+            )
+        return {
+            "node_id": node_id,
+            "label": label,
+            "bm25": f"{score:.3f}",
+        }
+
+    # Prefer exact title match among FTS hits (avoids near-zero BM25 ties in
+    # tiny corpora where memory bodies also mention the symbol).
+    needle = cleaned.casefold()
+    exact_title: list[tuple[str, float]] = []
+    for nid, sc in hits:
+        row = _row(nid)
+        if row and (row["title"] or "").casefold() == needle:
+            exact_title.append((nid, sc))
+    if len(exact_title) == 1:
+        return TraverseRefResolution(resolved_id=exact_title[0][0])
+    if len(exact_title) > 1:
+        # Prefer code nodes on exact title collision.
+        code_exact = [
+            (nid, sc)
+            for nid, sc in exact_title
+            if (_row(nid) and _row(nid)["kind"] == "code")
+        ]
+        if len(code_exact) == 1:
+            return TraverseRefResolution(resolved_id=code_exact[0][0])
+
+    if len(hits) == 1:
+        return TraverseRefResolution(resolved_id=hits[0][0])
+
+    top_id, top_score = hits[0]
+    _second_id, second_score = hits[1]
+    top_mag = abs(float(top_score))
+    second_mag = abs(float(second_score))
+    # Ratio == 1 (exact tie) and ratio < 2 → abstain.
+    if top_mag >= max(second_mag * 2.0, second_mag + 1e-9) and top_mag > 0:
+        return TraverseRefResolution(resolved_id=top_id)
+
+    candidates = [_candidate(nid, sc) for nid, sc in hits[:3]]
+    labels = ", ".join(c["label"] or c["node_id"] for c in candidates)
+    hint = (
+        f"Ambiguous from_ref matched multiple nodes ({labels}). "
+        "Pass an exact node id or file path, or a more specific symbol."
+    )
+    return TraverseRefResolution(
+        resolved_id=None,
+        hint=hint,
+        candidates=candidates,
+        abstain_reason="ambiguous",
+    )
 
 
 def traverse(
@@ -817,13 +939,17 @@ def traverse(
     max_hops = min(max(max_hops, 1), 2)
     rels = relationships_for_traverse(relationship)
 
-    start_id = resolve_node_ref(conn, from_ref)
+    resolved = resolve_traverse_ref(conn, from_ref)
+    start_id = resolved.resolved_id
     if start_id is None:
         return TraversalResult(
             nodes=[],
             hops_explored=0,
             resolved_id=None,
-            hint=UNRESOLVED_TRAVERSE_HINT,
+            hint=resolved.hint or UNRESOLVED_TRAVERSE_HINT,
+            abstained=True,
+            candidates=list(resolved.candidates),
+            abstain_reason=resolved.abstain_reason or "unresolved",
         )
 
     seed_activations = {start_id: 1.0}
@@ -839,16 +965,28 @@ def traverse(
     )
 
     if to_ref is not None:
-        target_id = resolve_node_ref(conn, to_ref)
+        target = resolve_traverse_ref(conn, to_ref)
+        target_id = target.resolved_id
         if target_id is None or target_id not in activations:
             return TraversalResult(
                 nodes=[],
                 hops_explored=hops,
                 resolved_id=start_id,
+                abstained=True,
+                abstain_reason=(
+                    (target.abstain_reason or "unresolved")
+                    if target_id is None
+                    else "unresolved"
+                ),
+                candidates=list(target.candidates) if target_id is None else [],
                 hint=(
-                    f"Resolved {start_id} but to_ref was not reached within "
-                    f"{max_hops} hop(s) (direction={direction}). "
-                    "Try max_hops=2, direction=both, or relationship=*."
+                    target.hint
+                    if target_id is None
+                    else (
+                        f"Resolved {start_id} but to_ref was not reached within "
+                        f"{max_hops} hop(s) (direction={direction}). "
+                        "Try max_hops=2, direction=both, or relationship=*."
+                    )
                 ),
             )
         activations = {target_id: activations[target_id]}

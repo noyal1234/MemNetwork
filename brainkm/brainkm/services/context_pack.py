@@ -21,8 +21,9 @@ from brainkm.services.budget import (
     truncate_by_channels,
 )
 from brainkm.services.channel_health import graph_available
+from brainkm.services.confidence import Confidence, confidence_for_top_result
 from brainkm.services.memory import token_count
-from brainkm.services.quality import passes_stored_neuron_gate
+from brainkm.services.outbound import filter_outbound_text
 from brainkm.services.search import (
     fts_search_nodes,
     recall_with_bfs,
@@ -527,7 +528,6 @@ def compile_context_pack(
     include_sources: bool | None = None,
 ) -> ContextPackResponse:
     """Compile a bounded task pack from live brain.db."""
-    from brainkm.adapters.redaction import sanitize_for_storage
     from brainkm.models.schemas import ProvenanceSource
     from brainkm.services.budget import adaptive_token_budget
     from brainkm.services.compress import dedup_budget_lines, mmr_diversify
@@ -566,32 +566,21 @@ def compile_context_pack(
         row = _node_row(conn, ranked.node_id)
         if row is None or row["kind"] != "memory":
             continue
-        if not passes_stored_neuron_gate(title=row["title"] or "", content=row["content"]):
+        cleaned = filter_outbound_text(row["title"] or "", row["content"], require_noise_gate=True)
+        if cleaned is None:
             continue
-        # Outbound injection gate — same redaction rules as capture.
-        # sanitize_for_storage reports via .blocked (it does not raise), so the
-        # result must be checked explicitly or blocked content leaks into packs.
-        gate = sanitize_for_storage(
-            row["title"] or "",
-            row["content"] or "",
-            source="injection",
-            mode="capture",
-        )
-        if gate.blocked:
-            continue
-        line = _to_budget_line(row)
-        content = line.content
+        content = cleaned.content or None
         if use_summary and content:
             content = _summarize_memory_content(content, row["subtype"])
         neuron_lines.append(
             BudgetLine(
-                node_id=line.node_id,
-                kind=line.kind,
-                subtype=line.subtype,
-                title=line.title,
+                node_id=row["id"],
+                kind=row["kind"],
+                subtype=row["subtype"],
+                title=cleaned.title,
                 content=content,
-                tokens=line_tokens(line.title, content),
-                priority=min(line.priority, 4),
+                tokens=line_tokens(cleaned.title, content),
+                priority=min(priority_for(row["kind"], row["subtype"]), 4),
             )
         )
 
@@ -623,17 +612,34 @@ def compile_context_pack(
             graph_hint = GRAPH_HINT
 
     proc_lines: list[BudgetLine] = []
-    proc_rows = conn.execute(
-        """
-        SELECT id, kind, subtype, title, content, token_count, path
-        FROM nodes
-        WHERE valid_until IS NULL AND kind = 'procedure'
-        ORDER BY use_count DESC, updated_at DESC
-        LIMIT 5
-        """
-    ).fetchall()
-    for row in proc_rows:
-        proc_lines.append(_to_budget_line(row))
+    # Reuse memory recall floor as a conservative start — procedure corpora are
+    # shorter/style-different so this may under-admit; not separately calibrated.
+    min_bm25 = float(config.recall.min_bm25_strength or 3.0)
+    # Only include procedures that match the query (BM25 floor) — never backfill
+    # popular unrelated tool chains into an off-topic pack.
+    proc_hits = fts_search_nodes(conn, query, limit=12)
+    for node_id, bm25 in proc_hits:
+        if abs(float(bm25)) < min_bm25:
+            continue
+        row = _node_row(conn, node_id)
+        if row is None or row["kind"] != "procedure":
+            continue
+        cleaned = filter_outbound_text(row["title"] or "", row["content"], require_noise_gate=True)
+        if cleaned is None:
+            continue
+        proc_lines.append(
+            BudgetLine(
+                node_id=row["id"],
+                kind=row["kind"],
+                subtype=row["subtype"],
+                title=cleaned.title,
+                content=cleaned.content or None,
+                tokens=line_tokens(cleaned.title, cleaned.content),
+                priority=priority_for(row["kind"], row["subtype"]),
+            )
+        )
+        if len(proc_lines) >= 5:
+            break
 
     channels = {
         "neurons": neuron_lines,
@@ -733,12 +739,26 @@ def compile_context_pack(
             for line in neuron_kept
         ]
         graph_results = [node for node in graph_results if node.node_id in final_ids]
-        # Structured arrays duplicate pack_text bodies — keep them within the
-        # same agent-facing budget as lean pack_text.
-        structured_budget = max(100, budget_cap - MCP_JSON_OVERHEAD_TOKENS)
-        half = max(50, structured_budget // 2)
-        neurons = trim_neurons_to_budget(neurons, budget=half)
-        graph_results = trim_neurons_to_budget(graph_results, budget=structured_budget - half)
+        # Joint cap: structured arrays share the remainder after pack_text.
+        # Reuse the same token_count path as TruncationManifest (not a second
+        # estimator) so pack_text and structured cannot drift.
+        pack_used = int(manifest.tokens_used) or token_count(pack_text)
+        structured_budget = max(
+            0,
+            budget_cap - MCP_JSON_OVERHEAD_TOKENS - pack_used,
+        )
+        # Tiny remainder: drop whole structured arrays (no partial JSON items).
+        # Split policy: 50/50 neurons then graph_nodes; each channel uses
+        # trim_neurons_to_budget (keep whole items until last may truncate body).
+        if structured_budget < 50:
+            neurons = []
+            graph_results = []
+        else:
+            half = max(25, structured_budget // 2)
+            neurons = trim_neurons_to_budget(neurons, budget=half)
+            graph_results = trim_neurons_to_budget(
+                graph_results, budget=structured_budget - half
+            )
     else:
         graph_results = []
         # Keep truncation id lists short so the MCP JSON envelope stays budgeted.
@@ -757,6 +777,16 @@ def compile_context_pack(
             if compact:
                 sources[line.node_id] = [ProvenanceSource(**item) for item in compact]
 
+    confidence = _pack_retrieval_confidence(
+        memory_kept=neuron_kept,
+        graph_kept=graph_kept,
+        fts_bm25_by_id=getattr(recall, "fts_bm25_by_id", {}) or {},
+        min_bm25_strength=config.recall.min_bm25_strength,
+        explicit_seed_refs=bool(seed_refs),
+        strong_query_seed=_query_has_strong_seed(query),
+        abstained=bool(getattr(recall, "abstained", False)),
+    )
+
     return ContextPackResponse(
         query=query_echo,
         pack_text=pack_text,
@@ -766,7 +796,60 @@ def compile_context_pack(
         graph_available=graph_ok,
         graph_hint=graph_hint,
         sources=sources,
+        confidence=confidence,
     )
+
+
+def _query_has_strong_seed(query: str) -> bool:
+    """True when the query contains a concrete path or symbol extract.
+
+    Concrete criteria (any one):
+    - A source-file path match via ``_PATH_RE`` (e.g. ``foo/bar.py``)
+    - A backtick-quoted token of length ≥ 3
+    - A CamelCase or snake_case token of length ≥ 4 (``_CAMEL_RE`` / ``_SNAKE_RE``)
+    """
+    text = query or ""
+    if _PATH_RE.search(text):
+        return True
+    if any(len(m.group(1).strip()) >= 3 for m in _BACKTICK_RE.finditer(text)):
+        return True
+    if any(len(m.group(1)) >= 4 for m in _CAMEL_RE.finditer(text)):
+        return True
+    if any(len(m.group(1)) >= 4 for m in _SNAKE_RE.finditer(text)):
+        return True
+    return False
+
+
+def _pack_retrieval_confidence(
+    *,
+    memory_kept: list[BudgetLine],
+    graph_kept: list[BudgetLine],
+    fts_bm25_by_id: dict[str, float],
+    min_bm25_strength: float | None,
+    explicit_seed_refs: bool,
+    strong_query_seed: bool = False,
+    abstained: bool,
+) -> Confidence:
+    """Label pack trust from retrieval match strength, not item density.
+
+    - **high|medium|low** for memory hits inherit ``confidence_for_top_result`` /
+      ``score_confidence`` bands unchanged (high when |bm25| ≥ max(3×floor, 12)).
+    - Procedures never raise confidence (even when co-present with weak memory).
+    - Graph-only packs: ``medium`` only when ``explicit_seed_refs`` or
+      ``strong_query_seed``; otherwise ``low``.
+    """
+    if memory_kept:
+        top_id = memory_kept[0].node_id
+        return confidence_for_top_result(
+            abstained=abstained,
+            result_count=len(memory_kept),
+            top_node_id=top_id,
+            fts_bm25_by_id=fts_bm25_by_id,
+            min_bm25_strength=min_bm25_strength,
+        )
+    if graph_kept and (explicit_seed_refs or strong_query_seed):
+        return "medium"
+    return "low"
 
 
 def compile_pre_tool_pack(

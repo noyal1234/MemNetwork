@@ -6,6 +6,7 @@ supplies sha → session → decision joins recorded by ``git_note``.
 
 from __future__ import annotations
 
+import re
 import sqlite3
 import subprocess
 from dataclasses import dataclass, field
@@ -17,6 +18,16 @@ from brainkm.services.budget import BudgetLine, greedy_truncate, line_tokens, pr
 from brainkm.services.file_history import file_history
 from brainkm.services.git_note import COMMIT_KIND
 from brainkm.services.memory import token_count
+from brainkm.services.outbound import sanitize_untrusted_agent_text
+
+# Git pathspec magic / wildcards that broaden beyond a single file trace.
+_PATHSPEC_MAGIC = re.compile(r"[*?\[\]]|^\s*:")
+_REDACTED_SUBJECT = "[redacted commit subject]"
+_REDACTED_DIFF = "[redacted diff stat]"
+INVALID_PATH_HINT = (
+    "invalid path — pass a single project-relative file or directory path "
+    "(no '.', '..', globs, or git pathspec magic)"
+)
 
 
 @dataclass(frozen=True)
@@ -58,6 +69,7 @@ class ChangeTraceResult:
 def _run_git(
     project_dir: Path, *args: str, timeout: float = 15
 ) -> subprocess.CompletedProcess[str]:
+    # Hard requirement: argv list only — never shell=True (pathspec injection).
     return subprocess.run(
         ["git", *args],
         cwd=project_dir,
@@ -65,11 +77,57 @@ def _run_git(
         text=True,
         check=False,
         timeout=timeout,
+        shell=False,
     )
 
 
 def _normalize_path(path: str) -> str:
     return path.strip().lstrip("./")
+
+
+def validate_trace_path(path: str, *, project_dir: Path) -> tuple[str | None, str | None]:
+    """Return (normalized_relative_path, error_hint).
+
+    Accepts a single project-relative file/dir path. Rejects empty, ``.``,
+    ``..``, path escape, and Git pathspec magic.
+
+    Symlink policy: both ``project_dir`` and the candidate are resolved with
+    ``Path.resolve()`` (follows symlinks). The final realpath must stay under
+    the project realpath via ``relative_to`` — a symlink inside the tree that
+    points outside fails containment and is rejected.
+    """
+    raw = (path or "").strip()
+    if not raw or raw in {".", ".."}:
+        return None, INVALID_PATH_HINT
+    if _PATHSPEC_MAGIC.search(raw):
+        return None, INVALID_PATH_HINT
+    try:
+        root = project_dir.resolve()
+    except OSError:
+        return None, INVALID_PATH_HINT
+    candidate = Path(raw)
+    if candidate.is_absolute():
+        try:
+            resolved = candidate.resolve()
+            rel = resolved.relative_to(root)
+        except (ValueError, OSError):
+            return None, INVALID_PATH_HINT
+        norm = rel.as_posix()
+    else:
+        norm = _normalize_path(raw)
+        if not norm or norm in {".", ".."} or norm.startswith("../"):
+            return None, INVALID_PATH_HINT
+        parts = Path(norm).parts
+        if ".." in parts or any(p == "" for p in parts):
+            return None, INVALID_PATH_HINT
+        try:
+            resolved = (root / norm).resolve()
+            resolved.relative_to(root)
+        except (ValueError, OSError):
+            return None, INVALID_PATH_HINT
+    if not norm or norm in {".", ".."}:
+        return None, INVALID_PATH_HINT
+    return norm, None
 
 
 def git_log_for_path(
@@ -109,7 +167,7 @@ def uncommitted_for_path(
     session_id: str | None = None,
 ) -> UncommittedSection:
     """Working-tree delta + whether session_activity file_seed touched the path."""
-    norm = _normalize_path(path)
+    norm = path
     status = _run_git(project_dir, "status", "--porcelain", "--", norm)
     dirty = bool((status.stdout or "").strip()) if status.returncode == 0 else False
 
@@ -123,6 +181,9 @@ def uncommitted_for_path(
             named = _run_git(project_dir, "status", "--short", "--", norm)
             if named.returncode == 0 and (named.stdout or "").strip():
                 diff_stat = named.stdout.strip()
+
+    if diff_stat:
+        diff_stat = sanitize_untrusted_agent_text(diff_stat, placeholder=_REDACTED_DIFF)
 
     base = norm.rsplit("/", 1)[-1]
     rows = conn.execute(
@@ -235,6 +296,10 @@ def _fallback_file_neurons(
     ]
 
 
+def _safe_subject(subject: str) -> str:
+    return sanitize_untrusted_agent_text(subject, placeholder=_REDACTED_SUBJECT)
+
+
 def _format_pack(
     path: str,
     commits: list[CommitTraceEntry],
@@ -276,9 +341,27 @@ def change_trace(
     session_id: str | None = None,
 ) -> ChangeTraceResult:
     """Build a budget-capped change history for ``path``."""
-    norm = _normalize_path(path)
     root = project_dir.resolve()
     budget = max(200, config.budget.total_tokens - 50)
+    empty_uncommitted = UncommittedSection(
+        dirty=False, diff_stat=None, agent_touched=False, session_ids=[]
+    )
+
+    norm, path_hint = validate_trace_path(path, project_dir=root)
+    if norm is None:
+        label = path.strip() or "(invalid)"
+        empty_pack = (
+            f"# Change trace: {label}\n\n"
+            "## Commits (live git log)\n- (no commits for path)\n"
+        )
+        return ChangeTraceResult(
+            path=_normalize_path(path) or path.strip() or ".",
+            commits=[],
+            uncommitted=empty_uncommitted,
+            pack_text=empty_pack,
+            truncation=TruncationManifest(token_budget=budget, tokens_used=token_count(empty_pack)),
+            hint=path_hint or INVALID_PATH_HINT,
+        )
 
     raw_log = git_log_for_path(root, norm, limit=limit)
     hint: str | None = None
@@ -303,7 +386,7 @@ def change_trace(
         commits.append(
             CommitTraceEntry(
                 git_hash=sha,
-                subject=subject,
+                subject=_safe_subject(subject),
                 author_date=date or None,
                 commit_node_id=commit_id,
                 session_id=commit_session,

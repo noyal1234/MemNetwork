@@ -102,14 +102,24 @@ def linked_memories_for_code_nodes(
         for row in rows:
             if row["id"] in seen:
                 continue
+            from brainkm.services.outbound import filter_outbound_text
+
+            cleaned = filter_outbound_text(
+                row["title"] or "",
+                row["content"],
+                require_noise_gate=True,
+            )
+            if cleaned is None:
+                continue
             seen.add(row["id"])
+            body = (cleaned.content or "")[:280] or None
             results.append(
                 NeuronResult(
                     node_id=row["id"],
                     kind=row["kind"],
                     subtype=row["subtype"],
-                    title=row["title"],
-                    content=(row["content"] or "")[:280] or None,
+                    title=cleaned.title,
+                    content=body,
                     relationship=row["relationship"],
                     via=code_id,
                 )

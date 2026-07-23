@@ -41,7 +41,7 @@ flowchart LR
 
   subgraph brainkm_pkg [brainkm package]
     Server[MCP server]
-    Tools[5 MCP tools]
+    Tools[6 MCP tools]
     Services[services layer]
     Adapters[adapters layer]
   end
@@ -361,6 +361,7 @@ All distill modes share Cursor chrome cleaning (`clean_cursor_text` / `is_distil
 | **0.8.0** | Done | Codex CLI first-class client: `.codex/config.toml` `[mcp_servers.brainkm]` (stdio/HTTP + `http_headers`), PascalCase nested hooks (Stop → session-end), Codex stdout envelopes, fail-soft, rollout JSONL capture, `distill_mode=codex` via `codex exec` (rules fallback), AGENTS.md + skill, doctor trust/`/hooks` notes; `tomlkit` dep |
 | **0.8.1** | Done | Antigravity Stop → project brain: hooks bake `--project-dir`; resolve root from `workspacePaths` / parent of `.agents` cwd; load project `.env` for `GROQ_API_KEY`; PreInvocation/doctor/connect auto-heal missing `--project-dir` + remove shadow `.agents/.brain` (merge `agy_sessions.json`); docs clarify distill mode = extractor (not transcript parser) |
 | **0.8.2** | Done | README badge fixes (token reduction → BENCHMARKS.md; host badges → per-IDE guides); new `docs/install/{cursor,antigravity,claude-code,codex,generic}.md` exclusivity pages; INSTALL index + version lockstep |
+| **Outbound trust** | Done | Shared outbound injection/noise gate on recall + pack procedures + traverse linked memories **and ambiguity candidate labels**; BM25-gated procedures + retrieval-strength pack confidence; git subject/diff sanitize + pathspec/symlink containment (`shell=False`); ambiguous `traverse` abstain + candidates; MCP `remember` enums (legacy non-enum rows still readable); joint 50/50 structured budget after pack_text; traverse `session_id` + unresolved/ambiguous telemetry; outbound_gate_7d + traverse_abstain_7d on `brain_stats`. **Residual:** store≠inject threat model reuse; procedure BM25 floor uncalibrated; obfuscation/encoding bypasses; author/email not in pack (only ISO date); no multi-tenant isolation claim; MCP latency of extra FTS+sanitize not budgeted. **Chocolate-cake:** unrelated popular procedure injected into off-topic pack with medium confidence from density — fixed by BM25 gate + BM25 confidence. |
 | **CMA scorecard** | Done | Headline **recall@budget** (gold-in-pack ≤1500): CMA **0.833**, LME-S full-500 **0.892** @ 373 tok; CMA micro **100%** is a regression gate; LME dual-grain fts-blob R@5 **0.934**; `run_cma.sh` + dated `docs/benchmarks/` artifacts |
 | **End-task A/B** | Done | Harness `brainkm/scripts/endtask_harness.py` + fixture `endtask_v1` (12 knowledge / 8 change); dry-run smoke artifact; live claim needs `CURSOR_API_KEY` + `--repeats 3` |
 | **License** | Done | Apache-2.0 ([LICENSE](../LICENSE), [NOTICE](../NOTICE)); copyright Noyal Bastin Benny; [CLA](../CLA.md) + [CONTRIBUTING](../CONTRIBUTING.md) for future relicense option |

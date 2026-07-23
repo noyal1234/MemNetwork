@@ -37,7 +37,7 @@ from brainkm.models.schemas import (
 )
 from brainkm.services.brain_stats import collect_brain_stats
 from brainkm.services.change_trace import change_trace
-from brainkm.services.confidence import confidence_for_top_result, pack_confidence
+from brainkm.services.confidence import confidence_for_top_result
 from brainkm.services.config_loader import load_brain_config
 from brainkm.services.context_pack import compile_context_pack
 from brainkm.services.decision_trail import (
@@ -55,6 +55,7 @@ from brainkm.services.mcp_results import (
 )
 from brainkm.services.memory import forget_neuron, remember_neuron, supersede_neuron, token_count
 from brainkm.services.neuron_index import index_neuron_links
+from brainkm.services.outbound import flush_outbound_gate_events
 from brainkm.services.provenance import compact_sources_for_node
 from brainkm.services.recall import recall_live
 from brainkm.services.recall_limit import get_recall_limit_state
@@ -321,6 +322,7 @@ def handle_recall(
         abstained=result.abstained,
         result_count=len(nodes),
     )
+    flush_outbound_gate_events(conn, request.session_id)
     _maintenance(conn)
     conn.commit()
 
@@ -373,9 +375,7 @@ def handle_context_pack(
     if hint != result.graph_hint:
         result = result.model_copy(update={"graph_hint": hint})
 
-    kept = len(result.truncation.included_ids)
-    result = result.model_copy(update={"confidence": pack_confidence(kept)})
-
+    # Confidence is set inside compile_context_pack from retrieval strength.
     hit_ids = filter_active_memory_ids(conn, list(result.truncation.included_ids))
     persist_neuron_hits(
         conn,
@@ -390,6 +390,7 @@ def handle_context_pack(
         "context_pack",
         result_count=len(result.truncation.included_ids),
     )
+    flush_outbound_gate_events(conn, request.session_id)
     _maintenance(conn)
     conn.commit()
     return result
@@ -473,7 +474,19 @@ def handle_traverse(
     if project_dir is not None:
         hint = _maybe_queue_graph_sync(project_dir, config, existing_hint=hint)
 
-    record_mcp_tool_use(conn, None, "traverse", result_count=len(nodes))
+    abstained = bool(result.abstained) or (result.resolved_id is None and not nodes)
+    abstain_reason = result.abstain_reason
+    if abstained and not abstain_reason:
+        abstain_reason = "unresolved" if result.resolved_id is None else None
+    record_mcp_tool_use(
+        conn,
+        request.session_id,
+        "traverse",
+        abstained=abstained,
+        result_count=len(nodes),
+        abstain_reason=abstain_reason,
+    )
+    flush_outbound_gate_events(conn, request.session_id)
     _maintenance(conn)
     conn.commit()
     return TraverseResponse(
@@ -484,6 +497,8 @@ def handle_traverse(
         hint=hint,
         impact_summary=result.impact_summary,
         linked_neurons=linked,
+        candidates=list(result.candidates or []),
+        abstain_reason=abstain_reason if abstained else None,  # type: ignore[arg-type]
     )
 
 
@@ -521,6 +536,7 @@ def handle_trace_changes(
         "trace_changes",
         result_count=len(result.commits),
     )
+    flush_outbound_gate_events(conn, request.session_id)
     _maintenance(conn)
     conn.commit()
     return TraceChangesResponse(

@@ -30,16 +30,33 @@ def serve_pid_path(project_dir: Path | None = None) -> Path:
 
 
 def get_serve_status(project_dir: Path | None = None) -> ServeStatus:
+    """Report whether *this project's* shared HTTP brain is up.
+
+    Stdio projects do not probe the default localhost port — another project's
+    ``brainkm serve`` on :8765 must not look like this brain is running. Probe
+    only when transport is ``http``, or when ``.brain/serve.pid`` exists (TUI
+    Start Brain may launch HTTP while config is still settling).
+    """
     root = resolve_project_dir(project_dir)
     cfg = load_brain_config(root)
     url = mcp_health_url(host=cfg.mcp.http_host, port=cfg.mcp.http_port)
+    pid_file = serve_pid_path(root)
+    transport = cfg.mcp.transport
+    if transport != "http" and not pid_file.is_file():
+        return ServeStatus(
+            running=False,
+            health_url=url,
+            detail="stdio transport (no shared HTTP serve)",
+            transport=transport,
+            pid_file=pid_file,
+        )
     ok, detail = probe_health(host=cfg.mcp.http_host, port=cfg.mcp.http_port)
     return ServeStatus(
         running=ok,
         health_url=url,
         detail=detail,
-        transport=cfg.mcp.transport,
-        pid_file=serve_pid_path(root),
+        transport=transport,
+        pid_file=pid_file,
     )
 
 
