@@ -17,7 +17,73 @@ from brainkm.tui.screens.wizard import (
     STEP_SEMANTIC,
     STEP_VIZ_LLM,
     STEPS,
+    format_client_tips,
+    format_install_description,
 )
+
+
+def test_format_install_description_lists_only_selected_apps() -> None:
+    single = format_install_description(["cursor"], shared=False)
+    assert "Cursor → .cursor/hooks.json" in single
+    assert "Claude" not in single
+    assert "Codex" not in single
+    assert "extra terminal" in single
+
+    shared = format_install_description(
+        ["cursor", "antigravity", "codex"], shared=True
+    )
+    assert "share one brain" in shared
+    assert "Cursor → .cursor/hooks.json" in shared
+    assert "Antigravity → .agents/" in shared
+    assert "Codex → .codex/config.toml" in shared
+    assert "Claude" not in shared
+
+
+def test_format_client_tips_covers_claude_codex_antigravity() -> None:
+    tips = format_client_tips(["cursor", "codex", "claude", "antigravity"])
+    assert "Claude Code" in tips
+    assert "Codex" in tips
+    assert "/hooks" in tips
+    assert "serverUrl" in tips
+    assert format_client_tips(["cursor"]) == ""
+
+
+def test_detect_wired_clients_finds_cursor_and_antigravity(tmp_path: Path) -> None:
+    from brainkm.services.connect import detect_wired_clients
+
+    assert detect_wired_clients(tmp_path) == []
+    (tmp_path / ".cursor").mkdir()
+    (tmp_path / ".cursor" / "mcp.json").write_text("{}", encoding="utf-8")
+    (tmp_path / ".agents").mkdir()
+    (tmp_path / ".agents" / "hooks.json").write_text("{}", encoding="utf-8")
+    assert detect_wired_clients(tmp_path) == ["cursor", "antigravity"]
+
+
+async def test_wizard_preselects_already_wired_apps(tmp_path: Path) -> None:
+    """Re-run must tick Cursor+Antigravity when both are already on disk — not Cursor-only."""
+    from textual.widgets import Checkbox
+
+    (tmp_path / ".cursor").mkdir()
+    (tmp_path / ".cursor" / "mcp.json").write_text('{"mcpServers":{}}', encoding="utf-8")
+    (tmp_path / ".agents").mkdir()
+    (tmp_path / ".agents" / "mcp_config.json").write_text(
+        '{"mcpServers":{}}', encoding="utf-8"
+    )
+
+    app = BrainkmConfigureApp(project_dir=tmp_path)
+    async with app.run_test(size=(140, 70)) as pilot:
+        await pilot.pause(0.3)
+        screen = app.screen
+        assert STEPS[screen._current_step] == STEP_CLIENT
+        assert screen._selected_apps == ["cursor", "antigravity"]
+        assert screen._shared_mode is True
+        assert screen.query_one("#wizard-app-cursor", Checkbox).value is True
+        assert screen.query_one("#wizard-app-antigravity", Checkbox).value is True
+        assert screen.query_one("#wizard-app-claude", Checkbox).value is False
+        assert screen.query_one("#wizard-app-codex", Checkbox).value is False
+        # No "recommended" marketing on Cursor.
+        label = str(screen.query_one("#wizard-app-cursor", Checkbox).label)
+        assert "recommended" not in label.lower()
 
 
 async def test_wizard_is_initial_screen_for_fresh_project(tmp_path: Path) -> None:
@@ -105,6 +171,34 @@ async def test_wizard_multi_app_uses_shared_http(tmp_path: Path) -> None:
         assert (tmp_path / ".mcp.json").is_file()
 
 
+async def test_wizard_install_description_matches_selected_apps(
+    tmp_path: Path,
+) -> None:
+    """Step 3 copy reflects checkboxes (incl. Codex), not a hardcoded trio."""
+    from textual.widgets import Checkbox, Static
+
+    app = BrainkmConfigureApp(project_dir=tmp_path)
+    async with app.run_test(size=(140, 70)) as pilot:
+        await pilot.pause(0.3)
+        screen = app.screen
+        assert STEPS[screen._current_step] == STEP_CLIENT
+
+        screen.query_one("#wizard-app-antigravity", Checkbox).value = True
+        screen.query_one("#wizard-app-codex", Checkbox).value = True
+        await pilot.click("#btn-wizard-run")
+        await pilot.pause(0.3)
+
+        assert screen._selected_apps == ["cursor", "antigravity", "codex"]
+        assert screen._shared_mode is True
+        assert STEPS[screen._current_step] == STEP_INSTALL
+
+        desc = str(screen.query_one("#wizard-install-description", Static).content)
+        assert "Codex → .codex/config.toml" in desc
+        assert "Antigravity → .agents/" in desc
+        assert "Cursor → .cursor/hooks.json" in desc
+        assert "Claude" not in desc
+
+
 async def test_wizard_distill_mode_selection_writes_config(tmp_path: Path) -> None:
     app = BrainkmConfigureApp(project_dir=tmp_path)
     async with app.run_test(size=(140, 70)) as pilot:
@@ -122,7 +216,7 @@ async def test_wizard_distill_mode_selection_writes_config(tmp_path: Path) -> No
 
         radio_set = screen.query_one("#wizard-distill-radio", RadioSet)
         radio_set.focus()
-        # Order: cursor, claude, antigravity, ollama, groq
+        # Order: cursor, claude, antigravity, codex, ollama, groq
         radio_set.action_next_button()
         radio_set.action_toggle_button()
         await pilot.pause(0.1)

@@ -9,7 +9,8 @@ Status value colors (StatusPanel ``value--*``):
   error          — unreachable, fail, Groq rate limit
   warning        — stale, mismatch, pending review
   accent #FFB000 — LLM model identifiers
-  muted          — secondary facts (RAM, GPU, tier)
+  info           — factual system info (RAM, GPU, tier); body text, not muted
+  muted          — secondary / n/a / loading placeholders
 """
 
 from __future__ import annotations

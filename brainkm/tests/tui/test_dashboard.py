@@ -72,6 +72,10 @@ async def test_dashboard_loads_brain_status(tui_project: Path) -> None:
         labels = [item[0] for item in panel._items]
         assert "distill" in labels
         assert "neurons" in labels
+        assert "edges" in labels
+        assert "observe" in labels
+        assert "mcp" in labels
+        assert "model" not in labels
         distill_row = next(item for item in panel._items if item[0] == "distill")
         # Readiness-aware display: mode + detail in parentheses
         assert "(" in distill_row[1], f"expected readiness suffix, got {distill_row[1]!r}"

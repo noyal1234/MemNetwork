@@ -627,7 +627,61 @@ Footer > .footer--highlight {
 .wizard-step .step-description {
     color: $text-muted;
     height: auto;
-    margin-bottom: 0;
+    margin-bottom: 1;
+}
+
+/* App multi-select: aligned cards + radio-style ○/● (AppPickCheckbox) */
+#wizard-app-list {
+    layout: vertical;
+    width: 100%;
+    height: auto;
+    margin: 0 0 1 0;
+    padding: 0;
+}
+
+#wizard-app-list .app-pick {
+    width: 36;
+    height: 3;
+    margin: 0 0 1 0;
+    padding: 0 2;
+    border: tall $border;
+    background: $surface;
+    color: $text;
+}
+
+#wizard-app-list .app-pick:focus {
+    border: tall $primary;
+    background: $surface-high;
+}
+
+#wizard-app-list .app-pick.-on {
+    border: tall $success;
+    background: $surface-container;
+}
+
+#wizard-app-list .app-pick > .toggle--button {
+    color: $outline;
+    background: $surface;
+    text-style: bold;
+}
+
+#wizard-app-list .app-pick.-on > .toggle--button {
+    color: $success;
+    background: $surface-container;
+    text-style: bold;
+}
+
+#wizard-app-list .app-pick > .toggle--label {
+    color: $text;
+}
+
+#wizard-app-list .app-pick.-on > .toggle--label {
+    color: $text;
+    text-style: bold;
+}
+
+#wizard-app-list .app-pick:focus > .toggle--label {
+    text-style: bold;
 }
 
 #wizard-container #wizard-log {

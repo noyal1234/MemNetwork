@@ -24,6 +24,7 @@ from textual.worker import Worker, WorkerState
 
 from brainkm.services.distill_status import DISTILL_MODE_LABELS, PRIMARY_DISTILL_MODES
 from brainkm.tui.theme import border_color_pair, bracket_label, escape_markup
+from brainkm.tui.widgets.app_pick import AppPickCheckbox
 from brainkm.tui.widgets.rich_log_panel import RichLogPanel
 
 # ---------------------------------------------------------------------------
@@ -57,28 +58,70 @@ STEPS = [
 
 # Plain-language app picker (checkboxes). Primary install client = first selected.
 APP_CHECKBOXES: list[tuple[str, str, str]] = [
-    ("cursor", "wizard-app-cursor", "Cursor (recommended)"),
+    ("cursor", "wizard-app-cursor", "Cursor"),
     ("claude", "wizard-app-claude", "Claude Code"),
     ("antigravity", "wizard-app-antigravity", "Antigravity"),
     ("codex", "wizard-app-codex", "Codex"),
 ]
 
-INSTALL_PLAIN: dict[str, str] = {
-    "single": (
+CLIENT_DISPLAY_NAMES: dict[str, str] = {
+    "cursor": "Cursor",
+    "claude": "Claude Code",
+    "antigravity": "Antigravity",
+    "codex": "Codex",
+}
+
+# Short wiring lines for Step 3 — only selected apps are shown.
+CLIENT_WIRING_HINTS: dict[str, str] = {
+    "cursor": "Cursor → .cursor/hooks.json",
+    "claude": (
+        "Claude → .claude/settings.json + .mcp.json "
+        "(not .claude/hooks.json)"
+    ),
+    "antigravity": "Antigravity → .agents/ (HTTP uses serverUrl)",
+    "codex": "Codex → .codex/config.toml + hooks.json (trust /hooks)",
+}
+
+
+def format_install_description(apps: list[str], *, shared: bool) -> str:
+    """Plain-language Step 3 copy for the selected coding apps."""
+    selected = [a for a in apps if a in CLIENT_WIRING_HINTS] or ["cursor"]
+    wiring = "; ".join(CLIENT_WIRING_HINTS[a] for a in selected)
+    if shared:
+        return (
+            "You use more than one coding app. We'll share one brain across them.\n"
+            "Later you'll click Start Brain (or leave one small terminal open while you code). "
+            "You only do that once per day — not for every chat.\n"
+            f"{wiring}."
+        )
+    return (
         "We'll set up silent memory for one app. You won't need an extra terminal — "
         "your coding app starts the brain automatically. Silent capture stays on.\n"
-        "Claude Code → hooks in .claude/settings.json + .mcp.json "
-        "(not .claude/hooks.json). Cursor → .cursor/hooks.json. "
-        "Antigravity → .agents/mcp_config.json + .agents/hooks.json."
-    ),
-    "shared": (
-        "You use more than one coding app. We'll share one brain across them.\n"
-        "Later you'll click Start Brain (or leave one small terminal open while you code). "
-        "You only do that once per day — not for every chat.\n"
-        "Claude → .claude/settings.json; Cursor → .cursor/hooks.json; "
-        "Antigravity → .agents/ (HTTP uses serverUrl)."
-    ),
-}
+        f"{wiring}."
+    )
+
+
+def format_client_tips(apps: list[str]) -> str:
+    """Extra post-setup tips for clients that need a trust / coexistence note."""
+    tips: list[str] = []
+    if "claude" in apps:
+        tips.append(
+            "Claude Code: hooks live in `.claude/settings.json` "
+            "(leave Claude Auto Memory alone). Verify with `brainkm doctor`."
+        )
+    if "codex" in apps:
+        tips.append(
+            "Codex: trust this project's `.codex/` layer, then open `/hooks` and "
+            "trust brainkm commands — untrusted hooks are skipped."
+        )
+    if "antigravity" in apps:
+        tips.append(
+            "Antigravity: HTTP MCP uses `serverUrl` in `.agents/mcp_config.json` "
+            "(not `url`)."
+        )
+    if not tips:
+        return ""
+    return "\n" + "\n".join(tips)
 
 
 class WizardScreen(Screen):
@@ -99,11 +142,16 @@ class WizardScreen(Screen):
         self._project_dir = project_dir or Path.cwd()
         self._current_step = 0
         self._distill_mode = "cursor"
-        self._client = "cursor"
-        self._selected_apps: list[str] = ["cursor"]
-        self._shared_mode = False
+        from brainkm.services.connect import detect_wired_clients
+
+        detected = detect_wired_clients(self._project_dir)
+        # Fresh project: soft-default Cursor (simple stdio path). Re-run: mirror disk.
+        self._selected_apps: list[str] = list(detected) if detected else ["cursor"]
+        self._client = self._selected_apps[0]
+        self._shared_mode = len(self._selected_apps) > 1
         self._semantic_enable = False
         self._semantic_rerank = False
+        self._detected_apps: list[str] = list(detected)
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -132,23 +180,27 @@ class WizardScreen(Screen):
                 yield Static("2 ─ Which coding apps do you use?", classes="step-title")
                 yield Static(
                     "Tick every app you code with on this project.\n"
+                    "Already-wired apps are pre-selected when we find their config on disk.\n"
                     "One app = simplest setup (no extra terminal).\n"
                     "Two or more = shared memory across them (best if you switch apps).",
                     classes="step-description",
                 )
-                for _kind, widget_id, label in APP_CHECKBOXES:
-                    yield Checkbox(
-                        label,
-                        id=widget_id,
-                        value=(_kind == "cursor"),
-                    )
+                with Vertical(id="wizard-app-list"):
+                    for kind, widget_id, label in APP_CHECKBOXES:
+                        yield AppPickCheckbox(
+                            label,
+                            id=widget_id,
+                            value=(kind in self._selected_apps),
+                        )
                 yield Static("", id="wizard-client-status")
 
             # --- Step 3: Install scaffolding ---
             with Vertical(classes="wizard-step", id=STEP_INSTALL):
                 yield Static("3 ─ Set up your project brain", classes="step-title")
                 yield Static(
-                    INSTALL_PLAIN["single"],
+                    format_install_description(
+                        self._selected_apps, shared=self._shared_mode
+                    ),
                     id="wizard-install-description",
                     classes="step-description",
                 )
@@ -377,12 +429,10 @@ class WizardScreen(Screen):
         """Plain-language next steps + enable Start Brain when shared mode."""
         shared = self._shared_mode
         apps = list(self._selected_apps) or [self._client]
-        claude_note = ""
-        if "claude" in apps:
-            claude_note = (
-                "\nClaude Code: hooks live in `.claude/settings.json` "
-                "(leave Claude Auto Memory alone). Verify with `brainkm doctor`."
-            )
+        app_labels = " / ".join(
+            CLIENT_DISPLAY_NAMES.get(a, a.title()) for a in apps
+        )
+        client_tips = format_client_tips(apps)
         try:
             next_el = self.query_one("#wizard-done-next-steps", Static)
             start_btn = self.query_one("#btn-wizard-start-serve", Button)
@@ -391,9 +441,9 @@ class WizardScreen(Screen):
                     "[bold]What to do when you code[/]\n"
                     "1. Click [Start Brain] below (or once a day open a terminal and leave "
                     "`brainkm serve` running).\n"
-                    "2. Open Cursor / Claude / Codex as usual — they share the same memory.\n"
+                    f"2. Open {app_labels} as usual — they share the same memory.\n"
                     "You do [not] need to start the brain for every chat — only once while you work."
-                    + claude_note
+                    + client_tips
                 )
                 start_btn.disabled = False
             else:
@@ -402,7 +452,7 @@ class WizardScreen(Screen):
                     "Just open your coding app and work. Memory starts automatically — "
                     "no extra terminals, no serve command.\n"
                     "Silent capture is on: useful decisions stick around without you clicking Remember."
-                    + claude_note
+                    + client_tips
                 )
                 start_btn.disabled = True
         except Exception:
@@ -585,7 +635,7 @@ class WizardScreen(Screen):
     # ------------------------------------------------------------------
 
     def _check_project(self) -> None:
-        """Step 1: Check if .brain/ exists."""
+        """Step 1: Check if .brain/ exists; note already-wired apps for step 2."""
         brain_dir = self._project_dir / ".brain"
         status = self.query_one("#wizard-project-status", Static)
         if brain_dir.is_dir():
@@ -596,6 +646,19 @@ class WizardScreen(Screen):
         else:
             status.update("[dim]● .brain/ will be created[/]")
             self.log_panel.log_info(f"Project directory: {self._project_dir}")
+        if self._detected_apps:
+            apps = ", ".join(self._detected_apps)
+            self.log_panel.log_info(
+                f"Found existing app wiring: {apps} — pre-selected on next step"
+            )
+            try:
+                client_status = self.query_one("#wizard-client-status", Static)
+                mode = "shared brain" if self._shared_mode else "simple (one app)"
+                client_status.update(
+                    f"[dim]Pre-selected from disk: {apps} — {mode}[/]"
+                )
+            except Exception:
+                pass
         self._advance()
 
     def _apply_client(self) -> None:
@@ -603,7 +666,7 @@ class WizardScreen(Screen):
         selected: list[str] = []
         for kind, widget_id, _label in APP_CHECKBOXES:
             try:
-                box = self.query_one(f"#{widget_id}", Checkbox)
+                box = self.query_one(f"#{widget_id}", AppPickCheckbox)
                 if box.value:
                     selected.append(kind)
             except Exception:
@@ -611,7 +674,7 @@ class WizardScreen(Screen):
         if not selected:
             selected = ["cursor"]
             try:
-                self.query_one("#wizard-app-cursor", Checkbox).value = True
+                self.query_one("#wizard-app-cursor", AppPickCheckbox).value = True
             except Exception:
                 pass
 
@@ -626,7 +689,9 @@ class WizardScreen(Screen):
             status.update(f"[bold green]● Apps: {apps}[/] — {mode}")
             desc = self.query_one("#wizard-install-description", Static)
             desc.update(
-                INSTALL_PLAIN["shared"] if self._shared_mode else INSTALL_PLAIN["single"]
+                format_install_description(
+                    selected, shared=self._shared_mode
+                )
             )
         except Exception:
             pass
@@ -1157,10 +1222,22 @@ class WizardScreen(Screen):
             apps = ", ".join(result.get("apps") or [result.get("client", self._client)])
             mode = "shared" if self._shared_mode else "simple"
             status.update(f"[bold green]✓ Brain ready[/] ({mode}: {apps})")
-            if "claude" in (result.get("apps") or [result.get("client")]):
+            installed_apps = list(
+                result.get("apps") or [result.get("client") or self._client]
+            )
+            if "claude" in installed_apps:
                 self.log_panel.log_info(
                     "Claude: hooks in .claude/settings.json — leave Auto Memory alone; "
                     "brainkm holds team decisions + graph. Run `brainkm doctor` to verify."
+                )
+            if "codex" in installed_apps:
+                self.log_panel.log_info(
+                    "Codex: trust `.codex/`, then `/hooks` for brainkm commands — "
+                    "untrusted project hooks are skipped."
+                )
+            if "antigravity" in installed_apps and self._shared_mode:
+                self.log_panel.log_info(
+                    "Antigravity: HTTP MCP field is serverUrl in .agents/mcp_config.json."
                 )
             self._advance()
 

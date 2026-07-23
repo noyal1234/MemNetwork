@@ -203,6 +203,21 @@ class DashboardScreen(Screen):
                 "ok" if brain.get("code_node_count", 0) else "muted",
             ),
             (
+                "edges",
+                str(brain.get("edge_count", 0)),
+                "ok" if brain.get("edge_count", 0) else "muted",
+            ),
+            (
+                "observe",
+                "on" if brain.get("auto_observe") else "off",
+                "ok" if brain.get("auto_observe") else "warning",
+            ),
+            (
+                "mcp",
+                str(brain.get("mcp_transport") or "?"),
+                "ok" if brain.get("mcp_transport") in {"http", "stdio"} else "muted",
+            ),
+            (
                 "Commit Trace",
                 str(brain.get("commit_trace_label") or "?"),
                 str(brain.get("commit_trace_color") or "muted"),
@@ -240,21 +255,6 @@ class DashboardScreen(Screen):
                     )
                 )
 
-        # Exactly one accent model row: the active distill backend's model.
-        distill_mode = str(brain.get("distill_mode") or "")
-        if distill_mode == "groq":
-            groq_model = str((groq or {}).get("config_model") or "").strip()
-            if groq_model and groq_model not in {"?", "not set"}:
-                items.append(("model", groq_model, "accent"))
-        elif distill_mode == "ollama":
-            ollama_model = str(
-                (ollama or {}).get("config_model")
-                or (ollama or {}).get("recommended")
-                or ""
-            ).strip()
-            if ollama_model and ollama_model not in {"?", "not set"}:
-                items.append(("model", ollama_model, "accent"))
-
         if graph and not graph.get("error"):
             stale = graph.get("graph_stale", False)
             items.append(
@@ -277,6 +277,7 @@ class DashboardScreen(Screen):
             from brainkm.services.mcp_doctor import (
                 antigravity_hooks_wired,
                 claude_hooks_wired,
+                codex_hooks_wired,
             )
             from brainkm.services.serve_helper import get_serve_status
 
@@ -286,6 +287,7 @@ class DashboardScreen(Screen):
                 self._project_dir / ".mcp.json"
             ).is_file()
             agy_dir = (self._project_dir / ".agents").is_dir()
+            codex_dir = (self._project_dir / ".codex").is_dir()
             return {
                 "running": status.running,
                 "transport": cfg.mcp.transport,
@@ -295,6 +297,9 @@ class DashboardScreen(Screen):
                 "claude_hooks": claude_hooks_wired(self._project_dir) if claude_dir else None,
                 "antigravity_hooks": (
                     antigravity_hooks_wired(self._project_dir) if agy_dir else None
+                ),
+                "codex_hooks": (
+                    codex_hooks_wired(self._project_dir) if codex_dir else None
                 ),
             }
         except Exception as exc:
@@ -337,6 +342,11 @@ class DashboardScreen(Screen):
             items.append(("AGY hooks", ".agents/hooks.json", "ok"))
         elif agy_hooks is False:
             items.append(("AGY hooks", "missing", "warning"))
+        codex_hooks = data.get("codex_hooks")
+        if codex_hooks is True:
+            items.append(("Codex hooks", ".codex/hooks.json", "ok"))
+        elif codex_hooks is False:
+            items.append(("Codex hooks", "missing", "warning"))
         panel.set_items(items)
 
     # --- Ollama ---
@@ -383,9 +393,9 @@ class DashboardScreen(Screen):
                 "reachable" if reachable else "unreachable",
                 "ok" if reachable else "error",
             ),
-            ("RAM", data.get("ram", "?"), "muted"),
-            ("GPU", data.get("gpu", "?"), "muted"),
-            ("Tier", data.get("tier", "?"), "muted"),
+            ("RAM", data.get("ram", "?"), "info"),
+            ("GPU", data.get("gpu", "?"), "info"),
+            ("Tier", data.get("tier", "?"), "info"),
             ("Model", recommended, "accent"),
             ("Config", config_model, "accent"),
             (

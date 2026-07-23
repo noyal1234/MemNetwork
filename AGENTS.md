@@ -46,12 +46,16 @@ Full clone setup: [docs/INSTALL.md](docs/INSTALL.md). Per-host: [docs/install/](
 | `.cursor/skills/` | Yes | Backend implementation skill |
 | `.cursor/*.example` | Yes | Cursor MCP/hooks config shape before install |
 | `.cursor/rules/` | No | Policy rules + `brainkm.mdc` (local only) |
+| `.cursor/hooks.json` / `.cursor/mcp.json` | No | Machine-local Cursor wiring (install output) |
+| `.agents/` | No | Machine-local Antigravity wiring (install output) |
+| `.codex/` | No | Machine-local Codex wiring (install output; may include HTTP bearer) |
+| `.claude/` / `.mcp.json` | No | Machine-local Claude Code wiring (install output) |
 | `brainkm/brainkm/hooks/cursor/` | Yes | Cursor hooks + `brainkm.mdc` + routing skill |
 | `brainkm/brainkm/hooks/claude/` | Yes | Claude settings hooks, rules, routing skill |
 | `brainkm/brainkm/hooks/antigravity/` | Yes | Antigravity `.agents/` hooks, rules, routing skill |
-| `brainkm/brainkm/hooks/codex/` | Yes | Codex CLI hooks, rules, routing skill (`.codex/config.toml` MCP) |
+| `brainkm/brainkm/hooks/codex/` | Yes | Codex CLI hooks, rules, routing skill templates |
 
-Client wiring is installed by `brainkm install --client …` / `brainkm configure`.
+Client wiring is installed by `brainkm install --client …` / `brainkm configure` into the local paths above — do not commit those generated files.
 
 ## Release checklist (version bump)
 

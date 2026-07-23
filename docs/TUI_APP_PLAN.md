@@ -448,12 +448,14 @@ flowchart LR
 | Step | What happens | Service call |
 |------|-------------|-------------|
 | **1. Project dir** | Confirm `--project-dir` or `cwd`. Warn if `.brain/` already exists. Auto-advances. | — |
-| **2. Which apps** | Checkboxes: Cursor / Claude / Antigravity / Codex. One app = simple stdio; two+ = shared HTTP. | checkboxes → `shared_mode` |
-| **3. Set up brain** | `run_install` (+ `connect` for extra apps); always enables `auto_observe`. Claude → `.claude/settings.json` + `.mcp.json`; Antigravity → `.agents/` (`serverUrl` for HTTP); Cursor → `.cursor/hooks.json`. | `install` / `connect` |
-| **4–10** | Same as before (doctor, semantic, distill, …). Distill radios include `claude` / `antigravity`. | — |
+| **2. Which apps** | Checkboxes: Cursor / Claude / Antigravity / Codex. **Pre-selects clients already wired on disk** (MCP or hooks present); fresh projects soft-default Cursor only (no “recommended” label). One app = simple stdio; two+ = shared HTTP. | checkboxes → `shared_mode` |
+| **3. Set up brain** | `run_install` (+ `connect` for extra apps); always enables `auto_observe`. Step copy lists **only selected apps**: Cursor → `.cursor/hooks.json`; Claude → `.claude/settings.json` + `.mcp.json`; Antigravity → `.agents/` (`serverUrl` for HTTP); Codex → `.codex/config.toml` + `hooks.json` (trust `/hooks`). | `install` / `connect` |
+| **4–10** | Same as before (doctor, semantic, distill, …). Distill radios include `claude` / `antigravity` / `codex`. | — |
 | **Done** | Plain next steps (client tips when selected). Shared mode: **Start Brain** button (background `serve`). | `serve_helper.start_serve_background` |
 
-Dashboard **Shared Brain** panel shows Observe on/off; Claude install → **Claude hooks**; Antigravity `.agents/` → **AGY hooks**.
+Dashboard **Shared Brain** panel shows Observe on/off; Claude → **Claude hooks**; Antigravity `.agents/` → **AGY hooks**; Codex `.codex/` → **Codex hooks**.
+
+**MCP Doctor** panel lists cursor / claude / agy / codex (absent Codex shows as `missing`, same as Claude). Success hook dry-runs (e.g. Antigravity `injectSteps envelope ok`) render as muted **Probe**; real wiring problems stay orange **Notes**.
 
 ---
 
@@ -639,7 +641,7 @@ what was consciously deferred.
 
 Dashboard layout matches the Design 1 / DESIGN.md Cyber-Industrial mockup:
 
-- Left **STATUS** sidebar merges brain + channel rows (no separate Channels panel).
+- Left **STATUS** sidebar merges brain + channel rows (no separate Channels panel). Model IDs live only in Ollama/Groq doctor panels; STATUS shows edges / observe / mcp instead.
   Includes **Commit Trace** (`on` / `off` / `on · no hook` / `skipped`) from
   `build_brain_status_summary` (`git.commit_trace` + post-commit marker).
 - Right stack: Ollama/Groq doctors, Graph Viewer with Sync · Extract · Status,

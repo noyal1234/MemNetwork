@@ -558,6 +558,13 @@ def _codex_hooks_wired(hooks_path: Path) -> bool:
     return "brainkm" in blob and "--client codex" in blob and "SessionStart" in hooks
 
 
+def codex_hooks_wired(project_dir: Path) -> bool:
+    """True when project ``.codex/hooks.json`` contains brainkm Codex hooks."""
+    return _codex_hooks_wired(
+        resolve_project_dir(project_dir) / ".codex" / "hooks.json"
+    )
+
+
 def inspect_codex_wiring(project_dir: Path) -> list[str]:
     """Doctor notes for Codex CLI MCP (config.toml) + hooks trust requirements."""
     from brainkm.services.mcp_transport import read_codex_mcp_server_entry

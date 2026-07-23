@@ -12,11 +12,15 @@ def test_build_brain_status_summary_on_fresh_brain(tui_project: Path) -> None:
     assert "distill_mode" in summary
     assert "neuron_count" in summary
     assert "code_node_count" in summary
+    assert "edge_count" in summary
+    assert "auto_observe" in summary
+    assert "mcp_transport" in summary
     assert "db_size" in summary
     assert "commit_trace_label" in summary
     assert "commit_trace_color" in summary
     assert summary["neuron_count"] == 0
     assert summary["code_node_count"] == 0
+    assert summary["edge_count"] == 0
     assert summary["db_size"] != "n/a"
     assert summary["commit_trace_label"] in {"on", "off", "on · no hook", "skipped", "?"}
 

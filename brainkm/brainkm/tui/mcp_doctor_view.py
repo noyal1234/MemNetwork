@@ -22,6 +22,19 @@ _CLIENT_LABELS = {
     "generic": "generic",
 }
 
+# Doctor dry-runs append success lines into client_notes; those are probes, not problems.
+_INFO_NOTE_MARKERS = (
+    "envelope ok",
+    "hookSpecificOutput ok",
+    "valid JSON stdout",
+    "(ok if pack",
+)
+
+
+def _is_info_note(note: str) -> bool:
+    lower = note.lower()
+    return any(marker in lower for marker in _INFO_NOTE_MARKERS)
+
 
 def _client_row(
     client: ClientWireStatus,
@@ -122,14 +135,8 @@ def mcp_doctor_panel_items(
         )
 
     for client in report.clients:
-        if not client.present:
-            if client.client == "generic":
-                continue
-            # Show absent Codex only when a `.codex/` tree triggered inspect notes.
-            if client.client == "codex" and not any(
-                "Codex" in note or "codex" in note for note in report.client_notes
-            ):
-                continue
+        if not client.present and client.client == "generic":
+            continue
         items.append(_client_row(client, config_transport=transport))
 
     if report.dual_writer_warning:
@@ -138,16 +145,22 @@ def mcp_doctor_panel_items(
         items.append(("Auth", _trunc(report.missing_auth_warning), "error"))
 
     if report.client_notes:
-        first = report.client_notes[0]
-        if len(report.client_notes) == 1:
-            items.append(("Notes", _trunc(first), "warning"))
-        else:
-            items.append(
-                (
-                    "Notes",
-                    _trunc(f"{len(report.client_notes)} notes · {first}"),
-                    "warning",
+        warnings = [n for n in report.client_notes if not _is_info_note(n)]
+        infos = [n for n in report.client_notes if _is_info_note(n)]
+        if warnings:
+            first = warnings[0]
+            if len(warnings) == 1:
+                items.append(("Notes", _trunc(first), "warning"))
+            else:
+                items.append(
+                    (
+                        "Notes",
+                        _trunc(f"{len(warnings)} notes · {first}"),
+                        "warning",
+                    )
                 )
-            )
+        elif infos:
+            # Only success probes — muted so HEALTHY panels don't look broken.
+            items.append(("Probe", _trunc(infos[0]), "muted"))
 
     return items

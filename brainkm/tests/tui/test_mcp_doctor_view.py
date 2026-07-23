@@ -82,3 +82,86 @@ def test_panel_items_stdio_healthy_without_http_health() -> None:
     assert by_label["Overall"] == ("HEALTHY", "ok")
     assert by_label["Transport"] == ("stdio", "muted")
     assert by_label["Health"][1] == "muted"
+
+
+def test_panel_always_shows_absent_codex_like_claude() -> None:
+    items = mcp_doctor_panel_items(
+        _report(
+            missing_auth_warning=None,
+            clients=[
+                ClientWireStatus(
+                    client="cursor",
+                    mcp_path=Path("/tmp/proj/.cursor/mcp.json"),
+                    present=True,
+                    transport="http",
+                    hooks_present=True,
+                    has_bearer=True,
+                ),
+                ClientWireStatus(
+                    client="claude",
+                    mcp_path=Path("/tmp/proj/.mcp.json"),
+                    present=False,
+                    transport=None,
+                ),
+                ClientWireStatus(
+                    client="codex",
+                    mcp_path=Path("/tmp/proj/.codex/config.toml"),
+                    present=False,
+                    transport=None,
+                ),
+                ClientWireStatus(
+                    client="generic",
+                    mcp_path=Path("/tmp/proj/.mcp.json"),
+                    present=False,
+                    transport=None,
+                ),
+            ],
+            client_notes=[],
+        )
+    )
+    by_label = {label: (value, state) for label, value, state in items}
+    assert by_label["claude"] == ("missing", "muted")
+    assert by_label["codex"] == ("missing", "muted")
+    assert "generic" not in by_label
+
+
+def test_panel_ok_dry_run_notes_are_probe_not_warning() -> None:
+    items = mcp_doctor_panel_items(
+        _report(
+            missing_auth_warning=None,
+            clients=[
+                ClientWireStatus(
+                    client="antigravity",
+                    mcp_path=Path("/tmp/proj/.agents/mcp_config.json"),
+                    present=True,
+                    transport="http",
+                    hooks_present=True,
+                    has_bearer=True,
+                ),
+            ],
+            client_notes=[
+                "Antigravity PreInvocation dry-run: injectSteps envelope ok",
+            ],
+        )
+    )
+    by_label = {label: (value, state) for label, value, state in items}
+    assert "Notes" not in by_label
+    assert by_label["Probe"][1] == "muted"
+    assert "injectSteps" in by_label["Probe"][0]
+
+
+def test_panel_warning_notes_preferred_over_ok_probes() -> None:
+    items = mcp_doctor_panel_items(
+        _report(
+            missing_auth_warning=None,
+            clients=[],
+            client_notes=[
+                "Antigravity PreInvocation dry-run: injectSteps envelope ok",
+                "Codex hooks missing or lack `--client codex`",
+            ],
+        )
+    )
+    by_label = {label: (value, state) for label, value, state in items}
+    assert "Probe" not in by_label
+    assert by_label["Notes"][1] == "warning"
+    assert "Codex hooks" in by_label["Notes"][0]

@@ -92,6 +92,27 @@ def hooks_path_for_client(project_dir: Path, client: str) -> Path | None:
     return None
 
 
+FIRST_CLASS_CLIENTS: tuple[str, ...] = ("cursor", "claude", "antigravity", "codex")
+
+
+def detect_wired_clients(project_dir: Path | None = None) -> list[str]:
+    """Clients that already have MCP or hooks scaffolding on disk.
+
+    Used by the configure wizard to pre-check apps on re-runs instead of
+    always defaulting to Cursor-only.
+    """
+    from brainkm.services.install import resolve_project_dir
+
+    root = resolve_project_dir(project_dir)
+    found: list[str] = []
+    for name in FIRST_CLASS_CLIENTS:
+        mcp = mcp_config_path_for_client(root, name)
+        hooks = hooks_path_for_client(root, name)
+        if mcp.is_file() or (hooks is not None and hooks.is_file()):
+            found.append(name)
+    return found
+
+
 def antigravity_global_mcp_paths() -> list[Path]:
     """Known global / legacy Antigravity MCP config locations (doctor + optional mirror)."""
     home = Path.home()

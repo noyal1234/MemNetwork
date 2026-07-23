@@ -20,6 +20,13 @@ graphify-out/
 # --- Antigravity (machine-local / install output) ---
 .agents/
 
+# --- Codex CLI (machine-local / install output; may contain HTTP bearer) ---
+.codex/
+
+# --- Claude Code (machine-local / install output) ---
+.claude/
+.mcp.json
+
 # --- Python packaging ---
 dist/
 build/
@@ -29,6 +36,10 @@ build/
 Thumbs.db
 *.swp
 .idea/
+
+# --- Local pytest / Textual snapshot noise ---
+snapshot_report.html
+**/snapshot_report.html
 
 # --- Local env ---
 .env

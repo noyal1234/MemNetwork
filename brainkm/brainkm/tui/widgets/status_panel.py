@@ -5,9 +5,10 @@ Color meaning for ``state`` (CSS ``value--*`` via Rich styles from theme tokens)
   error   red    — failure / unreachable / rate limit
   warning amber  — attention (stale, mismatch, pending work)
   accent  #FFB000 — model IDs (LLM identity)
-  muted   gray   — informational / secondary
+  info    body text — factual system info (RAM, GPU, tier); not a health signal
+  muted   gray   — secondary / n/a / loading placeholders
 
-Rows are rendered into a single body ``Static`` (Rich Text) so rapid refresh
+    Rows are rendered into a single body ``Static`` (Rich Text) so rapid refresh
 never races Textual 8's async remove_children/mount.
 """
 
@@ -29,7 +30,7 @@ class StatusPanel(Static):
         panel.set_items([
             ("Status", "reachable", "ok"),
             ("Model", "qwen2.5:3b", "accent"),
-            ("Tier", "standard", "muted"),
+            ("Tier", "standard", "info"),
         ])
     """
 
@@ -79,7 +80,7 @@ class StatusPanel(Static):
 
         Args:
             items: List of (label, value, state) tuples.
-                   state is one of: "ok", "warning", "error", "muted", "accent".
+                   state is one of: "ok", "warning", "error", "muted", "accent", "info".
         """
         self._items = [(label, str(value or ""), state) for label, value, state in items]
         self.remove_class("-loading")
@@ -112,6 +113,7 @@ class StatusPanel(Static):
             "warning": tokens["warning"],
             "error": tokens["error"],
             "accent": tokens["accent"],
+            "info": tokens["text"],
             "muted": tokens["text_muted"],
         }
         text = Text()
@@ -134,4 +136,5 @@ class StatusPanel(Static):
             "error": "✗",
             "muted": "○",
             "accent": "◆",
+            "info": "●",
         }.get(state, "○")
