@@ -109,6 +109,7 @@ brainkm configure
 
 - **One IDE** → silent memory; that host starts the brain for you.
 - **Two or more** → shared localhost brain; use **Start Brain** once from the TUI.
+- **Codex** → MCP can show **enabled** (gear often locked) while hooks are still skipped. Trust the project `.codex/` layer, then open **`/hooks`** and trust the brainkm commands — details in [install/codex.md](docs/install/codex.md).
 
 **Without TUI** — core CLI:
 
@@ -210,7 +211,7 @@ Strict path: **MCP tool → service → adapter → SQLite** (DB-touching handle
 | **Cursor** | Native **PreCompact** → handover; **SessionEnd** → distill | [install/cursor.md](docs/install/cursor.md) |
 | **Google Antigravity** | **No host PreCompact** — synthetic handover on **PreInvocation**; idle **Stop** → distill into project `.brain/` | [install/antigravity.md](docs/install/antigravity.md) |
 | **Claude Code** | **PreCompact** + **PostCompact**; SessionEnd distill; SubagentStart/Stop | [install/claude-code.md](docs/install/claude-code.md) |
-| **OpenAI Codex** | **No SessionEnd** — **Stop** runs session-end; PreCompact + PostCompact; `/hooks` trust required | [install/codex.md](docs/install/codex.md) |
+| **OpenAI Codex** | **No SessionEnd** — **Stop** runs session-end; PreCompact + PostCompact; trust project + **`/hooks`** (MCP enabled ≠ hooks running) | [install/codex.md](docs/install/codex.md) |
 | **Generic MCP** | No hooks — manual `capture` / `handover` | [install/generic.md](docs/install/generic.md) |
 
 ---

@@ -45,12 +45,38 @@ class BudgetLine:
     content: str
     tokens: int
     priority: int
+    score: float = 0.0
 
 
 def priority_for(kind: str, subtype: str | None) -> int:
     return SUBTYPE_PRIORITY.get(
         (kind, subtype), SUBTYPE_PRIORITY.get((kind, None), DEFAULT_PRIORITY)
     )
+
+
+# Pack-only priorities: error behind rule/fact unless DEBUG (see pack_priority_for).
+PACK_SUBTYPE_PRIORITY: dict[tuple[str, str | None], int] = {
+    ("memory", "decision"): 0,
+    ("memory", "rule"): 1,
+    ("memory", "fact"): 2,
+    ("memory", "error"): 3,
+    ("memory", "pattern"): 4,
+    ("memory", "context"): 5,
+    ("memory", "episode"): 5,
+    ("memory", "observation"): 11,
+}
+
+
+def pack_priority_for(kind: str, subtype: str | None, *, debug: bool = False) -> int:
+    """Priority for context_pack truncation (lower = keep first)."""
+    if kind == "memory" and subtype == "error" and debug:
+        return 1
+    if kind == "memory":
+        return PACK_SUBTYPE_PRIORITY.get(
+            (kind, subtype),
+            PACK_SUBTYPE_PRIORITY.get((kind, None), priority_for(kind, subtype)),
+        )
+    return priority_for(kind, subtype)
 
 
 def line_tokens(title: str, content: str | None, stored: int | None = None) -> int:
@@ -198,7 +224,8 @@ def greedy_truncate(
             tokens_used=0,
         )
 
-    ordered = sorted(lines, key=lambda item: (item.priority, -item.tokens))
+    # Higher score wins within the same priority (pack soft-boost / overlap).
+    ordered = sorted(lines, key=lambda item: (item.priority, -item.score, -item.tokens))
     included: list[BudgetLine] = []
     omitted: list[BudgetLine] = []
     used = 0

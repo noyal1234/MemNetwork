@@ -7,6 +7,24 @@ First-class Codex adapter: MCP lives in **`.codex/config.toml`** (not JSON `mcp.
 
 ---
 
+## Required: trust hooks (easy to miss)
+
+Codex treats **MCP** and **hooks** as separate trust surfaces:
+
+| What you see | What it means |
+|--------------|---------------|
+| `brainkm` MCP **enabled** (gear may look **locked**) | Project `.codex/config.toml` loaded — tools can work |
+| Hooks **not** trusted yet | SessionStart / Stop / PreCompact / PostToolUse are **skipped** — no capture or inject |
+
+Until you trust hooks, the brain looks “installed” but stays quiet. Do both:
+
+1. Trust this project’s `.codex/` config layer (so MCP + project config load).
+2. In Codex, open **`/hooks`** and trust the brainkm commands (they run your local `.venv/bin/brainkm … --client codex`).
+
+Inspect what you are trusting: the template at `brainkm/brainkm/hooks/codex/hooks.json` (install copies absolute paths into project `.codex/hooks.json`). Verify with `brainkm doctor`.
+
+---
+
 ## What is exclusive to Codex
 
 | Surface | Codex-specific behavior |
@@ -34,7 +52,7 @@ brainkm install --dev --client codex
 brainkm doctor
 ```
 
-Then in Codex:
+Then in Codex (required — see [trust hooks](#required-trust-hooks-easy-to-miss) above):
 
 1. Trust this project’s `.codex/` config layer.  
 2. Open `/hooks` and trust the brainkm hook commands.

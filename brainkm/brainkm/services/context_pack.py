@@ -15,6 +15,7 @@ from brainkm.services.budget import (
     BudgetLine,
     context_pack_slots,
     line_tokens,
+    pack_priority_for,
     pre_tool_pack_slots,
     priority_for,
     render_pack_section,
@@ -25,7 +26,9 @@ from brainkm.services.confidence import Confidence, confidence_for_top_result
 from brainkm.services.memory import token_count
 from brainkm.services.outbound import filter_outbound_text
 from brainkm.services.search import (
+    count_token_overlap,
     fts_search_nodes,
+    query_tokens,
     recall_with_bfs,
     resolve_node_ref,
     traverse,
@@ -195,6 +198,277 @@ _STOPWORDS = frozenset(
 
 _MAX_SEEDS = 3
 _MAX_GRAPH_NODES = 10
+_SEED_ABOUT_BOOST = 1.75
+_ACTION_TITLE_RE = re.compile(r"^\.?action_[A-Za-z]")
+_PACK_MEMORY_CAPS: dict[str, int] = {
+    "error": 1,
+    "episode": 1,
+    "observation": 1,
+}
+# decision/rule/fact and any other memory subtype: uncapped (explicit default)
+
+
+def resolve_pack_code_ref(conn: sqlite3.Connection, ref: str) -> str | None:
+    """Pack-local code resolve: prefer subtype file, then class, then other code.
+
+    Does not change shared ``resolve_node_ref`` / ``resolve_code_node_for_path``.
+    Unresolved refs return None (caller silently drops).
+    """
+    text = (ref or "").strip()
+    if not text:
+        return None
+    by_id = conn.execute(
+        "SELECT id FROM nodes WHERE id = ? AND valid_until IS NULL",
+        (text,),
+    ).fetchone()
+    if by_id:
+        return str(by_id[0])
+
+    row = conn.execute(
+        """
+        SELECT id FROM nodes
+        WHERE path = ? AND valid_until IS NULL AND kind = 'code'
+        ORDER BY CASE subtype
+            WHEN 'file' THEN 0
+            WHEN 'class' THEN 1
+            ELSE 2
+        END, id ASC
+        LIMIT 1
+        """,
+        (text,),
+    ).fetchone()
+    if row:
+        return str(row[0])
+
+    # Title / fragment — prefer code kind via FTS then subtype order.
+    hits = fts_search_nodes(conn, text, limit=8)
+    code_hits: list[tuple[str, str | None]] = []
+    for node_id, _score in hits:
+        crow = _node_row(conn, node_id)
+        if crow is None or crow["kind"] != "code":
+            continue
+        code_hits.append((node_id, crow["subtype"]))
+    if not code_hits:
+        # Fall back to shared resolver for non-code ids (procedures, etc.) — rare.
+        return resolve_node_ref(conn, text)
+    code_hits.sort(
+        key=lambda item: (
+            0 if item[1] == "file" else 1 if item[1] == "class" else 2,
+            item[0],
+        )
+    )
+    return code_hits[0][0]
+
+
+def _resolve_seed_ref_ids(
+    conn: sqlite3.Connection,
+    seed_refs: list[str] | None,
+) -> list[str]:
+    """Resolve seed_refs; silently drop unresolved paths/ids."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for ref in seed_refs or []:
+        node_id = resolve_pack_code_ref(conn, ref)
+        if node_id is None or node_id in seen:
+            continue
+        seen.add(node_id)
+        out.append(node_id)
+    return out
+
+
+def _memories_about_seeds(
+    conn: sqlite3.Connection,
+    seed_code_ids: list[str],
+) -> set[str]:
+    if not seed_code_ids:
+        return set()
+    placeholders = ",".join("?" for _ in seed_code_ids)
+    rows = conn.execute(
+        f"""
+        SELECT DISTINCT e.from_id
+        FROM edges e
+        JOIN nodes n ON n.id = e.from_id
+        WHERE e.to_id IN ({placeholders})
+          AND e.relationship IN ('about_file', 'about_symbol')
+          AND n.kind = 'memory'
+          AND n.valid_until IS NULL
+        """,
+        tuple(seed_code_ids),
+    ).fetchall()
+    return {str(row[0]) for row in rows}
+
+
+def _apply_memory_subtype_caps(
+    lines: list[BudgetLine],
+    *,
+    debug: bool,
+) -> list[BudgetLine]:
+    """Keep top-N by score within capped subtypes; other subtypes uncapped."""
+    caps = dict(_PACK_MEMORY_CAPS)
+    if debug:
+        caps["error"] = 2
+    # Sort by score desc, then priority asc.
+    ordered = sorted(lines, key=lambda line: (-line.score, line.priority, line.node_id))
+    kept: list[BudgetLine] = []
+    counts: dict[str, int] = {}
+    for line in ordered:
+        subtype = line.subtype or ""
+        cap = caps.get(subtype)
+        if cap is not None:
+            used = counts.get(subtype, 0)
+            if used >= cap:
+                continue
+            counts[subtype] = used + 1
+        kept.append(line)
+    return kept
+
+
+def _select_procedures_for_pack(
+    conn: sqlite3.Connection,
+    query: str,
+    *,
+    seed_refs: list[str] | None,
+    seed_ids: list[str],
+) -> list[BudgetLine]:
+    """Fetch ≤20 procedures, score by overlap, dedup, fill workflow then tool_chain."""
+    from brainkm.services.compress import dedup_budget_lines
+
+    overlap_blob = " ".join([query, *(seed_refs or [])])
+    tokens = query_tokens(overlap_blob)
+    rows = conn.execute(
+        """
+        SELECT id, kind, subtype, title, content, token_count, path, use_count
+        FROM nodes
+        WHERE valid_until IS NULL AND kind = 'procedure'
+        ORDER BY use_count DESC, updated_at DESC
+        LIMIT 20
+        """
+    ).fetchall()
+
+    linked: set[str] = set()
+    if seed_ids:
+        placeholders = ",".join("?" for _ in seed_ids)
+        link_rows = conn.execute(
+            f"""
+            SELECT DISTINCT e.from_id
+            FROM edges e
+            WHERE e.to_id IN ({placeholders})
+              AND e.relationship IN ('spawned', 'distilled_from', 'about_file')
+            """,
+            tuple(seed_ids),
+        ).fetchall()
+        linked = {str(r[0]) for r in link_rows}
+
+    scored: list[BudgetLine] = []
+    for row in rows:
+        cleaned = filter_outbound_text(
+            row["title"] or "", row["content"], require_noise_gate=True
+        )
+        if cleaned is None:
+            continue
+        text = f"{cleaned.title}\n{cleaned.content or ''}"
+        overlap = count_token_overlap(tokens, text)
+        use_count = float(row["use_count"] or 0)
+        score = float(overlap) * 10.0 + min(use_count, 50.0) * 0.01
+        if row["id"] in linked:
+            score += 5.0
+        scored.append(
+            BudgetLine(
+                node_id=row["id"],
+                kind=row["kind"],
+                subtype=row["subtype"],
+                title=cleaned.title,
+                content=cleaned.content or "",
+                tokens=line_tokens(cleaned.title, cleaned.content),
+                priority=priority_for(row["kind"], row["subtype"]),
+                score=score,
+            )
+        )
+
+    # Prefer higher score when deduping near-duplicates.
+    scored.sort(key=lambda line: (-line.score, line.priority))
+    # Invert priority temporarily so dedup keeps highest-score first:
+    # dedup_budget_lines sorts by (priority, -tokens) — give best score lowest priority int.
+    for idx, line in enumerate(scored):
+        scored[idx] = BudgetLine(
+            node_id=line.node_id,
+            kind=line.kind,
+            subtype=line.subtype,
+            title=line.title,
+            content=line.content,
+            tokens=line.tokens,
+            priority=idx,
+            score=line.score,
+        )
+    deduped = dedup_budget_lines(scored, use_embeddings=False)
+    # Restore procedure priority for budget channel.
+    restored = [
+        BudgetLine(
+            node_id=line.node_id,
+            kind=line.kind,
+            subtype=line.subtype,
+            title=line.title,
+            content=line.content,
+            tokens=line.tokens,
+            priority=priority_for(line.kind, line.subtype),
+            score=line.score,
+        )
+        for line in deduped
+    ]
+    restored.sort(key=lambda line: (-line.score, line.priority))
+
+    workflows = [line for line in restored if line.subtype == "workflow"]
+    tool_chains = [line for line in restored if line.subtype == "tool_chain"]
+    other = [
+        line
+        for line in restored
+        if line.subtype not in {"workflow", "tool_chain"}
+    ]
+
+    kept: list[BudgetLine] = []
+    kept.extend(workflows[:2])
+    remaining = 5 - len(kept)
+    tc_kept = 0
+    for line in tool_chains + other:
+        if remaining <= 0:
+            break
+        if line.subtype == "tool_chain":
+            if tc_kept >= 2:
+                continue
+            tc_kept += 1
+        kept.append(line)
+        remaining -= 1
+    return kept
+
+
+def _rerank_graph_neighborhood(
+    conn: sqlite3.Connection,
+    scored: dict[str, float],
+    *,
+    query: str,
+    seed_ids: list[str],
+    seed_refs: list[str] | None,
+) -> list[tuple[str, float]]:
+    """Rerank traverse hits by query/seed overlap; light action_* demotion."""
+    overlap_blob = " ".join([query, *(seed_refs or [])])
+    tokens = query_tokens(overlap_blob)
+    seed_set = set(seed_ids)
+    ranked: list[tuple[str, float, int, bool]] = []
+    for node_id, activation in scored.items():
+        row = _node_row(conn, node_id)
+        if row is None or row["kind"] != "code":
+            continue
+        title = (row["title"] or "").strip()
+        overlap = count_token_overlap(tokens, f"{title} {row['path'] or ''}")
+        is_action = bool(_ACTION_TITLE_RE.match(title.lstrip(".")))
+        # Demotion only when overlap is zero (tie-break/penalty, not a hard ban).
+        penalty = 0.35 if is_action and overlap == 0 else 1.0
+        final = (activation + float(overlap) * 2.0) * penalty
+        pinned = node_id in seed_set
+        ranked.append((node_id, final, overlap, pinned))
+    # Pins first, then score.
+    ranked.sort(key=lambda item: (0 if item[3] else 1, -item[1], item[0]))
+    return [(node_id, score) for node_id, score, _ov, _pin in ranked]
 
 
 def extract_seed_candidates(
@@ -468,7 +742,8 @@ def _resolve_graph_seeds(
             resolved.append(node_id)
 
     for candidate in extract_seed_candidates(query, explicit=explicit):
-        add_id(resolve_node_ref(conn, candidate))
+        # Prefer pack-local file-first resolve for path-like candidates.
+        add_id(resolve_pack_code_ref(conn, candidate))
         if len(resolved) >= _MAX_SEEDS:
             return resolved
 
@@ -484,8 +759,10 @@ def _collect_graph_neighborhood(
     seed_ids: list[str],
     *,
     config: BrainConfig,
+    query: str = "",
+    seed_refs: list[str] | None = None,
 ) -> tuple[list[BudgetLine], list[NeuronResult]]:
-    """Traverse up to 2 hops from each seed; merge and dedupe by node id."""
+    """Traverse up to 2 hops from each seed; query-rerank; demote bare action_*."""
     scored: dict[str, float] = {}
     for seed_id in seed_ids:
         # Seeds are the query anchors — keep them even though traverse omits self.
@@ -502,14 +779,32 @@ def _collect_graph_neighborhood(
             if prev is None or ranked.score > prev:
                 scored[ranked.node_id] = ranked.score
 
-    ordered = sorted(scored.items(), key=lambda item: item[1], reverse=True)
+    ordered = _rerank_graph_neighborhood(
+        conn,
+        scored,
+        query=query,
+        seed_ids=seed_ids,
+        seed_refs=seed_refs,
+    )
     lines: list[BudgetLine] = []
     results: list[NeuronResult] = []
     for node_id, score in ordered[:_MAX_GRAPH_NODES]:
         row = _node_row(conn, node_id)
         if row is None or row["kind"] != "code":
             continue
-        lines.append(_to_budget_line(row))
+        line = _to_budget_line(row)
+        lines.append(
+            BudgetLine(
+                node_id=line.node_id,
+                kind=line.kind,
+                subtype=line.subtype,
+                title=line.title,
+                content=line.content,
+                tokens=line.tokens,
+                priority=line.priority,
+                score=float(score),
+            )
+        )
         results.append(_to_neuron_result(row, score=score))
     return lines, results
 
@@ -545,6 +840,16 @@ def compile_context_pack(
     graph_ok = graph_available(conn)
     query_echo = _cap_query_for_pack(query)
 
+    from brainkm.services.intent import QueryIntent, route_query
+
+    routing = route_query(query)
+    debug_intent = routing.intent == QueryIntent.DEBUG
+
+    # Resolve seed_refs once (silently drop misses); bias memory + graph + procedures.
+    resolved_seed_ids = _resolve_seed_ref_ids(conn, seed_refs)
+    merged_extra = list(dict.fromkeys([*(extra_seed_ids or []), *resolved_seed_ids]))
+    about_boost_ids = _memories_about_seeds(conn, resolved_seed_ids)
+
     neuron_lines: list[BudgetLine] = []
     recall = recall_with_bfs(
         conn,
@@ -553,7 +858,7 @@ def compile_context_pack(
         recall=config.recall,
         semantic=config.semantic_config(),
         project_dir=project_dir,
-        extra_seed_ids=extra_seed_ids,
+        extra_seed_ids=merged_extra or None,
     )
     code_seed_refs: list[str] = []
     for ranked in recall.nodes:
@@ -572,6 +877,9 @@ def compile_context_pack(
         content = cleaned.content or None
         if use_summary and content:
             content = _summarize_memory_content(content, row["subtype"])
+        score = float(ranked.score)
+        if ranked.node_id in about_boost_ids:
+            score *= _SEED_ABOUT_BOOST
         neuron_lines.append(
             BudgetLine(
                 node_id=row["id"],
@@ -580,9 +888,16 @@ def compile_context_pack(
                 title=cleaned.title,
                 content=content,
                 tokens=line_tokens(cleaned.title, content),
-                priority=min(priority_for(row["kind"], row["subtype"]), 4),
+                priority=min(
+                    pack_priority_for(row["kind"], row["subtype"], debug=debug_intent),
+                    4,
+                ),
+                score=score,
             )
         )
+
+    # Soft-boost before subtype caps (score-sorted top-N within capped subtypes).
+    neuron_lines = _apply_memory_subtype_caps(neuron_lines, debug=debug_intent)
 
     if config.compression.pack_dedup:
         neuron_lines = dedup_budget_lines(
@@ -602,44 +917,27 @@ def compile_context_pack(
             query,
             explicit=merged_refs or None,
         )
+        # Prefer explicitly resolved pack seeds when present.
+        for sid in resolved_seed_ids:
+            if sid not in seed_ids:
+                seed_ids = [sid, *seed_ids][:_MAX_SEEDS]
         if seed_ids:
             graph_lines, graph_results = _collect_graph_neighborhood(
                 conn,
                 seed_ids,
                 config=config,
+                query=query,
+                seed_refs=seed_refs,
             )
         else:
             graph_hint = GRAPH_HINT
 
-    proc_lines: list[BudgetLine] = []
-    # Reuse memory recall floor as a conservative start — procedure corpora are
-    # shorter/style-different so this may under-admit; not separately calibrated.
-    min_bm25 = float(config.recall.min_bm25_strength or 3.0)
-    # Only include procedures that match the query (BM25 floor) — never backfill
-    # popular unrelated tool chains into an off-topic pack.
-    proc_hits = fts_search_nodes(conn, query, limit=12)
-    for node_id, bm25 in proc_hits:
-        if abs(float(bm25)) < min_bm25:
-            continue
-        row = _node_row(conn, node_id)
-        if row is None or row["kind"] != "procedure":
-            continue
-        cleaned = filter_outbound_text(row["title"] or "", row["content"], require_noise_gate=True)
-        if cleaned is None:
-            continue
-        proc_lines.append(
-            BudgetLine(
-                node_id=row["id"],
-                kind=row["kind"],
-                subtype=row["subtype"],
-                title=cleaned.title,
-                content=cleaned.content or None,
-                tokens=line_tokens(cleaned.title, cleaned.content),
-                priority=priority_for(row["kind"], row["subtype"]),
-            )
-        )
-        if len(proc_lines) >= 5:
-            break
+    proc_lines = _select_procedures_for_pack(
+        conn,
+        query,
+        seed_refs=seed_refs,
+        seed_ids=resolved_seed_ids,
+    )
 
     channels = {
         "neurons": neuron_lines,
@@ -832,18 +1130,17 @@ def _pack_retrieval_confidence(
 ) -> Confidence:
     """Label pack trust from retrieval match strength, not item density.
 
-    - **high|medium|low** for memory hits inherit ``confidence_for_top_result`` /
-      ``score_confidence`` bands unchanged (high when |bm25| ≥ max(3×floor, 12)).
-    - Procedures never raise confidence (even when co-present with weak memory).
+    - Among **final included** memories, pick top by score → ``confidence_for_top_result``.
     - Graph-only packs: ``medium`` only when ``explicit_seed_refs`` or
       ``strong_query_seed``; otherwise ``low``.
+    - Never use density/``pack_confidence(kept_count)``. Procedures never raise.
     """
     if memory_kept:
-        top_id = memory_kept[0].node_id
+        top = max(memory_kept, key=lambda line: (line.score, -line.priority))
         return confidence_for_top_result(
             abstained=abstained,
             result_count=len(memory_kept),
-            top_node_id=top_id,
+            top_node_id=top.node_id,
             fts_bm25_by_id=fts_bm25_by_id,
             min_bm25_strength=min_bm25_strength,
         )

@@ -47,7 +47,7 @@ pip install -e "./brainkm[dev,graphify]"
 | Codex CLI | `.codex/hooks.json` | `.codex/config.toml` `[mcp_servers.brainkm]` | [install/codex.md](../docs/install/codex.md) |
 | generic | CLI fallbacks | `.brain/mcp.http.example.json` or shared HTTP | [install/generic.md](../docs/install/generic.md) |
 
-Claude native Auto Memory (`MEMORY.md`) stays separate — brainkm does not write it. Codex: trust the project `.codex/` layer and `/hooks` before hooks fire. Shared multi-app: Dashboard → Start Brain (or `brainkm serve` + `connect --http`). Verify with `brainkm doctor`.
+Claude native Auto Memory (`MEMORY.md`) stays separate — brainkm does not write it. **Codex:** MCP may show enabled (gear locked) while hooks are still skipped — trust the project `.codex/` layer, then `/hooks` for brainkm commands ([install/codex.md](../docs/install/codex.md)). Shared multi-app: Dashboard → Start Brain (or `brainkm serve` + `connect --http`). Verify with `brainkm doctor`.
 ## Code graph (Graphify)
 
 Recommended for `context_pack` / `traverse` navigation:
