@@ -242,9 +242,9 @@ def test_extract_path_mentions_false_positives() -> None:
     assert extract_path_mentions("Use os.path to join segments") == []
     assert extract_path_mentions("See https://pypi.org/project/brainkm/") == []
     assert extract_path_mentions("open foo.exe carefully") == []
-    assert extract_path_mentions(
-        "Follow docs/PUBLIC_RELEASE_CHECKLIST.md before tagging"
-    ) == ["docs/PUBLIC_RELEASE_CHECKLIST.md"]
+    assert extract_path_mentions("Follow docs/PUBLIC_RELEASE_CHECKLIST.md before tagging") == [
+        "docs/PUBLIC_RELEASE_CHECKLIST.md"
+    ]
 
 
 def test_resolve_display_path_earliest_mention_and_about_file(tmp_path: Path) -> None:
@@ -352,7 +352,7 @@ def test_quality_gate_rejects_user_questions() -> None:
     item = DistilledNeuron(
         subtype="fact",
         title="Can you go through the modified and untracked",
-        body="Can you go through the modified and untracked files whether they are supposed to be pushed?",
+        body="Can you go through the modified and untracked files whether they are supposed to be pushed?",  # noqa: E501
     )
     assert passes_quality_gate(item) is False
     assert (

@@ -75,9 +75,7 @@ def collect_brain_stats(
         review_size = len(list_pending(project_dir))
 
     calibration = load_calibration(project_dir) if project_dir is not None else None
-    calibrated = bool(
-        calibration and calibration.corpus_bm25_threshold is not None
-    )
+    calibrated = bool(calibration and calibration.corpus_bm25_threshold is not None)
 
     mcp_7d, mcp_30d, abstention_rate = _mcp_usage_stats(conn)
     dead_count = _dead_neuron_count(conn)

@@ -175,15 +175,13 @@ def evaluate_fixture_queries(
     corpus_threshold: float,
 ) -> list[QueryEval]:
     return [
-        _evaluate_query(conn, item, corpus_threshold=corpus_threshold)
-        for item in fixture.queries
+        _evaluate_query(conn, item, corpus_threshold=corpus_threshold) for item in fixture.queries
     ]
 
 
 def _queries_pass(conn: sqlite3.Connection, fixture: AbstentionFixture, threshold: float) -> bool:
     return all(
-        item.passed
-        for item in evaluate_fixture_queries(conn, fixture, corpus_threshold=threshold)
+        item.passed for item in evaluate_fixture_queries(conn, fixture, corpus_threshold=threshold)
     )
 
 

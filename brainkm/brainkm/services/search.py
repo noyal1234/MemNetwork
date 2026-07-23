@@ -14,7 +14,7 @@ from typing import Literal
 from brainkm.models.brain_config import GraphConfig, RecallConfig, SemanticConfig
 from brainkm.models.schemas import ImpactSummary
 from brainkm.services.abstention import should_abstain_for_query
-from brainkm.services.intent import QueryIntent, route_query
+from brainkm.services.intent import route_query
 from brainkm.services.semantic import reciprocal_rank_fusion, vector_search_nodes
 
 TYPE_MULTIPLIERS: dict[tuple[str, str | None], float] = {
@@ -306,11 +306,7 @@ def bfs_activate(
     relationships: frozenset[str] | None = None,
 ) -> tuple[dict[str, _ActivationMeta], int]:
     """Weighted multi-hop BFS from seeded node activations using per-node edge queries."""
-    rels = (
-        relationships
-        if relationships is not None
-        else parse_relationships(relationship)
-    )
+    rels = relationships if relationships is not None else parse_relationships(relationship)
     meta: dict[str, _ActivationMeta] = {
         node_id: _ActivationMeta(activation=act, depth=0)
         for node_id, act in seed_activations.items()
@@ -370,11 +366,7 @@ def ppr_activate(
     if not seed_activations:
         return {}, 0
 
-    rels = (
-        relationships
-        if relationships is not None
-        else parse_relationships(relationship)
-    )
+    rels = relationships if relationships is not None else parse_relationships(relationship)
     seed_sum = sum(seed_activations.values()) or 1.0
     personal: dict[str, float] = {k: v / seed_sum for k, v in seed_activations.items()}
 
@@ -418,7 +410,9 @@ def ppr_activate(
 
     scores = {node_id: personal.get(node_id, 0.0) for node_id in candidate}
     for _ in range(iterations):
-        new_scores = {node_id: (1.0 - damping) * personal.get(node_id, 0.0) for node_id in candidate}
+        new_scores = {
+            node_id: (1.0 - damping) * personal.get(node_id, 0.0) for node_id in candidate
+        }
         for node_id, neighbors in adjacency.items():
             mass = scores.get(node_id, 0.0)
             total_w = out_weight.get(node_id, 0.0)
@@ -522,7 +516,8 @@ def rank_activated_nodes(
     placeholders = ",".join("?" for _ in activations)
     rows = conn.execute(
         f"""
-        SELECT id, kind, subtype, title, content, confidence, path, use_count, updated_at, session_id
+        SELECT id, kind, subtype, title, content, confidence, path, use_count, updated_at,
+            session_id
         FROM nodes
         WHERE id IN ({placeholders})
           AND (valid_until IS NULL)
@@ -860,9 +855,7 @@ def traverse(
 
     # Drop the seed — agents already know from_ref; neighbors are the answer.
     neighbor_activations = {
-        node_id: meta
-        for node_id, meta in activations.items()
-        if node_id != start_id
+        node_id: meta for node_id, meta in activations.items() if node_id != start_id
     }
     ranked = rank_activated_nodes(conn, neighbor_activations)
     impact = compute_impact_summary(

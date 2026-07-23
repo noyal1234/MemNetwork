@@ -85,9 +85,9 @@ def test_import_replaces_previous_code_graph_without_touching_memory(brain_db) -
 
     conn = connect(brain_db)
     try:
-        memory_count = conn.execute(
-            "SELECT COUNT(*) FROM nodes WHERE kind = 'memory'"
-        ).fetchone()[0]
+        memory_count = conn.execute("SELECT COUNT(*) FROM nodes WHERE kind = 'memory'").fetchone()[
+            0
+        ]
         code_count = conn.execute("SELECT COUNT(*) FROM nodes WHERE kind = 'code'").fetchone()[0]
         import_runs = conn.execute("SELECT COUNT(*) FROM graph_import_runs").fetchone()[0]
         assert memory_count == 1
@@ -199,8 +199,7 @@ def test_import_skips_nodes_with_secret_content(brain_db, tmp_path: Path) -> Non
     conn = connect(brain_db)
     try:
         ids = {
-            row[0]
-            for row in conn.execute("SELECT id FROM nodes WHERE kind = 'code'").fetchall()
+            row[0] for row in conn.execute("SELECT id FROM nodes WHERE kind = 'code'").fetchall()
         }
         assert ids == {"clean"}
     finally:

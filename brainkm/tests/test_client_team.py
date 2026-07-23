@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from brainkm.services.client_adapters import get_client_adapter
-from brainkm.services.install import run_install
-from brainkm.services.team import export_team_neurons, import_team_neurons
 from brainkm.db.connection import connect
 from brainkm.db.migrate import migrate
+from brainkm.services.client_adapters import get_client_adapter
+from brainkm.services.install import run_install
 from brainkm.services.memory import remember_neuron
+from brainkm.services.team import export_team_neurons, import_team_neurons
 
 
 def test_client_adapters() -> None:

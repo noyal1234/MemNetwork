@@ -26,12 +26,16 @@ def test_brain_config_accepts_viz_section() -> None:
     assert cfg.viz.webllm_model.startswith("SmolLM2")
 
 
-def test_is_model_cached_false_without_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_is_model_cached_false_without_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setenv("BRAINKM_WEBLLM_CACHE", str(tmp_path))
     assert wp.is_model_cached("Llama-3.2-1B-Instruct-q4f16_1-MLC") is False
 
 
-def test_is_model_cached_true_with_essentials(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_is_model_cached_true_with_essentials(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setenv("BRAINKM_WEBLLM_CACHE", str(tmp_path))
     mid = "Llama-3.2-1B-Instruct-q4f16_1-MLC"
     d = tmp_path / mid

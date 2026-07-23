@@ -80,9 +80,7 @@ def load_retrieval_fixture(path: Path | None = None) -> RetrievalFixture:
             relevant_ids=tuple(item.get("relevant_ids", [])),
             should_abstain=bool(item.get("should_abstain", False)),
             expect_noise_only=bool(item.get("expect_noise_only", False)),
-            relevance={
-                str(k): float(v) for k, v in (item.get("relevance") or {}).items()
-            },
+            relevance={str(k): float(v) for k, v in (item.get("relevance") or {}).items()},
         )
         for item in data["queries"]
     ]
@@ -133,9 +131,7 @@ def run_retrieval_suite(_db_path: Path) -> BenchSuiteResult:
         abstain_total = 0
         theme_leak_correct = 0
         theme_leak_total = 0
-        theme_ids = {
-            node.id for node in fixture.corpus if not node.id.startswith("rb_noise_")
-        }
+        theme_ids = {node.id for node in fixture.corpus if not node.id.startswith("rb_noise_")}
 
         for item in fixture.queries:
             if item.expect_noise_only:
@@ -192,21 +188,19 @@ def run_retrieval_suite(_db_path: Path) -> BenchSuiteResult:
     mean_mrr = _mean(ranking_mrr)
     mean_ndcg = _mean(ranking_ndcg)
     abstain_acc = (abstain_correct / abstain_total) if abstain_total else 1.0
-    theme_leak_acc = (
-        (theme_leak_correct / theme_leak_total) if theme_leak_total else 1.0
-    )
+    theme_leak_acc = (theme_leak_correct / theme_leak_total) if theme_leak_total else 1.0
 
     floors = fixture.floors
     cases = [
         BenchCaseResult(
             name="recall_at_1",
             passed=mean_r1 >= floors.get("recall_at_1", 0.4),
-            detail=f"{mean_r1:.3f} (floor>={floors.get('recall_at_1', 0.4):.2f}, n={len(ranking_r1)})",
+            detail=f"{mean_r1:.3f} (floor>={floors.get('recall_at_1', 0.4):.2f}, n={len(ranking_r1)})",  # noqa: E501
         ),
         BenchCaseResult(
             name="recall_at_5",
             passed=mean_r5 >= floors.get("recall_at_5", 0.55),
-            detail=f"{mean_r5:.3f} (floor>={floors.get('recall_at_5', 0.55):.2f}, n={len(ranking_r5)})",
+            detail=f"{mean_r5:.3f} (floor>={floors.get('recall_at_5', 0.55):.2f}, n={len(ranking_r5)})",  # noqa: E501
         ),
         BenchCaseResult(
             name="precision_at_1",

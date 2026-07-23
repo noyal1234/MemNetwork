@@ -22,8 +22,7 @@ PRIMARY_DISTILL_MODES = ("cursor", "claude", "antigravity", "codex", "ollama", "
 
 DISTILL_MODE_LABELS: dict[str, str] = {
     "cursor": (
-        "cursor — Cursor transcripts (default; free heuristic, "
-        "optional Agent CLI for LLM quality)"
+        "cursor — Cursor transcripts (default; free heuristic, optional Agent CLI for LLM quality)"
     ),
     "claude": "claude — Claude Code CLI (claude -p) + optional MCP sampling",
     "antigravity": "antigravity — Antigravity CLI (agy -p)",
@@ -138,11 +137,7 @@ def build_distill_status(
         DistillModeStatus(
             mode="groq",
             ready=groq.reachable,
-            detail=(
-                "connected"
-                if groq.reachable
-                else (groq.error or "unreachable")
-            ),
+            detail=("connected" if groq.reachable else (groq.error or "unreachable")),
             is_default=False,
             is_active=active_mode == "groq",
         ),

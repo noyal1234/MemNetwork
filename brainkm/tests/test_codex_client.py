@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
+import tomllib
 from importlib import resources
 from pathlib import Path
 
-import tomllib
 from typer.testing import CliRunner
 
 from brainkm.adapters.transcript_v1 import (
@@ -91,11 +91,7 @@ def test_merge_codex_hooks_preserves_foreign() -> None:
     merged = merge_codex_hooks_json(existing, incoming)
     assert merged["description"] == "user hooks"
     groups = merged["hooks"]["SessionStart"]
-    commands = [
-        handler["command"]
-        for group in groups
-        for handler in group["hooks"]
-    ]
+    commands = [handler["command"] for group in groups for handler in group["hooks"]]
     assert "echo foreign" in commands
     assert any(c.startswith("/new/brainkm ") for c in commands)
     assert not any("/old/brainkm" in c for c in commands)
@@ -171,11 +167,9 @@ def test_run_install_codex_writes_toml_hooks_skill(tmp_path: Path) -> None:
     assert "OpenAI Codex" in agents.read_text(encoding="utf-8")
 
 
-def test_run_install_codex_sets_distill_mode_when_cli_present(
-    tmp_path: Path, monkeypatch
-) -> None:
-    from brainkm.services.config_loader import load_brain_config
+def test_run_install_codex_sets_distill_mode_when_cli_present(tmp_path: Path, monkeypatch) -> None:
     from brainkm.services import install as install_mod
+    from brainkm.services.config_loader import load_brain_config
 
     monkeypatch.setattr(install_mod, "_cli_on_path", lambda name: name == "codex")
     run_install(tmp_path, dev=True, force=True, client="codex", no_graph=True)
@@ -188,8 +182,7 @@ def test_codex_toml_merge_preserves_user_keys(tmp_path: Path) -> None:
     config = tmp_path / ".codex" / "config.toml"
     config.parent.mkdir(parents=True)
     config.write_text(
-        'model = "gpt-5"\n\n[features]\nhooks = true\n\n'
-        '[mcp_servers.other]\ncommand = "echo"\n',
+        'model = "gpt-5"\n\n[features]\nhooks = true\n\n[mcp_servers.other]\ncommand = "echo"\n',
         encoding="utf-8",
     )
     write_codex_mcp_config(config, dev=True, transport="stdio")

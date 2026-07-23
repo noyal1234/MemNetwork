@@ -33,13 +33,9 @@ def test_min_bm25_strength_abstains_weak_hits() -> None:
 def test_min_bm25_strength_skipped_on_small_corpus() -> None:
     recall = RecallConfig(abstain_mode="percentile", min_bm25_strength=3.0)
     # Weak absolute strength but tiny corpus — floor skipped; percentile allows.
-    assert (
-        should_abstain([-0.5], recall, corpus_threshold=-0.1, active_nodes=5) is False
-    )
+    assert should_abstain([-0.5], recall, corpus_threshold=-0.1, active_nodes=5) is False
     # Large corpus still applies the floor even when percentile would allow.
-    assert (
-        should_abstain([-0.5], recall, corpus_threshold=-0.1, active_nodes=50) is True
-    )
+    assert should_abstain([-0.5], recall, corpus_threshold=-0.1, active_nodes=50) is True
 
 
 def test_recall_with_bfs_abstains_on_absolute_threshold(brain_db) -> None:

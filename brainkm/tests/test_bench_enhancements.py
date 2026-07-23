@@ -54,9 +54,9 @@ def test_chunk_session_and_aggregate() -> None:
 
 
 def test_stratify_sample_is_seeded() -> None:
-    questions = [
-        {"type": "a", "id": f"a{i}"} for i in range(20)
-    ] + [{"type": "b", "id": f"b{i}"} for i in range(20)]
+    questions = [{"type": "a", "id": f"a{i}"} for i in range(20)] + [
+        {"type": "b", "id": f"b{i}"} for i in range(20)
+    ]
     s1 = [q["id"] for q in stratify_sample(questions, 5, seed=7)]
     s2 = [q["id"] for q in stratify_sample(questions, 5, seed=7)]
     s3 = [q["id"] for q in stratify_sample(questions, 5, seed=99)]
@@ -150,9 +150,7 @@ def test_longmemeval_chunked_fixture(tmp_path: Path) -> None:
     ]
     path = tmp_path / "lme.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
-    result = run_longmemeval_suite(
-        tmp_path / "db", dataset=path, stratify=1, adapters=True, seed=1
-    )
+    result = run_longmemeval_suite(tmp_path / "db", dataset=path, stratify=1, adapters=True, seed=1)
     assert any(c.name == "aggregate/precision_at_5" for c in result.cases)
     assert any(c.name.startswith("adapter/") for c in result.cases)
     assert result.passed == result.total

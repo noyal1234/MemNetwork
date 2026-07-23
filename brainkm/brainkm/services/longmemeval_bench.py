@@ -38,7 +38,7 @@ _DEFAULT_STRATIFY_SEED = 42
 _DOWNLOAD_HINT = (
     "Download LongMemEval-S (cleaned) then set LONGMEMEVAL_PATH or pass --dataset:\n"
     "  pip install huggingface_hub\n"
-    "  python -c \"from huggingface_hub import hf_hub_download; "
+    '  python -c "from huggingface_hub import hf_hub_download; '
     "print(hf_hub_download(repo_id='xiaowu0162/longmemeval-cleaned', "
     "filename='longmemeval_s_cleaned.json', repo_type='dataset', "
     "local_dir=str(__import__('pathlib').Path.home()/'.cache'/'brainkm')))\"\n"
@@ -383,9 +383,7 @@ def run_longmemeval_suite(
                 continue
             conn, _db, project = ephemeral_project_brain()
             try:
-                _index_haystack(
-                    conn, q["haystack"], semantic=semantic, chunked=chunked
-                )
+                _index_haystack(conn, q["haystack"], semantic=semantic, chunked=chunked)
                 ranked = _retrieve_ranked_sessions(
                     conn,
                     q["question"],
@@ -409,9 +407,7 @@ def run_longmemeval_suite(
                     config=brain,
                     project_dir=project,
                 )
-                included_sessions = aggregate_ranked_to_sessions(
-                    list(pack.truncation.included_ids)
-                )
+                included_sessions = aggregate_ranked_to_sessions(list(pack.truncation.included_ids))
                 r_budget = recall_at_budget(included_sessions, gold)
                 noise = pack_noise_rate(included_sessions, gold)
                 used = int(pack.truncation.tokens_used)
@@ -435,9 +431,7 @@ def run_longmemeval_suite(
                         score_ranked_sessions,
                     )
 
-                    titles = {
-                        s["id"]: f"session {s['id']}" for s in q["haystack"]
-                    }
+                    titles = {s["id"]: f"session {s['id']}" for s in q["haystack"]}
                     contents = {s["id"]: s["content"] for s in q["haystack"]}
                     naive = aggregate_ranked_to_sessions(
                         naive_title_scan_rank(q["question"], titles, contents, limit=10)
@@ -577,8 +571,8 @@ def _adapter_aggregate_cases(rows: list[dict[str, object]]) -> list[BenchCaseRes
                 name=f"adapter/{arm}",
                 passed=True,
                 detail=(
-                    f"r@5={sum(r5)/n:.3f} p@5={sum(p5)/n:.3f} "
-                    f"mrr={sum(mrr)/n:.3f} n={len(r5)}"
+                    f"r@5={sum(r5) / n:.3f} p@5={sum(p5) / n:.3f} "
+                    f"mrr={sum(mrr) / n:.3f} n={len(r5)}"
                 ),
             )
         )
@@ -593,23 +587,13 @@ def format_longmemeval_summary(result: BenchSuiteResult) -> str:
         )
     r5 = next((c.detail for c in result.cases if c.name == "aggregate/recall_at_5"), "?")
     r10 = next((c.detail for c in result.cases if c.name == "aggregate/recall_at_10"), "?")
-    p5 = next(
-        (c.detail for c in result.cases if c.name == "aggregate/precision_at_5"), "?"
-    )
+    p5 = next((c.detail for c in result.cases if c.name == "aggregate/precision_at_5"), "?")
     mrr = next((c.detail for c in result.cases if c.name == "aggregate/mrr"), "?")
-    r_budget = next(
-        (c.detail for c in result.cases if c.name == "aggregate/recall_at_budget"), "?"
-    )
-    pack_tok = next(
-        (c.detail for c in result.cases if c.name == "aggregate/mean_pack_tokens"), "?"
-    )
-    noise = next(
-        (c.detail for c in result.cases if c.name == "aggregate/pack_noise"), "?"
-    )
+    r_budget = next((c.detail for c in result.cases if c.name == "aggregate/recall_at_budget"), "?")
+    pack_tok = next((c.detail for c in result.cases if c.name == "aggregate/mean_pack_tokens"), "?")
+    noise = next((c.detail for c in result.cases if c.name == "aggregate/pack_noise"), "?")
     adapter_lines = [
-        f"  {c.name}: {c.detail}"
-        for c in result.cases
-        if c.name.startswith("adapter/")
+        f"  {c.name}: {c.detail}" for c in result.cases if c.name.startswith("adapter/")
     ]
     extra = ("\n" + "\n".join(adapter_lines)) if adapter_lines else ""
     return (

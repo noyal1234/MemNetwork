@@ -74,11 +74,7 @@ def test_probe_ollama_unreachable() -> None:
     fake_httpx = type(
         "httpx",
         (),
-        {
-            "get": staticmethod(
-                lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("down"))
-            )
-        },
+        {"get": staticmethod(lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("down")))},
     )
     with patch.dict("sys.modules", {"httpx": fake_httpx}):
         status = probe_ollama("http://127.0.0.1:11434")

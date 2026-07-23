@@ -54,7 +54,7 @@ def test_distill_cursor_round_extracts_decision_without_chrome() -> None:
     round_ = _round(
         (
             "user",
-            "<timestamp>now</timestamp><user_query>We decided to use Zod instead of Yup.</user_query>",
+            "<timestamp>now</timestamp><user_query>We decided to use Zod instead of Yup.</user_query>",  # noqa: E501
         ),
         ("assistant", "[tool_use:Write]\nGot it — Zod is the validation library."),
     )
@@ -107,7 +107,11 @@ def test_adapter_uses_predistilled_json(tmp_path: Path) -> None:
         agent_bin=None,
     )
     neurons = adapter.distill_rounds(
-        (_round(("user", "ignored raw text that would otherwise distill poorly"),)),
+        (
+            _round(
+                ("user", "ignored raw text that would otherwise distill poorly"),
+            )
+        ),
         round_chunk_ids={0: ["c1"]},
         max_total=10,
     )

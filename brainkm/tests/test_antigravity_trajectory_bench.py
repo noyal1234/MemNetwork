@@ -5,9 +5,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
-_SCRIPT = (
-    Path(__file__).resolve().parents[1] / "scripts" / "antigravity_trajectory_bench.py"
-)
+_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "antigravity_trajectory_bench.py"
 
 
 def _load_bench():
@@ -72,9 +70,7 @@ def test_generate_markdown_marks_failed_dump_incomparable() -> None:
                     mode="tokens-only",
                 )
             )
-    card = bench.PackVsDumpScorecard(
-        records=[dump, pack, *extra], driver="groq", mode="llm"
-    )
+    card = bench.PackVsDumpScorecard(records=[dump, pack, *extra], driver="groq", mode="llm")
     md = bench.generate_markdown(card)
     assert "pack-vs-dump" in md.lower()
     assert "does **not** drive Google Antigravity IDE" in md

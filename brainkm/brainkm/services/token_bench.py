@@ -9,9 +9,9 @@ from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
 
+from brainkm.bench.results import BenchCaseResult, BenchSuiteResult
 from brainkm.models.brain_config import BrainConfig, BudgetConfig, RecallConfig
 from brainkm.services.abstention_calibrate import FixtureNode, seed_fixture_corpus
-from brainkm.bench.results import BenchCaseResult, BenchSuiteResult
 from brainkm.services.budget import BudgetLine, greedy_truncate, line_tokens, priority_for
 from brainkm.services.context_pack import compile_context_pack
 from brainkm.services.memory import token_count
@@ -226,7 +226,6 @@ def evaluate_live_token_case(
     reduction = 1.0 - (pack_tokens / baseline) if baseline > 0 else 0.0
     cap = config.budget.total_tokens
     memory_count = len(pack.truncation.included_ids)
-    code_count = 0
     passed = pack_tokens <= cap and payload_tokens <= cap
     detail = (
         f"pack={pack_tokens}/{cap} payload={payload_tokens}/{cap} baseline={baseline} "
@@ -300,9 +299,7 @@ def probe_context_pack(
             parts.append(f"reason={'abstention' if abstained else 'no_candidates_after_recall'}")
             parts.append(f"top_fts={fts_hits[0][0]}")
         passed = (
-            pack_tokens <= cap
-            and payload_tokens <= cap
-            and not (pack_tokens == 0 and fts_hits)
+            pack_tokens <= cap and payload_tokens <= cap and not (pack_tokens == 0 and fts_hits)
         )
         return BenchCaseResult(
             name=query[:48],
@@ -479,7 +476,7 @@ def run_budget_suite(db_path: Path) -> BenchSuiteResult:
                     BenchCaseResult(
                         name=f"monotonic_{lower}_to_{higher}",
                         passed=True,
-                        detail=f"+{len(included_by_cap[higher]) - len(included_by_cap[lower])} nodes",
+                        detail=f"+{len(included_by_cap[higher]) - len(included_by_cap[lower])} nodes",  # noqa: E501
                     )
                 )
     finally:

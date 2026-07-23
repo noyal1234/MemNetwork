@@ -63,11 +63,7 @@ def test_probe_groq_unreachable() -> None:
     fake_httpx = type(
         "httpx",
         (),
-        {
-            "post": staticmethod(
-                lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("down"))
-            )
-        },
+        {"post": staticmethod(lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("down")))},
     )
     with patch.dict("sys.modules", {"httpx": fake_httpx}):
         status = probe_groq("https://api.groq.com/openai/v1", "gsk_test")

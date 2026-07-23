@@ -220,9 +220,7 @@ def install_brainkm_rule(project_dir: Path) -> Path:
     rules = project_dir / ".cursor" / "rules"
     rules.mkdir(parents=True, exist_ok=True)
     dest = rules / "brainkm.mdc"
-    src = (
-        Path(__file__).resolve().parent.parent / "hooks" / "cursor" / "brainkm.mdc"
-    )
+    src = Path(__file__).resolve().parent.parent / "hooks" / "cursor" / "brainkm.mdc"
     if src.is_file():
         shutil.copy2(src, dest)
     else:
@@ -340,21 +338,14 @@ def _arm_stats(records: list[EndTaskRunRecord], arm: ArmName) -> dict[str, Any]:
             "mean_context_tokens": None,
             "dry_run_only": True,
         }
-    tokens = [
-        r.context_tokens
-        if r.context_tokens is not None
-        else r.tokens_proxy
-        for r in subset
-    ]
+    tokens = [r.context_tokens if r.context_tokens is not None else r.tokens_proxy for r in subset]
     tokens_f = [float(t) for t in tokens if t is not None]
     passed = sum(1 for r in subset if r.passed)
     return {
         "n": len(subset),
         "passed": passed,
         "rate": passed / len(subset),
-        "mean_context_tokens": (
-            sum(tokens_f) / len(tokens_f) if tokens_f else None
-        ),
+        "mean_context_tokens": (sum(tokens_f) / len(tokens_f) if tokens_f else None),
         "dry_run_only": False,
     }
 
@@ -390,9 +381,7 @@ def render_endtask_markdown(report: EndTaskReport) -> str:
             token_note = f" ({pct:.0f}% fewer prompt tokens vs without)"
         else:
             ratio = w / wo
-            token_note = (
-                f" ({ratio:.1f}× prompt tokens vs without — pack injection)"
-            )
+            token_note = f" ({ratio:.1f}× prompt tokens vs without — pack injection)"
 
     lines = [
         "# End-task A/B scorecard (agent with brainkm vs without)",
@@ -404,8 +393,8 @@ def render_endtask_markdown(report: EndTaskReport) -> str:
         "",
         "## Headline",
         "",
-        f"| Arm | Success | Mean prompt tokens |",
-        f"|-----|---------|---------------------|",
+        "| Arm | Success | Mean prompt tokens |",
+        "|-----|---------|---------------------|",
         f"| **with brainkm** | {_fmt_rate(with_s)} | {_fmt_tok(with_s)}{token_note} |",
         f"| without | {_fmt_rate(without_s)} | {_fmt_tok(without_s)} |",
         "",
@@ -445,11 +434,7 @@ def render_endtask_markdown(report: EndTaskReport) -> str:
         ]
     )
     for r in report.records:
-        tok = (
-            r.context_tokens
-            if r.context_tokens is not None
-            else r.tokens_proxy
-        )
+        tok = r.context_tokens if r.context_tokens is not None else r.tokens_proxy
         tok_s = "—" if tok is None else str(tok)
         detail = (r.grade_detail or r.error or "").replace("|", "\\|")[:120]
         lines.append(
@@ -556,11 +541,15 @@ def groq_chat(
     key = (api_key if api_key is not None else settings.groq_api_key) or ""
     key = key.strip()
     if not key:
-        return "", {
-            "context_tokens": None,
-            "input_tokens": None,
-            "output_tokens": None,
-        }, "startup_error:GROQ_API_KEY not set"
+        return (
+            "",
+            {
+                "context_tokens": None,
+                "input_tokens": None,
+                "output_tokens": None,
+            },
+            "startup_error:GROQ_API_KEY not set",
+        )
 
     resolved_model = (model or cfg.groq.model).strip() or cfg.groq.model
     url_base = (base_url or cfg.groq.base_url).rstrip("/")
@@ -591,31 +580,47 @@ def groq_chat(
             timeout=timeout_seconds,
         )
     except Exception as exc:  # noqa: BLE001
-        return "", {
-            "context_tokens": None,
-            "input_tokens": None,
-            "output_tokens": None,
-        }, f"error:{exc}"
+        return (
+            "",
+            {
+                "context_tokens": None,
+                "input_tokens": None,
+                "output_tokens": None,
+            },
+            f"error:{exc}",
+        )
 
     if response.status_code == 401:
-        return "", {
-            "context_tokens": None,
-            "input_tokens": None,
-            "output_tokens": None,
-        }, "startup_error:unauthorized (check GROQ_API_KEY)"
+        return (
+            "",
+            {
+                "context_tokens": None,
+                "input_tokens": None,
+                "output_tokens": None,
+            },
+            "startup_error:unauthorized (check GROQ_API_KEY)",
+        )
     if response.status_code == 429:
-        return "", {
-            "context_tokens": None,
-            "input_tokens": None,
-            "output_tokens": None,
-        }, "error:rate_limited"
+        return (
+            "",
+            {
+                "context_tokens": None,
+                "input_tokens": None,
+                "output_tokens": None,
+            },
+            "error:rate_limited",
+        )
     if response.status_code >= 400:
         detail = (response.text or "")[:200]
-        return "", {
-            "context_tokens": None,
-            "input_tokens": None,
-            "output_tokens": None,
-        }, f"error:http_{response.status_code}:{detail}"
+        return (
+            "",
+            {
+                "context_tokens": None,
+                "input_tokens": None,
+                "output_tokens": None,
+            },
+            f"error:http_{response.status_code}:{detail}",
+        )
 
     body = response.json()
     choices = body.get("choices") or []
@@ -627,9 +632,7 @@ def groq_chat(
     completion_tokens = usage.get("completion_tokens")
     tokens = {
         "input_tokens": int(prompt_tokens) if prompt_tokens is not None else None,
-        "output_tokens": (
-            int(completion_tokens) if completion_tokens is not None else None
-        ),
+        "output_tokens": (int(completion_tokens) if completion_tokens is not None else None),
         "context_tokens": int(prompt_tokens) if prompt_tokens is not None else None,
     }
     return text, tokens, "finished"
@@ -644,9 +647,12 @@ def gemini_chat(
 ) -> tuple[str, dict[str, int | None], str]:
     """Call Google Gemini generateContent REST API. Returns (text, usage_dict, status)."""
     import os
+
     import httpx
 
-    key = (api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or "").strip()
+    key = (
+        api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or ""
+    ).strip()
     if not key:
         return "", {}, "startup_error:GEMINI_API_KEY or GOOGLE_API_KEY not set"
 
@@ -677,11 +683,15 @@ def gemini_chat(
         if parts:
             text = parts[0].get("text", "") or ""
     meta = body.get("usageMetadata") or {}
-    return text, {
-        "prompt_tokens": meta.get("promptTokenCount"),
-        "completion_tokens": meta.get("candidatesTokenCount"),
-        "total_tokens": meta.get("totalTokenCount"),
-    }, "finished"
+    return (
+        text,
+        {
+            "prompt_tokens": meta.get("promptTokenCount"),
+            "completion_tokens": meta.get("candidatesTokenCount"),
+            "total_tokens": meta.get("totalTokenCount"),
+        },
+        "finished",
+    )
 
 
 def run_groq_knowledge_arm(

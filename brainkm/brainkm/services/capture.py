@@ -186,9 +186,7 @@ def capture_transcript_file(
 
             titles = []
             for nid in neuron_ids[:8]:
-                row = conn.execute(
-                    "SELECT title FROM nodes WHERE id = ?", (nid,)
-                ).fetchone()
+                row = conn.execute("SELECT title FROM nodes WHERE id = ?", (nid,)).fetchone()
                 if row:
                     titles.append(row[0])
             episode = create_episode_neuron(

@@ -55,7 +55,9 @@ class ChangeTraceResult:
     hint: str | None = None
 
 
-def _run_git(project_dir: Path, *args: str, timeout: float = 15) -> subprocess.CompletedProcess[str]:
+def _run_git(
+    project_dir: Path, *args: str, timeout: float = 15
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", *args],
         cwd=project_dir,
@@ -309,9 +311,7 @@ def change_trace(
             )
         )
 
-    uncommitted = uncommitted_for_path(
-        conn, root, norm, session_id=session_id
-    )
+    uncommitted = uncommitted_for_path(conn, root, norm, session_id=session_id)
 
     pack = _format_pack(norm, commits, uncommitted)
     lines = [

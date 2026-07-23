@@ -350,8 +350,7 @@ class ConfigEditorScreen(Screen):
     def _update_save_button(self) -> None:
         btn = self.query_one("#btn-save", Button)
         btn.disabled = (
-            not (self._dirty or self._api_key_dirty)
-            or self._validation_error is not None
+            not (self._dirty or self._api_key_dirty) or self._validation_error is not None
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -443,13 +442,13 @@ class ConfigEditorScreen(Screen):
 
         # Keep post-commit hook in sync with explicit git.commit_trace.
         try:
+            from brainkm.models.brain_config import BrainConfig
             from brainkm.services.config_loader import should_install_commit_hook
             from brainkm.services.git_note import (
                 install_post_commit_hook,
                 uninstall_post_commit_hook,
             )
             from brainkm.services.install import resolve_hook_command, resolve_project_dir
-            from brainkm.models.brain_config import BrainConfig
 
             root = resolve_project_dir(self._project_dir)
             validated = BrainConfig.model_validate(output)
@@ -458,9 +457,7 @@ class ConfigEditorScreen(Screen):
                     root,
                     brainkm_bin=resolve_hook_command(dev=True),
                 )
-                result["commit_trace_hook"] = (
-                    str(hook_result.path) if hook_result.path else None
-                )
+                result["commit_trace_hook"] = str(hook_result.path) if hook_result.path else None
                 result["commit_trace_warnings"] = list(hook_result.warnings)
             else:
                 result["commit_trace_hook_removed"] = uninstall_post_commit_hook(root)

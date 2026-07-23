@@ -70,7 +70,7 @@ def recommend_model(profile: HardwareProfile) -> ModelRecommendation:
             tier="medium",
             rationale=(
                 f"{ram} GB RAM with "
-                f"{'GPU acceleration' if profile.has_gpu_accel else f'{profile.cpu_cores} CPU cores'} "
+                f"{'GPU acceleration' if profile.has_gpu_accel else f'{profile.cpu_cores} CPU cores'} "  # noqa: E501
                 "— 7B quantized balances quality and latency"
             ),
             warnings=tuple(warnings),
@@ -107,9 +107,7 @@ def probe_ollama(base_url: str) -> OllamaStatus:
             return OllamaStatus(reachable=False)
         payload = response.json()
         models = tuple(
-            str(item.get("name", ""))
-            for item in payload.get("models", [])
-            if item.get("name")
+            str(item.get("name", "")) for item in payload.get("models", []) if item.get("name")
         )
         return OllamaStatus(reachable=True, installed_models=models)
     except Exception:

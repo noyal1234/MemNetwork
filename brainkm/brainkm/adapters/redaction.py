@@ -272,9 +272,7 @@ def sanitize_for_storage(
     findings.extend(title_secret_strips)
     findings.extend(content_secret_strips)
 
-    cleaned_title, title_injection_strips = _apply_strip_rules(
-        cleaned_title, INJECTION_STRIP_RULES
-    )
+    cleaned_title, title_injection_strips = _apply_strip_rules(cleaned_title, INJECTION_STRIP_RULES)
     cleaned_content, content_injection_strips = _apply_strip_rules(
         cleaned_content, INJECTION_STRIP_RULES
     )

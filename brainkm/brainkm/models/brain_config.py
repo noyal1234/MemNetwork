@@ -82,9 +82,7 @@ class CaptureConfig(BaseModel):
 
 class InjectionConfig(BaseModel):
     session_start: bool = True
-    pre_tool_patterns: list[str] = Field(
-        default_factory=lambda: ["write", "edit", "run_terminal"]
-    )
+    pre_tool_patterns: list[str] = Field(default_factory=lambda: ["write", "edit", "run_terminal"])
     max_recalls_per_turn: int = Field(default=3, ge=0, le=5)
     frozen_snapshot: bool = True
 
@@ -104,7 +102,7 @@ class RecallConfig(BaseModel):
     min_bm25_strength: float | None = Field(
         default=3.0,
         ge=0.0,
-        description="Percentile mode: abstain when |best BM25| is below this (weak single-token hits)",
+        description="Percentile mode: abstain when |best BM25| is below this (weak single-token hits)",  # noqa: E501
     )
     activation: Literal["bfs", "ppr"] = "ppr"
     ppr_damping: float = Field(default=0.85, ge=0.5, le=0.99)

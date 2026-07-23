@@ -48,7 +48,8 @@ def test_frozen_snapshot_advertises_graph_when_imported(brain_db) -> None:
     try:
         conn.execute(
             """
-            INSERT INTO graph_import_runs (id, started_at, completed_at, status, node_count, edge_count)
+            INSERT INTO graph_import_runs (id, started_at, completed_at, status, node_count,
+                edge_count)
             VALUES ('run1', '2026-01-01T00:00:00Z', '2026-01-01T00:00:01Z', 'completed', 1, 0)
             """
         )

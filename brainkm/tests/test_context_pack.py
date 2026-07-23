@@ -327,8 +327,9 @@ def test_compile_pre_tool_pack_uses_file_path_and_slot_cap(brain_db) -> None:
         )
         assert pack is not None
         assert pack.truncation.token_budget <= 400 + 250 + 200
-        assert any(
-            nid in {"auth-file", "caller"} for nid in pack.truncation.included_ids
-        ) or "middleware" in pack.pack_text.lower()
+        assert (
+            any(nid in {"auth-file", "caller"} for nid in pack.truncation.included_ids)
+            or "middleware" in pack.pack_text.lower()
+        )
     finally:
         conn.close()

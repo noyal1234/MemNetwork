@@ -71,9 +71,7 @@ class ActionsScreen(Screen):
 
     def on_mount(self) -> None:
         """Seed the log with a muted empty-state hint."""
-        self.log_panel.log_info(
-            "Select an action above to run it; output appears here."
-        )
+        self.log_panel.log_info("Select an action above to run it; output appears here.")
 
     @property
     def log_panel(self) -> RichLogPanel:
@@ -286,11 +284,7 @@ class ActionsScreen(Screen):
 
         # Reuse a live server: refresh browser only.
         existing: VizServerHandle | None = self._viz_handle
-        if (
-            existing is not None
-            and existing.thread.is_alive()
-            and existing.demo == demo
-        ):
+        if existing is not None and existing.thread.is_alive() and existing.demo == demo:
             webbrowser.open(existing.url)
             return {
                 "action": "viz",
@@ -382,9 +376,15 @@ class ActionsScreen(Screen):
                 )
 
         elif action == "graph_status":
-            for key in ("graphify_found", "graph_json_exists", "graph_stale",
-                        "graph_available", "code_node_count", "auto_sync_enabled",
-                        "watch_filesystem_enabled"):
+            for key in (
+                "graphify_found",
+                "graph_json_exists",
+                "graph_stale",
+                "graph_available",
+                "code_node_count",
+                "auto_sync_enabled",
+                "watch_filesystem_enabled",
+            ):
                 if key in result:
                     self.log_panel.log_plain(f"{key}: {result[key]}")
 

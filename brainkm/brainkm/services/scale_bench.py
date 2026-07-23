@@ -116,9 +116,7 @@ def run_scale_suite(
                     p5_vals.append(precision_at_k(ranked, {gold_id}, 5))
 
                     t1 = time.perf_counter()
-                    compile_context_pack(
-                        conn, query, config=cfg, project_dir=project
-                    )
+                    compile_context_pack(conn, query, config=cfg, project_dir=project)
                     pack_ms.append((time.perf_counter() - t1) * 1000.0)
 
                 n = len(_PROBE_QUERIES)
@@ -162,9 +160,7 @@ def run_scale_suite(
         set_skip_rolling_scores(False)
 
     passed = sum(1 for c in cases if c.passed)
-    return BenchSuiteResult(
-        suite="scale", passed=passed, total=len(cases), cases=cases
-    )
+    return BenchSuiteResult(suite="scale", passed=passed, total=len(cases), cases=cases)
 
 
 def format_scale_summary(result: BenchSuiteResult) -> str:
@@ -173,11 +169,7 @@ def format_scale_summary(result: BenchSuiteResult) -> str:
         if case.name.endswith("/recall_at_5"):
             size = case.name.split("/")[1]
             p95 = next(
-                (
-                    c.detail
-                    for c in result.cases
-                    if c.name == f"size/{size}/recall_p95_ms"
-                ),
+                (c.detail for c in result.cases if c.name == f"size/{size}/recall_p95_ms"),
                 "?",
             )
             lines.append(f"  n={size}: R@5={case.detail} recall_p95_ms={p95}")

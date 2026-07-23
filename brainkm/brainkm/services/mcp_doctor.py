@@ -13,7 +13,11 @@ from pathlib import Path
 from brainkm import __version__
 from brainkm.services.config_loader import load_brain_config
 from brainkm.services.connect import hooks_path_for_client, mcp_config_path_for_client
-from brainkm.services.install import BRAINKM_MCP_SERVER_KEY, resolve_hook_command, resolve_project_dir
+from brainkm.services.install import (
+    BRAINKM_MCP_SERVER_KEY,
+    resolve_hook_command,
+    resolve_project_dir,
+)
 from brainkm.services.mcp_transport import mcp_entry_has_bearer_header, mcp_health_url
 
 _CURSOR_EXPECTED_HOOK_EVENTS = (
@@ -157,7 +161,9 @@ def _probe_claude_session_start_stdout(project_dir: Path) -> list[str]:
         return notes
 
     if proc.returncode != 0:
-        notes.append(f"SessionStart dry-run exited {proc.returncode} (Claude hooks must be fail-soft)")
+        notes.append(
+            f"SessionStart dry-run exited {proc.returncode} (Claude hooks must be fail-soft)"
+        )
         return notes
 
     out = (proc.stdout or "").strip()
@@ -183,7 +189,9 @@ def _probe_claude_session_start_stdout(project_dir: Path) -> list[str]:
         )
         return notes
     if "additionalContext" not in specific and "additional_context" in payload:
-        notes.append("SessionStart dry-run: Cursor-shaped additional_context detected — wrong client")
+        notes.append(
+            "SessionStart dry-run: Cursor-shaped additional_context detected — wrong client"
+        )
         return notes
     notes.append("SessionStart dry-run: hookSpecificOutput ok")
     return notes
@@ -222,7 +230,7 @@ def inspect_claude_wiring(project_dir: Path) -> list[str]:
         )
     elif legacy.is_file():
         notes.append(
-            "Legacy .claude/hooks.json still present — safe to delete after verifying settings hooks"
+            "Legacy .claude/hooks.json still present — safe to delete after verifying settings hooks"  # noqa: E501
         )
 
     if not _claude_settings_has_brainkm_hooks(settings):
@@ -234,7 +242,11 @@ def inspect_claude_wiring(project_dir: Path) -> list[str]:
         command = _first_brainkm_hook_command(settings)
         if command:
             binary = command.split()[0]
-            if binary not in ("brainkm",) and not Path(binary).is_file() and not shutil.which(binary):
+            if (
+                binary not in ("brainkm",)
+                and not Path(binary).is_file()
+                and not shutil.which(binary)
+            ):
                 notes.append(f"Hook binary not found: {binary}")
             if "--client claude" not in command:
                 notes.append("Claude hooks missing `--client claude` (stdout may be Cursor-shaped)")
@@ -261,9 +273,7 @@ def _antigravity_hooks_wired(hooks_path: Path) -> bool:
 
 def antigravity_hooks_wired(project_dir: Path) -> bool:
     """True when project ``.agents/hooks.json`` contains brainkm Antigravity hooks."""
-    return _antigravity_hooks_wired(
-        resolve_project_dir(project_dir) / ".agents" / "hooks.json"
-    )
+    return _antigravity_hooks_wired(resolve_project_dir(project_dir) / ".agents" / "hooks.json")
 
 
 def _cursor_hooks_have_brainkm(hooks_path: Path) -> bool:
@@ -361,9 +371,7 @@ def inspect_cursor_wiring(project_dir: Path) -> list[str]:
         post_entries = hooks.get("postToolUse")
         if isinstance(post_entries, list):
             matcher_blob = " ".join(
-                str(item.get("matcher", ""))
-                for item in post_entries
-                if isinstance(item, dict)
+                str(item.get("matcher", "")) for item in post_entries if isinstance(item, dict)
             )
             if matcher_blob and "Shell" not in matcher_blob:
                 notes.append(
@@ -560,9 +568,7 @@ def _codex_hooks_wired(hooks_path: Path) -> bool:
 
 def codex_hooks_wired(project_dir: Path) -> bool:
     """True when project ``.codex/hooks.json`` contains brainkm Codex hooks."""
-    return _codex_hooks_wired(
-        resolve_project_dir(project_dir) / ".codex" / "hooks.json"
-    )
+    return _codex_hooks_wired(resolve_project_dir(project_dir) / ".codex" / "hooks.json")
 
 
 def inspect_codex_wiring(project_dir: Path) -> list[str]:
@@ -589,8 +595,7 @@ def inspect_codex_wiring(project_dir: Path) -> list[str]:
         entry = read_codex_mcp_server_entry(config_path)
         if entry is None:
             notes.append(
-                "Codex config.toml missing `[mcp_servers.brainkm]` — "
-                "run `brainkm connect codex`"
+                "Codex config.toml missing `[mcp_servers.brainkm]` — run `brainkm connect codex`"
             )
         else:
             transport, _ = _inspect_mcp_entry(entry)
@@ -615,8 +620,7 @@ def inspect_codex_wiring(project_dir: Path) -> list[str]:
             stop_blob = json.dumps(stop_groups) if stop_groups else ""
             if "session-end" not in stop_blob:
                 notes.append(
-                    "Codex Stop hook should run `brainkm session-end` "
-                    "(Codex has no SessionEnd)"
+                    "Codex Stop hook should run `brainkm session-end` (Codex has no SessionEnd)"
                 )
             if "SessionEnd" in (data.get("hooks") or {}):
                 notes.append(
@@ -642,13 +646,9 @@ def _client_status(project_dir: Path, client: str) -> ClientWireStatus:
             project_dir / ".claude" / "settings.json"
         )
     elif client == "antigravity":
-        hooks_present = _antigravity_hooks_wired(
-            project_dir / ".agents" / "hooks.json"
-        )
+        hooks_present = _antigravity_hooks_wired(project_dir / ".agents" / "hooks.json")
     elif client == "cursor":
-        hooks_present = _cursor_hooks_have_brainkm(
-            project_dir / ".cursor" / "hooks.json"
-        )
+        hooks_present = _cursor_hooks_have_brainkm(project_dir / ".cursor" / "hooks.json")
     elif client == "codex":
         hooks_present = _codex_hooks_wired(project_dir / ".codex" / "hooks.json")
     else:
@@ -748,9 +748,7 @@ def build_mcp_doctor_report(
                 f"use stdio spawn: {', '.join(stdio_clients)}. "
                 "Run `brainkm connect <client> --http` or remove stale command/args."
             )
-        http_no_auth = [
-            c.client for c in clients if c.transport == "http" and not c.has_bearer
-        ]
+        http_no_auth = [c.client for c in clients if c.transport == "http" and not c.has_bearer]
         if http_no_auth:
             missing_auth = (
                 "HTTP MCP clients missing Authorization Bearer header: "

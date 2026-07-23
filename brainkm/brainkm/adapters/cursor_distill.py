@@ -11,7 +11,12 @@ import subprocess
 from pathlib import Path
 
 from brainkm.adapters.cursor_clean import clean_cursor_text, distillable_round, is_distill_noise
-from brainkm.adapters.distill_prompts import SYSTEM_PROMPT, build_context_block, normalize_subtype, parse_json_array
+from brainkm.adapters.distill_prompts import (
+    SYSTEM_PROMPT,
+    build_context_block,
+    normalize_subtype,
+    parse_json_array,
+)
 from brainkm.adapters.distill_rules import (
     DECISION_PATTERNS,
     ERROR_PATTERNS,
@@ -86,7 +91,12 @@ def load_predistilled_neurons(
             chunk_ids=list(chunk_ids or item.get("chunk_ids") or []),
             confidence=float(item.get("confidence", CURSOR_LLM_CONFIDENCE)),
         )
-        if neuron.title and neuron.body and neuron.is_atomic() and not is_distill_noise(neuron.title):
+        if (
+            neuron.title
+            and neuron.body
+            and neuron.is_atomic()
+            and not is_distill_noise(neuron.title)
+        ):
             neurons.append(neuron)
     return neurons or None
 

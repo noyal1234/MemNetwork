@@ -61,14 +61,10 @@ def _fake_httpx_module(*, get_response=None, post_response=None, post_capture: l
 
 
 def test_adapter_falls_back_without_api_key() -> None:
-    cfg = BrainConfig(
-        capture={"distill_mode": "groq", "cloud_distill_acknowledged": True}
-    )
+    cfg = BrainConfig(capture={"distill_mode": "groq", "cloud_distill_acknowledged": True})
     # Empty string (not None) so env/.env GROQ_API_KEY cannot bypass the fallback path.
     adapter = GroqDistillAdapter(cfg, conn=None, api_key="")
-    round_ = _make_round(
-        "USER: We decided to use JWT instead of session cookies for API auth."
-    )
+    round_ = _make_round("USER: We decided to use JWT instead of session cookies for API auth.")
     neurons = adapter.distill_rounds(
         (round_,),
         round_chunk_ids={0: ["chunk-1"]},
@@ -78,13 +74,9 @@ def test_adapter_falls_back_without_api_key() -> None:
 
 
 def test_adapter_falls_back_without_cloud_ack() -> None:
-    cfg = BrainConfig(
-        capture={"distill_mode": "groq", "cloud_distill_acknowledged": False}
-    )
+    cfg = BrainConfig(capture={"distill_mode": "groq", "cloud_distill_acknowledged": False})
     adapter = GroqDistillAdapter(cfg, conn=None, api_key="gsk_test_key_should_not_upload")
-    round_ = _make_round(
-        "USER: We decided to use JWT instead of session cookies for API auth."
-    )
+    round_ = _make_round("USER: We decided to use JWT instead of session cookies for API auth.")
     neurons = adapter.distill_rounds(
         (round_,),
         round_chunk_ids={0: ["chunk-1"]},
@@ -122,9 +114,7 @@ def test_adapter_includes_context_in_chat_payload(brain_db: Path) -> None:
 
         assert neurons == []
         # Preflight chat probe + distill chat completion.
-        distill_calls = [
-            c for c in captured if (c.get("json") or {}).get("response_format")
-        ]
+        distill_calls = [c for c in captured if (c.get("json") or {}).get("response_format")]
         assert len(distill_calls) == 1
         payload = distill_calls[0]["json"]
         assert payload["messages"][0] == {"role": "system", "content": SYSTEM_PROMPT}
@@ -177,9 +167,7 @@ def test_adapter_falls_back_when_unreachable() -> None:
     adapter = GroqDistillAdapter(cfg, conn=None, api_key="gsk_test_key")
     # Preflight is now chat/completions — a 500 on POST forces rules fallback.
     fake_httpx = _fake_httpx_module(post_response=_FakeResponse(status_code=500))
-    round_ = _make_round(
-        "USER: We decided to use JWT instead of session cookies for API auth."
-    )
+    round_ = _make_round("USER: We decided to use JWT instead of session cookies for API auth.")
 
     with patch.dict("sys.modules", {"httpx": fake_httpx}):
         neurons = adapter.distill_rounds(
@@ -195,9 +183,7 @@ def test_adapter_falls_back_on_rate_limit() -> None:
     cfg = BrainConfig(capture={"distill_mode": "groq", "cloud_distill_acknowledged": True})
     adapter = GroqDistillAdapter(cfg, conn=None, api_key="gsk_test_key")
     fake_httpx = _fake_httpx_module(post_response=_FakeResponse(status_code=429))
-    round_ = _make_round(
-        "USER: We decided to use JWT instead of session cookies for API auth."
-    )
+    round_ = _make_round("USER: We decided to use JWT instead of session cookies for API auth.")
 
     with patch.dict("sys.modules", {"httpx": fake_httpx}):
         neurons = adapter.distill_rounds(
@@ -213,9 +199,7 @@ def test_adapter_falls_back_on_http_error() -> None:
     cfg = BrainConfig(capture={"distill_mode": "groq", "cloud_distill_acknowledged": True})
     adapter = GroqDistillAdapter(cfg, conn=None, api_key="gsk_test_key")
     fake_httpx = _fake_httpx_module(post_response=RuntimeError("connection reset"))
-    round_ = _make_round(
-        "USER: We decided to use JWT instead of session cookies for API auth."
-    )
+    round_ = _make_round("USER: We decided to use JWT instead of session cookies for API auth.")
 
     with patch.dict("sys.modules", {"httpx": fake_httpx}):
         neurons = adapter.distill_rounds(

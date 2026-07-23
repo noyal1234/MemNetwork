@@ -49,9 +49,7 @@ def run_staleness_suite(_db_path: Path | None = None) -> BenchSuiteResult:
             if len(pair) != 2:
                 continue
             new_id, old_id = pair
-            row = conn.execute(
-                "SELECT valid_until FROM nodes WHERE id = ?", (old_id,)
-            ).fetchone()
+            row = conn.execute("SELECT valid_until FROM nodes WHERE id = ?", (old_id,)).fetchone()
             if row is not None and row[0] is None:
                 supersede_neuron(conn, old_id, replacement_id=new_id)
         conn.commit()
@@ -94,9 +92,7 @@ def run_staleness_suite(_db_path: Path | None = None) -> BenchSuiteResult:
                 )
                 text = (pack.pack_text or "").lower()
                 stale_hits = [
-                    s
-                    for s in query.get("stale_body_substrings") or []
-                    if str(s).lower() in text
+                    s for s in query.get("stale_body_substrings") or [] if str(s).lower() in text
                 ]
                 clean = not stale_hits
                 if clean:
@@ -142,15 +138,9 @@ def run_staleness_suite(_db_path: Path | None = None) -> BenchSuiteResult:
 
 
 def format_staleness_summary(result: BenchSuiteResult) -> str:
-    top1 = next(
-        (c.detail for c in result.cases if c.name == "aggregate/supersede_top1"), "?"
-    )
+    top1 = next((c.detail for c in result.cases if c.name == "aggregate/supersede_top1"), "?")
     pack = next(
-        (
-            c.detail
-            for c in result.cases
-            if c.name == "aggregate/stale_injection_clean"
-        ),
+        (c.detail for c in result.cases if c.name == "aggregate/stale_injection_clean"),
         "n/a",
     )
     return f"Staleness: supersede_top1={top1} stale_injection_clean={pack}"

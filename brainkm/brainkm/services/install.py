@@ -150,7 +150,9 @@ def build_hooks_config(
     }
 
 
-def _claude_hook_command(brainkm_bin: str, *args: str, timeout: int | None = None) -> dict[str, object]:
+def _claude_hook_command(
+    brainkm_bin: str, *args: str, timeout: int | None = None
+) -> dict[str, object]:
     """One Claude Code command-hook entry (nested under matcher groups)."""
     cmd = f"{shlex.quote(brainkm_bin)} {' '.join(args)} --client claude"
     entry: dict[str, object] = {"type": "command", "command": cmd}
@@ -259,9 +261,7 @@ def merge_claude_settings_hooks(
         return merged
 
     existing_hooks = merged.get("hooks")
-    hooks_out: dict[str, object] = (
-        dict(existing_hooks) if isinstance(existing_hooks, dict) else {}
-    )
+    hooks_out: dict[str, object] = dict(existing_hooks) if isinstance(existing_hooks, dict) else {}
     for event, groups in incoming.items():
         if not isinstance(groups, list):
             continue
@@ -392,9 +392,7 @@ def merge_codex_hooks_json(
         return merged
 
     existing_hooks = merged.get("hooks")
-    hooks_out: dict[str, object] = (
-        dict(existing_hooks) if isinstance(existing_hooks, dict) else {}
-    )
+    hooks_out: dict[str, object] = dict(existing_hooks) if isinstance(existing_hooks, dict) else {}
     for event, groups in incoming.items():
         if not isinstance(groups, list):
             continue
@@ -454,14 +452,10 @@ def build_antigravity_hooks_config(
     hit the shared project ``.brain/`` when Antigravity runs them with cwd=``.agents``.
     """
     _ = config
-    write_matcher = (
-        "write_to_file|replace_file_content|multi_replace_file_content|run_command"
-    )
+    write_matcher = "write_to_file|replace_file_content|multi_replace_file_content|run_command"
 
     def _cmd(*args: str, timeout: int | None = None) -> dict[str, object]:
-        return _agy_hook_command(
-            brainkm_bin, *args, timeout=timeout, project_dir=project_dir
-        )
+        return _agy_hook_command(brainkm_bin, *args, timeout=timeout, project_dir=project_dir)
 
     return {
         "brainkm": {
@@ -546,9 +540,7 @@ def write_antigravity_hooks(
 ) -> dict[str, object]:
     """Write/merge brainkm Antigravity hooks into ``.agents/hooks.json``."""
     root = resolve_project_dir(project_dir) if project_dir is not None else hooks_path.parent.parent
-    incoming = build_antigravity_hooks_config(
-        brainkm_bin, config=config, project_dir=root
-    )
+    incoming = build_antigravity_hooks_config(brainkm_bin, config=config, project_dir=root)
     if hooks_path.is_file():
         existing = json.loads(hooks_path.read_text(encoding="utf-8"))
         if not isinstance(existing, dict):
@@ -817,9 +809,7 @@ def install_client_guidance_assets(
             result=result,
         )
         agents_path = root / "AGENTS.md"
-        action = upsert_project_md_snippet(
-            agents_path, adapter.agents_snippet(), force=force
-        )
+        action = upsert_project_md_snippet(agents_path, adapter.agents_snippet(), force=force)
         if action == "skipped":
             result.files_skipped.append(agents_path)
         else:
@@ -842,9 +832,7 @@ def install_client_guidance_assets(
             result=result,
         )
         agents_path = root / "CLAUDE.md"
-        action = upsert_project_md_snippet(
-            agents_path, adapter.agents_snippet(), force=force
-        )
+        action = upsert_project_md_snippet(agents_path, adapter.agents_snippet(), force=force)
         if action == "skipped":
             result.files_skipped.append(agents_path)
         else:
@@ -867,9 +855,7 @@ def install_client_guidance_assets(
             result=result,
         )
         agents_path = root / "AGENTS.md"
-        action = upsert_project_md_snippet(
-            agents_path, adapter.agents_snippet(), force=force
-        )
+        action = upsert_project_md_snippet(agents_path, adapter.agents_snippet(), force=force)
         if action == "skipped":
             result.files_skipped.append(agents_path)
         else:
@@ -1015,12 +1001,10 @@ def run_install(
             )
             if cfg.capture.distill_mode in ("cursor", "mcp"):
                 cfg = cfg.model_copy(
-                    update={
-                        "capture": cfg.capture.model_copy(update={"distill_mode": "rules"})
-                    }
+                    update={"capture": cfg.capture.model_copy(update={"distill_mode": "rules"})}
                 )
             result.warnings.append(
-                "claude CLI not on PATH — prefer distill_mode=claude after installing Claude Code CLI."
+                "claude CLI not on PATH — prefer distill_mode=claude after installing Claude Code CLI."  # noqa: E501
             )
     if adapter.kind == "codex":
         if _cli_on_path("codex"):
@@ -1037,9 +1021,7 @@ def run_install(
             )
             if cfg.capture.distill_mode in ("cursor", "mcp", "claude", "antigravity"):
                 cfg = cfg.model_copy(
-                    update={
-                        "capture": cfg.capture.model_copy(update={"distill_mode": "rules"})
-                    }
+                    update={"capture": cfg.capture.model_copy(update={"distill_mode": "rules"})}
                 )
             result.warnings.append(
                 "codex CLI not on PATH — distill_mode set to rules (or keep groq/ollama); "
@@ -1077,9 +1059,7 @@ def run_install(
         mcp_path = cursor_dir / "mcp.json"
         if mcp_path.is_file():
             existing_mcp = json.loads(mcp_path.read_text(encoding="utf-8"))
-            merged_mcp = _normalize_merged_mcp_payload(
-                _deep_merge_dict(existing_mcp, mcp_payload)
-            )
+            merged_mcp = _normalize_merged_mcp_payload(_deep_merge_dict(existing_mcp, mcp_payload))
             _write_json(mcp_path, merged_mcp)
             result.files_written.append(mcp_path)
         else:
@@ -1109,9 +1089,7 @@ def run_install(
         mcp_path = agents_dir / "mcp_config.json"
         if mcp_path.is_file():
             existing_mcp = json.loads(mcp_path.read_text(encoding="utf-8"))
-            merged_mcp = _normalize_merged_mcp_payload(
-                _deep_merge_dict(existing_mcp, mcp_payload)
-            )
+            merged_mcp = _normalize_merged_mcp_payload(_deep_merge_dict(existing_mcp, mcp_payload))
             _write_json(mcp_path, merged_mcp)
         else:
             _write_json(mcp_path, mcp_payload)
@@ -1131,9 +1109,7 @@ def run_install(
         mcp_path = root / ".mcp.json"
         if mcp_path.is_file():
             existing_mcp = json.loads(mcp_path.read_text(encoding="utf-8"))
-            merged_mcp = _normalize_merged_mcp_payload(
-                _deep_merge_dict(existing_mcp, mcp_payload)
-            )
+            merged_mcp = _normalize_merged_mcp_payload(_deep_merge_dict(existing_mcp, mcp_payload))
             _write_json(mcp_path, merged_mcp)
         else:
             _write_json(mcp_path, mcp_payload)
@@ -1275,8 +1251,7 @@ def run_install(
                 result.files_written.append(hook_result.path)
             elif hook_result.skipped and not hook_result.warnings:
                 result.warnings.append(
-                    "git.commit_trace enabled but post-commit hook not installed "
-                    "(not a git repo?)"
+                    "git.commit_trace enabled but post-commit hook not installed (not a git repo?)"
                 )
         except Exception as exc:
             result.warnings.append(f"commit-trace hook skipped: {exc}")

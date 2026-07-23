@@ -119,7 +119,8 @@ def import_neurons_merge(
                 now = utc_now_iso()
                 conn.execute(
                     """
-                    INSERT INTO edges (id, from_id, to_id, relationship, weight, created_at, updated_at)
+                    INSERT INTO edges (id, from_id, to_id, relationship, weight, created_at,
+                        updated_at)
                     VALUES (?, ?, ?, 'conflicts_with', 0.5, ?, ?)
                     """,
                     (edge_id, duplicate.id, existing["id"], now, now),

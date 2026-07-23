@@ -220,9 +220,7 @@ def main() -> int:
         while time.monotonic() - t_boot < 25:
             got = _ps(proc.pid)
             if got:
-                cold_samples.append(
-                    Sample(time.monotonic() - t_boot, got[0], got[1])
-                )
+                cold_samples.append(Sample(time.monotonic() - t_boot, got[0], got[1]))
             try:
                 r = httpx.get(f"{base}/health", timeout=0.5)
                 if r.status_code == 200:
@@ -295,7 +293,10 @@ def main() -> int:
                     for _ in range(args.load_rounds):
                         for name, tool_args in (
                             ("brain_stats", {}),
-                            ("recall", {"query": "architecture decisions token budget", "limit": 8}),
+                            (
+                                "recall",
+                                {"query": "architecture decisions token budget", "limit": 8},
+                            ),
                             (
                                 "context_pack",
                                 {
@@ -312,9 +313,7 @@ def main() -> int:
                                 errors += 1
                             got = _ps(proc.pid)
                             if got:
-                                load_samples.append(
-                                    Sample(time.monotonic() - t0, got[0], got[1])
-                                )
+                                load_samples.append(Sample(time.monotonic() - t0, got[0], got[1]))
             return {
                 "calls": calls,
                 "errors": errors,
@@ -332,12 +331,8 @@ def main() -> int:
 
         # Host facts
         try:
-            mem = int(
-                subprocess.check_output(["sysctl", "-n", "hw.memsize"], text=True).strip()
-            )
-            ncpu = int(
-                subprocess.check_output(["sysctl", "-n", "hw.ncpu"], text=True).strip()
-            )
+            mem = int(subprocess.check_output(["sysctl", "-n", "hw.memsize"], text=True).strip())
+            ncpu = int(subprocess.check_output(["sysctl", "-n", "hw.ncpu"], text=True).strip())
             results["host"]["ram_gb"] = round(mem / (1024**3), 1)
             results["host"]["logical_cpus"] = ncpu
         except Exception:  # noqa: BLE001
@@ -380,7 +375,7 @@ def main() -> int:
         "",
         "## Method",
         "",
-        "1. Start a fresh `brainkm serve` on an ephemeral port (not the long-lived dogfood process).",
+        "1. Start a fresh `brainkm serve` on an ephemeral port (not the long-lived dogfood process).",  # noqa: E501
         "2. Sample RSS/`%CPU` via `ps` every ~250 ms.",
         "3. Phases: cold start → idle → concurrent `/health` spam → MCP tool rounds "
         "(`brain_stats`, `recall`, `context_pack`, `traverse`) → post-load idle.",
@@ -388,8 +383,8 @@ def main() -> int:
         "",
         "## Results",
         "",
-        f"| Phase | Footprint |",
-        f"|-------|-----------|",
+        "| Phase | Footprint |",
+        "|-------|-----------|",
         f"| Cold start | {_fmt(results.get('cold_start', {}))} |",  # type: ignore[arg-type]
         f"| Idle | {_fmt(results.get('idle', {}))} |",  # type: ignore[arg-type]
         f"| Health load | {_fmt(results.get('health_load', {}))} |",  # type: ignore[arg-type]
@@ -406,7 +401,7 @@ def main() -> int:
                 f"**~{claim_cpu:.1f}% CPU** (mean) on this host.",
                 f"- Under MCP tool load, RSS peaked around **{load_rss_max:.0f} MB** "
                 f"in this run (still a single local process).",
-                "- Spikes from distill / graph sync are short-lived and out of band of idle `serve`.",
+                "- Spikes from distill / graph sync are short-lived and out of band of idle `serve`.",  # noqa: E501
                 "",
             ]
         )

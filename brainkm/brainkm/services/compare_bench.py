@@ -170,9 +170,7 @@ def format_compare_summary(result: BenchSuiteResult) -> str:
     if not reductions:
         return ""
     avg = sum(reductions) / len(reductions)
-    parts = [
-        f"Average with-vs-without reduction: {avg:.0%} across {len(reductions)} scenarios"
-    ]
+    parts = [f"Average with-vs-without reduction: {avg:.0%} across {len(reductions)} scenarios"]
     if ratios:
         avg_ratio = sum(ratios) / len(ratios)
         parts.append(f"(~{avg_ratio:.1f}x fewer tokens with brain)")

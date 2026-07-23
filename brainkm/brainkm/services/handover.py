@@ -38,11 +38,7 @@ def parse_precompact_hook_payload(
         msg = "hook payload must be a JSON object"
         raise ValueError(msg)
 
-    path_value = (
-        data.get("transcript_path")
-        or data.get("transcriptPath")
-        or data.get("transcript")
-    )
+    path_value = data.get("transcript_path") or data.get("transcriptPath") or data.get("transcript")
     if not path_value:
         msg = "hook payload missing transcript_path"
         raise ValueError(msg)
@@ -281,10 +277,7 @@ def run_handover(
                 """,
                 (capture_result.session_id, cfg.capture.max_auto_neurons_per_session),
             ).fetchall()
-            exported = [
-                (str(row[0] or "fact"), str(row[1]), str(row[2] or ""))
-                for row in rows
-            ]
+            exported = [(str(row[0] or "fact"), str(row[1]), str(row[2] or "")) for row in rows]
             export_path = _write_handover_export(
                 project_dir=project_dir,
                 session_id=capture_result.session_id,

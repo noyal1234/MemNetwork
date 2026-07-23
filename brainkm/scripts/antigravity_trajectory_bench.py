@@ -33,7 +33,7 @@ import os
 import sys
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 _REPO = Path(__file__).resolve().parents[2]
@@ -135,9 +135,7 @@ def _load_dump_text(scenario: dict, repo: Path) -> tuple[str, int]:
     for rel_path in scenario["target_files"]:
         abs_path = repo / rel_path
         if abs_path.is_file():
-            chunks.append(
-                f"=== FILE: {rel_path} ===\n{abs_path.read_text(encoding='utf-8')}\n"
-            )
+            chunks.append(f"=== FILE: {rel_path} ===\n{abs_path.read_text(encoding='utf-8')}\n")
     body = "\n".join(chunks)
     return body, token_count(body)
 
@@ -164,21 +162,16 @@ def _compile_pack(scenario: dict, repo: Path) -> tuple[str, int]:
     conn = connect(brain_db_path(repo))
     cfg = load_brain_config(repo)
     try:
-        pack = compile_context_pack(
-            conn, scenario["prompt"], config=cfg, project_dir=repo
-        )
+        pack = compile_context_pack(conn, scenario["prompt"], config=cfg, project_dir=repo)
         text = pack.pack_text
     finally:
         conn.close()
     return text, token_count(text)
 
 
-def _call_llm(
-    prompt: str, *, driver: str
-) -> tuple[str, dict[str, int | None], str]:
+def _call_llm(prompt: str, *, driver: str) -> tuple[str, dict[str, int | None], str]:
     use_gemini = driver == "gemini" or (
-        driver == "auto"
-        and (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"))
+        driver == "auto" and (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"))
     )
     if use_gemini:
         return gemini_chat(prompt, model="gemini-2.5-flash")
@@ -258,22 +251,18 @@ def run_scenario(
         arm="dump",
         dump_or_pack_tokens=dump_tok,
         prompt_tokens=int(dump_prompt_tok) if dump_prompt_tok is not None else dump_tok,
-        completion_tokens=int(dump_completion) if dump_completion is not None else (
-            token_count(dump_text) if dump_finished else 0
-        ),
+        completion_tokens=int(dump_completion)
+        if dump_completion is not None
+        else (token_count(dump_text) if dump_finished else 0),
         total_tokens=None,
         wall_ms=dump_wall,
         status=dump_status,
-        decision_hit=(
-            _decision_hit(dump_text, keywords) if dump_finished else None
-        ),
+        decision_hit=(_decision_hit(dump_text, keywords) if dump_finished else None),
         response_preview=(dump_text or "")[:160].replace("\n", " "),
         mode=mode,
     )
     if dump_finished:
-        dump_rec.total_tokens = (dump_rec.prompt_tokens or 0) + (
-            dump_rec.completion_tokens or 0
-        )
+        dump_rec.total_tokens = (dump_rec.prompt_tokens or 0) + (dump_rec.completion_tokens or 0)
     else:
         # Economics still known from dump size; API did not complete.
         dump_rec.total_tokens = dump_tok
@@ -292,22 +281,18 @@ def run_scenario(
         arm="pack",
         dump_or_pack_tokens=pack_tok,
         prompt_tokens=int(pack_prompt_tok) if pack_prompt_tok is not None else pack_tok,
-        completion_tokens=int(pack_completion) if pack_completion is not None else (
-            token_count(pack_text_out) if pack_finished else 0
-        ),
+        completion_tokens=int(pack_completion)
+        if pack_completion is not None
+        else (token_count(pack_text_out) if pack_finished else 0),
         total_tokens=None,
         wall_ms=pack_wall,
         status=pack_status,
-        decision_hit=(
-            _decision_hit(pack_text_out, keywords) if pack_finished else None
-        ),
+        decision_hit=(_decision_hit(pack_text_out, keywords) if pack_finished else None),
         response_preview=(pack_text_out or "")[:160].replace("\n", " "),
         mode=mode,
     )
     if pack_finished:
-        pack_rec.total_tokens = (pack_rec.prompt_tokens or 0) + (
-            pack_rec.completion_tokens or 0
-        )
+        pack_rec.total_tokens = (pack_rec.prompt_tokens or 0) + (pack_rec.completion_tokens or 0)
     else:
         pack_rec.total_tokens = pack_tok
 
@@ -315,7 +300,7 @@ def run_scenario(
 
 
 def generate_markdown(scorecard: PackVsDumpScorecard) -> str:
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
     pairs = scorecard.pairs()
 
     dump_sizes = [d.dump_or_pack_tokens for d, _ in pairs]
@@ -325,16 +310,11 @@ def generate_markdown(scorecard: PackVsDumpScorecard) -> str:
     reduction = (1.0 - (avg_pack / avg_dump)) * 100.0 if avg_dump else 0.0
     factor = (avg_dump / avg_pack) if avg_pack else 0.0
 
-    dump_ok = [d for d, _ in pairs if d.status == "finished"]
     pack_ok = [p for _, p in pairs if p.status == "finished"]
     dump_fail = [d for d, _ in pairs if d.status not in ("finished", "tokens_only")]
 
     # Decision hits only when both arms finished (fair), or pack-only finished rate
-    both_finished = [
-        (d, p)
-        for d, p in pairs
-        if d.status == "finished" and p.status == "finished"
-    ]
+    both_finished = [(d, p) for d, p in pairs if d.status == "finished" and p.status == "finished"]
     if both_finished:
         dec_dump = sum(1 for d, _ in both_finished if d.decision_hit)
         dec_pack = sum(1 for _, p in both_finished if p.decision_hit)
@@ -353,8 +333,7 @@ def generate_markdown(scorecard: PackVsDumpScorecard) -> str:
         )
     else:
         dec_line = (
-            "- **Keyword hit rate:** not scored "
-            "(``tokens-only`` mode or no finished LLM runs)."
+            "- **Keyword hit rate:** not scored (``tokens-only`` mode or no finished LLM runs)."
         )
 
     latency_line = (
@@ -366,7 +345,7 @@ def generate_markdown(scorecard: PackVsDumpScorecard) -> str:
         mean_pack_ms = sum(p.wall_ms for _, p in both_finished) / len(both_finished)
         latency_line = (
             f"- **Mean wall time (both finished, n={len(both_finished)}):** "
-            f"dump {mean_dump_ms/1000:.2f}s vs pack {mean_pack_ms/1000:.2f}s."
+            f"dump {mean_dump_ms / 1000:.2f}s vs pack {mean_pack_ms / 1000:.2f}s."
         )
 
     lines = [
@@ -375,7 +354,7 @@ def generate_markdown(scorecard: PackVsDumpScorecard) -> str:
         f"> **Generated:** {now}  ",
         f"> **Mode:** `{scorecard.mode}`  ",
         f"> **LLM driver:** "
-        f"{'`none` (local sizes only)' if scorecard.mode == 'tokens-only' else f'`{scorecard.driver}` (live API)'}  ",
+        f"{'`none` (local sizes only)' if scorecard.mode == 'tokens-only' else f'`{scorecard.driver}` (live API)'}  ",  # noqa: E501
         f"> **brainkm:** {_BRAINKM_VERSION} · live `.brain/brain.db`",
         "",
         "## Method (read this first)",
@@ -383,7 +362,7 @@ def generate_markdown(scorecard: PackVsDumpScorecard) -> str:
         "This is a **pack-vs-dump** proxy:",
         "",
         "- **Dump arm:** concatenate scenario `target_files` into the prompt.",
-        "- **Pack arm:** inject `compile_context_pack` text (≤1500-token product cap on pack body).",
+        "- **Pack arm:** inject `compile_context_pack` text (≤1500-token product cap on pack body).",  # noqa: E501
         "",
         "It does **not** drive Google Antigravity IDE, does **not** count "
         "`grep_search` / `view_file` hops, and does **not** measure multi-turn "
@@ -401,21 +380,17 @@ def generate_markdown(scorecard: PackVsDumpScorecard) -> str:
         "",
         "## Scenario matrix",
         "",
-        "| Scenario | Arm | Context body tok | Prompt tok | Completion | Total | Status | Keyword hit | Wall |",
+        "| Scenario | Arm | Context body tok | Prompt tok | Completion | Total | Status | Keyword hit | Wall |",  # noqa: E501
         "|----------|-----|------------------|------------|------------|-------|--------|-------------|------|",
     ]
 
     for r in scorecard.records:
         arm = "dump (files)" if r.arm == "dump" else "**pack (brainkm)**"
-        hit = (
-            "—"
-            if r.decision_hit is None
-            else ("yes" if r.decision_hit else "no")
-        )
+        hit = "—" if r.decision_hit is None else ("yes" if r.decision_hit else "no")
         comp = "—" if r.completion_tokens is None else f"{r.completion_tokens:,}"
         prompt = "—" if r.prompt_tokens is None else f"{r.prompt_tokens:,}"
         total = "—" if r.total_tokens is None else f"**{r.total_tokens:,}**"
-        wall = "—" if r.mode == "tokens-only" else f"{r.wall_ms/1000:.2f}s"
+        wall = "—" if r.mode == "tokens-only" else f"{r.wall_ms / 1000:.2f}s"
         lines.append(
             f"| `{r.scenario_id}` | {arm} | {r.dump_or_pack_tokens:,} | {prompt} | "
             f"{comp} | {total} | `{r.status}` | {hit} | {wall} |"
@@ -434,15 +409,13 @@ def generate_markdown(scorecard: PackVsDumpScorecard) -> str:
     else:
         for r in scorecard.records:
             if not r.response_preview and r.status != "finished":
-                lines.append(
-                    f"### `{r.scenario_id}` / {r.arm} — `{r.status}` (no completion text)"
-                )
+                lines.append(f"### `{r.scenario_id}` / {r.arm} — `{r.status}` (no completion text)")
                 lines.append("")
                 continue
             lines.append(f"### `{r.scenario_id}` / {r.arm}")
             lines.append(f"- Status: `{r.status}`")
             if r.response_preview:
-                lines.append(f"- Preview: *\"{r.response_preview}…\"*")
+                lines.append(f'- Preview: *"{r.response_preview}…"*')
             lines.append("")
 
     lines.extend(
@@ -453,11 +426,11 @@ def generate_markdown(scorecard: PackVsDumpScorecard) -> str:
             "",
             "```bash",
             "# Local economics only (no API key)",
-            "PYTHONPATH=brainkm .venv/bin/python brainkm/scripts/antigravity_trajectory_bench.py \\",
+            "PYTHONPATH=brainkm .venv/bin/python brainkm/scripts/antigravity_trajectory_bench.py \\",  # noqa: E501
             "  --mode tokens-only",
             "",
             "# Optional live LLM (Groq or Gemini)",
-            "PYTHONPATH=brainkm .venv/bin/python brainkm/scripts/antigravity_trajectory_bench.py \\",
+            "PYTHONPATH=brainkm .venv/bin/python brainkm/scripts/antigravity_trajectory_bench.py \\",  # noqa: E501
             "  --mode llm --driver auto",
             "```",
             "",
@@ -472,10 +445,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--out",
         type=Path,
-        default=_REPO
-        / "docs"
-        / "benchmarks"
-        / "2026-07-22-antigravity-trajectory-live.md",
+        default=_REPO / "docs" / "benchmarks" / "2026-07-22-antigravity-trajectory-live.md",
     )
     parser.add_argument(
         "--mode",
@@ -508,9 +478,7 @@ def main(argv: list[str] | None = None) -> int:
             if key and key not in os.environ:
                 os.environ[key] = val
 
-    driver = (
-        "none" if args.mode == "tokens-only" else _resolved_driver(args.driver)
-    )
+    driver = "none" if args.mode == "tokens-only" else _resolved_driver(args.driver)
     records: list[PackVsDumpRecord] = []
 
     for scenario in ANTIGRAVITY_SCENARIOS:

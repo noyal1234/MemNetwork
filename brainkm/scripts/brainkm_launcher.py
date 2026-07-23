@@ -10,6 +10,7 @@ When copied into ``.venv/bin/brainkm``, setup/repair rewrite the shebang to the
 venv interpreter. As a fallback, if Cursor (or another host) still launches via
 ``/usr/bin/env python3``, re-exec with the sibling ``.venv/bin/python``.
 """
+
 from __future__ import annotations
 
 import os
@@ -36,6 +37,7 @@ def _ensure_venv_python() -> None:
 def _bootstrap_editable_source() -> None:
     try:
         import brainkm.cli  # noqa: F401
+
         return
     except ModuleNotFoundError:
         pass

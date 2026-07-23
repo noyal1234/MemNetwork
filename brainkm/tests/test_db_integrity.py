@@ -17,9 +17,9 @@ def test_fts_sync_and_integrity_check(brain_db) -> None:
         )
         conn.commit()
 
-        row = conn.execute(
-            "SELECT COUNT(*) FROM nodes_fts WHERE nodes_fts MATCH 'JWT'"
-        ).fetchone()[0]
+        row = conn.execute("SELECT COUNT(*) FROM nodes_fts WHERE nodes_fts MATCH 'JWT'").fetchone()[
+            0
+        ]
         assert row == 1
 
         issues = check_fts_integrity(conn)

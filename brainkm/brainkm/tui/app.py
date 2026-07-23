@@ -160,11 +160,8 @@ class BrainkmConfigureApp(App):
         dialog so unsaved edits are not silently discarded.
         """
         current = self.screen
-        if (
-            isinstance(current, ConfigEditorScreen)
-            and current.is_dirty
-            and screen_name != "config"
-        ):
+        if isinstance(current, ConfigEditorScreen) and current.is_dirty and screen_name != "config":
+
             def _after(discard: bool | None) -> None:
                 if discard:
                     current.mark_clean()

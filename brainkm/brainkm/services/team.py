@@ -89,10 +89,10 @@ def import_team_neurons(project_dir: Path, *, config: BrainConfig | None = None)
             if "team:" not in tags and "team" not in tags:
                 tags.append("team:")
             item["tags"] = tags
-    from brainkm.services.import_merge import import_neurons_merge
     from brainkm.db.connection import connect
     from brainkm.db.migrate import migrate
     from brainkm.db.paths import brain_db_path
+    from brainkm.services.import_merge import import_neurons_merge
 
     migrate(project_dir=project_dir, run_integrity_check=False)
     conn = connect(brain_db_path(project_dir))
@@ -176,7 +176,6 @@ def stamp_git_on_recent(
         )
         updated += 1
     return updated
-
 
 
 # Re-export for callers that expect markdown exports alongside team JSON.

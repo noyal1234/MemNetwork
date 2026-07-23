@@ -76,8 +76,12 @@ def test_quality_gate_rejects_chrome_and_tool_spam() -> None:
 
 def test_filter_distilled_dedupes_within_batch() -> None:
     items = [
-        DistilledNeuron(subtype="decision", title="Use JWT", body="Chose JWT over cookies for auth."),
-        DistilledNeuron(subtype="decision", title="Use JWT", body="Chose JWT over cookies for auth."),
+        DistilledNeuron(
+            subtype="decision", title="Use JWT", body="Chose JWT over cookies for auth."
+        ),
+        DistilledNeuron(
+            subtype="decision", title="Use JWT", body="Chose JWT over cookies for auth."
+        ),
     ]
     accepted = filter_distilled(items, max_count=10)
     assert len(accepted) == 1
@@ -166,16 +170,15 @@ def test_context_pack_include_structured(runtime, tmp_path) -> None:
         assert result.neurons  # structured included
         assert token_count(result.pack_text) <= BrainConfig().budget.total_tokens
         # pack_text stays under budget even when structured arrays are requested
-        assert token_count(result.pack_text) <= (
-            BrainConfig().budget.total_tokens - 200
-        ) or token_count(result.pack_text) <= BrainConfig().budget.total_tokens
+        assert (
+            token_count(result.pack_text) <= (BrainConfig().budget.total_tokens - 200)
+            or token_count(result.pack_text) <= BrainConfig().budget.total_tokens
+        )
     finally:
         conn.close()
 
 
-def test_context_pack_include_structured_pack_text_reserves_overhead(
-    runtime, tmp_path
-) -> None:
+def test_context_pack_include_structured_pack_text_reserves_overhead(runtime, tmp_path) -> None:
     from brainkm.services.budget import MCP_JSON_OVERHEAD_TOKENS
 
     conn = connect(tmp_path / ".brain" / "brain.db")
@@ -267,13 +270,9 @@ def test_hygiene_archives_noisy_neurons(runtime, tmp_path) -> None:
         conn.commit()
         result = purge_noisy_neurons(conn, dry_run=False)
         assert result.archived >= 1
-        archived = conn.execute(
-            "SELECT valid_until FROM nodes WHERE id = 'bad1'"
-        ).fetchone()
+        archived = conn.execute("SELECT valid_until FROM nodes WHERE id = 'bad1'").fetchone()
         assert archived["valid_until"] is not None
-        kept = conn.execute(
-            "SELECT valid_until FROM nodes WHERE id = 'good1'"
-        ).fetchone()
+        kept = conn.execute("SELECT valid_until FROM nodes WHERE id = 'good1'").fetchone()
         assert kept["valid_until"] is None
     finally:
         conn.close()

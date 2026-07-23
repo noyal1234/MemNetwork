@@ -1,4 +1,4 @@
-"""brainkm CLI — install, capture/handover, graph sync, Cursor hooks, bench/review/hygiene, MCP server."""
+"""brainkm CLI — install, capture/handover, graph sync, Cursor hooks, bench/review/hygiene, MCP server."""  # noqa: E501
 
 import json
 from pathlib import Path
@@ -46,8 +46,7 @@ def configure_cmd(
         from brainkm.tui.app import BrainkmConfigureApp
     except ImportError:
         typer.echo(
-            "Textual is not installed. Run:\n"
-            '  pip install -e "./brainkm[tui]"',
+            'Textual is not installed. Run:\n  pip install -e "./brainkm[tui]"',
             err=True,
         )
         raise typer.Exit(code=1)
@@ -1264,9 +1263,7 @@ def hygiene_cmd(
 
     result = run_blocking(_purge)
     action = "would archive" if dry_run else "archived"
-    typer.echo(
-        f"scanned={result.scanned} kept={result.kept} {action}={result.archived}"
-    )
+    typer.echo(f"scanned={result.scanned} kept={result.kept} {action}={result.archived}")
     if dry_run and result.archived_ids:
         for node_id in result.archived_ids[:50]:
             typer.echo(node_id)
@@ -1318,9 +1315,7 @@ def consolidate_cmd(
             conn.close()
 
     result = run_blocking(_consolidate)
-    typer.echo(
-        f"scanned={result.scanned} merged={result.merged} archived={result.archived}"
-    )
+    typer.echo(f"scanned={result.scanned} merged={result.merged} archived={result.archived}")
 
 
 @app.command("provenance")
@@ -1413,9 +1408,7 @@ def git_note_cmd(
         typer.echo("git-note: no git HEAD (not a repository?)")
         raise typer.Exit(code=1)
     if result.skipped:
-        typer.echo(
-            f"skipped sha={result.git_hash[:12]} reason={result.skip_reason or '-'}"
-        )
+        typer.echo(f"skipped sha={result.git_hash[:12]} reason={result.skip_reason or '-'}")
         return
     typer.echo(
         f"commit={result.git_hash[:12]} id={result.commit_id} "
@@ -1693,7 +1686,7 @@ def doctor_cmd(
     client: str | None = typer.Option(
         None,
         "--client",
-        help="Target client to inspect specifically: cursor | claude | antigravity | codex | generic",
+        help="Target client to inspect specifically: cursor | claude | antigravity | codex | generic",  # noqa: E501
     ),
 ) -> None:
     """Check shared MCP health, client wiring, and auto_observe."""

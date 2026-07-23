@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from brainkm.adapters.embeddings import cosine_similarity, get_embedder
+from brainkm.models.brain_config import BrainConfig
 from brainkm.services.compress import compress_body
 from brainkm.services.memory import forget_neuron, remember_neuron, supersede_neuron
 from brainkm.services.quality import passes_stored_neuron_gate
@@ -78,7 +79,14 @@ def consolidate_neurons(
     ).fetchall()
     embedder = get_embedder(prefer_onnx=False)
     vectors = [
-        (row[0], row[1], row[2] or "", row[3], float(row[4] or 1.0), embedder.embed(f"{row[1]}\n{row[2] or ''}"))
+        (
+            row[0],
+            row[1],
+            row[2] or "",
+            row[3],
+            float(row[4] or 1.0),
+            embedder.embed(f"{row[1]}\n{row[2] or ''}"),
+        )
         for row in rows
     ]
 
@@ -145,26 +153,23 @@ def consolidate_neurons(
 def consolidate_concept_clusters_llm(
     conn: sqlite3.Connection,
     *,
-    config: "BrainConfig",
+    config: BrainConfig,
     project_dir: object | None = None,
     dry_run: bool = False,
     max_llm_calls: int = 5,
     min_cluster_size: int = 3,
 ) -> ConsolidateResult:
     """Group memories by shared concept tags and consolidate via configured distill provider."""
-    import json
     from pathlib import Path
 
     from brainkm.adapters.distill import get_distill_adapter
-    from brainkm.models.brain_config import BrainConfig as _BC
     from brainkm.models.distill import TranscriptMessage, TranscriptRound
     from brainkm.services.neuron_index import index_neuron_links
 
-    assert isinstance(config, _BC)
-
     rows = conn.execute(
         """
-        SELECT e.to_id AS concept_id, e.from_id AS memory_id, n.title, n.content, n.subtype, n.confidence
+        SELECT e.to_id AS concept_id, e.from_id AS memory_id,
+               n.title, n.content, n.subtype, n.confidence
         FROM edges e
         JOIN nodes n ON n.id = e.from_id
         JOIN nodes c ON c.id = e.to_id

@@ -181,12 +181,11 @@ def _run_agent(
 ) -> tuple[str, dict[str, int | None], str, int]:
     """Returns (final_text, token_fields, status, tool_calls)."""
     try:
-        from cursor_sdk import Agent, AgentOptions, LocalAgentOptions
-        from cursor_sdk import CursorAgentError
+        from cursor_sdk import Agent, AgentOptions, CursorAgentError, LocalAgentOptions
     except ImportError as exc:
         raise SystemExit(
             "cursor-sdk is required for live runs. "
-            "Install with: pip install cursor-sdk   # or pip install -e \"./brainkm[endtask]\""
+            'Install with: pip install cursor-sdk   # or pip install -e "./brainkm[endtask]"'
         ) from exc
 
     mcp_servers = None
@@ -232,11 +231,16 @@ def _run_agent(
                 tokens["context_tokens"] = tokens["input_tokens"]
             return final_text, tokens, status, tool_calls
     except CursorAgentError as err:
-        return "", {
-            "context_tokens": None,
-            "input_tokens": None,
-            "output_tokens": None,
-        }, f"startup_error:{err}", tool_calls
+        return (
+            "",
+            {
+                "context_tokens": None,
+                "input_tokens": None,
+                "output_tokens": None,
+            },
+            f"startup_error:{err}",
+            tool_calls,
+        )
 
 
 def _resolve_model(backend: str, model: str | None) -> str:
@@ -281,8 +285,7 @@ def main(argv: list[str] | None = None) -> int:
         tasks = [t for t in tasks if t.get("class") == "knowledge"]
         if skipped_change:
             print(
-                f"Groq backend: skipping {len(skipped_change)} change task(s) "
-                "(no worktree edits)."
+                f"Groq backend: skipping {len(skipped_change)} change task(s) (no worktree edits)."
             )
     arms: list[ArmName] = []
     for a in args.arms.split(","):
@@ -297,9 +300,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     tier_label = args.tier or ("smoke" if args.smoke else "full")
-    plan = plan_runs(
-        fixture, tasks=tasks, repeats=args.repeats, model=model, arms=arms
-    )
+    plan = plan_runs(fixture, tasks=tasks, repeats=args.repeats, model=model, arms=arms)
     print(
         f"End-task plan: backend={backend} tier={tier_label} protocol={PROTOCOL_VERSION} "
         f"{plan.estimated_runs} runs "
@@ -402,9 +403,7 @@ def _run_groq_suite(
                         model=model,
                     )
                     if status.startswith("startup_error") or status.startswith("error:"):
-                        grade = EndTaskGradeResult(
-                            passed=False, detail=status, method="error"
-                        )
+                        grade = EndTaskGradeResult(passed=False, detail=status, method="error")
                         error = status
                     else:
                         grade = grade_task(
@@ -416,9 +415,7 @@ def _run_groq_suite(
                 except Exception as exc:  # noqa: BLE001
                     error = str(exc)
                     status = "error"
-                    grade = EndTaskGradeResult(
-                        passed=False, detail=error, method="error"
-                    )
+                    grade = EndTaskGradeResult(passed=False, detail=error, method="error")
                 finally:
                     wall_ms = (time.perf_counter() - t0) * 1000.0
                     if not args.keep_worktrees:
@@ -529,13 +526,9 @@ def _run_cursor_suite(
                         api_key=api_key,
                     )
                     brain_db = worktree / ".brain" / "brain.db"
-                    mcp_calls, mcp_tools = count_mcp_activity(
-                        brain_db, since_iso=since_iso
-                    )
+                    mcp_calls, mcp_tools = count_mcp_activity(brain_db, since_iso=since_iso)
                     if status.startswith("startup_error"):
-                        grade = EndTaskGradeResult(
-                            passed=False, detail=status, method="error"
-                        )
+                        grade = EndTaskGradeResult(passed=False, detail=status, method="error")
                         error = status
                     else:
                         grade = grade_task(
@@ -560,9 +553,7 @@ def _run_cursor_suite(
                 except Exception as exc:  # noqa: BLE001
                     error = str(exc)
                     status = "error"
-                    grade = EndTaskGradeResult(
-                        passed=False, detail=error, method="error"
-                    )
+                    grade = EndTaskGradeResult(passed=False, detail=error, method="error")
                 finally:
                     wall_ms = (time.perf_counter() - t0) * 1000.0
                     if not args.keep_worktrees:
@@ -674,18 +665,14 @@ def _write_outputs(
     if ndjson is not None:
         if use_protocol and manifest is not None:
             write_protocol_ndjson(ndjson, report.records, manifest=manifest)
-            write_manifest_json(
-                ndjson.with_name(ndjson.stem + ".manifest.json"), manifest
-            )
+            write_manifest_json(ndjson.with_name(ndjson.stem + ".manifest.json"), manifest)
         else:
             write_ndjson(ndjson, report.records)
         print(f"Wrote NDJSON: {ndjson}")
     if md is not None:
         md.parent.mkdir(parents=True, exist_ok=True)
         if use_protocol and manifest is not None:
-            md.write_text(
-                render_protocol_markdown(report, manifest=manifest), encoding="utf-8"
-            )
+            md.write_text(render_protocol_markdown(report, manifest=manifest), encoding="utf-8")
         else:
             md.write_text(render_endtask_markdown(report), encoding="utf-8")
         print(f"Wrote scorecard: {md}")

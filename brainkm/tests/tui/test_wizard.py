@@ -29,9 +29,7 @@ def test_format_install_description_lists_only_selected_apps() -> None:
     assert "Codex" not in single
     assert "extra terminal" in single
 
-    shared = format_install_description(
-        ["cursor", "antigravity", "codex"], shared=True
-    )
+    shared = format_install_description(["cursor", "antigravity", "codex"], shared=True)
     assert "share one brain" in shared
     assert "Cursor → .cursor/hooks.json" in shared
     assert "Antigravity → .agents/" in shared
@@ -66,9 +64,7 @@ async def test_wizard_preselects_already_wired_apps(tmp_path: Path) -> None:
     (tmp_path / ".cursor").mkdir()
     (tmp_path / ".cursor" / "mcp.json").write_text('{"mcpServers":{}}', encoding="utf-8")
     (tmp_path / ".agents").mkdir()
-    (tmp_path / ".agents" / "mcp_config.json").write_text(
-        '{"mcpServers":{}}', encoding="utf-8"
-    )
+    (tmp_path / ".agents" / "mcp_config.json").write_text('{"mcpServers":{}}', encoding="utf-8")
 
     app = BrainkmConfigureApp(project_dir=tmp_path)
     async with app.run_test(size=(140, 70)) as pilot:

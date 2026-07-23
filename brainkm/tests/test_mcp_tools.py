@@ -241,21 +241,15 @@ def test_recall_and_traverse_overlays_fit_token_budget(runtime, tmp_path) -> Non
             ),
             project_dir=tmp_path,
         )
-        nodes_tokens = sum(
-            token_count(f"{n.title}\n{n.content or ''}") for n in recall.nodes
-        )
+        nodes_tokens = sum(token_count(f"{n.title}\n{n.content or ''}") for n in recall.nodes)
         trail_tokens = sum(
             token_count(f"{e.title}\n{e.subtype or ''}") for e in recall.decision_trail
         )
         assert nodes_tokens + trail_tokens <= budget
 
         insert_node(conn, node_id="fn", kind="code", subtype="function", title="budget_fn")
-        insert_node(
-            conn, node_id="caller", kind="code", subtype="function", title="caller_fn"
-        )
-        insert_edge(
-            conn, edge_id="e1", from_id="caller", to_id="fn", relationship="calls"
-        )
+        insert_node(conn, node_id="caller", kind="code", subtype="function", title="caller_fn")
+        insert_edge(conn, edge_id="e1", from_id="caller", to_id="fn", relationship="calls")
         insert_edge(
             conn,
             edge_id="e2",
@@ -271,9 +265,7 @@ def test_recall_and_traverse_overlays_fit_token_budget(runtime, tmp_path) -> Non
             config=BrainConfig(budget={"total_tokens": budget}),
             project_dir=tmp_path,
         )
-        graph_tokens = sum(
-            token_count(f"{n.title}\n{n.content or ''}") for n in traverse.nodes
-        )
+        graph_tokens = sum(token_count(f"{n.title}\n{n.content or ''}") for n in traverse.nodes)
         linked_tokens = sum(
             token_count(f"{n.title}\n{n.content or ''}") for n in traverse.linked_neurons
         )
@@ -520,16 +512,11 @@ def test_traverse_request_accepts_query_symbol_path_aliases() -> None:
     assert TraverseRequest.model_validate({"symbol": "Foo.bar"}).from_ref == "Foo.bar"
     assert TraverseRequest.model_validate({"path": "a.py"}).from_ref == "a.py"
     # Canonical wins over aliases.
-    assert (
-        TraverseRequest.model_validate({"from_ref": "keep", "query": "other"}).from_ref
-        == "keep"
-    )
+    assert TraverseRequest.model_validate({"from_ref": "keep", "query": "other"}).from_ref == "keep"
 
 
 def test_remember_request_accepts_content_text_aliases() -> None:
-    req = RememberRequest.model_validate(
-        {"title": "Auth", "content": "Use JWT for API auth"}
-    )
+    req = RememberRequest.model_validate({"title": "Auth", "content": "Use JWT for API auth"})
     assert req.body == "Use JWT for API auth"
     req2 = RememberRequest.model_validate(
         {"name": "Rule", "text": "Never store secrets in neurons"}
@@ -537,8 +524,6 @@ def test_remember_request_accepts_content_text_aliases() -> None:
     assert req2.title == "Rule"
     assert req2.body == "Never store secrets in neurons"
     # Last-resort title from body first line.
-    req3 = RememberRequest.model_validate(
-        {"content": "Chose SQLite for V1 local brain storage."}
-    )
+    req3 = RememberRequest.model_validate({"content": "Chose SQLite for V1 local brain storage."})
     assert req3.body.startswith("Chose SQLite")
     assert req3.title.startswith("Chose SQLite")

@@ -55,7 +55,9 @@ class ClaudeDistillAdapter:
     ) -> list[DistilledNeuron]:
         if sampling_callback_usable():
             logger.info("Claude distill via MCP sampling")
-            neurons = self._via_sampling(rounds, round_chunk_ids=round_chunk_ids, max_total=max_total)
+            neurons = self._via_sampling(
+                rounds, round_chunk_ids=round_chunk_ids, max_total=max_total
+            )
             if neurons:
                 return neurons
 

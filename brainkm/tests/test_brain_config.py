@@ -70,6 +70,7 @@ def test_brain_config_rejects_invalid_distill_mode() -> None:
     with pytest.raises(ValueError):
         BrainConfig(capture={"distill_mode": "openai"})
 
+
 def test_brain_config_rejects_empty_project_roots() -> None:
     with pytest.raises(ValueError):
         BrainConfig(project_roots=[])

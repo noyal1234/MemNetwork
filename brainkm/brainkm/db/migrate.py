@@ -125,9 +125,7 @@ def migrate(
             issues = check_fts_integrity(conn)
             if issues:
                 detail = ", ".join(f"{t}={len(rows)}" for t, rows in issues.items())
-                raise FtsIntegrityError(
-                    f"FTS integrity check failed after migrate: {detail}"
-                )
+                raise FtsIntegrityError(f"FTS integrity check failed after migrate: {detail}")
 
         return newly_applied
     finally:

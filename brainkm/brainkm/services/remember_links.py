@@ -115,7 +115,8 @@ def _insert_edge(
     now = now_row[0] if now_row else "now"
     conn.execute(
         """
-        INSERT OR IGNORE INTO edges (id, from_id, to_id, relationship, weight, created_at, updated_at)
+        INSERT OR IGNORE INTO edges (id, from_id, to_id, relationship, weight, created_at,
+            updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         (edge_id, from_id, to_id, relationship, weight, now, now),
@@ -250,9 +251,7 @@ def link_neuron_to_code(
 ) -> list[str]:
     """Link path + unambiguous symbol mentions. Returns linked code node ids."""
     linked = link_code_nodes_by_path(conn, neuron_id, title=title, content=content)
-    for code_id in link_code_nodes_by_symbol(
-        conn, neuron_id, title=title, content=content
-    ):
+    for code_id in link_code_nodes_by_symbol(conn, neuron_id, title=title, content=content):
         if code_id not in linked:
             linked.append(code_id)
     return linked

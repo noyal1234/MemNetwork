@@ -270,7 +270,8 @@ def supersede_neuron(
     try:
         conn.execute(
             """
-            INSERT INTO edges (id, from_id, to_id, relationship, weight, created_at, updated_at, meta_json)
+            INSERT INTO edges (id, from_id, to_id, relationship, weight, created_at, updated_at,
+                meta_json)
             VALUES (?, ?, ?, 'supersedes', 1.0, ?, ?, ?)
             """,
             (edge_id, new_id, old_node_id, now, now, meta_json),

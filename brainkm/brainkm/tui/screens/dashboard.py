@@ -95,9 +95,7 @@ class DashboardScreen(Screen):
                             )
                             with Horizontal(classes="graph-actions"):
                                 yield Button(bracket_label("Sync"), id="btn-graph-sync")
-                                yield Button(
-                                    bracket_label("Extract"), id="btn-graph-extract"
-                                )
+                                yield Button(bracket_label("Extract"), id="btn-graph-extract")
                                 yield Button(
                                     bracket_label("Status"),
                                     id="btn-graph-status",
@@ -126,7 +124,7 @@ class DashboardScreen(Screen):
                                 classes="review-title",
                             )
                             yield Static(
-                                "Low-confidence auto-captures wait here — Enter detail · y approve / n reject",
+                                "Low-confidence auto-captures wait here — Enter detail · y approve / n reject",  # noqa: E501
                                 id="review-hint",
                                 classes="review-hint",
                             )
@@ -186,9 +184,7 @@ class DashboardScreen(Screen):
         graph = self._last_graph_data
 
         panel = self.query_one("#brain-status", StatusPanel)
-        distill_value = str(
-            brain.get("distill_display") or brain.get("distill_mode", "?")
-        )
+        distill_value = str(brain.get("distill_display") or brain.get("distill_mode", "?"))
         distill_color = str(brain.get("distill_color") or "muted")
         items: list[tuple[str, str, str]] = [
             ("distill", distill_value, distill_color),
@@ -241,9 +237,7 @@ class DashboardScreen(Screen):
                     )
                 )
         if groq:
-            rate_limited = bool(groq.get("rate_limited")) or (
-                "429" in str(groq.get("error") or "")
-            )
+            rate_limited = bool(groq.get("rate_limited")) or ("429" in str(groq.get("error") or ""))
             if rate_limited:
                 items.append(("Groq", "RATE LIMITED", "error"))
             else:
@@ -298,9 +292,7 @@ class DashboardScreen(Screen):
                 "antigravity_hooks": (
                     antigravity_hooks_wired(self._project_dir) if agy_dir else None
                 ),
-                "codex_hooks": (
-                    codex_hooks_wired(self._project_dir) if codex_dir else None
-                ),
+                "codex_hooks": (codex_hooks_wired(self._project_dir) if codex_dir else None),
             }
         except Exception as exc:
             return {"error": str(exc), "running": False, "transport": "?"}
@@ -310,7 +302,9 @@ class DashboardScreen(Screen):
         start_btn = self.query_one("#btn-start-serve", Button)
         stop_btn = self.query_one("#btn-stop-serve", Button)
         if data.get("error"):
-            panel.set_items([("Status", "error", "error"), ("Detail", str(data["error"])[:40], "muted")])
+            panel.set_items(
+                [("Status", "error", "error"), ("Detail", str(data["error"])[:40], "muted")]
+            )
             return
         transport = str(data.get("transport", "?"))
         running = bool(data.get("running"))
@@ -376,10 +370,12 @@ class DashboardScreen(Screen):
         apply_btn = self.query_one("#btn-ollama-apply", Button)
 
         if data.get("error"):
-            panel.set_items([
-                ("Status", "error", "error"),
-                ("Detail", str(data["error"])[:60], "muted"),
-            ])
+            panel.set_items(
+                [
+                    ("Status", "error", "error"),
+                    ("Detail", str(data["error"])[:60], "muted"),
+                ]
+            )
             apply_btn.disabled = True
             return
 
@@ -435,10 +431,12 @@ class DashboardScreen(Screen):
         self._update_rate_limit_banner(data)
         panel = self.query_one("#groq-panel", StatusPanel)
         if data.get("error") and not data.get("api_key_present", True):
-            panel.set_items([
-                ("Key", "not set", "error"),
-                ("Detail", str(data.get("error", ""))[:60], "muted"),
-            ])
+            panel.set_items(
+                [
+                    ("Key", "not set", "error"),
+                    ("Detail", str(data.get("error", ""))[:60], "muted"),
+                ]
+            )
             return
 
         reachable = data.get("reachable", False)
@@ -484,7 +482,7 @@ class DashboardScreen(Screen):
             detail = str(data.get("error") or "HTTP 429 Too Many Requests")
             banner.update(
                 escape_markup(
-                    f"⚠ GROQ RATE LIMIT — {detail}. Wait for retry-after; distill falls back to rules."
+                    f"⚠ GROQ RATE LIMIT — {detail}. Wait for retry-after; distill falls back to rules."  # noqa: E501
                 )
             )
             banner.add_class("visible")
@@ -510,30 +508,34 @@ class DashboardScreen(Screen):
         self._render_brain_status()
         panel = self.query_one("#graph-panel", StatusPanel)
         if data.get("error"):
-            panel.set_items([
-                ("Status", "error", "error"),
-                ("Detail", str(data["error"])[:60], "muted"),
-            ])
+            panel.set_items(
+                [
+                    ("Status", "error", "error"),
+                    ("Detail", str(data["error"])[:60], "muted"),
+                ]
+            )
             return
         graphify_found = data.get("graphify_found", False)
         stale = data.get("graph_stale", False)
         node_count = data.get("code_node_count", 0)
-        panel.set_items([
-            (
-                "Engine",
-                "graphify" if graphify_found else "not found",
-                "ok" if graphify_found else "warning",
-            ),
-            ("Nodes", str(node_count), "ok" if node_count > 0 else "muted"),
-            ("Stale", str(stale).lower(), "warning" if stale else "ok"),
-            ("Auto-sync", str(data.get("auto_sync_enabled", False)), "muted"),
-            (
-                "Watch FS",
-                str(data.get("watch_filesystem_enabled", False)),
-                "muted",
-            ),
-            ("Last", str(data.get("last_import_status", "none")), "muted"),
-        ])
+        panel.set_items(
+            [
+                (
+                    "Engine",
+                    "graphify" if graphify_found else "not found",
+                    "ok" if graphify_found else "warning",
+                ),
+                ("Nodes", str(node_count), "ok" if node_count > 0 else "muted"),
+                ("Stale", str(stale).lower(), "warning" if stale else "ok"),
+                ("Auto-sync", str(data.get("auto_sync_enabled", False)), "muted"),
+                (
+                    "Watch FS",
+                    str(data.get("watch_filesystem_enabled", False)),
+                    "muted",
+                ),
+                ("Last", str(data.get("last_import_status", "none")), "muted"),
+            ]
+        )
 
     # --- MCP doctor (shared brain wiring) ---
 
@@ -592,9 +594,7 @@ class DashboardScreen(Screen):
         hint = self.query_one("#review-hint", Static)
         title.update(escape_markup(f"REVIEW QUEUE ({len(items)})"))
         if items:
-            hint.update(
-                escape_markup("! ACTION REQUIRED — Enter detail · y approve / n reject")
-            )
+            hint.update(escape_markup("! ACTION REQUIRED — Enter detail · y approve / n reject"))
         else:
             hint.update(
                 escape_markup(
@@ -719,11 +719,7 @@ class DashboardScreen(Screen):
         from brainkm.services.graphify_sync import run_graphify_extract
 
         try:
-            root = (
-                self._project_dir.resolve()
-                if self._project_dir is not None
-                else Path.cwd()
-            )
+            root = self._project_dir.resolve() if self._project_dir is not None else Path.cwd()
             cfg = load_brain_config(self._project_dir)
             result = run_graphify_extract(root, cfg, force=False)
             return {
@@ -909,9 +905,7 @@ class DashboardScreen(Screen):
             self._load_serve_status()
         elif action == "graph_sync":
             self.notify(
-                escape_markup(
-                    result.get("message") or f"Graph sync: {result.get('status')}"
-                ),
+                escape_markup(result.get("message") or f"Graph sync: {result.get('status')}"),
                 severity="information",
             )
             self._load_graph_status()

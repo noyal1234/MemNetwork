@@ -249,14 +249,19 @@ def _agy_role_for_type(step_type: str) -> str | None:
         return "user"
     if upper in _AGY_ASSISTANT_TYPES or upper.startswith("PLANNER"):
         return "assistant"
-    if "TOOL" in upper or upper.endswith("_FILE") or upper in {
-        "RUN_COMMAND",
-        "SEARCH_WEB",
-        "VIEW_FILE",
-        "EDIT_FILE",
-        "WRITE_TO_FILE",
-        "REPLACE_FILE_CONTENT",
-    }:
+    if (
+        "TOOL" in upper
+        or upper.endswith("_FILE")
+        or upper
+        in {
+            "RUN_COMMAND",
+            "SEARCH_WEB",
+            "VIEW_FILE",
+            "EDIT_FILE",
+            "WRITE_TO_FILE",
+            "REPLACE_FILE_CONTENT",
+        }
+    ):
         return "assistant"
     if upper in {"SYSTEM_MESSAGE", "SYSTEM"}:
         return "system"
@@ -293,11 +298,7 @@ def parse_antigravity_jsonl_lines(
         content = payload.get("content")
         text = ""
         if isinstance(content, str) and content.strip():
-            text = (
-                _strip_agy_user_request(content)
-                if role == "user"
-                else content.strip()
-            )
+            text = _strip_agy_user_request(content) if role == "user" else content.strip()
         elif payload.get("tool_calls"):
             calls = payload.get("tool_calls")
             if isinstance(calls, list) and calls:
@@ -378,16 +379,15 @@ def _codex_role_and_text(payload: dict) -> tuple[str | None, str]:
         role = "user"
     if role not in ("user", "assistant", "system", "tool"):
         # Unknown future shapes: keep assistant prose when content present.
-        if _codex_text_from_content(source.get("content") or source.get("text") or payload.get("text")):
+        if _codex_text_from_content(
+            source.get("content") or source.get("text") or payload.get("text")
+        ):
             role = "assistant"
         else:
             return None, ""
 
     text = _codex_text_from_content(
-        source.get("content")
-        or source.get("text")
-        or payload.get("content")
-        or payload.get("text")
+        source.get("content") or source.get("text") or payload.get("content") or payload.get("text")
     )
     if not text and source.get("name"):
         text = f"[tool_use:{source.get('name')}]"
@@ -500,15 +500,11 @@ def parse_transcript_file(
     if fmt == CURSOR_V1_MAGIC:
         return parse_cursor_v1_lines(lines, session_id=resolved_session, source_path=str(path))
     if fmt == CLAUDE_JSONL:
-        return parse_claude_jsonl_lines(
-            lines, session_id=resolved_session, source_path=str(path)
-        )
+        return parse_claude_jsonl_lines(lines, session_id=resolved_session, source_path=str(path))
     if fmt == ANTIGRAVITY_JSONL:
         return parse_antigravity_jsonl_lines(
             lines, session_id=resolved_session, source_path=str(path)
         )
     if fmt == CODEX_JSONL:
-        return parse_codex_jsonl_lines(
-            lines, session_id=resolved_session, source_path=str(path)
-        )
+        return parse_codex_jsonl_lines(lines, session_id=resolved_session, source_path=str(path))
     return parse_raw_text(raw, session_id=resolved_session, source_path=str(path))

@@ -7,9 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-_SCRIPT = (
-    Path(__file__).resolve().parents[1] / "scripts" / "antigravity_endtask_harness.py"
-)
+_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "antigravity_endtask_harness.py"
 
 
 def _load():

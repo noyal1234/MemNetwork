@@ -27,8 +27,7 @@ def list_tool_nodes(conn: sqlite3.Connection, *, limit: int = 20) -> list[ToolNo
         (limit,),
     ).fetchall()
     return [
-        ToolNode(node_id=row["id"], name=row["title"], description=row["content"])
-        for row in rows
+        ToolNode(node_id=row["id"], name=row["title"], description=row["content"]) for row in rows
     ]
 
 

@@ -431,7 +431,7 @@ class ConfigForm(Vertical):
         if not field_id.startswith(prefix):
             return
         # Restore dotted keys from "__"-encoded widget ids.
-        key = field_id[len(prefix):].replace("__", ".")
+        key = field_id[len(prefix) :].replace("__", ".")
 
         field_def = next((f for f in self._fields if f["key"] == key), None)
         if field_def is None:
@@ -459,9 +459,7 @@ class ConfigForm(Vertical):
         ):
             self._set_nested("cloud_distill_acknowledged", True)
             try:
-                switch = self.query_one(
-                    "#field-capture-cloud_distill_acknowledged", Switch
-                )
+                switch = self.query_one("#field-capture-cloud_distill_acknowledged", Switch)
                 if not switch.value:
                     switch.value = True
             except Exception:

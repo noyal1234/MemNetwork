@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from brainkm.server import TOOL_DEFINITIONS, _tool_schema
 
-
 REQUIRED_OUTPUT_KEYS = {
     "remember": {"node_id", "title", "action"},
     "recall": {"nodes", "abstained", "query", "confidence", "decision_trail"},

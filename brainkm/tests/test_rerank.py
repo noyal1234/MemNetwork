@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 from brainkm.services.rerank import (
     _ce_score,
     _document_text,
-    reset_cross_encoder_cache,
     rerank_nodes,
+    reset_cross_encoder_cache,
 )
 from brainkm.services.search import RankedNode
 

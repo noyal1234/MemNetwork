@@ -93,8 +93,7 @@ def build_brain_status_summary(project_dir: Path | None = None) -> dict[str, Any
         conn = connect(db_path)
         try:
             row = conn.execute(
-                "SELECT COUNT(*) as c FROM nodes "
-                "WHERE kind='memory' AND valid_until IS NULL"
+                "SELECT COUNT(*) as c FROM nodes WHERE kind='memory' AND valid_until IS NULL"
             ).fetchone()
             result["neuron_count"] = row["c"] if row else 0
             code_nodes, edges = graph_counts(conn)

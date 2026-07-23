@@ -9,7 +9,6 @@ from dataclasses import dataclass, field
 from brainkm.services.memory import supersede_neuron
 from brainkm.services.neuron_index import index_neuron_links
 
-
 _TOKEN = re.compile(r"[a-z0-9]+", re.I)
 
 
@@ -114,10 +113,7 @@ def _conflict_allows_supersede(
         exclude_id=new_id,
         similarity_threshold=0.65,
     )
-    return any(
-        s.node_id == old_id and (s.conflict or s.similarity >= 0.9)
-        for s in suggestions
-    )
+    return any(s.node_id == old_id and (s.conflict or s.similarity >= 0.9) for s in suggestions)
 
 
 def backfill_supersedes(

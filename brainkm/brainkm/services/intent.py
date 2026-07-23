@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class QueryIntent(str, Enum):
+class QueryIntent(StrEnum):
     LOCATE = "locate"
     WHY = "why"
     IMPACT = "impact"

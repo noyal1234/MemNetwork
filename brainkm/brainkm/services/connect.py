@@ -121,7 +121,9 @@ def antigravity_global_mcp_paths() -> list[Path]:
         home / ".gemini" / "antigravity-cli" / "mcp_config.json",
     ]
     # macOS IDE Application Support variant
-    app_support = home / "Library" / "Application Support" / "Antigravity" / "User" / "mcp_config.json"
+    app_support = (
+        home / "Library" / "Application Support" / "Antigravity" / "User" / "mcp_config.json"
+    )
     paths.append(app_support)
     return paths
 

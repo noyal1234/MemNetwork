@@ -64,9 +64,7 @@ def test_build_distill_status_with_agent_and_ollama(tmp_path: Path) -> None:
     with (
         patch(
             "brainkm.services.distill_status.probe_cursor_agent",
-            return_value=CursorStatus(
-                found=True, bin_path="/usr/bin/agent", bin_name="agent"
-            ),
+            return_value=CursorStatus(found=True, bin_path="/usr/bin/agent", bin_name="agent"),
         ),
         patch(
             "brainkm.services.distill_status.probe_ollama",

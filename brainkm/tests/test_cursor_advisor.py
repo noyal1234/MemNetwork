@@ -138,9 +138,7 @@ def test_install_skips_network_when_already_present() -> None:
     with (
         patch(
             "brainkm.services.cursor_advisor.probe_cursor_agent",
-            return_value=CursorStatus(
-                found=True, bin_path="/usr/bin/agent", bin_name="agent"
-            ),
+            return_value=CursorStatus(found=True, bin_path="/usr/bin/agent", bin_name="agent"),
         ),
         patch("brainkm.services.cursor_advisor.subprocess.run") as run_mock,
     ):
@@ -165,9 +163,7 @@ def test_install_runs_script_and_reprobes() -> None:
             "brainkm.services.cursor_advisor.probe_cursor_agent",
             side_effect=[
                 CursorStatus(found=False),
-                CursorStatus(
-                    found=True, bin_path="/home/u/.local/bin/agent", bin_name="agent"
-                ),
+                CursorStatus(found=True, bin_path="/home/u/.local/bin/agent", bin_name="agent"),
             ],
         ),
         patch(
@@ -210,9 +206,7 @@ def test_cli_cursor_install(tmp_path: Path) -> None:
         ),
         patch(
             "brainkm.services.cursor_advisor.probe_cursor_agent",
-            return_value=CursorStatus(
-                found=True, bin_path="/tmp/agent", bin_name="agent"
-            ),
+            return_value=CursorStatus(found=True, bin_path="/tmp/agent", bin_name="agent"),
         ),
     ):
         result = runner.invoke(app, ["cursor", "install", "--project-dir", str(tmp_path)])

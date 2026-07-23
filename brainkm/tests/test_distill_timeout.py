@@ -22,9 +22,7 @@ def test_distill_timeout_returns_under_bound() -> None:
     rounds = (
         TranscriptRound(
             round_index=0,
-            messages=(
-                TranscriptMessage(role="user", text="We chose JWT for APIs.", line_no=1),
-            ),
+            messages=(TranscriptMessage(role="user", text="We chose JWT for APIs.", line_no=1),),
         ),
     )
     started = time.monotonic()

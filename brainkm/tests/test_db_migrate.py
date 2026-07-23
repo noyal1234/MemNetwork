@@ -45,13 +45,10 @@ def test_apply_migration_records_version_atomically(tmp_path: Path) -> None:
             version="999_demo",
         )
         versions = {
-            row[0]
-            for row in conn.execute("SELECT version FROM schema_migrations").fetchall()
+            row[0] for row in conn.execute("SELECT version FROM schema_migrations").fetchall()
         }
         assert "999_demo" in versions
-        assert conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE name='demo'"
-        ).fetchone()
+        assert conn.execute("SELECT 1 FROM sqlite_master WHERE name='demo'").fetchone()
     finally:
         conn.close()
 

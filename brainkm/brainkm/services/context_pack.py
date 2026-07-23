@@ -528,15 +528,13 @@ def compile_context_pack(
 ) -> ContextPackResponse:
     """Compile a bounded task pack from live brain.db."""
     from brainkm.adapters.redaction import sanitize_for_storage
+    from brainkm.models.schemas import ProvenanceSource
     from brainkm.services.budget import adaptive_token_budget
     from brainkm.services.compress import dedup_budget_lines, mmr_diversify
     from brainkm.services.feedback import record_injected
-    from brainkm.models.schemas import ProvenanceSource
     from brainkm.services.provenance import compact_sources_for_node
 
-    use_summary = (
-        config.compression.summary_first if summary_first is None else summary_first
-    )
+    use_summary = config.compression.summary_first if summary_first is None else summary_first
     effective_slots = slots or context_pack_slots(config, query)
     budget_cap = adaptive_token_budget(config, query)
     # Always respect budget_cap; custom slots must not widen the truncate pass.
@@ -605,7 +603,6 @@ def compile_context_pack(
     if config.compression.pack_diversity:
         neuron_lines = mmr_diversify(neuron_lines)
 
-
     graph_lines: list[BudgetLine] = []
     graph_results: list[NeuronResult] = []
     graph_hint: str | None = None
@@ -654,19 +651,13 @@ def compile_context_pack(
 
     # Prefer truncated content from the budget pass.
     neuron_kept = [
-        included_by_id[line.node_id]
-        for line in neuron_lines
-        if line.node_id in included_ids
+        included_by_id[line.node_id] for line in neuron_lines if line.node_id in included_ids
     ]
     graph_kept = [
-        included_by_id[line.node_id]
-        for line in graph_lines
-        if line.node_id in included_ids
+        included_by_id[line.node_id] for line in graph_lines if line.node_id in included_ids
     ]
     proc_kept = [
-        included_by_id[line.node_id]
-        for line in proc_lines
-        if line.node_id in included_ids
+        included_by_id[line.node_id] for line in proc_lines if line.node_id in included_ids
     ]
     graph_results = [node for node in graph_results if node.node_id in included_ids]
 
@@ -759,11 +750,7 @@ def compile_context_pack(
         )
 
     sources: dict[str, list[ProvenanceSource]] = {}
-    want_sources = (
-        include_sources
-        if include_sources is not None
-        else config.recall.include_sources
-    )
+    want_sources = include_sources if include_sources is not None else config.recall.include_sources
     if want_sources:
         for line in neuron_kept[:8]:
             compact = compact_sources_for_node(conn, line.node_id, max_links=3)

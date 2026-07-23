@@ -24,10 +24,11 @@ import os
 import shutil
 import sys
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 _REPO = Path(__file__).resolve().parents[2]
 _PKG = _REPO / "brainkm"
@@ -37,7 +38,6 @@ if str(_PKG) not in sys.path:
 from brainkm.adapters.antigravity_distill import resolve_agy_bin  # noqa: E402
 from brainkm.services.endtask_bench import (  # noqa: E402
     ArmName,
-    EndTaskGradeResult,
     EndTaskReport,
     EndTaskRunRecord,
     create_worktree,
@@ -224,9 +224,7 @@ def write_arm_mcp_config(worktree: Path, *, with_brainkm: bool, mcp_project_dir:
 
 
 @contextmanager
-def home_mcp_swap(
-    *, enabled: bool, with_brainkm: bool, mcp_project_dir: Path
-) -> Iterator[None]:
+def home_mcp_swap(*, enabled: bool, with_brainkm: bool, mcp_project_dir: Path) -> Iterator[None]:
     if not enabled:
         yield
         return
@@ -242,14 +240,10 @@ def home_mcp_swap(
             prev = path.read_text(encoding="utf-8") if path.is_file() else None
             backups.append((path, prev))
             if with_brainkm:
-                payload = build_stdio_mcp_config(
-                    repo_or_worktree=mcp_project_dir, brainkm_pkg=_PKG
-                )
+                payload = build_stdio_mcp_config(repo_or_worktree=mcp_project_dir, brainkm_pkg=_PKG)
                 path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
             else:
-                path.write_text(
-                    json.dumps({"mcpServers": {}}, indent=2) + "\n", encoding="utf-8"
-                )
+                path.write_text(json.dumps({"mcpServers": {}}, indent=2) + "\n", encoding="utf-8")
         yield
     finally:
         for path, prev in backups:
@@ -349,7 +343,7 @@ def main(argv: list[str] | None = None) -> int:
         print(
             "agy not found. Install:\n"
             "  curl -fsSL https://antigravity.google/cli/install.sh | bash\n"
-            "Then: agy login && export PATH=\"$HOME/.local/bin:$PATH\"",
+            'Then: agy login && export PATH="$HOME/.local/bin:$PATH"',
             file=sys.stderr,
         )
         return 1
@@ -366,9 +360,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if host_smoke:
         scenarios: list[dict[str, Any]] = [
-            s
-            for s in HOST_SMOKE_SCENARIOS
-            if not task_ids or s["id"] in task_ids
+            s for s in HOST_SMOKE_SCENARIOS if not task_ids or s["id"] in task_ids
         ]
         tasks = scenarios
     else:
@@ -384,12 +376,9 @@ def main(argv: list[str] | None = None) -> int:
     sha = git_short_sha(repo)
     started = utc_now_iso()
     run_id = build_run_id(host="antigravity", tier=args.tier, short_sha=sha)
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
     out = args.out or (
-        _REPO
-        / "docs"
-        / "benchmarks"
-        / f"{today}-endtask-antigravity-{args.tier}.md"
+        _REPO / "docs" / "benchmarks" / f"{today}-endtask-antigravity-{args.tier}.md"
     )
 
     notes = [
@@ -449,9 +438,7 @@ def main(argv: list[str] | None = None) -> int:
                     worktree, with_brainkm=with_brainkm, mcp_project_dir=mcp_project
                 )
                 base_prompt = str(task["prompt"])
-                prompt = (
-                    WITH_ARM_MCP_PREFIX + base_prompt if with_brainkm else base_prompt
-                )
+                prompt = WITH_ARM_MCP_PREFIX + base_prompt if with_brainkm else base_prompt
                 mtime_before = time.time()
                 since_iso = utc_now_iso()
                 time.sleep(0.15)
@@ -486,9 +473,7 @@ def main(argv: list[str] | None = None) -> int:
                     passed, detail = grade_host_smoke(final_text, task)
                     method = "host_smoke_groups"
                 else:
-                    grade = grade_task(
-                        task, final_text=final_text, worktree=worktree
-                    )
+                    grade = grade_task(task, final_text=final_text, worktree=worktree)
                     passed, detail, method = grade.passed, grade.detail, grade.method
 
                 if status != "finished":
@@ -535,7 +520,7 @@ def main(argv: list[str] | None = None) -> int:
                 records.append(rec)
                 print(
                     f"  pass={passed} tools={tool_calls} mcp_db={mcp_calls} "
-                    f"mcp_ok={mcp_ok} status={status} wall={wall_ms/1000:.1f}s"
+                    f"mcp_ok={mcp_ok} status={status} wall={wall_ms / 1000:.1f}s"
                 )
                 if not args.keep_worktrees:
                     remove_worktree(repo, worktree)

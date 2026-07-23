@@ -38,7 +38,7 @@ def test_capture_skips_secret_chunk_and_continues(brain_db, tmp_path: Path) -> N
                     "content": [
                         {
                             "type": "text",
-                            "text": "We decided to use JWT instead of session cookies for API auth.",
+                            "text": "We decided to use JWT instead of session cookies for API auth.",  # noqa: E501
                         }
                     ]
                 },
@@ -69,10 +69,7 @@ def test_capture_skips_secret_chunk_and_continues(brain_db, tmp_path: Path) -> N
 
     conn = connect(brain_db)
     try:
-        chunks = [
-            row[0]
-            for row in conn.execute("SELECT content FROM session_chunks").fetchall()
-        ]
+        chunks = [row[0] for row in conn.execute("SELECT content FROM session_chunks").fetchall()]
         assert all("sk-live-" not in text for text in chunks)
         secret_neurons = conn.execute(
             """
@@ -86,9 +83,7 @@ def test_capture_skips_secret_chunk_and_continues(brain_db, tmp_path: Path) -> N
         conn.close()
 
 
-def test_capture_blocks_secret_in_distilled_neuron_title_body(
-    brain_db, tmp_path: Path
-) -> None:
+def test_capture_blocks_secret_in_distilled_neuron_title_body(brain_db, tmp_path: Path) -> None:
     """Even if distill somehow emits a secret, remember_neuron must block it."""
     from brainkm.adapters.redaction import RedactionBlockedError
     from brainkm.services.memory import remember_neuron
@@ -130,9 +125,7 @@ def test_repair_rescan_archives_legacy_secret_neurons(brain_db, tmp_path: Path) 
         archived = rescan_neurons_for_secrets(conn)
         conn.commit()
         assert archived == 1
-        active = conn.execute(
-            "SELECT COUNT(*) FROM nodes WHERE valid_until IS NULL"
-        ).fetchone()[0]
+        active = conn.execute("SELECT COUNT(*) FROM nodes WHERE valid_until IS NULL").fetchone()[0]
         assert active == 0
     finally:
         conn.close()

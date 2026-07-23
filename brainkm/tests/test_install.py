@@ -96,9 +96,7 @@ def test_merge_hooks_json_replaces_brainkm_commands() -> None:
     commands = [item["command"] for item in merged["hooks"]["sessionStart"]]
     assert commands == ["/new/brainkm session-start --stdin"]
     assert merged["hooks"]["preCompact"][0]["command"] == "other-tool --run"
-    assert any(
-        "handover --stdin" in item["command"] for item in merged["hooks"]["preCompact"]
-    )
+    assert any("handover --stdin" in item["command"] for item in merged["hooks"]["preCompact"])
 
 
 def test_merge_hooks_json_strips_unsupported_post_compact() -> None:

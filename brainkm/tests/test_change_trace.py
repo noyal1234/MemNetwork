@@ -55,9 +55,7 @@ def test_migration_008_indexes(brain_db: Path) -> None:
     try:
         indexes = {
             row[0]
-            for row in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='index'"
-            ).fetchall()
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='index'").fetchall()
         }
         assert "idx_nodes_commit_git_hash" in indexes
         assert "idx_nodes_session_kind" in indexes
@@ -163,9 +161,7 @@ def test_note_commit_idempotent(git_project: Path) -> None:
         assert first is not None and second is not None
         assert first.commit_id == second.commit_id
         assert second.created is False
-        count = conn.execute(
-            "SELECT COUNT(*) FROM nodes WHERE kind='commit'"
-        ).fetchone()[0]
+        count = conn.execute("SELECT COUNT(*) FROM nodes WHERE kind='commit'").fetchone()[0]
         assert count == 1
     finally:
         conn.close()
@@ -251,8 +247,7 @@ def test_grandfather_missing_commit_trace_skips_hook(tmp_path: Path) -> None:
     brain.mkdir(parents=True)
     # Existing config without commit_trace key
     (brain / "config.json").write_text(
-        json.dumps({"git": {"enabled": False, "link_on_capture": True}}, indent=2)
-        + "\n",
+        json.dumps({"git": {"enabled": False, "link_on_capture": True}}, indent=2) + "\n",
         encoding="utf-8",
     )
     assert raw_config_has_commit_trace(tmp_path) is False
@@ -351,9 +346,7 @@ def test_archive_expired_commits(brain_db: Path) -> None:
         conn.commit()
         assert old.id in archived
         assert recent.id not in archived
-        row = conn.execute(
-            "SELECT valid_until FROM nodes WHERE id = ?", (old.id,)
-        ).fetchone()
+        row = conn.execute("SELECT valid_until FROM nodes WHERE id = ?", (old.id,)).fetchone()
         assert row[0] is not None
     finally:
         conn.close()
@@ -372,6 +365,7 @@ def test_should_install_fresh_defaults_true(tmp_path: Path) -> None:
     from brainkm.services.config_loader import should_install_commit_hook
 
     assert should_install_commit_hook(tmp_path, BrainConfig()) is True
-    assert should_install_commit_hook(
-        tmp_path, BrainConfig(git=GitConfig(commit_trace=False))
-    ) is False
+    assert (
+        should_install_commit_hook(tmp_path, BrainConfig(git=GitConfig(commit_trace=False)))
+        is False
+    )

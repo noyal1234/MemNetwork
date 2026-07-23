@@ -152,9 +152,7 @@ def budget_session_chunk_excerpts(
     results: list[SessionChunkResult] = []
     chunk_used = 0
     for chunk in chunks:
-        excerpt = (
-            (chunk.content[:240] + "…") if len(chunk.content) > 240 else chunk.content
-        )
+        excerpt = (chunk.content[:240] + "…") if len(chunk.content) > 240 else chunk.content
         cost = token_count(excerpt)
         if results and chunk_used + cost > budget:
             break

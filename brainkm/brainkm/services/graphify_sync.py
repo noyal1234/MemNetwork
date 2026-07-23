@@ -503,9 +503,7 @@ def build_graph_status(
     graph_mtime: str | None = None
     stale = False
     if graph_path.is_file():
-        graph_mtime = datetime.fromtimestamp(
-            graph_path.stat().st_mtime, tz=UTC
-        ).isoformat()
+        graph_mtime = datetime.fromtimestamp(graph_path.stat().st_mtime, tz=UTC).isoformat()
         last = last_completed_import_at(root)
         if last is not None:
             stale = graph_path.stat().st_mtime > last.timestamp()
@@ -573,11 +571,7 @@ class GraphSyncScheduler:
 
     def _maybe_start_filesystem_watch(self) -> None:
         auto = self.config.graphify.auto_sync
-        if (
-            not self.config.graphify.enabled
-            or not auto.enabled
-            or not auto.watch_filesystem
-        ):
+        if not self.config.graphify.enabled or not auto.enabled or not auto.watch_filesystem:
             return
         from brainkm.services.graphify_watch import GraphifyFilesystemWatch
 

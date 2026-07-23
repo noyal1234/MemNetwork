@@ -7,6 +7,7 @@ from pathlib import Path
 
 from brainkm.db.connection import connect
 from brainkm.models.brain_config import BrainConfig
+from brainkm.models.schemas import BrainStatsRequest
 from brainkm.services.export import export_markdown
 from brainkm.services.import_merge import import_json_merge, import_neurons_merge
 from brainkm.services.memory import create_neuron, remember_neuron
@@ -19,7 +20,6 @@ from brainkm.services.review import (
     reject_pending,
 )
 from brainkm.tools.dispatch import handle_brain_stats
-from brainkm.models.schemas import BrainStatsRequest
 from tests.conftest import insert_node
 
 
@@ -155,9 +155,7 @@ def test_plan_capture_creates_decision_neurons(tmp_path: Path, brain_db: Path, m
         )
         conn.commit()
         assert count == 1
-        row = conn.execute(
-            "SELECT title, source FROM nodes WHERE valid_until IS NULL"
-        ).fetchone()
+        row = conn.execute("SELECT title, source FROM nodes WHERE valid_until IS NULL").fetchone()
         assert row is not None
         assert row[0] == "Use JWT for API auth"
         assert str(row[1]).startswith("plan:")

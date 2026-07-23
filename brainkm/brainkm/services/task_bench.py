@@ -142,7 +142,9 @@ def _slice_file_text(path: Path, spec: SelectiveSlice) -> str:
     return best
 
 
-def measure_selective_baseline(project_dir: Path, slices: tuple[SelectiveSlice, ...]) -> tuple[str, int]:
+def measure_selective_baseline(
+    project_dir: Path, slices: tuple[SelectiveSlice, ...]
+) -> tuple[str, int]:
     """Return concatenated selective excerpts and their token count."""
     parts: list[str] = []
     for spec in slices:

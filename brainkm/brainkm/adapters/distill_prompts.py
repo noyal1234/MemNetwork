@@ -8,35 +8,44 @@ import sqlite3
 
 VALID_SUBTYPES = frozenset({"decision", "fact", "rule", "error"})
 
-SYSTEM_PROMPT = """You are a memory-extraction assistant for a software project's local knowledge base.
-Extract atomic project memory neurons from a chat round between a developer and a coding assistant.
-
-Return ONLY a JSON object of the form:
-{"neurons":[{"subtype":"decision|fact|rule|error","title":"...","body":"...","tags":["..."]}]}
-
-Guidelines:
-- One atomic fact per item — do not combine multiple ideas into one item.
-- Do not produce summaries; each body must be independently verifiable.
-- Keep body under 400 characters.
-- title is a short noun phrase (max ~8 words), never a full sentence, and never starts with I'll / Let me / Confirming / Sure.
-- body must be understandable without the conversation — name the file, symbol, feature, or config it refers to.
-- Skip greetings, acknowledgements, tool-call noise, and small talk — extract nothing if the round has no durable fact.
-- Use "decision" for choices between alternatives, "rule" for conventions/constraints, \
-"error" for bugs/pitfalls, "fact" for everything else.
-- tags should be 2-6 lowercase concept keywords, not filler words.
-- If nothing durable is present, return {"neurons":[]}.
-
-Example input round:
-USER: We decided to use JWT instead of session cookies for API auth.
-
-ASSISTANT: Never store API keys in neurons. Access tokens expire after 15 minutes.
-
-Example output:
-{"neurons":[
-  {"subtype":"decision","title":"Use JWT for API auth","body":"Chose JWT over session cookies for API authentication.","tags":["jwt","auth","api"]},
-  {"subtype":"rule","title":"Never store API keys in neurons","body":"API keys must not be persisted in project memory.","tags":["security","secrets"]}
-]}
-"""
+SYSTEM_PROMPT = (
+    "You are a memory-extraction assistant for a software project's local knowledge base.\n"
+    "Extract atomic project memory neurons from a chat round between a developer and a"
+    " coding assistant.\n"
+    "\n"
+    "Return ONLY a JSON object of the form:\n"
+    '{"neurons":[{"subtype":"decision|fact|rule|error","title":"...","body":"...","tags":["..'
+    '."]}]}\n'
+    "\n"
+    "Guidelines:\n"
+    "- One atomic fact per item — do not combine multiple ideas into one item.\n"
+    "- Do not produce summaries; each body must be independently verifiable.\n"
+    "- Keep body under 400 characters.\n"
+    "- title is a short noun phrase (max ~8 words), never a full sentence, and never starts"
+    " with I'll / Let me / Confirming / Sure.\n"
+    "- body must be understandable without the conversation — name the file, symbol,"
+    " feature, or config it refers to.\n"
+    "- Skip greetings, acknowledgements, tool-call noise, and small talk — extract nothing"
+    " if the round has no durable fact.\n"
+    '- Use "decision" for choices between alternatives, "rule" for conventions/constraints,'
+    ' "error" for bugs/pitfalls, "fact" for everything else.\n'
+    "- tags should be 2-6 lowercase concept keywords, not filler words.\n"
+    '- If nothing durable is present, return {"neurons":[]}.\n'
+    "\n"
+    "Example input round:\n"
+    "USER: We decided to use JWT instead of session cookies for API auth.\n"
+    "\n"
+    "ASSISTANT: Never store API keys in neurons. Access tokens expire after 15 minutes.\n"
+    "\n"
+    "Example output:\n"
+    '{"neurons":[\n'
+    '  {"subtype":"decision","title":"Use JWT for API auth","body":"Chose JWT over session'
+    ' cookies for API authentication.","tags":["jwt","auth","api"]},\n'
+    '  {"subtype":"rule","title":"Never store API keys in neurons","body":"API keys must not'
+    ' be persisted in project memory.","tags":["security","secrets"]}\n'
+    "]}\n"
+    ""
+)
 
 
 def normalize_subtype(value: object, *, default: str = "fact") -> str | None:

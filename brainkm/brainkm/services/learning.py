@@ -57,9 +57,13 @@ class SessionLearningWindow:
         if not session_id or not node_ids:
             return
         bucket = self.windows.setdefault(session_id, deque(maxlen=self.cap))
-        bucket.append(_SessionEntry(tool_name="__recall__", neuron_ids=list(node_ids), ts=utc_now_iso()))
+        bucket.append(
+            _SessionEntry(tool_name="__recall__", neuron_ids=list(node_ids), ts=utc_now_iso())
+        )
 
-    def record_tool_use(self, session_id: str | None, tool_name: str, payload: dict[str, Any]) -> None:
+    def record_tool_use(
+        self, session_id: str | None, tool_name: str, payload: dict[str, Any]
+    ) -> None:
         if not session_id or not tool_name:
             return
         bucket = self.windows.setdefault(session_id, deque(maxlen=self.cap))
@@ -82,7 +86,11 @@ class SessionLearningWindow:
     def recent_tool_names(self, session_id: str | None) -> list[str]:
         if not session_id:
             return []
-        return [entry.tool_name for entry in self.windows.get(session_id, ()) if entry.tool_name != "__recall__"]
+        return [
+            entry.tool_name
+            for entry in self.windows.get(session_id, ())
+            if entry.tool_name != "__recall__"
+        ]
 
     def reset(self) -> None:
         self.windows.clear()
@@ -231,7 +239,8 @@ def upsert_co_activation(conn: sqlite3.Connection, a: str, b: str) -> None:
         return
     conn.execute(
         """
-        INSERT OR IGNORE INTO edges (id, from_id, to_id, relationship, weight, created_at, updated_at)
+        INSERT OR IGNORE INTO edges (id, from_id, to_id, relationship, weight, created_at,
+            updated_at)
         VALUES (?, ?, ?, 'co_activated', 1.0, ?, ?)
         """,
         (new_ulid(), from_id, to_id, now, now),

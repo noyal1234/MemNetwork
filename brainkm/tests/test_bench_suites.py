@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from brainkm.services.compaction_bench import run_compaction_suite
 from brainkm.services.cma_bench import run_cma_suite
+from brainkm.services.compaction_bench import run_compaction_suite
 from brainkm.services.dmr_bench import run_dmr_suite
 from brainkm.services.longmem_bench import run_longmem_suite
 

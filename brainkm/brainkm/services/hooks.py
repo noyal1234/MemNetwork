@@ -50,14 +50,10 @@ _CLAUDE_EVENT_NAMES: dict[str, str] = {
 }
 
 # Events that may emit Claude context / permission JSON
-_CLAUDE_INJECT_EVENTS = frozenset(
-    {"sessionStart", "postCompact", "preToolUse", "subagentStart"}
-)
+_CLAUDE_INJECT_EVENTS = frozenset({"sessionStart", "postCompact", "preToolUse", "subagentStart"})
 
 # Codex uses the same PascalCase hookEventName envelope as Claude for inject events.
-_CODEX_INJECT_EVENTS = frozenset(
-    {"sessionStart", "userPromptSubmit", "preToolUse", "postCompact"}
-)
+_CODEX_INJECT_EVENTS = frozenset({"sessionStart", "userPromptSubmit", "preToolUse", "postCompact"})
 # Codex Stop / compact events must emit valid JSON (plain text is invalid for Stop).
 _CODEX_CONTINUE_EVENTS = frozenset({"sessionEnd", "stop", "preCompact", "postToolUse"})
 
@@ -515,8 +511,7 @@ def run_pre_tool_use(
         )
 
     matched = any(
-        _pattern_matches_tool(pattern, tool_name)
-        for pattern in cfg.injection.pre_tool_patterns
+        _pattern_matches_tool(pattern, tool_name) for pattern in cfg.injection.pre_tool_patterns
     )
     if not matched:
         return HookRunResult(
@@ -644,10 +639,7 @@ def run_post_tool_use(
         and tool_name
         and not failed
     ):
-        matched = any(
-            _pattern_matches_tool(pattern, tool_name)
-            for pattern in ("write", "edit")
-        )
+        matched = any(_pattern_matches_tool(pattern, tool_name) for pattern in ("write", "edit"))
         if matched:
             from brainkm.services.graphify_sync import request_graph_sync
 
@@ -888,7 +880,9 @@ def run_agent_stop(
     session_id = _session_id_from_payload(data)
 
     if kind == "antigravity" and session_id:
-        return _run_antigravity_stop(data, session_id=session_id, project_dir=project_dir, config=cfg)
+        return _run_antigravity_stop(
+            data, session_id=session_id, project_dir=project_dir, config=cfg
+        )
 
     conn = connect(brain_db_path(project_dir))
     try:
@@ -934,7 +928,6 @@ def _run_antigravity_stop(
     from brainkm.services.antigravity_session import (
         get_agy_session,
         parse_antigravity_stop_gates,
-        resolve_antigravity_transcript,
         save_agy_session,
         should_run_distill,
     )
@@ -1041,8 +1034,7 @@ def run_pre_invocation(
     heal = heal_antigravity_wiring(project_dir, rewrite_hooks=True)
     if heal.changed:
         logger.info(
-            "hook=PreInvocation agy_heal hooks_rewritten=%s shadow_removed=%s "
-            "sessions_merged=%d",
+            "hook=PreInvocation agy_heal hooks_rewritten=%s shadow_removed=%s sessions_merged=%d",
             heal.hooks_rewritten,
             heal.shadow_removed,
             heal.sessions_merged,
@@ -1076,8 +1068,10 @@ def run_pre_invocation(
             transcript_bytes = 0
 
     did_handover = False
-    if tpath is not None and tpath.is_file() and should_synthetic_handover(
-        state, transcript_bytes=transcript_bytes, steps=steps
+    if (
+        tpath is not None
+        and tpath.is_file()
+        and should_synthetic_handover(state, transcript_bytes=transcript_bytes, steps=steps)
     ):
         try:
             run_handover(
@@ -1109,9 +1103,7 @@ def run_pre_invocation(
             context_hint=context_hint,
         )
         pack_text = snapshot.pack_text if cfg.injection.frozen_snapshot else None
-        pack_hash = (
-            hashlib.sha256(pack_text.encode("utf-8")).hexdigest()[:16] if pack_text else ""
-        )
+        pack_hash = hashlib.sha256(pack_text.encode("utf-8")).hexdigest()[:16] if pack_text else ""
         inject = should_inject_pack(
             state,
             invocation_num=invocation_num,

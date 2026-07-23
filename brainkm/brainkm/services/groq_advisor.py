@@ -220,13 +220,11 @@ def format_groq_report(report: GroqDoctorReport) -> str:
                 "before transcripts leave the machine"
             )
     else:
-        lines.append(
-            f"Cloud distill consent: n/a (distill_mode={report.distill_mode or 'unset'})"
-        )
+        lines.append(f"Cloud distill consent: n/a (distill_mode={report.distill_mode or 'unset'})")
 
     lines.append(f"Hint: {report.free_tier_hint}")
     lines.append(
-        "To use cloud distill: set capture.distill_mode to \"groq\" and "
+        'To use cloud distill: set capture.distill_mode to "groq" and '
         "capture.cloud_distill_acknowledged to true in .brain/config.json"
     )
     return "\n".join(lines)

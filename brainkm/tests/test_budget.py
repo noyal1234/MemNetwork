@@ -11,7 +11,9 @@ from brainkm.services.budget import (
 from brainkm.services.memory import token_count
 
 
-def _line(node_id: str, kind: str, subtype: str | None, title: str, *, approx_tokens: int, priority: int) -> BudgetLine:
+def _line(
+    node_id: str, kind: str, subtype: str | None, title: str, *, approx_tokens: int, priority: int
+) -> BudgetLine:
     """Build a BudgetLine whose content actually costs ~approx_tokens."""
     content = ("lorem " * max(1, approx_tokens * 2)).strip()
     while token_count(f"{title}\n{content}") < approx_tokens:

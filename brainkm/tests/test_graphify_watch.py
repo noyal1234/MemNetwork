@@ -6,7 +6,11 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from brainkm.models.brain_config import BrainConfig, GraphifyAutoSyncConfig
-from brainkm.services.graphify_sync import GraphSyncScheduler, build_graph_status, request_graph_sync
+from brainkm.services.graphify_sync import (
+    GraphSyncScheduler,
+    build_graph_status,
+    request_graph_sync,
+)
 from brainkm.services.graphify_watch import (
     GraphifyFilesystemWatch,
     should_request_sync,

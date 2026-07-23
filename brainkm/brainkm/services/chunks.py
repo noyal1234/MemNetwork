@@ -77,9 +77,7 @@ def map_round_chunk_ids(
 ) -> dict[int, list[str]]:
     """Map round index to chunk IDs via message line_no (skips blocked messages)."""
     message_line_to_id = {
-        chunk.line_no: chunk.id
-        for chunk in stored_chunks
-        if chunk.line_no is not None
+        chunk.line_no: chunk.id for chunk in stored_chunks if chunk.line_no is not None
     }
 
     round_map: dict[int, list[str]] = {}

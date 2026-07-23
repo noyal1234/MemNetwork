@@ -175,9 +175,7 @@ def test_adapter_falls_back_to_rules_when_unreachable() -> None:
     adapter = OllamaDistillAdapter(cfg, conn=None)
 
     fake_httpx = _fake_httpx_module(get_response=_FakeResponse(status_code=500))
-    round_ = _make_round(
-        "USER: We decided to use JWT instead of session cookies for API auth."
-    )
+    round_ = _make_round("USER: We decided to use JWT instead of session cookies for API auth.")
 
     with patch.dict("sys.modules", {"httpx": fake_httpx}):
         neurons = adapter.distill_rounds(
@@ -195,9 +193,7 @@ def test_adapter_falls_back_per_round_on_http_error() -> None:
     adapter = OllamaDistillAdapter(cfg, conn=None)
 
     fake_httpx = _fake_httpx_module(post_response=RuntimeError("connection reset"))
-    round_ = _make_round(
-        "USER: We decided to use JWT instead of session cookies for API auth."
-    )
+    round_ = _make_round("USER: We decided to use JWT instead of session cookies for API auth.")
 
     with patch.dict("sys.modules", {"httpx": fake_httpx}):
         neurons = adapter.distill_rounds(

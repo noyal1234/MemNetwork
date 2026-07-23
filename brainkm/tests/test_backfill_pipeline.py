@@ -83,9 +83,7 @@ def test_backfill_supersedes_chains_decisions(tmp_path: Path) -> None:
         assert preview.pairs >= 1
         assert preview.edges_added == 0
         assert (
-            conn.execute(
-                "SELECT valid_until FROM nodes WHERE id = ?", (older.id,)
-            ).fetchone()[0]
+            conn.execute("SELECT valid_until FROM nodes WHERE id = ?", (older.id,)).fetchone()[0]
             is None
         )
 
@@ -131,9 +129,7 @@ def test_backfill_supersedes_skips_without_conflict_signal(tmp_path: Path) -> No
             conn, min_token_overlap=0.3, dry_run=True, require_conflict=False
         )
         assert loose.pairs >= 1
-        gated = backfill_supersedes(
-            conn, min_token_overlap=0.3, require_conflict=True
-        )
+        gated = backfill_supersedes(conn, min_token_overlap=0.3, require_conflict=True)
         conn.commit()
         assert gated.edges_added == 0
         active = conn.execute(

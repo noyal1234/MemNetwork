@@ -74,10 +74,7 @@ CLIENT_DISPLAY_NAMES: dict[str, str] = {
 # Short wiring lines for Step 3 — only selected apps are shown.
 CLIENT_WIRING_HINTS: dict[str, str] = {
     "cursor": "Cursor → .cursor/hooks.json",
-    "claude": (
-        "Claude → .claude/settings.json + .mcp.json "
-        "(not .claude/hooks.json)"
-    ),
+    "claude": ("Claude → .claude/settings.json + .mcp.json (not .claude/hooks.json)"),
     "antigravity": "Antigravity → .agents/ (HTTP uses serverUrl)",
     "codex": "Codex → .codex/config.toml + hooks.json (trust /hooks)",
 }
@@ -116,8 +113,7 @@ def format_client_tips(apps: list[str]) -> str:
         )
     if "antigravity" in apps:
         tips.append(
-            "Antigravity: HTTP MCP uses `serverUrl` in `.agents/mcp_config.json` "
-            "(not `url`)."
+            "Antigravity: HTTP MCP uses `serverUrl` in `.agents/mcp_config.json` (not `url`)."
         )
     if not tips:
         return ""
@@ -198,9 +194,7 @@ class WizardScreen(Screen):
             with Vertical(classes="wizard-step", id=STEP_INSTALL):
                 yield Static("3 ─ Set up your project brain", classes="step-title")
                 yield Static(
-                    format_install_description(
-                        self._selected_apps, shared=self._shared_mode
-                    ),
+                    format_install_description(self._selected_apps, shared=self._shared_mode),
                     id="wizard-install-description",
                     classes="step-description",
                 )
@@ -274,7 +268,7 @@ class WizardScreen(Screen):
                     classes="step-description",
                 )
                 yield Static(
-                    "1. Install: brainkm cursor install (downloads official script, runs bash safely)\n"
+                    "1. Install: brainkm cursor install (downloads official script, runs bash safely)\n"  # noqa: E501
                     "2. PATH: ensure ~/.local/bin is on PATH\n"
                     "3. Verify: which agent  ·  brainkm cursor doctor",
                     id="wizard-cursor-cli-checklist",
@@ -361,9 +355,7 @@ class WizardScreen(Screen):
                 yield Button(bracket_label("Back"), id="btn-wizard-back", disabled=True)
                 yield Button(bracket_label("Run Step"), id="btn-wizard-run", classes="-primary")
                 yield Button(bracket_label("Skip"), id="btn-wizard-skip")
-                yield Button(
-                    bracket_label("Dashboard"), id="btn-wizard-finish", disabled=True
-                )
+                yield Button(bracket_label("Dashboard"), id="btn-wizard-finish", disabled=True)
         yield Footer()
 
     @property
@@ -384,9 +376,7 @@ class WizardScreen(Screen):
         try:
             progress = self.query_one("#wizard-progress", Static)
             n = self._current_step + 1
-            progress.update(
-                escape_markup(f"Step {n} of {len(STEPS)} — Set up your project brain")
-            )
+            progress.update(escape_markup(f"Step {n} of {len(STEPS)} — Set up your project brain"))
         except Exception:
             pass
 
@@ -429,9 +419,7 @@ class WizardScreen(Screen):
         """Plain-language next steps + enable Start Brain when shared mode."""
         shared = self._shared_mode
         apps = list(self._selected_apps) or [self._client]
-        app_labels = " / ".join(
-            CLIENT_DISPLAY_NAMES.get(a, a.title()) for a in apps
-        )
+        app_labels = " / ".join(CLIENT_DISPLAY_NAMES.get(a, a.title()) for a in apps)
         client_tips = format_client_tips(apps)
         try:
             next_el = self.query_one("#wizard-done-next-steps", Static)
@@ -442,7 +430,7 @@ class WizardScreen(Screen):
                     "1. Click [Start Brain] below (or once a day open a terminal and leave "
                     "`brainkm serve` running).\n"
                     f"2. Open {app_labels} as usual — they share the same memory.\n"
-                    "You do [not] need to start the brain for every chat — only once while you work."
+                    "You do [not] need to start the brain for every chat — only once while you work."  # noqa: E501
                     + client_tips
                 )
                 start_btn.disabled = False
@@ -451,7 +439,7 @@ class WizardScreen(Screen):
                     "[bold]What to do when you code[/]\n"
                     "Just open your coding app and work. Memory starts automatically — "
                     "no extra terminals, no serve command.\n"
-                    "Silent capture is on: useful decisions stick around without you clicking Remember."
+                    "Silent capture is on: useful decisions stick around without you clicking Remember."  # noqa: E501
                     + client_tips
                 )
                 start_btn.disabled = True
@@ -586,9 +574,7 @@ class WizardScreen(Screen):
             )
             try:
                 status = self.query_one("#wizard-cursor-cli-status", Static)
-                status.update(
-                    "[dim]● Skipped — heuristic Cursor distill still works[/]"
-                )
+                status.update("[dim]● Skipped — heuristic Cursor distill still works[/]")
             except Exception:
                 pass
         elif step == STEP_VIZ_LLM:
@@ -639,9 +625,7 @@ class WizardScreen(Screen):
         brain_dir = self._project_dir / ".brain"
         status = self.query_one("#wizard-project-status", Static)
         if brain_dir.is_dir():
-            status.update(
-                "[bold yellow]● .brain/ already exists — will update existing config[/]"
-            )
+            status.update("[bold yellow]● .brain/ already exists — will update existing config[/]")
             self.log_panel.log_warning(".brain/ directory found — will update, not overwrite")
         else:
             status.update("[dim]● .brain/ will be created[/]")
@@ -654,9 +638,7 @@ class WizardScreen(Screen):
             try:
                 client_status = self.query_one("#wizard-client-status", Static)
                 mode = "shared brain" if self._shared_mode else "simple (one app)"
-                client_status.update(
-                    f"[dim]Pre-selected from disk: {apps} — {mode}[/]"
-                )
+                client_status.update(f"[dim]Pre-selected from disk: {apps} — {mode}[/]")
             except Exception:
                 pass
         self._advance()
@@ -688,23 +670,15 @@ class WizardScreen(Screen):
             mode = "shared brain" if self._shared_mode else "simple (one app)"
             status.update(f"[bold green]● Apps: {apps}[/] — {mode}")
             desc = self.query_one("#wizard-install-description", Static)
-            desc.update(
-                format_install_description(
-                    selected, shared=self._shared_mode
-                )
-            )
+            desc.update(format_install_description(selected, shared=self._shared_mode))
         except Exception:
             pass
-        self.log_panel.log_info(
-            f"Apps={selected} shared_mode={self._shared_mode}"
-        )
+        self.log_panel.log_info(f"Apps={selected} shared_mode={self._shared_mode}")
         self._advance()
 
     def _run_install(self) -> None:
         mode = "shared HTTP" if self._shared_mode else "simple"
-        self.log_panel.log_info(
-            f"Setting up brain ({mode}) for {', '.join(self._selected_apps)}…"
-        )
+        self.log_panel.log_info(f"Setting up brain ({mode}) for {', '.join(self._selected_apps)}…")
         self._do_install()
 
     @work(thread=True, group="wizard", exit_on_error=False)
@@ -839,9 +813,7 @@ class WizardScreen(Screen):
 
         ready = semantic_ready(self._project_dir)
         missing_deps = not (
-            ready.get("onnxruntime")
-            and ready.get("tokenizers")
-            and ready.get("huggingface_hub")
+            ready.get("onnxruntime") and ready.get("tokenizers") and ready.get("huggingface_hub")
         )
         if missing_deps:
             return {
@@ -1171,9 +1143,7 @@ class WizardScreen(Screen):
                 pass
             return
 
-        base_labels = {
-            mode: DISTILL_MODE_LABELS[mode] for mode in PRIMARY_DISTILL_MODES
-        }
+        base_labels = {mode: DISTILL_MODE_LABELS[mode] for mode in PRIMARY_DISTILL_MODES}
         by_mode = result.get("by_mode") or {}
         for mode, base in base_labels.items():
             try:
@@ -1193,9 +1163,7 @@ class WizardScreen(Screen):
 
         try:
             status = self.query_one("#wizard-distill-status", Static)
-            status.update(
-                f"[dim]{escape_markup(result.get('line', ''))}[/]"
-            )
+            status.update(f"[dim]{escape_markup(result.get('line', ''))}[/]")
         except Exception:
             pass
 
@@ -1222,9 +1190,7 @@ class WizardScreen(Screen):
             apps = ", ".join(result.get("apps") or [result.get("client", self._client)])
             mode = "shared" if self._shared_mode else "simple"
             status.update(f"[bold green]✓ Brain ready[/] ({mode}: {apps})")
-            installed_apps = list(
-                result.get("apps") or [result.get("client") or self._client]
-            )
+            installed_apps = list(result.get("apps") or [result.get("client") or self._client])
             if "claude" in installed_apps:
                 self.log_panel.log_info(
                     "Claude: hooks in .claude/settings.json — leave Auto Memory alone; "
@@ -1253,9 +1219,7 @@ class WizardScreen(Screen):
                     f"[bold green]✓ Brain running[/] ({escape_markup(str(result.get('url', '')))})"
                 )
             else:
-                self.log_panel.log_warning(
-                    f"Brain not reachable yet: {result.get('detail', '')}"
-                )
+                self.log_panel.log_warning(f"Brain not reachable yet: {result.get('detail', '')}")
                 status.update(
                     "[bold yellow]● Started but not healthy yet — wait a few seconds "
                     "or check Dashboard[/]"
@@ -1290,9 +1254,7 @@ class WizardScreen(Screen):
                 return
             if result.get("warning"):
                 self.log_panel.log_warning(str(result["warning"]))
-            self.log_panel.log_success(
-                f"Semantic enabled (rerank={result.get('rerank', False)})"
-            )
+            self.log_panel.log_success(f"Semantic enabled (rerank={result.get('rerank', False)})")
             status.update(
                 f"[bold green]✓ MiniLM enabled[/] "
                 f"(rerank={'on' if result.get('rerank') else 'off'})"

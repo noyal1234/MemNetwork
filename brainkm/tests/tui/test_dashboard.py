@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from textual.containers import VerticalScroll
 from textual.widgets import Button
 
 from brainkm.db.connection import connect
 from brainkm.tui.app import BrainkmConfigureApp
 from brainkm.tui.widgets.review_table import ReviewTable
 from brainkm.tui.widgets.status_panel import StatusPanel
-from textual.containers import VerticalScroll
 
 
 async def test_dashboard_brands_via_header_and_scrolls(tui_project: Path) -> None:
@@ -21,9 +21,7 @@ async def test_dashboard_brands_via_header_and_scrolls(tui_project: Path) -> Non
         await pilot.pause(0.3)
         assert app.title == "BrainKm"
         assert not app.screen.query("#brand-banner")
-        assert isinstance(
-            app.screen.query_one("#dashboard-container"), VerticalScroll
-        )
+        assert isinstance(app.screen.query_one("#dashboard-container"), VerticalScroll)
 
 
 def _seed_pending_review_item(
@@ -123,9 +121,7 @@ async def test_dashboard_groq_panel_shows_model_and_rate_limit(
         banner = app.screen.query_one("#rate-limit-banner")
         assert "visible" in banner.classes
         sidebar = app.screen.query_one("#brain-status", StatusPanel)
-        assert any(
-            item[0] == "Groq" and "RATE LIMITED" in item[1] for item in sidebar._items
-        )
+        assert any(item[0] == "Groq" and "RATE LIMITED" in item[1] for item in sidebar._items)
 
 
 async def test_dashboard_action_buttons_exist(tui_project: Path) -> None:

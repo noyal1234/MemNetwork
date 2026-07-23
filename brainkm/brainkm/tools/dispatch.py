@@ -36,6 +36,7 @@ from brainkm.models.schemas import (
     TraverseResponse,
 )
 from brainkm.services.brain_stats import collect_brain_stats
+from brainkm.services.change_trace import change_trace
 from brainkm.services.confidence import confidence_for_top_result, pack_confidence
 from brainkm.services.config_loader import load_brain_config
 from brainkm.services.context_pack import compile_context_pack
@@ -58,7 +59,6 @@ from brainkm.services.provenance import compact_sources_for_node
 from brainkm.services.recall import recall_live
 from brainkm.services.recall_limit import get_recall_limit_state
 from brainkm.services.remember_links import detect_conflicts
-from brainkm.services.change_trace import change_trace
 from brainkm.services.search import traverse
 from brainkm.services.session_activity import (
     flush_stale_session_hits,
@@ -324,9 +324,7 @@ def handle_recall(
     _maintenance(conn)
     conn.commit()
 
-    nodes_tokens = sum(
-        token_count(f"{node.title}\n{node.content or ''}") for node in nodes
-    )
+    nodes_tokens = sum(token_count(f"{node.title}\n{node.content or ''}") for node in nodes)
     trail_tokens = sum(
         token_count(f"{entry.title}\n{entry.subtype or ''}") for entry in decision_trail
     )
@@ -638,7 +636,9 @@ async def _run_write(runtime: BrainRuntime, fn, *args, **kwargs) -> Any:
     return await queue.run(_write_op, runtime, fn, *args, **kwargs)
 
 
-async def dispatch_tool(name: str, arguments: dict[str, Any], runtime: BrainRuntime) -> dict[str, Any]:
+async def dispatch_tool(
+    name: str, arguments: dict[str, Any], runtime: BrainRuntime
+) -> dict[str, Any]:
     """Route MCP tool call to the appropriate handler."""
     config = runtime.config
 

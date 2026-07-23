@@ -82,9 +82,7 @@ def grandfather_commit_trace_if_needed(
         "Grandfathering git.commit_trace=false (key was missing in %s)",
         path,
     )
-    return cfg.model_copy(
-        update={"git": cfg.git.model_copy(update={"commit_trace": False})}
-    )
+    return cfg.model_copy(update={"git": cfg.git.model_copy(update={"commit_trace": False})})
 
 
 def load_brain_config(project_dir: Path | None = None) -> BrainConfig:

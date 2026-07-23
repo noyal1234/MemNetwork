@@ -88,9 +88,7 @@ def _seed_corpus(conn, fixture: dict) -> None:
     for pair in fixture.get("supersede", []):
         old_id = pair["old_id"]
         new_id = pair["new_id"]
-        row = conn.execute(
-            "SELECT valid_until FROM nodes WHERE id = ?", (old_id,)
-        ).fetchone()
+        row = conn.execute("SELECT valid_until FROM nodes WHERE id = ?", (old_id,)).fetchone()
         if row is not None and row[0] is None:
             supersede_neuron(conn, old_id, replacement_id=new_id)
 
@@ -107,9 +105,7 @@ def _title_scan_hit(conn, query: str, expected: list[str], k: int = 5) -> bool:
     tokens = [t.lower() for t in query.split() if len(t) > 2]
     if not tokens:
         return False
-    rows = conn.execute(
-        "SELECT id, title, content FROM nodes WHERE valid_until IS NULL"
-    ).fetchall()
+    rows = conn.execute("SELECT id, title, content FROM nodes WHERE valid_until IS NULL").fetchall()
     scored: list[tuple[int, str]] = []
     for row in rows:
         blob = f"{row[1] or ''} {row[2] or ''}".lower()
@@ -173,7 +169,11 @@ def run_cma_suite(
             metric_ok = False
             detail = ""
 
-            if ability == "abstention" or ability == "theme_leak" or query.get("should_recall") is False:
+            if (
+                ability == "abstention"
+                or ability == "theme_leak"
+                or query.get("should_recall") is False
+            ):
                 t0 = time.perf_counter()
                 result = recall_live(
                     conn,
@@ -227,8 +227,7 @@ def run_cma_suite(
                 passed = ok
                 metric_ok = ok
                 detail = (
-                    f"neighbors={len(neighbors)} resolved={traversal.resolved_id} "
-                    f"ms={elapsed:.1f}"
+                    f"neighbors={len(neighbors)} resolved={traversal.resolved_id} ms={elapsed:.1f}"
                 )
 
             else:
@@ -261,8 +260,7 @@ def run_cma_suite(
                 passed = hit
                 metric_ok = hit
                 detail = (
-                    f"{detail_pref}top={ids[:3]} expected={expected} "
-                    f"abstained={result.abstained}"
+                    f"{detail_pref}top={ids[:3]} expected={expected} abstained={result.abstained}"
                 )
 
                 if query.get("baseline") and expected:
@@ -322,13 +320,9 @@ def run_cma_suite(
 
         micro_vals = [p for vals in ability_pass.values() for p in vals]
         micro = (sum(1 for p in micro_vals if p) / len(micro_vals)) if micro_vals else 1.0
-        hard_micro = (
-            sum(1 for p in hard_pass if p) / len(hard_pass) if hard_pass else 1.0
-        )
+        hard_micro = sum(1 for p in hard_pass if p) / len(hard_pass) if hard_pass else 1.0
         mean_pack = statistics.mean(pack_tokens) if pack_tokens else 0.0
-        mean_budget = (
-            statistics.mean(budget_recalls) if budget_recalls else 0.0
-        )
+        mean_budget = statistics.mean(budget_recalls) if budget_recalls else 0.0
         mean_noise = statistics.mean(pack_noises) if pack_noises else 0.0
         r_p95 = _percentile(recall_ms, 95)
         p_p95 = _percentile(pack_ms, 95) if pack_ms else 0.0
@@ -341,23 +335,13 @@ def run_cma_suite(
         floor_p = float(floors.get("pack_p95_ms", 1200))
         floor_lift = float(floors.get("baseline_lift_min", 0.0))
 
-        brain_rate = (
-            sum(1 for x in brain_hits if x) / len(brain_hits) if brain_hits else 0.0
-        )
-        bm25_rate = (
-            sum(1 for x in bm25_hits if x) / len(bm25_hits) if bm25_hits else 0.0
-        )
-        title_rate = (
-            sum(1 for x in title_hits if x) / len(title_hits) if title_hits else 0.0
-        )
+        brain_rate = sum(1 for x in brain_hits if x) / len(brain_hits) if brain_hits else 0.0
+        bm25_rate = sum(1 for x in bm25_hits if x) / len(bm25_hits) if bm25_hits else 0.0
+        title_rate = sum(1 for x in title_hits if x) / len(title_hits) if title_hits else 0.0
         lift_vs_bm25 = brain_rate - bm25_rate
         lift_vs_title = brain_rate - title_rate
-        hard_brain_rate = (
-            sum(1 for x in hard_brain if x) / len(hard_brain) if hard_brain else 0.0
-        )
-        hard_bm25_rate = (
-            sum(1 for x in hard_bm25 if x) / len(hard_bm25) if hard_bm25 else 0.0
-        )
+        hard_brain_rate = sum(1 for x in hard_brain if x) / len(hard_brain) if hard_brain else 0.0
+        hard_bm25_rate = sum(1 for x in hard_bm25 if x) / len(hard_bm25) if hard_bm25 else 0.0
         hard_lift = hard_brain_rate - hard_bm25_rate
         floor_hard_lift = float(floors.get("hard_slice_lift_min", 0.10))
 
@@ -393,10 +377,7 @@ def run_cma_suite(
             BenchCaseResult(
                 name="aggregate/recall_at_budget",
                 passed=(not budget_recalls) or mean_budget >= floor_budget,
-                detail=(
-                    f"{mean_budget:.3f} (floor>={floor_budget:.2f}, "
-                    f"n={len(budget_recalls)})"
-                ),
+                detail=(f"{mean_budget:.3f} (floor>={floor_budget:.2f}, n={len(budget_recalls)})"),
             )
         )
         cases.append(
@@ -456,11 +437,7 @@ def run_cma_suite(
 
         for ability, vals in sorted(ability_pass.items()):
             rate = sum(1 for p in vals if p) / len(vals) if vals else 1.0
-            ab_floor = (
-                floor_hard
-                if ability in {"multi_session", "theme_leak"}
-                else floor_micro
-            )
+            ab_floor = floor_hard if ability in {"multi_session", "theme_leak"} else floor_micro
             ab_passed = rate >= ab_floor
             cases.append(
                 BenchCaseResult(
@@ -568,9 +545,9 @@ def render_cma_scorecard_markdown(
             "",
             "- CMA maps LongMemEval *ability language* onto a **coding-agent project brain**",
             "  corpus (neurons + code graph + procedures), not chat-session haystacks.",
-            "- Headline metric: **recall@budget** (gold fact in the ≤1500-token pack) + pack noise.",
+            "- Headline metric: **recall@budget** (gold fact in the ≤1500-token pack) + pack noise.",  # noqa: E501
             "- Ability micro-avg is a **regression gate** (often saturated); quote recall@budget.",
-            "- Baselines: **BM25/FTS-only** and naive **title/content token scan** on the same gold.",
+            "- Baselines: **BM25/FTS-only** and naive **title/content token scan** on the same gold.",  # noqa: E501
             "- Hard subset includes paraphrase, multi-session, and theme-adjacent abstention.",
             "- This is **not** a LongMemEval-S leaderboard claim. See BENCHMARKS.md.",
             "",

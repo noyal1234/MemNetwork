@@ -1,4 +1,4 @@
-"""Per-conversation Antigravity session state (inject throttle, Stop debounce, synthetic precompact)."""
+"""Per-conversation Antigravity session state (inject throttle, Stop debounce, synthetic precompact)."""  # noqa: E501
 
 from __future__ import annotations
 
@@ -126,9 +126,7 @@ def parse_antigravity_stop_gates(data: dict[str, object]) -> tuple[bool, bool]:
     ``fullyIdle`` is required by Antigravity docs; when the key is absent, treat
     completed-turn termination reasons as idle so distill is not silently skipped.
     """
-    termination = str(
-        data.get("terminationReason") or data.get("termination_reason") or ""
-    ).strip()
+    termination = str(data.get("terminationReason") or data.get("termination_reason") or "").strip()
     termination_l = termination.lower()
     force = termination_l in {"error", "max_steps_exceeded"}
 
@@ -162,7 +160,7 @@ def _merge_agy_session_states(
     primary: dict[str, AgySessionState],
     incoming: dict[str, AgySessionState],
 ) -> int:
-    """Merge ``incoming`` into ``primary``; keep the fresher distill timestamp. Return count added/updated."""
+    """Merge ``incoming`` into ``primary``; keep the fresher distill timestamp. Return count added/updated."""  # noqa: E501
     merged = 0
     for sid, state in incoming.items():
         existing = primary.get(sid)
@@ -228,20 +226,14 @@ def heal_antigravity_wiring(
                             continue
                         shadow_states[str(key)] = AgySessionState(
                             conversation_id=str(key),
-                            last_inject_invocation=int(
-                                value.get("last_inject_invocation", -1)
-                            ),
-                            last_inject_pack_hash=str(
-                                value.get("last_inject_pack_hash", "")
-                            ),
+                            last_inject_invocation=int(value.get("last_inject_invocation", -1)),
+                            last_inject_pack_hash=str(value.get("last_inject_pack_hash", "")),
                             last_distill_at=float(value.get("last_distill_at", 0.0)),
                             last_handover_at=float(value.get("last_handover_at", 0.0)),
                             last_handover_transcript_bytes=int(
                                 value.get("last_handover_transcript_bytes", 0)
                             ),
-                            transcript_byte_offset=int(
-                                value.get("transcript_byte_offset", 0)
-                            ),
+                            transcript_byte_offset=int(value.get("transcript_byte_offset", 0)),
                             bootstrap_done=bool(value.get("bootstrap_done", False)),
                         )
             merged = _merge_agy_session_states(primary, shadow_states)
@@ -279,9 +271,7 @@ def heal_antigravity_wiring(
                     project_dir=root,
                 )
                 result.hooks_rewritten = True
-                logger.info(
-                    "agy_heal rewritten hooks with --project-dir path=%s", hooks_path
-                )
+                logger.info("agy_heal rewritten hooks with --project-dir path=%s", hooks_path)
             except Exception:  # noqa: BLE001
                 logger.warning("agy_heal failed to rewrite hooks", exc_info=True)
 

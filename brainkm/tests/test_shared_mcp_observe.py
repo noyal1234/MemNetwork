@@ -8,7 +8,7 @@ from pathlib import Path
 from brainkm.db.connection import connect
 from brainkm.db.migrate import migrate
 from brainkm.db.paths import brain_db_path
-from brainkm.models.brain_config import BrainConfig, CaptureConfig, McpConfig
+from brainkm.models.brain_config import BrainConfig, CaptureConfig
 from brainkm.services.connect import run_connect
 from brainkm.services.install import build_mcp_config, run_install
 from brainkm.services.mcp_doctor import build_mcp_doctor_report
@@ -18,6 +18,7 @@ from brainkm.services.observe import (
     promote_session_observations,
     record_observation,
 )
+
 
 def test_build_mcp_config_http_uses_url() -> None:
     payload = transport_build(dev=True, transport="http", port=8765)
@@ -185,9 +186,7 @@ def test_observe_promote_failure_to_error_neuron(tmp_path: Path) -> None:
             config=cfg,
             failed=True,
         )
-        promo = promote_session_observations(
-            conn, session_id=sid, config=cfg, project_dir=tmp_path
-        )
+        promo = promote_session_observations(conn, session_id=sid, config=cfg, project_dir=tmp_path)
         conn.commit()
         assert promo.promoted >= 1
         row = conn.execute(
@@ -208,9 +207,9 @@ def test_install_claude_writes_mcp_json_not_cursor(tmp_path: Path) -> None:
     assert (tmp_path / ".mcp.json").is_file()
     # Claude should not be forced into .cursor/mcp.json as primary.
     written = {p.name for p in result.files_written}
-    assert ".mcp.json" in {p.name for p in result.files_written} or (
-        tmp_path / ".mcp.json"
-    ).is_file()
+    assert (
+        ".mcp.json" in {p.name for p in result.files_written} or (tmp_path / ".mcp.json").is_file()
+    )
     _ = written
 
 
@@ -232,10 +231,5 @@ def test_install_http_enables_auto_observe(tmp_path: Path) -> None:
 
 
 def test_extract_observation_path_accepts_absolute_path() -> None:
-    assert (
-        extract_observation_path({"tool_input": {"AbsolutePath": "/tmp/x.py"}})
-        == "/tmp/x.py"
-    )
-    assert (
-        extract_observation_path({"tool_input": {"TargetFile": "rel.py"}}) == "rel.py"
-    )
+    assert extract_observation_path({"tool_input": {"AbsolutePath": "/tmp/x.py"}}) == "/tmp/x.py"
+    assert extract_observation_path({"tool_input": {"TargetFile": "rel.py"}}) == "rel.py"

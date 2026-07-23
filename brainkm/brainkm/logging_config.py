@@ -39,9 +39,7 @@ def configure_logging() -> None:
     # sys.stderr, and StreamHandler output paints over the alternate screen.
     if _tui_mode:
         handler: logging.Handler = _TuiLogHandler()
-        handler.setFormatter(
-            logging.Formatter(fmt="%(levelname)s %(name)s %(message)s")
-        )
+        handler.setFormatter(logging.Formatter(fmt="%(levelname)s %(name)s %(message)s"))
     else:
         handler = logging.StreamHandler(sys.stderr)
         handler.setFormatter(
@@ -89,9 +87,7 @@ def install_tui_logging(sink: Callable[[str, int], None] | None = None) -> None:
 
     if not any(isinstance(h, _TuiLogHandler) for h in root.handlers):
         tui_handler = _TuiLogHandler()
-        tui_handler.setFormatter(
-            logging.Formatter(fmt="%(levelname)s %(name)s %(message)s")
-        )
+        tui_handler.setFormatter(logging.Formatter(fmt="%(levelname)s %(name)s %(message)s"))
         tui_handler.setLevel(logging.INFO)
         root.addHandler(tui_handler)
 

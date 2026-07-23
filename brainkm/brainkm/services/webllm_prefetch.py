@@ -49,8 +49,7 @@ DEFAULT_MODEL_ID = "Llama-3.2-1B-Instruct-q4f16_1-MLC"
 
 # Match @mlc-ai/web-llm@0.2.79+ prebuilt libs (wasm stays on CDN).
 _MODEL_LIB_PREFIX = (
-    "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/"
-    "main/web-llm-models/v0_2_84/base/"
+    "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/web-llm-models/v0_2_84/base/"
 )
 
 ProgressCallback = Callable[[str, int, int], None]  # (filename, done_files, total_files)

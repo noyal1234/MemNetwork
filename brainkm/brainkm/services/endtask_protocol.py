@@ -10,7 +10,7 @@ import json
 import sqlite3
 import subprocess
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -73,7 +73,7 @@ class RunManifest:
 
 
 def utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def git_short_sha(repo: Path) -> str:
@@ -94,7 +94,7 @@ def git_short_sha(repo: Path) -> str:
 
 
 def build_run_id(*, host: str, tier: str, short_sha: str, when: datetime | None = None) -> str:
-    day = (when or datetime.now(timezone.utc)).strftime("%Y-%m-%d")
+    day = (when or datetime.now(UTC)).strftime("%Y-%m-%d")
     return f"{day}-{host}-{tier}-{short_sha}"
 
 
@@ -144,17 +144,14 @@ def _normalize_mcp_tool_name(raw: str) -> str:
     return name
 
 
-def count_mcp_activity(
-    brain_db: Path, *, since_iso: str
-) -> tuple[int, dict[str, int]]:
+def count_mcp_activity(brain_db: Path, *, since_iso: str) -> tuple[int, dict[str, int]]:
     """Count MCP tool rows in ``session_activity`` after ``since_iso``."""
     if not brain_db.is_file():
         return 0, {}
     con = sqlite3.connect(str(brain_db))
     try:
         rows = con.execute(
-            "SELECT tool_name FROM session_activity "
-            "WHERE source = ? AND created_at >= ?",
+            "SELECT tool_name FROM session_activity WHERE source = ? AND created_at >= ?",
             ("mcp", since_iso),
         ).fetchall()
     finally:
@@ -425,7 +422,9 @@ def render_protocol_markdown(
     return "\n".join(lines)
 
 
-def write_protocol_ndjson(path: Path, records: list[EndTaskRunRecord], *, manifest: RunManifest) -> None:
+def write_protocol_ndjson(
+    path: Path, records: list[EndTaskRunRecord], *, manifest: RunManifest
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as fh:
         fh.write(json.dumps({"_manifest": manifest.to_dict()}, ensure_ascii=False) + "\n")

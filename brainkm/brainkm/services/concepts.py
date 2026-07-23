@@ -79,7 +79,8 @@ def _insert_edge(
 ) -> None:
     conn.execute(
         """
-        INSERT OR IGNORE INTO edges (id, from_id, to_id, relationship, weight, created_at, updated_at)
+        INSERT OR IGNORE INTO edges (id, from_id, to_id, relationship, weight, created_at,
+            updated_at)
         VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
         """,
         (new_ulid(), from_id, to_id, relationship, weight),

@@ -24,7 +24,9 @@ from brainkm.tui.widgets.rich_log_panel import RichLogPanel
         "btn-viz-demo",
     ],
 )
-async def test_action_button_does_not_crash(tui_project: Path, button_id: str, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_action_button_does_not_crash(
+    tui_project: Path, button_id: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setattr("webbrowser.open", lambda *_a, **_k: True)
     monkeypatch.setattr(
         "brainkm.services.graphify_sync.sync_graph",
@@ -90,7 +92,9 @@ def test_actions_graph_sync_has_no_sticky_primary() -> None:
     assert 'id="btn-graph-sync"' in src
 
 
-async def test_viz_demo_writes_url_to_log(tui_project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_viz_demo_writes_url_to_log(
+    tui_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setattr("webbrowser.open", lambda *_a, **_k: True)
     app = BrainkmConfigureApp(project_dir=tui_project)
     async with app.run_test(size=(140, 60)) as pilot:

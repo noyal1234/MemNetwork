@@ -27,7 +27,9 @@ def test_find_promotable_pairs_threshold(brain_db) -> None:
     try:
         insert_node(conn, node_id="a", title="A")
         insert_node(conn, node_id="b", title="B")
-        insert_edge(conn, edge_id="e1", from_id="a", to_id="b", relationship="co_activated", weight=3)
+        insert_edge(
+            conn, edge_id="e1", from_id="a", to_id="b", relationship="co_activated", weight=3
+        )
         conn.commit()
         assert find_promotable_pairs(conn, threshold=3) == [("a", "b")]
         assert find_promotable_pairs(conn, threshold=4) == []
@@ -42,8 +44,12 @@ def test_find_promotable_pairs_scopes_to_session_hits(brain_db) -> None:
         insert_node(conn, node_id="b", title="B")
         insert_node(conn, node_id="c", title="C")
         insert_node(conn, node_id="d", title="D")
-        insert_edge(conn, edge_id="e1", from_id="a", to_id="b", relationship="co_activated", weight=3)
-        insert_edge(conn, edge_id="e2", from_id="c", to_id="d", relationship="co_activated", weight=5)
+        insert_edge(
+            conn, edge_id="e1", from_id="a", to_id="b", relationship="co_activated", weight=3
+        )
+        insert_edge(
+            conn, edge_id="e2", from_id="c", to_id="d", relationship="co_activated", weight=5
+        )
         conn.commit()
         assert find_promotable_pairs(
             conn,
@@ -101,7 +107,9 @@ def test_check_and_promote_creates_procedure(brain_db) -> None:
     try:
         insert_node(conn, node_id="a", title="Auth")
         insert_node(conn, node_id="b", title="Token")
-        insert_edge(conn, edge_id="e1", from_id="a", to_id="b", relationship="co_activated", weight=3)
+        insert_edge(
+            conn, edge_id="e1", from_id="a", to_id="b", relationship="co_activated", weight=3
+        )
         persist_neuron_hits(conn, "sess", ["a", "b"], source="test")
         conn.execute(
             """
@@ -135,8 +143,12 @@ def test_check_and_promote_ignores_unrelated_global_pairs(brain_db) -> None:
         insert_node(conn, node_id="b", title="Token")
         insert_node(conn, node_id="c", title="Unrelated")
         insert_node(conn, node_id="d", title="Other")
-        insert_edge(conn, edge_id="e1", from_id="a", to_id="b", relationship="co_activated", weight=3)
-        insert_edge(conn, edge_id="e2", from_id="c", to_id="d", relationship="co_activated", weight=9)
+        insert_edge(
+            conn, edge_id="e1", from_id="a", to_id="b", relationship="co_activated", weight=3
+        )
+        insert_edge(
+            conn, edge_id="e2", from_id="c", to_id="d", relationship="co_activated", weight=9
+        )
         persist_neuron_hits(conn, "sess", ["a", "b"], source="test")
         conn.execute(
             """

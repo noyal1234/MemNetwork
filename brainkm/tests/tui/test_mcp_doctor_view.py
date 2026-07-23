@@ -37,9 +37,7 @@ def _report(**overrides: object) -> McpDoctorReport:
                 notes=["HTTP MCP entry missing Authorization Bearer header"],
             ),
         ],
-        missing_auth_warning=(
-            "HTTP MCP clients missing Authorization Bearer header: antigravity"
-        ),
+        missing_auth_warning=("HTTP MCP clients missing Authorization Bearer header: antigravity"),
     )
     for key, value in overrides.items():
         setattr(base, key, value)

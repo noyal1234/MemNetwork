@@ -52,8 +52,7 @@ def test_mcp_distill_fake_callback() -> None:
     def fake(*, system: str, user: str, max_tokens: int = 2000) -> str:
         _ = (system, user, max_tokens)
         return (
-            '[{"subtype":"decision","title":"JWT Auth",'
-            '"body":"Use JWT for APIs","tags":["auth"]}]'
+            '[{"subtype":"decision","title":"JWT Auth","body":"Use JWT for APIs","tags":["auth"]}]'
         )
 
     set_sampling_callback(fake)

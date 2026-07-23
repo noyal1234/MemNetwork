@@ -109,9 +109,9 @@ def test_connect_antigravity_http_writes_bearer(tmp_path: Path) -> None:
         client="antigravity",
     )
     run_connect("antigravity", tmp_path, transport="http", hooks=True, dev=True)
-    entry = json.loads((tmp_path / ".agents" / "mcp_config.json").read_text())[
-        "mcpServers"
-    ]["brainkm"]
+    entry = json.loads((tmp_path / ".agents" / "mcp_config.json").read_text())["mcpServers"][
+        "brainkm"
+    ]
     assert entry.get("serverUrl") == "http://127.0.0.1:8765/mcp"
     assert "command" not in entry
     headers = entry.get("headers") or {}

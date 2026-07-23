@@ -48,7 +48,9 @@ class BudgetLine:
 
 
 def priority_for(kind: str, subtype: str | None) -> int:
-    return SUBTYPE_PRIORITY.get((kind, subtype), SUBTYPE_PRIORITY.get((kind, None), DEFAULT_PRIORITY))
+    return SUBTYPE_PRIORITY.get(
+        (kind, subtype), SUBTYPE_PRIORITY.get((kind, None), DEFAULT_PRIORITY)
+    )
 
 
 def line_tokens(title: str, content: str | None, stored: int | None = None) -> int:
@@ -279,9 +281,7 @@ def truncate_by_channels(
             used_by[channel] += extra_manifest.tokens_used
             leftover -= extra_manifest.tokens_used
             kept = {line.node_id for line in extra}
-            omitted_by[channel] = [
-                line for line in omitted_by[channel] if line.node_id not in kept
-            ]
+            omitted_by[channel] = [line for line in omitted_by[channel] if line.node_id not in kept]
 
     included: list[BudgetLine] = []
     for channel in CHANNEL_ORDER:

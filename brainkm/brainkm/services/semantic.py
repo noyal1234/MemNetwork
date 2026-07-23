@@ -231,9 +231,7 @@ def semantic_ready(project_dir: Path | None = None) -> dict[str, bool | str]:
         "huggingface_hub": has_hf,
         "biencoder_cached": biencoder_cached(),
         "cross_encoder_cached": cross_encoder_cached(),
-        "cross_encoder_loaded": bool(
-            cross_encoder_cached() and cross_encoder_available()
-        ),
+        "cross_encoder_loaded": bool(cross_encoder_cached() and cross_encoder_available()),
         "active_embedder": probe_id,
         "cache_dir": str(onnx_cache_dir()),
         "fallback_embedder": HASHING_MODEL,

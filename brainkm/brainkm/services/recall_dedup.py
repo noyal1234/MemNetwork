@@ -57,10 +57,7 @@ def search_session_chunks(
         """,
         (match_query, limit),
     ).fetchall()
-    return [
-        SessionChunkHit(chunk_id=row[0], content=row[1], score=float(row[2]))
-        for row in rows
-    ]
+    return [SessionChunkHit(chunk_id=row[0], content=row[1], score=float(row[2])) for row in rows]
 
 
 def _char_shingles(text: str, *, n: int = _SHINGLE_N) -> set[str]:

@@ -7,8 +7,8 @@ from textual.command import CommandPalette
 from brainkm.tui.app import BrainkmConfigureApp
 from brainkm.tui.screens.config_editor import ConfigEditorScreen
 from brainkm.tui.widgets.command_palette import (
-    BrainkmCommandProvider,
     _COMMAND_TO_SCREEN,
+    BrainkmCommandProvider,
     enumerate_cli_commands,
 )
 

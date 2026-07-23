@@ -76,7 +76,9 @@ def distill_plan_file(
         session_id=None,
     )
     rounds = plan_rounds(sections)
-    round_chunk_ids = {round_.round_index: [f"plan:{path.name}:{round_.round_index}"] for round_ in rounds}
+    round_chunk_ids = {
+        round_.round_index: [f"plan:{path.name}:{round_.round_index}"] for round_ in rounds
+    }
     distilled, _mode = distill_rounds_with_timeout(
         adapter,
         rounds,

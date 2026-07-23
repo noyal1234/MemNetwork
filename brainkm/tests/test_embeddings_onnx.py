@@ -39,7 +39,6 @@ def test_get_embedder_cache_holds_both_prefer_flags() -> None:
     _ = onnx_or_hash
 
 
-
 def test_onnx_embedder_falls_back_without_cache(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

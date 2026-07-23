@@ -73,9 +73,7 @@ def run_cost_suite(
             pre_tool_sizes.append(token_count(pack.pack_text or ""))
         mean_pre = sum(pre_tool_sizes) / len(pre_tool_sizes)
 
-        injected = (
-            _SESSION_START_PACKS * start_tokens + _PRE_TOOL_PACKS * mean_pre
-        )
+        injected = _SESSION_START_PACKS * start_tokens + _PRE_TOOL_PACKS * mean_pre
         # Distill: assume ~2k tokens of transcript summarized to ~400 tokens out.
         distill_in = 2000
         distill_out = 400
@@ -105,8 +103,7 @@ def run_cost_suite(
                 name="injected_tokens_per_session",
                 passed=injected <= 20_000,
                 detail=(
-                    f"{injected:.0f} "
-                    f"(start×{_SESSION_START_PACKS} + pre_tool×{_PRE_TOOL_PACKS})"
+                    f"{injected:.0f} (start×{_SESSION_START_PACKS} + pre_tool×{_PRE_TOOL_PACKS})"
                 ),
             ),
             BenchCaseResult(
@@ -122,10 +119,7 @@ def run_cost_suite(
             BenchCaseResult(
                 name="usd_per_year",
                 passed=True,
-                detail=(
-                    f"${cost_per_year:.2f} "
-                    f"({sessions_per_year} sessions/yr, model={model})"
-                ),
+                detail=(f"${cost_per_year:.2f} ({sessions_per_year} sessions/yr, model={model})"),
             ),
         ]
     finally:
@@ -141,9 +135,7 @@ def format_cost_summary(result: BenchSuiteResult) -> str:
         (c.detail for c in result.cases if c.name == "injected_tokens_per_session"),
         "?",
     )
-    yearly = next(
-        (c.detail for c in result.cases if c.name == "usd_per_year"), "?"
-    )
+    yearly = next((c.detail for c in result.cases if c.name == "usd_per_year"), "?")
     return (
         f"Cost model: injected/session={injected}; annual={yearly}. "
         "Prices are public list rates for modeling only — not invoices."

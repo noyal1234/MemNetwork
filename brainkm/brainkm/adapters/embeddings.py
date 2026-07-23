@@ -166,9 +166,9 @@ class OnnxMiniLMEmbedder:
             vec = hidden[0].tolist()
         if len(vec) != self._dim:
             # Unexpected dim — still return L2-normalized vector but record hashing id.
-            return _l2_normalize([float(x) for x in vec[: self._dim]] + [0.0] * max(
-                0, self._dim - len(vec)
-            ))
+            return _l2_normalize(
+                [float(x) for x in vec[: self._dim]] + [0.0] * max(0, self._dim - len(vec))
+            )
         return _l2_normalize([float(x) for x in vec])
 
 

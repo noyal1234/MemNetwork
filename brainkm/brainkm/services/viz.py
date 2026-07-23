@@ -33,171 +33,315 @@ _TOKEN_QS_RE = re.compile(r"(token=)[^&\s\"']+")
 _DEMO_NODES: list[dict[str, Any]] = [
     # --- memory neurons ---
     {
-        "id": "mem-001", "kind": "memory", "subtype": "decision",
+        "id": "mem-001",
+        "kind": "memory",
+        "subtype": "decision",
         "title": "Why we chose SQLite over PostgreSQL",
-        "content": "PostgreSQL adds ops overhead for a single-developer local brain. SQLite with WAL mode is ACID-safe, zero-config, and ships with Python. We get FTS5 and vec extensions for free. Revisit if we ever need multi-user concurrent writes.",
-        "tags": "architecture,database,decision", "use_count": 14, "confidence": 0.97,
-        "user_pinned": 1, "valid_from": "2025-01-10T10:00:00", "valid_until": None,
-        "ingested_at": "2025-01-10T10:00:00", "session_id": "sess-alpha",
-        "created_at": "2025-01-10T10:00:00", "updated_at": "2025-01-10T10:00:00",
-        "path": None, "source": "demo",
+        "content": "PostgreSQL adds ops overhead for a single-developer local brain. SQLite with WAL mode is ACID-safe, zero-config, and ships with Python. We get FTS5 and vec extensions for free. Revisit if we ever need multi-user concurrent writes.",  # noqa: E501
+        "tags": "architecture,database,decision",
+        "use_count": 14,
+        "confidence": 0.97,
+        "user_pinned": 1,
+        "valid_from": "2025-01-10T10:00:00",
+        "valid_until": None,
+        "ingested_at": "2025-01-10T10:00:00",
+        "session_id": "sess-alpha",
+        "created_at": "2025-01-10T10:00:00",
+        "updated_at": "2025-01-10T10:00:00",
+        "path": None,
+        "source": "demo",
     },
     {
-        "id": "mem-002", "kind": "memory", "subtype": "pivot",
+        "id": "mem-002",
+        "kind": "memory",
+        "subtype": "pivot",
         "title": "Dropped LLM self-paging — using rule-based distill",
-        "content": "MemGPT-style LLM-managed paging costs one LLM call per page-in. We reject this for the zero-LLM-default principle. Rule-based extraction at SessionEnd/PreCompact is sufficient for V1.",
-        "tags": "architecture,llm,compaction,pivot", "use_count": 9, "confidence": 0.95,
-        "user_pinned": 0, "valid_from": "2025-01-15T14:30:00", "valid_until": None,
-        "ingested_at": "2025-01-15T14:30:00", "session_id": "sess-alpha",
-        "created_at": "2025-01-15T14:30:00", "updated_at": "2025-01-15T14:30:00",
-        "path": None, "source": "demo",
+        "content": "MemGPT-style LLM-managed paging costs one LLM call per page-in. We reject this for the zero-LLM-default principle. Rule-based extraction at SessionEnd/PreCompact is sufficient for V1.",  # noqa: E501
+        "tags": "architecture,llm,compaction,pivot",
+        "use_count": 9,
+        "confidence": 0.95,
+        "user_pinned": 0,
+        "valid_from": "2025-01-15T14:30:00",
+        "valid_until": None,
+        "ingested_at": "2025-01-15T14:30:00",
+        "session_id": "sess-alpha",
+        "created_at": "2025-01-15T14:30:00",
+        "updated_at": "2025-01-15T14:30:00",
+        "path": None,
+        "source": "demo",
     },
     {
-        "id": "mem-003", "kind": "memory", "subtype": "rule",
+        "id": "mem-003",
+        "kind": "memory",
+        "subtype": "rule",
         "title": "1500-token hard cap on injection packs",
         "content": (
             "Token budget for MCP context_pack is 1500 tokens max (configurable). "
             "Slots reallocate by query type; PreToolUse and SessionStart use smaller sub-budgets."
         ),
-        "tags": "tokens,budget,injection,rule", "use_count": 21, "confidence": 1.0,
-        "user_pinned": 1, "valid_from": "2025-01-12T09:00:00", "valid_until": None,
-        "ingested_at": "2025-01-12T09:00:00", "session_id": "sess-beta",
-        "created_at": "2025-01-12T09:00:00", "updated_at": "2025-03-01T12:00:00",
-        "path": None, "source": "demo",
+        "tags": "tokens,budget,injection,rule",
+        "use_count": 21,
+        "confidence": 1.0,
+        "user_pinned": 1,
+        "valid_from": "2025-01-12T09:00:00",
+        "valid_until": None,
+        "ingested_at": "2025-01-12T09:00:00",
+        "session_id": "sess-beta",
+        "created_at": "2025-01-12T09:00:00",
+        "updated_at": "2025-03-01T12:00:00",
+        "path": None,
+        "source": "demo",
     },
     {
-        "id": "mem-004", "kind": "memory", "subtype": "error",
+        "id": "mem-004",
+        "kind": "memory",
+        "subtype": "error",
         "title": "FTS5 trigger race on bulk insert",
-        "content": "Inserting >500 nodes in one transaction caused FTS5 sync lag. Fix: batch inserts with explicit COMMIT every 100 rows, then rebuild FTS5 with INSERT INTO nodes_fts(nodes_fts) VALUES ('rebuild').",
-        "tags": "bug,fts5,performance,sqlite", "use_count": 5, "confidence": 0.92,
-        "user_pinned": 0, "valid_from": "2025-02-20T16:00:00", "valid_until": None,
-        "ingested_at": "2025-02-20T16:00:00", "session_id": "sess-gamma",
-        "created_at": "2025-02-20T16:00:00", "updated_at": "2025-02-20T16:00:00",
-        "path": None, "source": "demo",
+        "content": "Inserting >500 nodes in one transaction caused FTS5 sync lag. Fix: batch inserts with explicit COMMIT every 100 rows, then rebuild FTS5 with INSERT INTO nodes_fts(nodes_fts) VALUES ('rebuild').",  # noqa: E501
+        "tags": "bug,fts5,performance,sqlite",
+        "use_count": 5,
+        "confidence": 0.92,
+        "user_pinned": 0,
+        "valid_from": "2025-02-20T16:00:00",
+        "valid_until": None,
+        "ingested_at": "2025-02-20T16:00:00",
+        "session_id": "sess-gamma",
+        "created_at": "2025-02-20T16:00:00",
+        "updated_at": "2025-02-20T16:00:00",
+        "path": None,
+        "source": "demo",
     },
     {
-        "id": "mem-005", "kind": "memory", "subtype": "decision",
+        "id": "mem-005",
+        "kind": "memory",
+        "subtype": "decision",
         "title": "MCP stdio over HTTP for Cursor integration",
-        "content": "Cursor MCP client connects over stdio, not HTTP. We use the MCP Python SDK stdio transport. This avoids port conflicts and matches the Cursor extension model.",
-        "tags": "mcp,cursor,transport,decision", "use_count": 7, "confidence": 0.98,
-        "user_pinned": 0, "valid_from": "2025-01-08T11:00:00", "valid_until": None,
-        "ingested_at": "2025-01-08T11:00:00", "session_id": "sess-alpha",
-        "created_at": "2025-01-08T11:00:00", "updated_at": "2025-01-08T11:00:00",
-        "path": None, "source": "demo",
+        "content": "Cursor MCP client connects over stdio, not HTTP. We use the MCP Python SDK stdio transport. This avoids port conflicts and matches the Cursor extension model.",  # noqa: E501
+        "tags": "mcp,cursor,transport,decision",
+        "use_count": 7,
+        "confidence": 0.98,
+        "user_pinned": 0,
+        "valid_from": "2025-01-08T11:00:00",
+        "valid_until": None,
+        "ingested_at": "2025-01-08T11:00:00",
+        "session_id": "sess-alpha",
+        "created_at": "2025-01-08T11:00:00",
+        "updated_at": "2025-01-08T11:00:00",
+        "path": None,
+        "source": "demo",
     },
     {
-        "id": "mem-006", "kind": "memory", "subtype": "fact",
+        "id": "mem-006",
+        "kind": "memory",
+        "subtype": "fact",
         "title": "PreCompact handover survives Cursor chat compaction",
-        "content": "Three-layer defence: (1) SessionEnd continuous capture, (2) PreCompact handover writes neurons before Cursor compacts, (3) SessionStart injection restores frozen snapshot. DMR benchmark shows 93.4% recall vs 35.3% for lossy summarize.",
-        "tags": "compaction,handover,recall,architecture", "use_count": 18, "confidence": 0.99,
-        "user_pinned": 1, "valid_from": "2025-02-01T08:00:00", "valid_until": None,
-        "ingested_at": "2025-02-01T08:00:00", "session_id": "sess-beta",
-        "created_at": "2025-02-01T08:00:00", "updated_at": "2025-02-01T08:00:00",
-        "path": None, "source": "demo",
+        "content": "Three-layer defence: (1) SessionEnd continuous capture, (2) PreCompact handover writes neurons before Cursor compacts, (3) SessionStart injection restores frozen snapshot. DMR benchmark shows 93.4% recall vs 35.3% for lossy summarize.",  # noqa: E501
+        "tags": "compaction,handover,recall,architecture",
+        "use_count": 18,
+        "confidence": 0.99,
+        "user_pinned": 1,
+        "valid_from": "2025-02-01T08:00:00",
+        "valid_until": None,
+        "ingested_at": "2025-02-01T08:00:00",
+        "session_id": "sess-beta",
+        "created_at": "2025-02-01T08:00:00",
+        "updated_at": "2025-02-01T08:00:00",
+        "path": None,
+        "source": "demo",
     },
     # --- code neurons ---
     {
-        "id": "code-001", "kind": "code", "subtype": "module",
+        "id": "code-001",
+        "kind": "code",
+        "subtype": "module",
         "title": "brainkm/services/memory.py",
-        "content": "Core memory service: remember(), recall(), forget(). Implements FTS5 BM25 search + 2-hop graph activation. Enforces token budget via BudgetService.",
-        "tags": "service,memory,fts5", "use_count": 31, "confidence": 1.0,
-        "user_pinned": 0, "valid_from": "2025-01-05T00:00:00", "valid_until": None,
-        "ingested_at": "2025-01-05T00:00:00", "session_id": None,
-        "created_at": "2025-01-05T00:00:00", "updated_at": "2025-03-10T09:00:00",
-        "path": "brainkm/brainkm/services/memory.py", "source": "graphify",
+        "content": "Core memory service: remember(), recall(), forget(). Implements FTS5 BM25 search + 2-hop graph activation. Enforces token budget via BudgetService.",  # noqa: E501
+        "tags": "service,memory,fts5",
+        "use_count": 31,
+        "confidence": 1.0,
+        "user_pinned": 0,
+        "valid_from": "2025-01-05T00:00:00",
+        "valid_until": None,
+        "ingested_at": "2025-01-05T00:00:00",
+        "session_id": None,
+        "created_at": "2025-01-05T00:00:00",
+        "updated_at": "2025-03-10T09:00:00",
+        "path": "brainkm/brainkm/services/memory.py",
+        "source": "graphify",
     },
     {
-        "id": "code-002", "kind": "code", "subtype": "module",
+        "id": "code-002",
+        "kind": "code",
+        "subtype": "module",
         "title": "brainkm/db/connection.py",
-        "content": "SQLite connection factory. Applies PRAGMA foreign_keys, WAL mode, busy_timeout=10s. Row factory set to sqlite3.Row for dict-like access.",
-        "tags": "db,sqlite,connection,pragma", "use_count": 44, "confidence": 1.0,
-        "user_pinned": 0, "valid_from": "2025-01-05T00:00:00", "valid_until": None,
-        "ingested_at": "2025-01-05T00:00:00", "session_id": None,
-        "created_at": "2025-01-05T00:00:00", "updated_at": "2025-01-05T00:00:00",
-        "path": "brainkm/brainkm/db/connection.py", "source": "graphify",
+        "content": "SQLite connection factory. Applies PRAGMA foreign_keys, WAL mode, busy_timeout=10s. Row factory set to sqlite3.Row for dict-like access.",  # noqa: E501
+        "tags": "db,sqlite,connection,pragma",
+        "use_count": 44,
+        "confidence": 1.0,
+        "user_pinned": 0,
+        "valid_from": "2025-01-05T00:00:00",
+        "valid_until": None,
+        "ingested_at": "2025-01-05T00:00:00",
+        "session_id": None,
+        "created_at": "2025-01-05T00:00:00",
+        "updated_at": "2025-01-05T00:00:00",
+        "path": "brainkm/brainkm/db/connection.py",
+        "source": "graphify",
     },
     {
-        "id": "code-003", "kind": "code", "subtype": "module",
+        "id": "code-003",
+        "kind": "code",
+        "subtype": "module",
         "title": "brainkm/tools/remember.py",
-        "content": "MCP tool handler for `remember`. Validates RememberRequest Pydantic model, calls MemoryService.store(), auto-links path mentions to code nodes.",
-        "tags": "mcp,tool,remember", "use_count": 26, "confidence": 1.0,
-        "user_pinned": 0, "valid_from": "2025-01-10T00:00:00", "valid_until": None,
-        "ingested_at": "2025-01-10T00:00:00", "session_id": None,
-        "created_at": "2025-01-10T00:00:00", "updated_at": "2025-02-15T14:00:00",
-        "path": "brainkm/brainkm/tools/remember.py", "source": "graphify",
+        "content": "MCP tool handler for `remember`. Validates RememberRequest Pydantic model, calls MemoryService.store(), auto-links path mentions to code nodes.",  # noqa: E501
+        "tags": "mcp,tool,remember",
+        "use_count": 26,
+        "confidence": 1.0,
+        "user_pinned": 0,
+        "valid_from": "2025-01-10T00:00:00",
+        "valid_until": None,
+        "ingested_at": "2025-01-10T00:00:00",
+        "session_id": None,
+        "created_at": "2025-01-10T00:00:00",
+        "updated_at": "2025-02-15T14:00:00",
+        "path": "brainkm/brainkm/tools/remember.py",
+        "source": "graphify",
     },
     {
-        "id": "code-004", "kind": "code", "subtype": "module",
+        "id": "code-004",
+        "kind": "code",
+        "subtype": "module",
         "title": "brainkm/services/search.py",
-        "content": "FTS5 BM25 retrieval + 2-hop graph activation. Returns ranked ResultSet with BM25 scores, deduplicates by node id, enforces min_recall_score abstention threshold.",
-        "tags": "search,fts5,bm25,graph", "use_count": 38, "confidence": 1.0,
-        "user_pinned": 0, "valid_from": "2025-01-18T00:00:00", "valid_until": None,
-        "ingested_at": "2025-01-18T00:00:00", "session_id": None,
-        "created_at": "2025-01-18T00:00:00", "updated_at": "2025-03-05T11:00:00",
-        "path": "brainkm/brainkm/services/search.py", "source": "graphify",
+        "content": "FTS5 BM25 retrieval + 2-hop graph activation. Returns ranked ResultSet with BM25 scores, deduplicates by node id, enforces min_recall_score abstention threshold.",  # noqa: E501
+        "tags": "search,fts5,bm25,graph",
+        "use_count": 38,
+        "confidence": 1.0,
+        "user_pinned": 0,
+        "valid_from": "2025-01-18T00:00:00",
+        "valid_until": None,
+        "ingested_at": "2025-01-18T00:00:00",
+        "session_id": None,
+        "created_at": "2025-01-18T00:00:00",
+        "updated_at": "2025-03-05T11:00:00",
+        "path": "brainkm/brainkm/services/search.py",
+        "source": "graphify",
     },
     {
-        "id": "code-005", "kind": "code", "subtype": "module",
+        "id": "code-005",
+        "kind": "code",
+        "subtype": "module",
         "title": "brainkm/adapters/graphify.py",
-        "content": "Graphify AST graph importer. Reads graph.json, upserts code nodes and import/call edges into brain.db. Filters to code-only nodes by default.",
-        "tags": "adapter,graphify,ast,import", "use_count": 12, "confidence": 1.0,
-        "user_pinned": 0, "valid_from": "2025-02-10T00:00:00", "valid_until": None,
-        "ingested_at": "2025-02-10T00:00:00", "session_id": None,
-        "created_at": "2025-02-10T00:00:00", "updated_at": "2025-02-10T00:00:00",
-        "path": "brainkm/brainkm/adapters/graphify.py", "source": "graphify",
+        "content": "Graphify AST graph importer. Reads graph.json, upserts code nodes and import/call edges into brain.db. Filters to code-only nodes by default.",  # noqa: E501
+        "tags": "adapter,graphify,ast,import",
+        "use_count": 12,
+        "confidence": 1.0,
+        "user_pinned": 0,
+        "valid_from": "2025-02-10T00:00:00",
+        "valid_until": None,
+        "ingested_at": "2025-02-10T00:00:00",
+        "session_id": None,
+        "created_at": "2025-02-10T00:00:00",
+        "updated_at": "2025-02-10T00:00:00",
+        "path": "brainkm/brainkm/adapters/graphify.py",
+        "source": "graphify",
     },
     # --- procedure neurons ---
     {
-        "id": "proc-001", "kind": "procedure", "subtype": "tool_chain",
+        "id": "proc-001",
+        "kind": "procedure",
+        "subtype": "tool_chain",
         "title": "Repair FTS5 index after schema change",
-        "content": "1. Run `brainkm repair --project-dir .` 2. Verify with `brainkm bench run abstention`. FTS5 triggers auto-rebuild; if counts mismatch, manually run INSERT INTO nodes_fts(nodes_fts) VALUES('rebuild').",
-        "tags": "procedure,repair,fts5,maintenance", "use_count": 3, "confidence": 0.88,
-        "user_pinned": 0, "valid_from": "2025-03-01T00:00:00", "valid_until": None,
-        "ingested_at": "2025-03-01T00:00:00", "session_id": "sess-delta",
-        "created_at": "2025-03-01T00:00:00", "updated_at": "2025-03-01T00:00:00",
-        "path": None, "source": "demo",
+        "content": "1. Run `brainkm repair --project-dir .` 2. Verify with `brainkm bench run abstention`. FTS5 triggers auto-rebuild; if counts mismatch, manually run INSERT INTO nodes_fts(nodes_fts) VALUES('rebuild').",  # noqa: E501
+        "tags": "procedure,repair,fts5,maintenance",
+        "use_count": 3,
+        "confidence": 0.88,
+        "user_pinned": 0,
+        "valid_from": "2025-03-01T00:00:00",
+        "valid_until": None,
+        "ingested_at": "2025-03-01T00:00:00",
+        "session_id": "sess-delta",
+        "created_at": "2025-03-01T00:00:00",
+        "updated_at": "2025-03-01T00:00:00",
+        "path": None,
+        "source": "demo",
     },
     {
-        "id": "proc-002", "kind": "procedure", "subtype": "tool_chain",
+        "id": "proc-002",
+        "kind": "procedure",
+        "subtype": "tool_chain",
         "title": "Add a new MCP tool (V1 pattern)",
-        "content": "1. Create tools/<name>.py with handler function. 2. Add Pydantic I/O models to models/schemas.py. 3. Register in server.py. 4. Add service method in services/. 5. Write pytest test in tests/tools/. Follow layer rule: tool → service → adapter → db.",
-        "tags": "procedure,mcp,tool,development", "use_count": 6, "confidence": 0.93,
-        "user_pinned": 0, "valid_from": "2025-02-05T00:00:00", "valid_until": None,
-        "ingested_at": "2025-02-05T00:00:00", "session_id": "sess-beta",
-        "created_at": "2025-02-05T00:00:00", "updated_at": "2025-02-05T00:00:00",
-        "path": None, "source": "demo",
+        "content": "1. Create tools/<name>.py with handler function. 2. Add Pydantic I/O models to models/schemas.py. 3. Register in server.py. 4. Add service method in services/. 5. Write pytest test in tests/tools/. Follow layer rule: tool → service → adapter → db.",  # noqa: E501
+        "tags": "procedure,mcp,tool,development",
+        "use_count": 6,
+        "confidence": 0.93,
+        "user_pinned": 0,
+        "valid_from": "2025-02-05T00:00:00",
+        "valid_until": None,
+        "ingested_at": "2025-02-05T00:00:00",
+        "session_id": "sess-beta",
+        "created_at": "2025-02-05T00:00:00",
+        "updated_at": "2025-02-05T00:00:00",
+        "path": None,
+        "source": "demo",
     },
     # --- session neurons ---
     {
-        "id": "sess-n-001", "kind": "session", "subtype": "context",
+        "id": "sess-n-001",
+        "kind": "session",
+        "subtype": "context",
         "title": "Session alpha — initial scaffold",
-        "content": "Set up V0 scaffold. Created AGENTS.md, BrainConfig Pydantic model, pyproject.toml, initial migration 001_initial.sql. SQLite WAL mode enabled. Decision: use Typer for CLI over Click.",
-        "tags": "session,scaffold,v0", "use_count": 2, "confidence": 0.85,
-        "user_pinned": 0, "valid_from": "2025-01-05T00:00:00", "valid_until": None,
-        "ingested_at": "2025-01-05T00:00:00", "session_id": "sess-alpha",
-        "created_at": "2025-01-05T00:00:00", "updated_at": "2025-01-05T00:00:00",
-        "path": None, "source": "demo",
+        "content": "Set up V0 scaffold. Created AGENTS.md, BrainConfig Pydantic model, pyproject.toml, initial migration 001_initial.sql. SQLite WAL mode enabled. Decision: use Typer for CLI over Click.",  # noqa: E501
+        "tags": "session,scaffold,v0",
+        "use_count": 2,
+        "confidence": 0.85,
+        "user_pinned": 0,
+        "valid_from": "2025-01-05T00:00:00",
+        "valid_until": None,
+        "ingested_at": "2025-01-05T00:00:00",
+        "session_id": "sess-alpha",
+        "created_at": "2025-01-05T00:00:00",
+        "updated_at": "2025-01-05T00:00:00",
+        "path": None,
+        "source": "demo",
     },
     {
-        "id": "sess-n-002", "kind": "session", "subtype": "context",
+        "id": "sess-n-002",
+        "kind": "session",
+        "subtype": "context",
         "title": "Session gamma — abstention calibration",
-        "content": "Implemented adaptive abstention: BM25 threshold calibrated from bench fixtures. Abstain mode returns empty list when top score < min_recall_score. Calibration stored in brain.db config table.",
-        "tags": "session,abstention,calibration,bench", "use_count": 4, "confidence": 0.9,
-        "user_pinned": 0, "valid_from": "2025-02-18T00:00:00", "valid_until": None,
-        "ingested_at": "2025-02-18T00:00:00", "session_id": "sess-gamma",
-        "created_at": "2025-02-18T00:00:00", "updated_at": "2025-02-18T00:00:00",
-        "path": None, "source": "demo",
+        "content": "Implemented adaptive abstention: BM25 threshold calibrated from bench fixtures. Abstain mode returns empty list when top score < min_recall_score. Calibration stored in brain.db config table.",  # noqa: E501
+        "tags": "session,abstention,calibration,bench",
+        "use_count": 4,
+        "confidence": 0.9,
+        "user_pinned": 0,
+        "valid_from": "2025-02-18T00:00:00",
+        "valid_until": None,
+        "ingested_at": "2025-02-18T00:00:00",
+        "session_id": "sess-gamma",
+        "created_at": "2025-02-18T00:00:00",
+        "updated_at": "2025-02-18T00:00:00",
+        "path": None,
+        "source": "demo",
     },
     # --- archived neuron ---
     {
-        "id": "mem-arch-001", "kind": "memory", "subtype": "decision",
+        "id": "mem-arch-001",
+        "kind": "memory",
+        "subtype": "decision",
         "title": "[ARCHIVED] Used HTTP transport for MCP (superseded)",
-        "content": "Originally considered HTTP transport for MCP server. Superseded by stdio transport decision (mem-005). HTTP port conflicts with other Cursor extensions.",
-        "tags": "mcp,transport,archived", "use_count": 1, "confidence": 0.5,
-        "user_pinned": 0, "valid_from": "2025-01-06T00:00:00", "valid_until": "2025-01-08T11:00:00",
-        "ingested_at": "2025-01-06T00:00:00", "session_id": "sess-alpha",
-        "created_at": "2025-01-06T00:00:00", "updated_at": "2025-01-08T11:00:00",
-        "path": None, "source": "demo",
+        "content": "Originally considered HTTP transport for MCP server. Superseded by stdio transport decision (mem-005). HTTP port conflicts with other Cursor extensions.",  # noqa: E501
+        "tags": "mcp,transport,archived",
+        "use_count": 1,
+        "confidence": 0.5,
+        "user_pinned": 0,
+        "valid_from": "2025-01-06T00:00:00",
+        "valid_until": "2025-01-08T11:00:00",
+        "ingested_at": "2025-01-06T00:00:00",
+        "session_id": "sess-alpha",
+        "created_at": "2025-01-06T00:00:00",
+        "updated_at": "2025-01-08T11:00:00",
+        "path": None,
+        "source": "demo",
     },
 ]
 
@@ -253,6 +397,7 @@ def _seed_demo(conn: sqlite3.Connection) -> None:
 # Graph / version / search queries
 # ---------------------------------------------------------------------------
 
+
 def _query_graph(conn: sqlite3.Connection) -> dict[str, Any]:
     """Return all nodes (including archived) and their edges as JSON-ready dict."""
     cur = conn.execute(
@@ -265,11 +410,10 @@ def _query_graph(conn: sqlite3.Connection) -> dict[str, Any]:
     nodes = [dict(row) for row in cur.fetchall()]
     node_ids = {n["id"] for n in nodes}
 
-    cur = conn.execute(
-        "SELECT from_id, to_id, relationship, weight FROM edges"
-    )
+    cur = conn.execute("SELECT from_id, to_id, relationship, weight FROM edges")
     edges = [
-        dict(row) for row in cur.fetchall()
+        dict(row)
+        for row in cur.fetchall()
         if row["from_id"] in node_ids and row["to_id"] in node_ids
     ]
 
@@ -319,24 +463,27 @@ def _query_search(conn: sqlite3.Connection, query: str, *, limit: int = 8) -> di
         if not node:
             continue
         content = node.get("content") or ""
-        results.append({
-            "id": node["id"],
-            "kind": node["kind"],
-            "subtype": node.get("subtype"),
-            "title": node["title"],
-            "content": content[:600],
-            "tags": node.get("tags"),
-            "path": node.get("path"),
-            "source": node.get("source"),
-            "score": score_by_id[node_id],
-            "archived": bool(node.get("valid_until")),
-        })
+        results.append(
+            {
+                "id": node["id"],
+                "kind": node["kind"],
+                "subtype": node.get("subtype"),
+                "title": node["title"],
+                "content": content[:600],
+                "tags": node.get("tags"),
+                "path": node.get("path"),
+                "source": node.get("source"),
+                "score": score_by_id[node_id],
+                "archived": bool(node.get("valid_until")),
+            }
+        )
     return {"query": q, "results": results}
 
 
 # ---------------------------------------------------------------------------
 # DB lifecycle for the HTTP handler
 # ---------------------------------------------------------------------------
+
 
 def _open_demo_connection() -> sqlite3.Connection:
     from brainkm.db.connection import configure_connection
@@ -367,6 +514,7 @@ def _open_live_connection(db_path: Path) -> sqlite3.Connection:
 # ---------------------------------------------------------------------------
 # HTTP handler
 # ---------------------------------------------------------------------------
+
 
 class _VizHandler(BaseHTTPRequestHandler):
     """Serves /api/* JSON and static assets under viz_static/."""
@@ -444,10 +592,7 @@ class _VizHandler(BaseHTTPRequestHandler):
         if set_auth_cookie and self.__class__.access_token:
             self.send_header(
                 "Set-Cookie",
-                (
-                    f"{_VIZ_COOKIE}={self.__class__.access_token}; "
-                    "Path=/; HttpOnly; SameSite=Strict"
-                ),
+                (f"{_VIZ_COOKIE}={self.__class__.access_token}; Path=/; HttpOnly; SameSite=Strict"),
             )
         self.end_headers()
         self.wfile.write(body)
@@ -625,6 +770,7 @@ class _VizHandler(BaseHTTPRequestHandler):
 # Public entry point
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class VizServerHandle:
     """Background viz HTTP server started for the TUI (or other callers)."""
@@ -674,10 +820,7 @@ def _prepare_handler_state(
 
     db_path = brain_db_path(project_dir)
     if not db_path.exists():
-        msg = (
-            f"No brain.db found at {db_path}. "
-            "Run 'brainkm install' first, or use demo mode."
-        )
+        msg = f"No brain.db found at {db_path}. Run 'brainkm install' first, or use demo mode."
         raise FileNotFoundError(msg)
     _VizHandler.db_path = db_path
     conn = _open_live_connection(db_path)
@@ -725,6 +868,7 @@ def start_viz_server(
     thread.start()
 
     if open_browser:
+
         def _open_after_delay() -> None:
             time.sleep(0.4)
             webbrowser.open(url)

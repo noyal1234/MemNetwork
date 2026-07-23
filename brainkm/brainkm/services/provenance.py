@@ -103,9 +103,7 @@ def format_provenance_report(conn: sqlite3.Connection, node_id: str) -> str:
     ]
     for link in chain.links:
         title = f" title={link.title!r}" if link.title else ""
-        lines.append(
-            f"  - via={link.via} id={link.id} session={link.session_id or '-'}{title}"
-        )
+        lines.append(f"  - via={link.via} id={link.id} session={link.session_id or '-'}{title}")
     # Keep report bounded for CLI.
     text = "\n".join(lines)
     if token_count(text) > 800:

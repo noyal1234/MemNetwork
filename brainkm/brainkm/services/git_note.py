@@ -50,7 +50,9 @@ class HookInstallResult:
     appended_to_existing: bool = False
 
 
-def _run_git(project_dir: Path, *args: str, timeout: float = 10) -> subprocess.CompletedProcess[str]:
+def _run_git(
+    project_dir: Path, *args: str, timeout: float = 10
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", *args],
         cwd=project_dir,
@@ -72,7 +74,8 @@ def _insert_edge(
     now = utc_now_iso()
     conn.execute(
         """
-        INSERT OR IGNORE INTO edges (id, from_id, to_id, relationship, weight, created_at, updated_at)
+        INSERT OR IGNORE INTO edges (id, from_id, to_id, relationship, weight, created_at,
+            updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         (new_ulid(), from_id, to_id, relationship, weight, now, now),
@@ -130,9 +133,7 @@ def resolve_session_for_commit(
     if session_id:
         return session_id
 
-    cutoff = (
-        datetime.now(UTC) - timedelta(hours=SESSION_LOOKBACK_HOURS)
-    ).isoformat()
+    cutoff = (datetime.now(UTC) - timedelta(hours=SESSION_LOOKBACK_HOURS)).isoformat()
 
     if files:
         placeholders = ",".join("?" for _ in files)
@@ -308,9 +309,7 @@ def note_commit(
             skip_reason="empty",
         )
 
-    resolved_session = resolve_session_for_commit(
-        conn, files=files, session_id=session_id
-    )
+    resolved_session = resolve_session_for_commit(conn, files=files, session_id=session_id)
 
     file_preview = ", ".join(files[:MAX_FILES_IN_CONTENT])
     if len(files) > MAX_FILES_IN_CONTENT:
@@ -367,9 +366,7 @@ def note_commit(
         files_linked += 1
 
     neurons_linked = 0
-    for neuron_id in _neurons_to_link(
-        conn, files=files, session_id=resolved_session
-    ):
+    for neuron_id in _neurons_to_link(conn, files=files, session_id=resolved_session):
         _insert_edge(
             conn,
             from_id=commit_id,
@@ -429,7 +426,7 @@ def _hook_snippet(brainkm_bin: str) -> str:
     return (
         f"{HOOK_MARKER}\n"
         f'ROOT="$(git rev-parse --show-toplevel)"\n'
-        f'if command -v brainkm >/dev/null 2>&1; then\n'
+        f"if command -v brainkm >/dev/null 2>&1; then\n"
         f'  brainkm git-note --project-dir "$ROOT" >/dev/null 2>&1 || true\n'
         f"elif [ -x {bin_q} ]; then\n"
         f'  {bin_q} git-note --project-dir "$ROOT" >/dev/null 2>&1 || true\n'
@@ -520,8 +517,7 @@ def install_post_commit_hook(
         if cleaned and not had_marker:
             appended = True
             warnings.append(
-                "appended brainkm block to existing post-commit "
-                "(foreign hook preserved)"
+                "appended brainkm block to existing post-commit (foreign hook preserved)"
             )
         new_body = (cleaned + "\n\n" + snippet) if cleaned else ("#!/bin/sh\n" + snippet)
         hook_path.write_text(

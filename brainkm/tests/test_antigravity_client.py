@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from brainkm.models.brain_config import BrainConfig, CaptureConfig
 from brainkm.services.client_adapters import get_client_adapter
 from brainkm.services.connect import mcp_config_path_for_client, run_connect
@@ -138,9 +136,7 @@ def test_install_antigravity(tmp_path: Path) -> None:
     hooks = json.loads((tmp_path / ".agents" / "hooks.json").read_text())
     assert "--client antigravity" in json.dumps(hooks)
     assert "SessionStart" in hooks["brainkm"]
-    cfg = BrainConfig.model_validate(
-        json.loads((tmp_path / ".brain" / "config.json").read_text())
-    )
+    cfg = BrainConfig.model_validate(json.loads((tmp_path / ".brain" / "config.json").read_text()))
     assert cfg.capture.auto_observe is True
     assert cfg.capture.distill_mode in ("antigravity", "rules")
     assert result.project_dir == tmp_path
@@ -152,9 +148,7 @@ def test_doctor_warns_on_url_instead_of_server_url(tmp_path: Path) -> None:
     agents = tmp_path / ".agents"
     agents.mkdir()
     (agents / "mcp_config.json").write_text(
-        json.dumps(
-            {"mcpServers": {"brainkm": {"url": "http://127.0.0.1:8765/mcp"}}}
-        ),
+        json.dumps({"mcpServers": {"brainkm": {"url": "http://127.0.0.1:8765/mcp"}}}),
         encoding="utf-8",
     )
     (agents / "hooks.json").write_text(
@@ -235,9 +229,7 @@ def test_get_distill_adapter_claude_and_antigravity() -> None:
 
     claude = get_distill_adapter(BrainConfig(capture=CaptureConfig(distill_mode="claude")))
     assert claude.mode == "claude"
-    agy = get_distill_adapter(
-        BrainConfig(capture=CaptureConfig(distill_mode="antigravity"))
-    )
+    agy = get_distill_adapter(BrainConfig(capture=CaptureConfig(distill_mode="antigravity")))
     assert agy.mode == "antigravity"
 
 
@@ -288,9 +280,7 @@ def test_agy_session_inject_and_stop_gates() -> None:
     assert idle and not force
     idle, force = parse_antigravity_stop_gates({"terminationReason": "model_stop"})
     assert idle and not force
-    idle, force = parse_antigravity_stop_gates(
-        {"fullyIdle": False, "terminationReason": "error"}
-    )
+    idle, force = parse_antigravity_stop_gates({"fullyIdle": False, "terminationReason": "error"})
     assert not idle and force
 
 
@@ -336,9 +326,7 @@ def test_resolve_antigravity_transcript_from_artifact_dir(tmp_path: Path) -> Non
     transcript = logs / "transcript.jsonl"
     transcript.write_text("{}\n", encoding="utf-8")
 
-    found = resolve_antigravity_transcript(
-        {"artifactDirectoryPath": str(artifact)}
-    )
+    found = resolve_antigravity_transcript({"artifactDirectoryPath": str(artifact)})
     assert found == transcript
 
 
@@ -431,7 +419,7 @@ def test_agent_stop_uses_workspace_not_agents_cwd(tmp_path: Path) -> None:
         json.dumps(
             {
                 "type": "USER_INPUT",
-                "content": "<USER_REQUEST>\nRemember: use shared project brain for AGY hooks.\n</USER_REQUEST>",
+                "content": "<USER_REQUEST>\nRemember: use shared project brain for AGY hooks.\n</USER_REQUEST>",  # noqa: E501
                 "status": "DONE",
             }
         )
@@ -507,4 +495,3 @@ def test_inspect_antigravity_wiring_rules_and_doctor_client(tmp_path: Path) -> N
     report.clients = [c for c in report.clients if c.client == "antigravity"]
     assert len(report.clients) == 1
     assert report.clients[0].client == "antigravity"
-

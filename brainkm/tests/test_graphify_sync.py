@@ -14,8 +14,8 @@ from typer.testing import CliRunner
 from brainkm.models.brain_config import BrainConfig, GraphifyAutoSyncConfig, GraphifyConfig
 from brainkm.services.graph_import import count_code_nodes, import_graph_json
 from brainkm.services.graphify_sync import (
-    GraphSyncScheduler,
     GraphifyArgsError,
+    GraphSyncScheduler,
     build_graph_status,
     probe_graphify,
     request_graph_sync,
@@ -282,9 +282,7 @@ def test_install_warns_when_sync_fails(tmp_path: Path) -> None:
                                             tmp_path,
                                             dev=True,
                                             force=True,
-                                            config=BrainConfig(
-                                                graphify={"sync_on_install": True}
-                                            ),
+                                            config=BrainConfig(graphify={"sync_on_install": True}),
                                         )
     assert any("graph sync skipped" in w for w in result.warnings)
 

@@ -30,16 +30,17 @@ def test_task_fixture_scale() -> None:
 
 
 def test_selective_baseline_is_capped(repo_root: Path) -> None:
-    slices = (
-        SelectiveSlice(path="brainkm/brainkm/services/budget.py", max_tokens=100),
-    )
+    slices = (SelectiveSlice(path="brainkm/brainkm/services/budget.py", max_tokens=100),)
     text, tokens = measure_selective_baseline(repo_root, slices)
     assert text
     assert tokens <= 100
 
 
 def test_gold_coverage() -> None:
-    assert gold_coverage("greedy_truncate under total_tokens", ("greedy_truncate", "total_tokens")) == 1.0
+    assert (
+        gold_coverage("greedy_truncate under total_tokens", ("greedy_truncate", "total_tokens"))
+        == 1.0
+    )
     assert gold_coverage("only greedy_truncate here", ("greedy_truncate", "total_tokens")) == 0.5
 
 

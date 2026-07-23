@@ -62,9 +62,7 @@ def test_cross_process_session_activity_flush(brain_db) -> None:
         flushed = flush_use_counts(conn, "sess-x")
         conn.commit()
         assert flushed == 1
-        use_count = conn.execute(
-            "SELECT use_count FROM nodes WHERE id = 'hit1'"
-        ).fetchone()[0]
+        use_count = conn.execute("SELECT use_count FROM nodes WHERE id = 'hit1'").fetchone()[0]
         assert use_count == 1
     finally:
         window.reset()

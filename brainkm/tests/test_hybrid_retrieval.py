@@ -8,15 +8,15 @@ from brainkm.adapters.embeddings import HashingEmbedder
 from brainkm.db.connection import connect
 from brainkm.db.migrate import migrate
 from brainkm.models.brain_config import BrainConfig, SemanticConfig
-from brainkm.services.compress import compress_body, dedup_budget_lines
-from brainkm.services.intent import QueryIntent, classify_intent, route_query
 from brainkm.services.budget import BudgetLine, adaptive_token_budget
-from brainkm.services.memory import remember_neuron, token_count
-from brainkm.services.search import hybrid_seed, ppr_activate, recall_with_bfs
-from brainkm.services.semantic import reciprocal_rank_fusion, upsert_node_embedding
-from brainkm.services.remember_links import detect_conflicts
+from brainkm.services.compress import compress_body, dedup_budget_lines
 from brainkm.services.consolidate import consolidate_neurons
 from brainkm.services.feedback import record_injected, record_used
+from brainkm.services.intent import QueryIntent, classify_intent, route_query
+from brainkm.services.memory import remember_neuron, token_count
+from brainkm.services.remember_links import detect_conflicts
+from brainkm.services.search import hybrid_seed, ppr_activate, recall_with_bfs
+from brainkm.services.semantic import reciprocal_rank_fusion, upsert_node_embedding
 
 
 def _brain(tmp_path: Path):
@@ -128,9 +128,15 @@ def test_compress_and_dedup() -> None:
     assert token_count(compressed) <= 40
     assert "SQLite" in compressed or "WAL" in compressed
     lines = [
-        BudgetLine("1", "memory", "fact", "Auth JWT", "Use JWT bearer tokens for API auth always", 10, 1),
-        BudgetLine("2", "memory", "fact", "Auth JWT", "Use JWT bearer tokens for API auth always", 10, 1),
-        BudgetLine("3", "memory", "decision", "Other", "graphify sync policy distinct content", 8, 0),
+        BudgetLine(
+            "1", "memory", "fact", "Auth JWT", "Use JWT bearer tokens for API auth always", 10, 1
+        ),
+        BudgetLine(
+            "2", "memory", "fact", "Auth JWT", "Use JWT bearer tokens for API auth always", 10, 1
+        ),
+        BudgetLine(
+            "3", "memory", "decision", "Other", "graphify sync policy distinct content", 8, 0
+        ),
     ]
     deduped = dedup_budget_lines(lines, threshold=0.5)
     assert len(deduped) == 2

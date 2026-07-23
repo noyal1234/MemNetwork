@@ -53,7 +53,8 @@ def insert_distilled_from_edge(
     edge_id = new_ulid()
     conn.execute(
         """
-        INSERT OR IGNORE INTO edges (id, from_id, to_id, relationship, weight, created_at, updated_at)
+        INSERT OR IGNORE INTO edges (id, from_id, to_id, relationship, weight, created_at,
+            updated_at)
         VALUES (?, ?, ?, 'distilled_from', ?, datetime('now'), datetime('now'))
         """,
         (edge_id, from_id, to_id, weight),

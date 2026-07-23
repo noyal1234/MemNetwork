@@ -26,9 +26,7 @@ def best_bm25_score(scores: list[float]) -> float | None:
 
 def active_corpus_size(conn: sqlite3.Connection) -> int:
     """Count active (non-archived) nodes used for retrieval."""
-    row = conn.execute(
-        "SELECT COUNT(*) FROM nodes WHERE valid_until IS NULL"
-    ).fetchone()
+    row = conn.execute("SELECT COUNT(*) FROM nodes WHERE valid_until IS NULL").fetchone()
     return int(row[0]) if row else 0
 
 

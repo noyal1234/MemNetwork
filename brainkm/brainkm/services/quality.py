@@ -92,8 +92,7 @@ def passes_noise_gate(*, title: str, content: str | None) -> bool:
     if TRANSCRIPT_CHROME.search(t) or TRANSCRIPT_CHROME.search(body):
         return False
     if INTERROGATIVE_LEAD.match(t) or (
-        (t.rstrip().endswith("?") or body.rstrip().endswith("?"))
-        and INTERROGATIVE_LEAD.match(body)
+        (t.rstrip().endswith("?") or body.rstrip().endswith("?")) and INTERROGATIVE_LEAD.match(body)
     ):
         return False
     if "[tool_use:" in t.lower() or "[tool_use:" in body.lower():

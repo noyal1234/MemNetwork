@@ -47,7 +47,11 @@ _COMMAND_TO_SCREEN: dict[str, str] = {
 _NAV_COMMANDS: tuple[tuple[str, str, str], ...] = (
     ("dashboard", "Go to Dashboard", "Brain status, Ollama/Groq/Graph health, review queue"),
     ("config", "Go to Config Editor", "Edit .brain/config.json via validated forms"),
-    ("actions", "Go to Actions", "Run graph sync, viz, bench suites, doctor checks, export, repair"),
+    (
+        "actions",
+        "Go to Actions",
+        "Run graph sync, viz, bench suites, doctor checks, export, repair",
+    ),
     ("wizard", "Go to Wizard", "Guided first-run setup"),
 )
 

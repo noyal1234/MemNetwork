@@ -155,7 +155,8 @@ def upsert_procedure_neuron(
     for target in neuron_ids:
         conn.execute(
             """
-            INSERT OR IGNORE INTO edges (id, from_id, to_id, relationship, weight, created_at, updated_at)
+            INSERT OR IGNORE INTO edges (id, from_id, to_id, relationship, weight, created_at,
+                updated_at)
             VALUES (?, ?, ?, 'spawned', 1.0, datetime('now'), datetime('now'))
             """,
             (new_ulid(), from_id, target),
@@ -163,7 +164,8 @@ def upsert_procedure_neuron(
         # Prefer high use_count sources; still link all for lineage.
         conn.execute(
             """
-            INSERT OR IGNORE INTO edges (id, from_id, to_id, relationship, weight, created_at, updated_at)
+            INSERT OR IGNORE INTO edges (id, from_id, to_id, relationship, weight, created_at,
+                updated_at)
             VALUES (?, ?, ?, 'distilled_from', 0.9, datetime('now'), datetime('now'))
             """,
             (new_ulid(), from_id, target),
