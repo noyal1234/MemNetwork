@@ -23,7 +23,7 @@ from brainkm.services.observe import (
 def test_build_mcp_config_http_uses_url() -> None:
     payload = transport_build(dev=True, transport="http", port=8765)
     server = payload["mcpServers"]["brainkm"]
-    assert server["url"] == "http://127.0.0.1:8765/mcp"
+    assert server["url"] == "http://127.0.0.1:8765/mcp/"
     assert "command" not in server
 
 
@@ -46,7 +46,7 @@ def test_connect_cursor_http_writes_url(tmp_path: Path) -> None:
     )
     mcp = json.loads((tmp_path / ".cursor" / "mcp.json").read_text(encoding="utf-8"))
     entry = mcp["mcpServers"]["brainkm"]
-    assert entry["url"] == "http://127.0.0.1:8765/mcp"
+    assert entry["url"] == "http://127.0.0.1:8765/mcp/"
     assert entry["headers"]["Authorization"].startswith("Bearer ")
     assert (tmp_path / ".brain" / "mcp_http_token").is_file()
     assert (tmp_path / ".cursor" / "hooks.json").is_file()
@@ -227,7 +227,7 @@ def test_install_http_enables_auto_observe(tmp_path: Path) -> None:
     assert cfg["mcp"]["transport"] == "http"
     assert cfg["capture"]["auto_observe"] is True
     mcp = json.loads((tmp_path / ".cursor" / "mcp.json").read_text(encoding="utf-8"))
-    assert mcp["mcpServers"]["brainkm"]["url"].endswith(":8765/mcp")
+    assert mcp["mcpServers"]["brainkm"]["url"].endswith(":8765/mcp/")
 
 
 def test_extract_observation_path_accepts_absolute_path() -> None:

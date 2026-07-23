@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import sqlite3
 
 from brainkm.models.brain_config import BrainConfig
@@ -73,24 +74,47 @@ def find_promotable_pairs(
     ]
 
 
-def _procedure_key(tool_names: list[str], neuron_ids: list[str]) -> str:
+def _procedure_key(tool_names: list[str], neuron_ids: list[str] | None = None) -> str:
+    """Stable key for a tool chain.
+
+    Keyed by ordered external tools only so the same Write→Shell sequence
+    merges into one procedure (neuron-pair keys used to create dozens of
+    near-duplicate Write→Shell neurons that polluted every pack).
+    ``neuron_ids`` is accepted for call-site compatibility but ignored.
+    """
+    del neuron_ids  # lineage stays on spawned/distilled_from edges
     tools = "|".join(ordered_external_tools(tool_names))
-    neurons = "|".join(sorted(neuron_ids))
-    raw = f"{tools}::{neurons}"
+    raw = f"tools::{tools}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
-def _existing_procedure(conn: sqlite3.Connection, key: str) -> bool:
+def _existing_procedure_id(conn: sqlite3.Connection, key: str) -> str | None:
     row = conn.execute(
         """
-        SELECT 1
+        SELECT id
         FROM nodes
         WHERE valid_until IS NULL AND kind = 'procedure' AND source = ?
         LIMIT 1
         """,
         (f"learning:proc:{key}",),
     ).fetchone()
-    return row is not None
+    return str(row["id"]) if row is not None else None
+
+
+def _bump_procedure_use(conn: sqlite3.Connection, node_id: str) -> None:
+    conn.execute(
+        """
+        UPDATE nodes
+        SET use_count = COALESCE(use_count, 0) + 1,
+            updated_at = datetime('now')
+        WHERE id = ? AND valid_until IS NULL
+        """,
+        (node_id,),
+    )
+
+
+def _existing_procedure(conn: sqlite3.Connection, key: str) -> bool:
+    return _existing_procedure_id(conn, key) is not None
 
 
 def _node_titles(conn: sqlite3.Connection, neuron_ids: list[str]) -> list[str]:
@@ -105,6 +129,26 @@ def _node_titles(conn: sqlite3.Connection, neuron_ids: list[str]) -> list[str]:
     return titles
 
 
+def _context_titles_for_procedure(titles: list[str]) -> list[str]:
+    """Keep path/symbol-ish titles only — evergreen rules pollute pack overlap."""
+    kept: list[str] = []
+    for title in titles:
+        text = (title or "").strip()
+        if not text or len(text) > 80:
+            continue
+        if "/" in text or "\\" in text or re.search(r"\.\w{1,5}\b", text):
+            kept.append(text)
+            continue
+        # Identifiers: snake_case, CamelCase, or short TitleCase nouns (Auth).
+        if re.fullmatch(r"[A-Za-z_][\w.]{2,60}", text) and (
+            "_" in text
+            or any(c.isupper() for c in text[1:])
+            or (text[0].isupper() and text[1:].islower() and " " not in text)
+        ):
+            kept.append(text)
+    return kept[:5]
+
+
 def _format_procedure_body(tools: list[str], context_titles: list[str]) -> str:
     steps = [f"{index + 1}. {name}" for index, name in enumerate(tools)]
     lines = [
@@ -112,9 +156,10 @@ def _format_procedure_body(tools: list[str], context_titles: list[str]) -> str:
         "",
         *steps,
     ]
-    if context_titles:
+    useful = _context_titles_for_procedure(context_titles)
+    if useful:
         lines.extend(["", "Related context:"])
-        lines.extend(f"- {title}" for title in context_titles[:5])
+        lines.extend(f"- {title}" for title in useful)
     return "\n".join(lines)
 
 
@@ -132,8 +177,20 @@ def upsert_procedure_neuron(
     if len(tools) < 2:
         return None
 
-    key = _procedure_key(tool_names, neuron_ids)
-    if _existing_procedure(conn, key):
+    key = _procedure_key(tool_names)
+    existing = _existing_procedure_id(conn, key)
+    if existing is not None:
+        _bump_procedure_use(conn, existing)
+        # Still link new co-activated endpoints for lineage.
+        for target in neuron_ids:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO edges (id, from_id, to_id, relationship, weight, created_at,
+                    updated_at)
+                VALUES (?, ?, ?, 'spawned', 1.0, datetime('now'), datetime('now'))
+                """,
+                (new_ulid(), existing, target),
+            )
         return None
 
     titles = _node_titles(conn, neuron_ids)
@@ -171,6 +228,46 @@ def upsert_procedure_neuron(
             (new_ulid(), from_id, target),
         )
     return record.id
+
+
+def dedupe_tool_chain_procedures(
+    conn: sqlite3.Connection,
+    *,
+    dry_run: bool = False,
+) -> list[str]:
+    """Soft-archive duplicate tool_chain titles; keep highest use_count per title.
+
+    Cleans historical Write→Shell spam created under the old neuron-pair key.
+    """
+    from brainkm.services.memory import forget_neuron
+
+    rows = conn.execute(
+        """
+        SELECT id, title, COALESCE(use_count, 0) AS use_count, created_at
+        FROM nodes
+        WHERE valid_until IS NULL
+          AND kind = 'procedure'
+          AND subtype = 'tool_chain'
+        ORDER BY title COLLATE NOCASE ASC, use_count DESC, created_at ASC
+        """
+    ).fetchall()
+    kept_titles: set[str] = set()
+    archived: list[str] = []
+    for row in rows:
+        title_key = " ".join((row["title"] or "").casefold().split())
+        if not title_key:
+            continue
+        if title_key in kept_titles:
+            archived.append(str(row["id"]))
+            if not dry_run:
+                forget_neuron(
+                    conn,
+                    str(row["id"]),
+                    reason="hygiene: duplicate tool_chain title",
+                )
+            continue
+        kept_titles.add(title_key)
+    return archived
 
 
 def check_and_promote(

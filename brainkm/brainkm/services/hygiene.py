@@ -139,8 +139,18 @@ def purge_noisy_neurons(
                 kept = max(0, kept - 1)
     if not dry_run and archived_ids:
         conn.commit()
+    # Collapse historical duplicate tool_chain titles (Write→Shell spam).
+    from brainkm.services.procedures import dedupe_tool_chain_procedures
+
+    proc_archived = dedupe_tool_chain_procedures(conn, dry_run=dry_run)
+    for node_id in proc_archived:
+        if node_id not in archived_ids:
+            archived_ids.append(node_id)
+            kept = max(0, kept - 1)
+    if not dry_run and proc_archived:
+        conn.commit()
     return HygieneResult(
-        scanned=len(rows),
+        scanned=len(rows) + len(proc_archived),
         archived=len(archived_ids),
         kept=kept,
         archived_ids=tuple(archived_ids),

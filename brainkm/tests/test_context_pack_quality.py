@@ -24,7 +24,88 @@ def _mark_graph_imported(conn) -> None:
     )
 
 
-def test_pack_confidence_never_density_graph_only() -> None:
+def test_pack_abstains_on_nonsense_query(brain_db) -> None:
+    conn = connect(brain_db)
+    try:
+        _mark_graph_imported(conn)
+        insert_node(
+            conn,
+            node_id="webllm",
+            kind="code",
+            subtype="function",
+            title="test_prefetch_unknown_model()",
+            path="tests/test_webllm_prefetch.py",
+            content="unknown model prefetch",
+        )
+        insert_node(
+            conn,
+            node_id="proc",
+            kind="procedure",
+            subtype="tool_chain",
+            title="Write → Shell",
+            content="Tools: Write → Shell\n\n1. Write\n2. Shell",
+        )
+        for i in range(20):
+            insert_node(
+                conn,
+                node_id=f"fill{i}",
+                subtype="fact",
+                title=f"filler fact {i}",
+                content=f"unrelated content pad {i}",
+            )
+        conn.commit()
+        pack = compile_context_pack(
+            conn,
+            "zzzznonexistent_symbol_xyz_12345 completely unknown module",
+            config=BrainConfig(recall={"abstain_on_low_confidence": True}),
+        )
+        assert pack.confidence == "low"
+        assert "Write → Shell" not in pack.pack_text
+        assert "test_prefetch_unknown_model" not in pack.pack_text
+        assert pack.graph_hint and "Low-confidence" in pack.graph_hint
+    finally:
+        conn.close()
+
+
+def test_procedure_intent_keeps_tool_chain_and_boosts_slot(brain_db) -> None:
+    from brainkm.services.context_pack import _select_procedures_for_pack
+
+    conn = connect(brain_db)
+    try:
+        insert_node(
+            conn,
+            node_id="p1",
+            kind="procedure",
+            subtype="tool_chain",
+            title="Write → Shell",
+            content="Tools: Write → Shell\n\n1. Write\n2. Shell",
+        )
+        insert_node(
+            conn,
+            node_id="p2",
+            kind="procedure",
+            subtype="tool_chain",
+            title="Write → Shell",
+            content="Tools: Write → Shell\n\n1. Write\n2. Shell\n\nRelated context:\n- Redaction",
+        )
+        conn.commit()
+        # Off-topic: zero overlap → empty
+        off = _select_procedures_for_pack(
+            conn, "antigravity distill shadow brain", seed_refs=None, seed_ids=[]
+        )
+        assert off == []
+        # Procedure-shaped: keep one Write→Shell (title dedup)
+        on = _select_procedures_for_pack(
+            conn,
+            "What tool chain do we usually use after Write?",
+            seed_refs=None,
+            seed_ids=[],
+        )
+        assert len(on) == 1
+        assert on[0].title == "Write → Shell"
+    finally:
+        conn.close()
+
     graph = [
         BudgetLine("g1", "code", "file", "a.py", "", 10, 7, score=1.0),
         BudgetLine("g2", "code", "function", "f", "", 10, 9, score=0.9),
@@ -108,6 +189,105 @@ def test_resolve_pack_code_ref_prefers_file(brain_db) -> None:
             resolve_pack_code_ref(conn, "brainkm/tui/widgets/status_panel.py") == "file"
         )
         assert resolve_pack_code_ref(conn, "no/such/path.py") is None
+    finally:
+        conn.close()
+
+
+def test_resolve_pack_code_ref_ignores_commit_fts_hit(brain_db) -> None:
+    """Docs-path fragments like codex.md must not seed graph from commit nodes."""
+    conn = connect(brain_db)
+    try:
+        insert_node(
+            conn,
+            node_id="commit-codex",
+            kind="commit",
+            subtype="git",
+            title="fix: update codex.md install guide",
+            content="files: budget.py context_pack.py docs/install/codex.md",
+        )
+        insert_node(
+            conn,
+            node_id="install-file",
+            kind="code",
+            subtype="file",
+            title="install.py",
+            path="brainkm/brainkm/services/install.py",
+            content="build_codex_hooks_config",
+        )
+        conn.commit()
+        assert resolve_pack_code_ref(conn, "codex.md") is None
+        assert resolve_pack_code_ref(conn, "commit-codex") is None
+    finally:
+        conn.close()
+
+
+def test_pre_tool_docs_path_seeds_related_code_not_commit_files(brain_db) -> None:
+    """PreTool Edit on docs/install/codex.md should neighborhood install/codex code."""
+    from brainkm.services.context_pack import compile_pre_tool_pack
+
+    conn = connect(brain_db)
+    try:
+        _mark_graph_imported(conn)
+        insert_node(
+            conn,
+            node_id="commit-poison",
+            kind="commit",
+            subtype="git",
+            title="fix: context_pack quality and update codex install guide",
+            content="files: budget.py context_pack.py docs/install/codex.md",
+        )
+        insert_node(
+            conn,
+            node_id="budget-file",
+            kind="code",
+            subtype="file",
+            title="budget.py",
+            path="brainkm/brainkm/services/budget.py",
+            content="token budgets",
+        )
+        insert_node(
+            conn,
+            node_id="install-file",
+            kind="code",
+            subtype="file",
+            title="install.py",
+            path="brainkm/brainkm/services/install.py",
+            content="build_codex_hooks_config write_codex_hooks",
+        )
+        insert_node(
+            conn,
+            node_id="codex-hooks-fn",
+            kind="code",
+            subtype="function",
+            title="build_codex_hooks_config()",
+            path="brainkm/brainkm/services/install.py",
+            content="def build_codex_hooks_config",
+        )
+        insert_edge(
+            conn,
+            edge_id="e-install-fn",
+            from_id="install-file",
+            to_id="codex-hooks-fn",
+            relationship="contains",
+        )
+        conn.commit()
+
+        pack = compile_pre_tool_pack(
+            conn,
+            {"tool_name": "Edit", "tool_input": {"path": "docs/install/codex.md"}},
+            config=BrainConfig(
+                budget={
+                    "total_tokens": 1500,
+                    "pre_tool": {"graph_neighborhood": 400, "procedure_expanded": 250},
+                },
+                recall={"abstain_on_low_confidence": False},
+            ),
+        )
+        assert pack is not None
+        text = pack.pack_text.lower()
+        assert "install.py" in text or "build_codex_hooks" in text
+        # Must not be dominated by the commit's unrelated touched files alone.
+        assert "commit-poison" not in pack.truncation.included_ids
     finally:
         conn.close()
 

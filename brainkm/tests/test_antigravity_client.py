@@ -39,7 +39,7 @@ def test_mcp_config_antigravity_http_uses_server_url() -> None:
     entry = payload["mcpServers"]["brainkm"]
     assert "serverUrl" in entry
     assert "url" not in entry
-    assert entry["serverUrl"] == "http://127.0.0.1:8765/mcp"
+    assert entry["serverUrl"] == "http://127.0.0.1:8765/mcp/"
 
 
 def test_mcp_config_path() -> None:
@@ -148,7 +148,7 @@ def test_doctor_warns_on_url_instead_of_server_url(tmp_path: Path) -> None:
     agents = tmp_path / ".agents"
     agents.mkdir()
     (agents / "mcp_config.json").write_text(
-        json.dumps({"mcpServers": {"brainkm": {"url": "http://127.0.0.1:8765/mcp"}}}),
+        json.dumps({"mcpServers": {"brainkm": {"url": "http://127.0.0.1:8765/mcp/"}}}),
         encoding="utf-8",
     )
     (agents / "hooks.json").write_text(
@@ -187,7 +187,7 @@ def test_connect_antigravity_http(tmp_path: Path) -> None:
     )
     mcp = json.loads((tmp_path / ".agents" / "mcp_config.json").read_text())
     entry = mcp["mcpServers"]["brainkm"]
-    assert entry.get("serverUrl") == "http://127.0.0.1:8765/mcp"
+    assert entry.get("serverUrl") == "http://127.0.0.1:8765/mcp/"
     assert "command" not in entry
     assert result.mcp_url is not None
 

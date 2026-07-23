@@ -30,7 +30,7 @@ brainkm serve --project-dir .
 brainkm connect generic --http
 ```
 
-Point your MCP client at the stdio command or the HTTP URL (`http://127.0.0.1:8765/mcp` by default; Bearer token when enabled).
+Point your MCP client at the stdio command or the HTTP URL (`http://127.0.0.1:8765/mcp/` by default; Bearer token when enabled).
 
 ### Manual memory path
 

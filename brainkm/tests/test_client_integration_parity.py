@@ -65,14 +65,14 @@ def test_codex_hooks_template_matches_builder_parity() -> None:
 
 def test_normalize_prefers_server_url_when_url_differs() -> None:
     entry = {
-        "serverUrl": "http://127.0.0.1:8765/mcp",
+        "serverUrl": "http://127.0.0.1:8765/mcp/",
         "url": "http://127.0.0.1:9999/mcp",
         "command": "brainkm",
         "args": ["mcp"],
         "headers": {"Authorization": "Bearer tok"},
     }
     out = normalize_mcp_entry_transport_fields(entry)
-    assert out["serverUrl"] == "http://127.0.0.1:8765/mcp"
+    assert out["serverUrl"] == "http://127.0.0.1:8765/mcp/"
     assert "url" not in out
     assert "command" not in out
     assert "args" not in out
@@ -112,7 +112,7 @@ def test_connect_antigravity_http_writes_bearer(tmp_path: Path) -> None:
     entry = json.loads((tmp_path / ".agents" / "mcp_config.json").read_text())["mcpServers"][
         "brainkm"
     ]
-    assert entry.get("serverUrl") == "http://127.0.0.1:8765/mcp"
+    assert entry.get("serverUrl") == "http://127.0.0.1:8765/mcp/"
     assert "command" not in entry
     headers = entry.get("headers") or {}
     assert str(headers.get("Authorization", "")).startswith("Bearer ")

@@ -30,7 +30,6 @@ from brainkm.services.search import (
     fts_search_nodes,
     query_tokens,
     recall_with_bfs,
-    resolve_node_ref,
     traverse,
 )
 
@@ -44,11 +43,61 @@ MAX_QUERY_CHARS = 240
 MAX_PACK_QUERY_TOKENS = 40
 
 
-_PATH_RE = re.compile(r"[\w./\-]+\.(?:py|ts|tsx|js|go|rs)\b")
+# Source + common config/docs paths (PreTool often edits .md / .toml / hooks).
+_PATH_RE = re.compile(
+    r"[\w./\-]+\.(?:py|ts|tsx|js|jsx|go|rs|md|mdc|toml|json|ya?ml|css|html?|sh|sql|txt)\b",
+    re.IGNORECASE,
+)
 _BACKTICK_RE = re.compile(r"`([^`]+)`")
 _DOTTED_RE = re.compile(r"\b([A-Za-z_][\w]*(?:\.[A-Za-z_][\w]*)+)\b")
 _CAMEL_RE = re.compile(r"\b([A-Z][a-z0-9]+(?:[A-Z][a-zA-Z0-9]*)+)\b")
 _SNAKE_RE = re.compile(r"\b([a-z_][a-z0-9_]{2,})\b")
+# Path segments that rarely name code symbols (avoid concept/tag FTS traps).
+_PATH_STEM_NOISE = frozenset(
+    {
+        "docs",
+        "doc",
+        "src",
+        "lib",
+        "bin",
+        "pkg",
+        "packages",
+        "test",
+        "tests",
+        "fixtures",
+        "assets",
+        "static",
+        "dist",
+        "build",
+        "node_modules",
+        "vendor",
+        "hooks",
+        "scripts",
+    }
+)
+_FILE_EXT_NOISE = frozenset(
+    {
+        "py",
+        "ts",
+        "tsx",
+        "js",
+        "jsx",
+        "go",
+        "rs",
+        "md",
+        "mdc",
+        "toml",
+        "json",
+        "yaml",
+        "yml",
+        "css",
+        "html",
+        "htm",
+        "sh",
+        "sql",
+        "txt",
+    }
+)
 
 _STOPWORDS = frozenset(
     {
@@ -211,14 +260,20 @@ _PACK_MEMORY_CAPS: dict[str, int] = {
 def resolve_pack_code_ref(conn: sqlite3.Connection, ref: str) -> str | None:
     """Pack-local code resolve: prefer subtype file, then class, then other code.
 
-    Does not change shared ``resolve_node_ref`` / ``resolve_code_node_for_path``.
+    Does not change shared ``resolve_code_node_for_path``.
     Unresolved refs return None (caller silently drops).
+
+    Never returns non-code nodes (commits/concepts via FTS) — those poisoned
+    PreTool neighborhoods when a docs path like ``codex.md`` matched a commit.
     """
     text = (ref or "").strip()
     if not text:
         return None
     by_id = conn.execute(
-        "SELECT id FROM nodes WHERE id = ? AND valid_until IS NULL",
+        """
+        SELECT id FROM nodes
+        WHERE id = ? AND valid_until IS NULL AND kind = 'code'
+        """,
         (text,),
     ).fetchone()
     if by_id:
@@ -240,7 +295,7 @@ def resolve_pack_code_ref(conn: sqlite3.Connection, ref: str) -> str | None:
     if row:
         return str(row[0])
 
-    # Title / fragment — prefer code kind via FTS then subtype order.
+    # Title / fragment — code kind only via FTS then subtype order.
     hits = fts_search_nodes(conn, text, limit=8)
     code_hits: list[tuple[str, str | None]] = []
     for node_id, _score in hits:
@@ -249,8 +304,7 @@ def resolve_pack_code_ref(conn: sqlite3.Connection, ref: str) -> str | None:
             continue
         code_hits.append((node_id, crow["subtype"]))
     if not code_hits:
-        # Fall back to shared resolver for non-code ids (procedures, etc.) — rare.
-        return resolve_node_ref(conn, text)
+        return None
     code_hits.sort(
         key=lambda item: (
             0 if item[1] == "file" else 1 if item[1] == "class" else 2,
@@ -258,6 +312,32 @@ def resolve_pack_code_ref(conn: sqlite3.Connection, ref: str) -> str | None:
         )
     )
     return code_hits[0][0]
+
+
+def path_stem_tokens(text: str) -> list[str]:
+    """Extract useful FTS tokens from a path-like string (e.g. docs/install/codex.md)."""
+    raw = (text or "").strip().strip("`'\"")
+    if not raw:
+        return []
+    # Normalize separators; keep alnum/_ segments only.
+    parts = re.split(r"[/\\]+", raw.replace("-", "_"))
+    out: list[str] = []
+    seen: set[str] = set()
+    for part in parts:
+        stem = part.rsplit(".", 1)[0] if "." in part else part
+        for token in re.split(r"[_\s]+", stem):
+            cleaned = token.strip().lower()
+            if len(cleaned) < 3:
+                continue
+            if cleaned in _STOPWORDS or cleaned in _PATH_STEM_NOISE:
+                continue
+            if cleaned in _FILE_EXT_NOISE:
+                continue
+            if cleaned in seen:
+                continue
+            seen.add(cleaned)
+            out.append(cleaned)
+    return out
 
 
 def _resolve_seed_ref_ids(
@@ -335,6 +415,7 @@ def _select_procedures_for_pack(
 
     overlap_blob = " ".join([query, *(seed_refs or [])])
     tokens = query_tokens(overlap_blob)
+    procedure_intent = _is_procedure_intent(query)
     rows = conn.execute(
         """
         SELECT id, kind, subtype, title, content, token_count, path, use_count
@@ -366,12 +447,21 @@ def _select_procedures_for_pack(
         )
         if cleaned is None:
             continue
-        text = f"{cleaned.title}\n{cleaned.content or ''}"
-        overlap = count_token_overlap(tokens, text)
+        # Score on title + tool steps only — ignore "Related context:" tails
+        # (evergreen rules made Write→Shell match Antigravity/redaction queries).
+        title_overlap = count_token_overlap(tokens, cleaned.title or "")
+        body_head = (cleaned.content or "").split("Related context:", 1)[0]
+        body_overlap = count_token_overlap(tokens, body_head)
+        overlap = max(title_overlap, body_overlap)
+        is_linked = row["id"] in linked
+        if overlap < 1 and not is_linked and not procedure_intent:
+            continue
         use_count = float(row["use_count"] or 0)
         score = float(overlap) * 10.0 + min(use_count, 50.0) * 0.01
-        if row["id"] in linked:
+        if is_linked:
             score += 5.0
+        if procedure_intent and title_overlap:
+            score += 3.0
         scored.append(
             BudgetLine(
                 node_id=row["id"],
@@ -387,6 +477,16 @@ def _select_procedures_for_pack(
 
     # Prefer higher score when deduping near-duplicates.
     scored.sort(key=lambda line: (-line.score, line.priority))
+    # One procedure per normalized title (collapses Write→Shell clones).
+    by_title: list[BudgetLine] = []
+    seen_titles: set[str] = set()
+    for line in scored:
+        key = " ".join((line.title or "").casefold().split())
+        if key in seen_titles:
+            continue
+        seen_titles.add(key)
+        by_title.append(line)
+    scored = by_title
     # Invert priority temporarily so dedup keeps highest-score first:
     # dedup_budget_lines sorts by (priority, -tokens) — give best score lowest priority int.
     for idx, line in enumerate(scored):
@@ -402,6 +502,8 @@ def _select_procedures_for_pack(
         )
     deduped = dedup_budget_lines(scored, use_embeddings=False)
     # Restore procedure priority for budget channel.
+    # Procedure-intent queries: promote tool_chains so they survive hard_cap
+    # (default priority 6 loses to decision/rule 0–2).
     restored = [
         BudgetLine(
             node_id=line.node_id,
@@ -410,7 +512,11 @@ def _select_procedures_for_pack(
             title=line.title,
             content=line.content,
             tokens=line.tokens,
-            priority=priority_for(line.kind, line.subtype),
+            priority=(
+                1
+                if procedure_intent and line.subtype == "tool_chain"
+                else priority_for(line.kind, line.subtype)
+            ),
             score=line.score,
         )
         for line in deduped
@@ -428,17 +534,35 @@ def _select_procedures_for_pack(
     kept: list[BudgetLine] = []
     kept.extend(workflows[:2])
     remaining = 5 - len(kept)
+    # Generic tool chains: keep at most one unless the query is procedure-shaped.
+    tc_cap = 2 if procedure_intent else 1
     tc_kept = 0
     for line in tool_chains + other:
         if remaining <= 0:
             break
         if line.subtype == "tool_chain":
-            if tc_kept >= 2:
+            if tc_kept >= tc_cap:
                 continue
             tc_kept += 1
         kept.append(line)
         remaining -= 1
     return kept
+
+
+def _is_procedure_intent(query: str) -> bool:
+    text = (query or "").casefold()
+    needles = (
+        "tool chain",
+        "toolchain",
+        "tool_chain",
+        "procedure",
+        "workflow",
+        "usually use",
+        "after write",
+        "after edit",
+        "what tools",
+    )
+    return any(n in text for n in needles)
 
 
 def _rerank_graph_neighborhood(
@@ -666,6 +790,7 @@ def _fit_pack_text(
     proc_kept: list[BudgetLine],
     omitted_ids: list[str],
     total_tokens: int,
+    prefer_procedures: bool = False,
 ) -> tuple[str, list[BudgetLine], list[BudgetLine], list[BudgetLine]]:
     """Assemble pack_text and drop lowest-priority lines until it fits total_tokens."""
     neurons = list(neuron_kept)
@@ -696,7 +821,8 @@ def _fit_pack_text(
         return pack_text, neurons, graphs, procs
 
     # Drop from the end of lowest-priority channel lists until under budget.
-    pools = [procs, graphs, neurons]
+    # Procedure-intent: shed memories first so tool chains survive.
+    pools = [neurons, graphs, procs] if prefer_procedures else [procs, graphs, neurons]
     while any(pools) and token_count(pack_text) > total_tokens:
         for pool in pools:
             if pool:
@@ -732,14 +858,18 @@ def _resolve_graph_seeds(
     *,
     explicit: list[str] | None = None,
 ) -> list[str]:
-    """Resolve up to _MAX_SEEDS node ids from candidates, then FTS code fallback."""
+    """Resolve up to _MAX_SEEDS code node ids from candidates, then FTS fallback."""
     resolved: list[str] = []
     seen: set[str] = set()
 
     def add_id(node_id: str | None) -> None:
-        if node_id and node_id not in seen:
-            seen.add(node_id)
-            resolved.append(node_id)
+        if not node_id or node_id in seen:
+            return
+        row = _node_row(conn, node_id)
+        if row is None or row["kind"] != "code":
+            return
+        seen.add(node_id)
+        resolved.append(node_id)
 
     for candidate in extract_seed_candidates(query, explicit=explicit):
         # Prefer pack-local file-first resolve for path-like candidates.
@@ -748,7 +878,11 @@ def _resolve_graph_seeds(
             return resolved
 
     if not resolved:
-        for node_id in _fts_code_seed_ids(conn, query, limit=_MAX_SEEDS):
+        # Path-only PreTool seeds (e.g. docs/install/codex.md) often have no code
+        # node — FTS on path stems finds install/codex builders instead of commits.
+        stems = path_stem_tokens(query)
+        fts_query = " ".join(stems) if stems else query
+        for node_id in _fts_code_seed_ids(conn, fts_query, limit=_MAX_SEEDS):
             add_id(node_id)
 
     return resolved
@@ -831,6 +965,14 @@ def compile_context_pack(
 
     use_summary = config.compression.summary_first if summary_first is None else summary_first
     effective_slots = slots or context_pack_slots(config, query)
+    if slots is None and _is_procedure_intent(query):
+        # Steal from neurons so tool-chain answers survive the hard cap.
+        boosted = dict(effective_slots)
+        steal = min(280, max(0, boosted.get("neurons", 0) // 2))
+        if steal:
+            boosted["neurons"] = max(0, boosted.get("neurons", 0) - steal)
+            boosted["procedures"] = boosted.get("procedures", 0) + steal
+        effective_slots = boosted
     budget_cap = adaptive_token_budget(config, query)
     # Always respect budget_cap; custom slots must not widen the truncate pass.
     hard_cap = max(
@@ -939,6 +1081,23 @@ def compile_context_pack(
         seed_ids=resolved_seed_ids,
     )
 
+    if _should_abstain_pack(
+        query=query,
+        seed_refs=seed_refs,
+        recall_abstained=bool(getattr(recall, "abstained", False)),
+        neuron_lines=neuron_lines,
+        graph_lines=graph_lines,
+    ):
+        had_noise = bool(graph_lines or proc_lines)
+        graph_lines = []
+        graph_results = []
+        proc_lines = []
+        if graph_ok and had_noise:
+            graph_hint = (
+                "Low-confidence pack — no path/symbol seed and recall abstained; "
+                "retry with a file path or symbol (or use recall/traverse)."
+            )
+
     channels = {
         "neurons": neuron_lines,
         "graph": graph_lines,
@@ -1004,6 +1163,7 @@ def compile_context_pack(
             100,
             budget_cap - MCP_JSON_OVERHEAD_TOKENS,
         ),
+        prefer_procedures=_is_procedure_intent(query),
     )
     final_ids = {line.node_id for line in neuron_kept + graph_kept + proc_kept}
     try:
@@ -1104,7 +1264,10 @@ def _query_has_strong_seed(query: str) -> bool:
     Concrete criteria (any one):
     - A source-file path match via ``_PATH_RE`` (e.g. ``foo/bar.py``)
     - A backtick-quoted token of length ≥ 3
-    - A CamelCase or snake_case token of length ≥ 4 (``_CAMEL_RE`` / ``_SNAKE_RE``)
+    - A CamelCase token of length ≥ 4 (``_CAMEL_RE``)
+
+    Bare snake_case alone is not strong — junk like
+    ``zzzznonexistent_symbol_xyz`` used to look "concrete" and inflate pack confidence.
     """
     text = query or ""
     if _PATH_RE.search(text):
@@ -1113,10 +1276,44 @@ def _query_has_strong_seed(query: str) -> bool:
         return True
     if any(len(m.group(1)) >= 4 for m in _CAMEL_RE.finditer(text)):
         return True
-    if any(len(m.group(1)) >= 4 for m in _SNAKE_RE.finditer(text)):
-        return True
     return False
 
+
+def _graph_query_overlap(query: str, graph_lines: list[BudgetLine]) -> int:
+    tokens = query_tokens(query)
+    if not tokens or not graph_lines:
+        return 0
+    best = 0
+    for line in graph_lines:
+        best = max(
+            best,
+            count_token_overlap(tokens, f"{line.title} {line.content}"),
+        )
+    return best
+
+
+def _should_abstain_pack(
+    *,
+    query: str,
+    seed_refs: list[str] | None,
+    recall_abstained: bool,
+    neuron_lines: list[BudgetLine],
+    graph_lines: list[BudgetLine],
+) -> bool:
+    """Drop weak FTS neighborhoods when recall abstains and nothing concrete seeded."""
+    if seed_refs:
+        return False
+    if _is_procedure_intent(query):
+        return False
+    if _query_has_strong_seed(query):
+        return False
+    if neuron_lines and not recall_abstained:
+        return False
+    # Recall abstained (or empty) with no path/symbol seed → do not trust FTS
+    # neighborhood (e.g. "unknown" → test_prefetch_unknown_model).
+    if recall_abstained or not neuron_lines:
+        return True
+    return _graph_query_overlap(query, graph_lines) == 0
 
 def _pack_retrieval_confidence(
     *,
@@ -1160,10 +1357,20 @@ def compile_pre_tool_pack(
     if seed is None:
         return None
     slots = pre_tool_pack_slots(config)
+    seed_refs: list[str] | None = None
+    query = seed
+    # Path-like PreTool seeds: keep path as seed_ref + stem tokens in the query so
+    # unresolved docs/config paths still FTS toward related code (install/codex).
+    if "/" in seed or _PATH_RE.search(seed):
+        seed_refs = [seed.strip()]
+        stems = path_stem_tokens(seed)
+        if stems:
+            query = f"{seed} {' '.join(stems)}"
     return compile_context_pack(
         conn,
-        seed,
+        query,
         config=config,
         project_dir=project_dir,
+        seed_refs=seed_refs,
         slots=slots,
     )

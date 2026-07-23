@@ -21,7 +21,8 @@ HTTP_URL_FIELD_BY_CLIENT: dict[str, str] = {
 
 
 def mcp_http_url(*, host: str = "127.0.0.1", port: int = DEFAULT_HTTP_PORT) -> str:
-    return f"http://{host}:{port}/mcp"
+    # Trailing slash is canonical — /mcp redirects 307 to /mcp/.
+    return f"http://{host}:{port}/mcp/"
 
 
 def mcp_health_url(*, host: str = "127.0.0.1", port: int = DEFAULT_HTTP_PORT) -> str:

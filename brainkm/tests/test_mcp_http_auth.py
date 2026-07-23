@@ -69,7 +69,7 @@ def test_build_mcp_config_http_includes_headers() -> None:
         http_token="test-token-value",
     )
     server = payload["mcpServers"]["brainkm"]
-    assert server["url"] == "http://127.0.0.1:8765/mcp"
+    assert server["url"] == "http://127.0.0.1:8765/mcp/"
     assert server["headers"]["Authorization"] == "Bearer test-token-value"
     assert mcp_entry_has_bearer_header(server)
 

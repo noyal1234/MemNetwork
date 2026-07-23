@@ -42,6 +42,24 @@ def test_extract_seed_candidates_paths_symbols_and_stopwords() -> None:
     assert "does" not in cands
 
 
+def test_extract_seed_candidates_includes_markdown_paths() -> None:
+    cands = extract_seed_candidates("edit docs/install/codex.md trust gate")
+    assert "docs/install/codex.md" in cands
+    assert "codex" in cands
+
+
+def test_path_stem_tokens_from_docs_path() -> None:
+    from brainkm.services.context_pack import path_stem_tokens
+
+    assert path_stem_tokens("docs/install/codex.md") == ["install", "codex"]
+    assert path_stem_tokens("brainkm/brainkm/services/context_pack.py") == [
+        "brainkm",
+        "services",
+        "context",
+        "pack",
+    ]
+
+
 def test_extract_seed_candidates_respects_explicit() -> None:
     cands = extract_seed_candidates("random chatter", explicit=["CompileContextPack"])
     assert cands[0] == "CompileContextPack"

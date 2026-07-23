@@ -90,12 +90,92 @@ def test_upsert_procedure_stores_tool_chain_body(brain_db) -> None:
         assert "Tools: Edit → Shell" in row["content"]
         assert "1. Edit" in row["content"]
         assert "2. Shell" in row["content"]
+        # Path/symbol-ish related context only (evergreen rule titles omitted).
         assert "- Auth" in row["content"]
         assert "- Middleware" in row["content"]
         count = conn.execute(
             "SELECT COUNT(*) AS total FROM nodes WHERE kind = 'procedure'"
         ).fetchone()
         assert count["total"] == 1
+
+        # Same tools + different neuron pair merges (bumps use, no new row).
+        insert_node(conn, node_id="c", title="Other")
+        insert_node(conn, node_id="d", title="Thing")
+        conn.commit()
+        third = upsert_procedure_neuron(
+            conn,
+            neuron_ids=["c", "d"],
+            tool_names=["Edit", "Shell"],
+            session_id="sess2",
+        )
+        conn.commit()
+        assert third is None
+        count2 = conn.execute(
+            "SELECT COUNT(*) AS total FROM nodes WHERE kind = 'procedure' AND valid_until IS NULL"
+        ).fetchone()
+        assert count2["total"] == 1
+        use = conn.execute(
+            "SELECT use_count FROM nodes WHERE id = ?", (first,)
+        ).fetchone()
+        assert int(use["use_count"] or 0) >= 1
+    finally:
+        conn.close()
+
+
+def test_upsert_skips_evergreen_related_context(brain_db) -> None:
+    conn = connect(brain_db)
+    try:
+        insert_node(conn, node_id="a", title="Redaction chokepoint")
+        insert_node(conn, node_id="b", title="Token budget policy")
+        conn.commit()
+        created = upsert_procedure_neuron(
+            conn,
+            neuron_ids=["a", "b"],
+            tool_names=["Write", "Shell"],
+            session_id="sess",
+        )
+        conn.commit()
+        assert created is not None
+        row = conn.execute(
+            "SELECT content FROM nodes WHERE id = ?", (created,)
+        ).fetchone()
+        assert "Related context" not in row["content"]
+        assert "Redaction chokepoint" not in row["content"]
+    finally:
+        conn.close()
+
+
+def test_dedupe_tool_chain_procedures_keeps_highest_use(brain_db) -> None:
+    from brainkm.services.procedures import dedupe_tool_chain_procedures
+
+    conn = connect(brain_db)
+    try:
+        insert_node(
+            conn,
+            node_id="p1",
+            kind="procedure",
+            subtype="tool_chain",
+            title="Write → Shell",
+            content="Tools: Write → Shell",
+        )
+        insert_node(
+            conn,
+            node_id="p2",
+            kind="procedure",
+            subtype="tool_chain",
+            title="Write → Shell",
+            content="Tools: Write → Shell\nextra",
+        )
+        conn.execute("UPDATE nodes SET use_count = 5 WHERE id = 'p1'")
+        conn.execute("UPDATE nodes SET use_count = 1 WHERE id = 'p2'")
+        conn.commit()
+        archived = dedupe_tool_chain_procedures(conn, dry_run=False)
+        conn.commit()
+        assert archived == ["p2"]
+        active = conn.execute(
+            "SELECT id FROM nodes WHERE kind='procedure' AND valid_until IS NULL"
+        ).fetchall()
+        assert [r["id"] for r in active] == ["p1"]
     finally:
         conn.close()
 

@@ -153,7 +153,7 @@ Antigravity HTTP (shared brain) — field is **`serverUrl`**, not `url`:
 {
   "mcpServers": {
     "brainkm": {
-      "serverUrl": "http://127.0.0.1:8765/mcp"
+      "serverUrl": "http://127.0.0.1:8765/mcp/"
     }
   }
 }
