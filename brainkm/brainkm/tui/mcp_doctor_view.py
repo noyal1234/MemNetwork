@@ -34,11 +34,12 @@ def _wrap_lines(text: str, *, width: int = _VALUE_WRAP) -> list[str]:
 def _note_rows(notes: list[str], *, state: str, label: str = "Notes") -> list[tuple[str, str, str]]:
     """One StatusPanel row block per note; continuation lines use an empty label."""
     rows: list[tuple[str, str, str]] = []
+    numbered = label.lower() in {"tip", "probe"} and len(notes) > 1
     for idx, note in enumerate(notes):
-        if idx == 0:
-            head = label
-        elif label.lower() in {"tip", "probe"}:
+        if numbered:
             head = f"{label} {idx + 1}"
+        elif idx == 0:
+            head = label
         else:
             head = f"Note {idx + 1}"
         for line_i, chunk in enumerate(_wrap_lines(note)):
@@ -74,6 +75,8 @@ _INFO_NOTE_MARKERS = (
     "(ok if pack",
     "reminder (codex",
     "files alone cannot prove",
+    "tip (optional): install rtk",
+    "rtk binary found on path",
 )
 
 

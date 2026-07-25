@@ -115,7 +115,17 @@
     "max_body_tokens": 120,
     "pack_dedup": true,
     "pack_diversity": true,
-    "summary_first": true
+    "summary_first": true,
+    "pipeline_enabled": true,
+    "rtk_lite_enabled": true,
+    "prose_intensity": "lite",
+    "inflation_guard": true,
+    "session_dedup": true,
+    "engine_version": "1",
+    "canary_pct": 0.0,
+    "decision_egress_lossy": false,
+    "llmlingua_enabled": false,
+    "cache_ttl_seconds": 300
   },
   "decay": {
     "enabled": true,

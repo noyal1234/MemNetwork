@@ -366,6 +366,7 @@ def handle_context_pack(
         summary_first=request.summary_first,
         extra_seed_ids=list(load_file_seeds(conn, request.session_id)),
         include_sources=request.include_sources,
+        session_id=request.session_id,
     )
     hint = _maybe_queue_graph_sync(
         project_dir,

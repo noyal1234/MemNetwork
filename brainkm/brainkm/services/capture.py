@@ -159,6 +159,9 @@ def capture_transcript_file(
                     session_id=parsed.session_id,
                     node_id=new_ulid(),
                     confidence=item.confidence,
+                    compress=cfg.compression.write_time
+                    and item.subtype not in {"decision", "rule"},
+                    max_body_tokens=cfg.compression.max_body_tokens,
                 )
             except RedactionBlockedError as exc:
                 logger.warning("Skipped distilled neuron blocked by redaction: %s", exc)

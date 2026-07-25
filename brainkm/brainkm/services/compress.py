@@ -11,9 +11,68 @@ from brainkm.services.memory import token_count
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
 
 
-def compress_body(content: str, *, max_tokens: int = 120) -> str:
-    """Extractive compression: keep highest-signal sentences under a token budget."""
+def compress_body(
+    content: str,
+    *,
+    max_tokens: int = 120,
+    kind: str | None = None,
+    subtype: str | None = None,
+    project_dir: object | None = None,
+    use_pipeline: bool = True,
+) -> str:
+    """Compress body via content-class pipeline then extractive cap.
+
+    Decision/rule bodies are not lossy-rewritten here (pipeline
+    ``allow_decision_lossy=False``); extractive still applies as a hard cap.
+    """
+    from pathlib import Path
+
     text = content.strip()
+    if not text or token_count(text) <= max_tokens:
+        return text
+
+    if use_pipeline:
+        from brainkm.services.compression.pipeline import compress_text
+
+        result = compress_text(
+            text,
+            kind=kind,
+            subtype=subtype,
+            project_dir=Path(project_dir) if project_dir is not None else None,
+            allow_decision_lossy=False,
+        )
+        text = result.text.strip() or content.strip()
+        # Best-effort event log when project brain is available
+        if project_dir is not None and result.stages:
+            try:
+                from brainkm.db.connection import connection
+                from brainkm.services.compression.dual_store import log_compression_event
+
+                with connection(project_dir=Path(project_dir)) as conn:
+                    for stage in result.stages:
+                        log_compression_event(
+                            conn,
+                            session_id=None,
+                            surface="observe_write"
+                            if subtype == "observation"
+                            else "capture_write",
+                            composition_mode="A",
+                            engine_id=stage.engine_id,
+                            tokens_in=stage.tokens_in,
+                            tokens_out=stage.tokens_out,
+                            skipped_reason=stage.skipped_reason,
+                            latency_ms=stage.latency_ms,
+                        )
+            except Exception:
+                pass
+        if token_count(text) <= max_tokens:
+            return text
+
+    return _extractive_cap(text, max_tokens=max_tokens)
+
+
+def _extractive_cap(text: str, *, max_tokens: int) -> str:
+    """Extractive compression: keep highest-signal sentences under a token budget."""
     if not text or token_count(text) <= max_tokens:
         return text
 

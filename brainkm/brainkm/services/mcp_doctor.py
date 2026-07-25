@@ -779,6 +779,19 @@ def build_mcp_doctor_report(
             "re-save config to persist distill_mode=claude"
         )
 
+    # Soft tip: host RTK binary shrinks shell stdout (Mode A lifetime savings).
+    if shutil.which("rtk") is None:
+        client_notes.append(
+            "Tip (optional): install RTK (https://github.com/rtk-ai/rtk) for "
+            "host shell output compression — brainkm rtk_lite covers observation "
+            "bodies; RTK covers live Bash/tool stdout before it hits the model"
+        )
+    else:
+        client_notes.append(
+            "RTK binary found on PATH — keep hooks coexistence: RTK rewrites shell, "
+            "then brainkm PostToolUse may observe the compact output"
+        )
+
     return McpDoctorReport(
         project_dir=root,
         health_ok=health_ok,

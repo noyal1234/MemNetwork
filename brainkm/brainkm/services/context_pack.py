@@ -730,13 +730,39 @@ _POLICY_MARKERS = (
 )
 
 
-def _summarize_memory_content(content: str, subtype: str | None) -> str:
-    """Summary-first with policy markers preserved for rule/decision neurons."""
+def _summarize_memory_content(
+    content: str,
+    subtype: str | None,
+    *,
+    decision_egress_lossy: bool = False,
+    decision_egress_min_pct: float = 95.0,
+) -> str:
+    """Summary-first with policy markers preserved for rule/decision neurons.
+
+    Optional lite prose on decision/rule egress only when polarity rubric passes.
+    """
     body = content.strip()
     if not body:
         return body
     if subtype in {"rule", "decision"} and token_count(body) <= 80:
         return body
+    if subtype in {"rule", "decision"} and decision_egress_lossy:
+        from brainkm.services.compression.pipeline import compress_text
+        from brainkm.services.compression.polarity import meets_answerability_bar
+
+        result = compress_text(
+            body,
+            kind="memory",
+            subtype=subtype,
+            prose_intensity="lite",
+            allow_decision_lossy=True,
+        )
+        if meets_answerability_bar(
+            body,
+            result.text,
+            min_pct=decision_egress_min_pct,
+        ):
+            return result.text
     first_line = body.split("\n", 1)[0].strip()
     if len(first_line) > 160:
         first_line = first_line[:157] + "…"
@@ -955,6 +981,7 @@ def compile_context_pack(
     summary_first: bool | None = None,
     extra_seed_ids: list[str] | None = None,
     include_sources: bool | None = None,
+    session_id: str | None = None,
 ) -> ContextPackResponse:
     """Compile a bounded task pack from live brain.db."""
     from brainkm.models.schemas import ProvenanceSource
@@ -1018,7 +1045,12 @@ def compile_context_pack(
             continue
         content = cleaned.content or None
         if use_summary and content:
-            content = _summarize_memory_content(content, row["subtype"])
+            content = _summarize_memory_content(
+                content,
+                row["subtype"],
+                decision_egress_lossy=config.compression.decision_egress_lossy,
+                decision_egress_min_pct=config.compression.decision_egress_min_pct,
+            )
         score = float(ranked.score)
         if ranked.node_id in about_boost_ids:
             score *= _SEED_ABOUT_BOOST
@@ -1048,6 +1080,14 @@ def compile_context_pack(
         )
     if config.compression.pack_diversity:
         neuron_lines = mmr_diversify(neuron_lines)
+    if config.compression.session_dedup and session_id:
+        from brainkm.services.compression.session_dedup import filter_already_injected
+
+        neuron_lines, _suppressed = filter_already_injected(
+            neuron_lines,
+            conn=conn,
+            session_id=session_id,
+        )
 
     graph_lines: list[BudgetLine] = []
     graph_results: list[NeuronResult] = []
@@ -1366,6 +1406,12 @@ def compile_pre_tool_pack(
         stems = path_stem_tokens(seed)
         if stems:
             query = f"{seed} {' '.join(stems)}"
+    session_id = None
+    for key in ("session_id", "sessionId", "conversation_id", "conversationId"):
+        value = payload.get(key)
+        if value is not None and str(value).strip():
+            session_id = str(value).strip()
+            break
     return compile_context_pack(
         conn,
         query,
@@ -1373,4 +1419,5 @@ def compile_pre_tool_pack(
         project_dir=project_dir,
         seed_refs=seed_refs,
         slots=slots,
+        session_id=session_id,
     )

@@ -405,6 +405,13 @@ class BrainStatsResponse(BaseModel):
         default_factory=dict,
         description="Traverse abstentions in 7d keyed by unresolved|ambiguous",
     )
+    compression: dict[str, object] = Field(
+        default_factory=dict,
+        description=(
+            "Compression rollups (tokens_in/out by surface), engine_version, "
+            "cache_ttl_seconds — sidecar metrics only"
+        ),
+    )
     # Optional session-scoped fields (populated when request.session_id is set)
     session_id: str | None = None
     session_mcp_calls_by_tool: dict[str, int] = Field(

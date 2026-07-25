@@ -177,7 +177,15 @@ def remember_neuron(
     if compress and body:
         from brainkm.services.compress import compress_body
 
-        body = compress_body(body, max_tokens=max_body_tokens)
+        # Skip lossy pipeline for durable decision/rule store (extractive cap only).
+        use_pipeline = subtype not in {"decision", "rule"}
+        body = compress_body(
+            body,
+            max_tokens=max_body_tokens,
+            kind=kind,
+            subtype=subtype,
+            use_pipeline=use_pipeline,
+        )
     record = create_neuron(
         conn,
         title=cleaned.title,

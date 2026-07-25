@@ -4,7 +4,7 @@ Local project brain for **agentic coding IDEs** — MCP server backed by SQLite 
 
 **Product overview** (hero, features, benchmarks, multi-host setup): see the repo root [README.md](../README.md).
 
-**Version:** `0.8.2`
+**Version:** `0.8.5`
 
 **License:** Apache-2.0 (see repo root [LICENSE](../LICENSE) and [NOTICE](../NOTICE)). Copyright © 2026 Noyal Bastin Benny.
 
@@ -67,7 +67,12 @@ Optional extra: `[graphify]` installs `graphifyy` (CLI: `graphify`) in the same 
 | `requirements-dev.txt` / `[dev]` | pytest, ruff |
 | `requirements-graphify.txt` / `[graphify]` | Graphify AST extract (`graphifyy`) |
 | `requirements-semantic.txt` / `[semantic]` | T1 onnxruntime + sqlite-vec (off by default) |
+| `[compression]` | Optional LLMLingua-2 (off by default; fail-open) |
+| `[tui]` | Textual `brainkm configure` |
 
 ```bash
 pip install -e "./brainkm[dev,graphify,semantic]"
+# optional: pip install -e "./brainkm[compression]"  # only if enabling llmlingua
 ```
+
+Token compression pipeline defaults on via `compression` in `.brain/config.json` (see [TOKEN_COMPRESSION.md](../docs/research/TOKEN_COMPRESSION.md)). LLMLingua stays off until `compression.llmlingua_enabled` is set after fidelity checks.

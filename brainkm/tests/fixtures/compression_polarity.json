@@ -1,0 +1,16 @@
+{
+  "cases": [
+    {
+      "id": "must_not_secrets",
+      "full": "Agents must not commit secrets. Prefer redaction via remember_neuron.",
+      "good_egress": "Agents must not commit secrets. Prefer redaction via remember_neuron.",
+      "bad_egress": "Agents must commit secrets. Prefer redaction."
+    },
+    {
+      "id": "never_bypass",
+      "full": "Never bypass remember_neuron. Always redact before storage.",
+      "good_egress": "Never bypass remember_neuron. Always redact before storage.",
+      "bad_egress": "Bypass remember_neuron. Always redact before storage."
+    }
+  ]
+}

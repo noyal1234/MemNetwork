@@ -152,6 +152,8 @@ def _maybe_add_context_neuron(
             source="handover:context",
             session_id=parsed.session_id,
             node_id=new_ulid(),
+            compress=True,
+            max_body_tokens=120,
         )
     except RedactionBlockedError as exc:
         logger.warning("Skipped context neuron blocked by redaction: %s", exc)

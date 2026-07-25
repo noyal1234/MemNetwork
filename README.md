@@ -9,7 +9,7 @@
 One SQLite brain. Six MCP tools. Bounded context packs.  
 Survive chat compaction — share memory across Cursor, Antigravity, Claude Code, and Codex.
 
-[![Version](https://img.shields.io/badge/version-0.8.2-3d9a8b?style=flat-square)](brainkm/pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.8.5-3d9a8b?style=flat-square)](brainkm/pyproject.toml)
 [![Python](https://img.shields.io/badge/python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](brainkm/pyproject.toml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-red?style=flat-square)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-6%20tools-1a2332?style=flat-square)](docs/FEATURES.md)
@@ -125,7 +125,7 @@ Restart the IDE (or reload MCP servers), then optionally:
 
 ```bash
 brainkm viz       # browser graph explorer
-brainkm version   # expect 0.8.2
+brainkm version   # expect 0.8.5
 ```
 
 Full setup → [docs/INSTALL.md](docs/INSTALL.md) · per host → [Cursor](docs/install/cursor.md) · [Antigravity](docs/install/antigravity.md) · [Claude](docs/install/claude-code.md) · [Codex](docs/install/codex.md)
@@ -137,6 +137,7 @@ Full setup → [docs/INSTALL.md](docs/INSTALL.md) · per host → [Cursor](docs/
 - **Compaction survival** — SessionStart injection, PreCompact handover, SessionEnd distill (manual: `brainkm handover` / `capture`)
 - **Code graph** — Graphify AST; `traverse` for blast-radius; `context_pack` for task neighborhoods; auto-sync after Write/Edit
 - **Smart retrieval** — Zero-LLM default (FTS5 BM25 + weighted PPR); optional MiniLM via `[semantic]`; abstain on low confidence
+- **Token compression** — Content-class pipeline on packs/egress (protect decisions; RTK-lite tool logs; session dedup); optional `[compression]` LLMLingua
 - **Pin / correct only** — Hooks + `auto_observe` fill the brain; MCP `remember` is pin, correct, or archive — not everyday notes
 - **Local-first privacy** — Secrets redacted on write and before injection; brain stays on disk
 
@@ -225,6 +226,7 @@ Strict path: **MCP tool → service → adapter → SQLite** (DB-touching handle
 | [install/](docs/install/) | Per-host wiring (Cursor / AGY / Claude / Codex / generic) |
 | [AI_PROJECT_BRIEF.md](docs/AI_PROJECT_BRIEF.md) | Architecture + MCP contract |
 | [BENCHMARKS.md](docs/BENCHMARKS.md) | CMA scorecard + eval targets |
+| [TOKEN_COMPRESSION.md](docs/research/TOKEN_COMPRESSION.md) | Compression pipeline research note |
 | [CLI_COMMANDS.md](docs/CLI_COMMANDS.md) | CLI reference |
 | [SECURITY.md](docs/SECURITY.md) | Redaction posture |
 | [AGENTS.md](AGENTS.md) | Agent entry point |
@@ -234,9 +236,10 @@ Strict path: **MCP tool → service → adapter → SQLite** (DB-touching handle
 
 ## Status
 
-**brainkm 0.8.2** — six MCP tools, first-class Cursor / Claude / Antigravity / Codex hosts, per-host install guides, git commit↔session joins, shared HTTP hardening, included `brainkm viz`.
+**brainkm 0.8.5** — six MCP tools, content-class token compression, first-class Cursor / Claude / Antigravity / Codex hosts, per-host install guides, git commit↔session joins, shared HTTP hardening, included `brainkm viz`.
 
 - [x] Local SQLite brain + **6** MCP tools
+- [x] Content-class compression pipeline + optional `[compression]` LLMLingua
 - [x] Cursor / Claude / Antigravity / Codex adapters
 - [x] Compaction survival (PreCompact + SessionEnd)
 - [x] Pack-vs-dump token benchmarks (**95.2%** live / **~94%** `compare`; full-agent A/B deferred)

@@ -90,6 +90,19 @@ def collect_brain_stats(
     if session_id:
         session_fields = _session_scoped_stats(conn, session_id)
 
+    compression: dict[str, object] = {
+        "engine_version": config.compression.engine_version,
+        "pipeline_enabled": config.compression.pipeline_enabled,
+        "cache_ttl_seconds": config.compression.cache_ttl_seconds,
+        "prose_intensity": config.compression.prose_intensity,
+    }
+    try:
+        from brainkm.services.compression.dual_store import compression_rollups
+
+        compression["rollups_7d"] = compression_rollups(conn, days=7)
+    except sqlite3.OperationalError:
+        compression["rollups_7d"] = {"days": 7, "by_surface": {}}
+
     return BrainStatsResponse(
         neurons_by_kind={str(row[0]): int(row[1]) for row in kind_rows},
         neurons_by_subtype={str(row[0]) or "(none)": int(row[1]) for row in subtype_rows},
@@ -108,6 +121,7 @@ def collect_brain_stats(
         hygiene_hint=hygiene_hint,
         outbound_gate_7d=_outbound_gate_stats(conn),
         traverse_abstain_7d=_traverse_abstain_stats(conn),
+        compression=compression,
         **session_fields,
     )
 

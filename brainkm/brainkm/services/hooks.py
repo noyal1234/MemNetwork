@@ -321,6 +321,9 @@ def run_session_start(
 
     conn = connect(brain_db_path(project_dir))
     try:
+        from brainkm.services.compression.cohort import assign_session_cohort
+
+        assign_session_cohort(conn, session_id, cfg.compression)
         snapshot = build_frozen_snapshot(
             conn,
             session_id,

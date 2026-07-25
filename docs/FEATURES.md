@@ -33,7 +33,7 @@ Six sharp tools the agent (or you) can call. Typed `outputSchema` so clients kno
 | **`recall`** | Search project memory (FTS + graph). Returns `confidence` and optional `decision_trail` (supersede history for why/history questions). Abstains on weak matches. |
 | **`context_pack`** | Compile a task pack: decisions + code neighborhood + procedures (+ decision history), under a hard token cap. Auto-queues graph refresh when stale. Prefer before opening 3+ files. |
 | **`traverse`** | Impact analysis: AST neighborhood + `impact_summary` (hop counts, high fan-in risk) + linked decision/error neurons. Prefer for blast-radius. |
-| **`brain_stats`** | Health snapshot: neuron/graph counts, MCP usage, abstention rate, dead neurons, hygiene hint. Optional per-session breakdown. |
+| **`brain_stats`** | Health snapshot: neuron/graph counts, MCP usage, abstention rate, dead neurons, hygiene hint, compression rollups. Optional per-session breakdown. |
 | **`trace_changes`** | File change history: **live** `git log --follow` + uncommitted `git diff`, joined to brain commit↔session↔decision links from `brainkm git-note`. Diffs stay in git (not ingested). |
 
 Graph refresh and session context are automatic (hooks + stale-graph auto-queue). Manual CLI: `brainkm graph sync`, `brainkm hygiene`, `brainkm repair --backfill-links --backfill-supersedes`.
@@ -178,6 +178,22 @@ Graphify maps structure; the host’s semantic codebase index still finds symbol
 | **Usage feedback ranking** | What the agent actually used gets boosted; unused noise decays over time. |
 
 Optional semantic stack: `pip install -e "./brainkm[semantic]"` + `brainkm semantic doctor` (or TUI consent). Default stays hashing / FTS-first.
+
+---
+
+## Token compression
+
+Content-class pipeline on write and egress (default on via `compression` in `.brain/config.json`). Decisions/rules stay lossless at store; tool logs can use RTK-lite with tee; packs get session dedup + inflation guards under the token budget.
+
+| Feature | Benefit |
+|---------|---------|
+| **Classify → protect → compress** | Subtype-aware: protect durable truth; trim verbose tool/error surfaces. |
+| **Session dedup + inflation guard** | Avoid re-injecting the same neurons; never expand past the budget. |
+| **Dual-store / canary** | Sticky engine version per session; rollups on `brain_stats.compression`. |
+| **Optional LLMLingua-2** | `pip install -e "./brainkm[compression]"` + `compression.llmlingua_enabled` after fidelity checks (fail-open). |
+| **Optional terse-agent skill** | Host skill for professional brevity; not meme caveman-speak. |
+
+Design notes: [research/TOKEN_COMPRESSION.md](research/TOKEN_COMPRESSION.md).
 
 ---
 

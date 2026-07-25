@@ -194,6 +194,27 @@ class CompressionConfig(BaseModel):
     pack_dedup: bool = True
     pack_diversity: bool = True
     summary_first: bool = True
+    # Content-class pipeline (default ON — core usecase)
+    pipeline_enabled: bool = True
+    rtk_lite_enabled: bool = True
+    prose_intensity: Literal["off", "lite", "full"] = "lite"
+    inflation_guard: bool = True
+    session_dedup: bool = True
+    # Dual-store / canary
+    engine_version: str = "1"
+    engine_version_override: str | None = None
+    canary_engine_version: str | None = None
+    canary_pct: float = Field(default=0.0, ge=0.0, le=1.0)
+    canary_salt: str = "brainkm-compression"
+    # Decision egress: lossy prose only when polarity rubric would pass (runtime check)
+    decision_egress_lossy: bool = False
+    decision_egress_min_pct: float = Field(default=95.0, ge=50.0, le=100.0)
+    # Optional ML (fail-open; never default)
+    llmlingua_enabled: bool = False
+    llmlingua_min_tokens: int = Field(default=400, ge=100, le=8000)
+    llmlingua_rate: float = Field(default=0.5, ge=0.1, le=0.9)
+    # Cache / cost modeling
+    cache_ttl_seconds: float = Field(default=300.0, ge=60.0, le=86400.0)
 
 
 class HandoverConfig(BaseModel):
