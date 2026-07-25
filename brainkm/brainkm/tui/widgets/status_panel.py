@@ -120,12 +120,20 @@ class StatusPanel(Static):
         for i, (label, value, state) in enumerate(self._items):
             if i:
                 text.append("\n")
-            label_col = f"{label}:".ljust(self._LABEL_WIDTH)
+            # Empty label = wrapped continuation line (Notes / Auth / DualWriter).
+            if label.strip():
+                label_col = f"{label}:".ljust(self._LABEL_WIDTH)
+            else:
+                label_col = " " * self._LABEL_WIDTH
             text.append(label_col, style=tokens["text_muted"])
             glyph = self._state_glyph(state)
             color = state_color.get(state, tokens["text_muted"])
             display = value if value else "—"
-            text.append(f"{glyph} ", style=f"bold {color}")
+            # Continuation lines: omit repeating glyph for cleaner wrap.
+            if label.strip():
+                text.append(f"{glyph} ", style=f"bold {color}")
+            else:
+                text.append("  ", style=color)
             text.append(display, style=f"bold {color}")
         body.update(text)
 

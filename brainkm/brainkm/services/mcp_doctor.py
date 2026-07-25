@@ -631,8 +631,8 @@ def inspect_codex_wiring(project_dir: Path) -> list[str]:
             notes.append("Codex hooks.json is not valid JSON")
 
         notes.append(
-            "Codex requires trusting the project `.codex/` layer and `/hooks` "
-            "trust for brainkm commands — untrusted project hooks are skipped"
+            "Reminder (Codex UI): if SessionStart/Stop stay quiet, trust the project "
+            "`.codex/` layer and `/hooks` — files alone cannot prove Codex trust"
         )
 
     return notes

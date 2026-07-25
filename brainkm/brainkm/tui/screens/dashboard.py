@@ -539,7 +539,13 @@ class DashboardScreen(Screen):
 
     # --- MCP doctor (shared brain wiring) ---
 
-    @work(thread=True, group="mcp-doctor", exit_on_error=False)
+    def _refresh_mcp_doctor(self) -> None:
+        """Refresh button — show loading so the panel visibly updates."""
+        panel = self.query_one("#mcp-doctor-panel", StatusPanel)
+        panel.set_loading("Refreshing…")
+        self._load_mcp_doctor()
+
+    @work(thread=True, group="mcp-doctor", exclusive=True, exit_on_error=False)
     def _load_mcp_doctor(self) -> dict[str, Any]:
         try:
             from brainkm.services.mcp_doctor import build_mcp_doctor_report
@@ -625,7 +631,7 @@ class DashboardScreen(Screen):
             "btn-graph-sync": self._run_graph_sync,
             "btn-graph-extract": self._run_graph_extract,
             "btn-graph-status": self._run_graph_status_action,
-            "btn-mcp-doctor-refresh": self._load_mcp_doctor,
+            "btn-mcp-doctor-refresh": self._refresh_mcp_doctor,
             "btn-start-serve": self._run_start_serve,
             "btn-stop-serve": self._run_stop_serve,
         }

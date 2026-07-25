@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import textwrap
+
 from brainkm.services.mcp_doctor import ClientWireStatus, McpDoctorReport
 
-_MAX_VALUE = 56
+# Compact single-line cells (client summaries).
+_MAX_VALUE = 48
+# Value column width after "Label: ◆ " — keep under typical panel (~64 cols).
+_VALUE_WRAP = 46
 
 
 def _trunc(text: str, limit: int = _MAX_VALUE) -> str:
@@ -12,6 +17,45 @@ def _trunc(text: str, limit: int = _MAX_VALUE) -> str:
     if len(text) <= limit:
         return text
     return text[: max(0, limit - 1)] + "…"
+
+
+def _wrap_lines(text: str, *, width: int = _VALUE_WRAP) -> list[str]:
+    cleaned = " ".join((text or "").split())
+    if not cleaned:
+        return ["—"]
+    return textwrap.wrap(
+        cleaned,
+        width=max(20, width),
+        break_long_words=True,
+        break_on_hyphens=False,
+    ) or ["—"]
+
+
+def _note_rows(notes: list[str], *, state: str, label: str = "Notes") -> list[tuple[str, str, str]]:
+    """One StatusPanel row block per note; continuation lines use an empty label."""
+    rows: list[tuple[str, str, str]] = []
+    for idx, note in enumerate(notes):
+        if idx == 0:
+            head = label
+        elif label.lower() in {"tip", "probe"}:
+            head = f"{label} {idx + 1}"
+        else:
+            head = f"Note {idx + 1}"
+        for line_i, chunk in enumerate(_wrap_lines(note)):
+            rows.append((head if line_i == 0 else "", chunk, state))
+    return rows
+
+
+def _short_health_fail(detail: str) -> str:
+    """Humanize connection errors instead of dumping urlopen internals."""
+    lower = (detail or "").lower()
+    if "errno 61" in lower or "connection refused" in lower:
+        return "FAIL · connection refused — start shared brain (serve)"
+    if "timed out" in lower or "timeout" in lower:
+        return "FAIL · health timeout"
+    if "unreachable" in lower:
+        return "FAIL · unreachable — is brainkm serve running?"
+    return _trunc(f"FAIL · {detail}", limit=80)
 
 
 _CLIENT_LABELS = {
@@ -22,12 +66,14 @@ _CLIENT_LABELS = {
     "generic": "generic",
 }
 
-# Doctor dry-runs append success lines into client_notes; those are probes, not problems.
+# Doctor dry-runs / UI reminders — muted Probe, not warning Issues.
 _INFO_NOTE_MARKERS = (
     "envelope ok",
     "hookSpecificOutput ok",
     "valid JSON stdout",
     "(ok if pack",
+    "reminder (codex",
+    "files alone cannot prove",
 )
 
 
@@ -112,14 +158,13 @@ def mcp_doctor_panel_items(
     items.append(("Transport", transport, t_state))
 
     if transport == "http":
-        health_value = "ok" if report.health_ok else "FAIL"
-        if report.health_detail and not report.health_ok:
-            health_value = _trunc(f"FAIL · {report.health_detail}")
-        elif report.health_ok:
-            health_value = "ok"
-        items.append(
-            ("Health", health_value, "ok" if report.health_ok else "error"),
-        )
+        if report.health_ok:
+            items.append(("Health", "ok", "ok"))
+        else:
+            detail = report.health_detail or "unknown"
+            items.extend(
+                _note_rows([_short_health_fail(detail)], state="error", label="Health")
+            )
     else:
         items.append(("Health", "n/a (stdio)", "muted"))
 
@@ -140,27 +185,22 @@ def mcp_doctor_panel_items(
         items.append(_client_row(client, config_transport=transport))
 
     if report.dual_writer_warning:
-        items.append(("DualWriter", _trunc(report.dual_writer_warning), "error"))
+        items.extend(
+            _note_rows([report.dual_writer_warning], state="error", label="DualWriter")
+        )
     if report.missing_auth_warning:
-        items.append(("Auth", _trunc(report.missing_auth_warning), "error"))
+        items.extend(_note_rows([report.missing_auth_warning], state="error", label="Auth"))
 
     if report.client_notes:
         warnings = [n for n in report.client_notes if not _is_info_note(n)]
         infos = [n for n in report.client_notes if _is_info_note(n)]
         if warnings:
-            first = warnings[0]
-            if len(warnings) == 1:
-                items.append(("Notes", _trunc(first), "warning"))
-            else:
-                items.append(
-                    (
-                        "Notes",
-                        _trunc(f"{len(warnings)} notes · {first}"),
-                        "warning",
-                    )
-                )
-        elif infos:
-            # Only success probes — muted so HEALTHY panels don't look broken.
-            items.append(("Probe", _trunc(infos[0]), "muted"))
+            items.extend(_note_rows(warnings, state="warning", label="Notes"))
+        if infos and not warnings:
+            # Reminders / dry-run probes — muted, not Issues chrome.
+            items.extend(_note_rows(infos[:2], state="muted", label="Tip"))
+        elif infos and warnings:
+            # Keep tips after real warnings, still muted.
+            items.extend(_note_rows(infos[:1], state="muted", label="Tip"))
 
     return items
