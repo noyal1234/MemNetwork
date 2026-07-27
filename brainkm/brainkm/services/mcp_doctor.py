@@ -15,6 +15,7 @@ from brainkm.services.config_loader import load_brain_config
 from brainkm.services.connect import hooks_path_for_client, mcp_config_path_for_client
 from brainkm.services.install import (
     BRAINKM_MCP_SERVER_KEY,
+    claude_global_config_path,
     resolve_hook_command,
     resolve_project_dir,
 )
@@ -204,6 +205,46 @@ def claude_hooks_wired(project_dir: Path) -> bool:
     )
 
 
+def _claude_mcpjson_approval_note(root: Path) -> str | None:
+    """Read-only check: is ``brainkm`` in this project's enabledMcpjsonServers?
+
+    Claude Code silently skips loading any ``.mcp.json`` server that hasn't
+    been approved via this global-config list — a project-trust dialog
+    accepting the *folder* does not imply approval of servers inside it.
+    Missing/malformed state here means the MCP tools (recall/traverse/
+    context_pack/...) will not load even though hooks and .mcp.json look
+    correctly wired.
+    """
+    path = claude_global_config_path()
+    if not path.is_file():
+        return None  # Claude Code never initialized here; hooks-only checks still apply.
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return "~/.claude.json is not valid JSON — cannot verify brainkm MCP approval state"
+    if not isinstance(data, dict):
+        return None
+    project = data.get("projects", {}).get(str(root)) if isinstance(data.get("projects"), dict) else None
+    if not isinstance(project, dict):
+        return None
+
+    disabled = project.get("disabledMcpjsonServers")
+    if isinstance(disabled, list) and BRAINKM_MCP_SERVER_KEY in disabled:
+        return (
+            f"'{BRAINKM_MCP_SERVER_KEY}' is in disabledMcpjsonServers in ~/.claude.json — "
+            "Claude Code will not load its MCP tools until removed"
+        )
+
+    enabled = project.get("enabledMcpjsonServers")
+    if not isinstance(enabled, list) or BRAINKM_MCP_SERVER_KEY not in enabled:
+        return (
+            f"'{BRAINKM_MCP_SERVER_KEY}' not in enabledMcpjsonServers in ~/.claude.json — "
+            "MCP tools (recall/traverse/context_pack/...) will not load; rerun "
+            "`brainkm install --client claude` to auto-approve, or approve manually in Claude Code"
+        )
+    return None
+
+
 def inspect_claude_wiring(project_dir: Path) -> list[str]:
     """Extra Claude silent-memory checks for doctor."""
     notes: list[str] = []
@@ -220,6 +261,10 @@ def inspect_claude_wiring(project_dir: Path) -> list[str]:
             servers = data.get("mcpServers") if isinstance(data, dict) else None
             if not isinstance(servers, dict) or BRAINKM_MCP_SERVER_KEY not in servers:
                 notes.append("Claude .mcp.json has no brainkm server entry")
+            else:
+                approval_note = _claude_mcpjson_approval_note(root)
+                if approval_note:
+                    notes.append(approval_note)
         except json.JSONDecodeError:
             notes.append("Claude .mcp.json is not valid JSON")
 

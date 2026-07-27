@@ -293,6 +293,80 @@ def write_claude_settings_hooks(
     return merged
 
 
+def claude_global_config_path() -> Path:
+    """``~/.claude.json`` — Claude Code's global, cross-project state file."""
+    return Path.home() / ".claude.json"
+
+
+def enable_claude_mcpjson_approval(
+    root: Path,
+    *,
+    server_key: str = BRAINKM_MCP_SERVER_KEY,
+    config_path: Path | None = None,
+) -> str | None:
+    """Pre-approve ``server_key`` for this project in Claude Code's global config.
+
+    Claude Code gates any server declared in a project's ``.mcp.json`` behind a
+    one-time approval prompt separate from the folder-trust dialog: only after
+    the user accepts does the server name land in
+    ``projects[<root>].enabledMcpjsonServers`` inside ``~/.claude.json``. Until
+    then Claude Code silently skips loading the server — no error, just no
+    tools — which historically left every fresh ``brainkm install --client
+    claude`` non-functional for MCP tools even though hooks and ``.mcp.json``
+    were both wired correctly.
+
+    Returns ``None`` on success (or if already enabled/disabled-intentionally),
+    or a human-readable warning string if the global config couldn't be
+    patched (missing file, project not yet opened in Claude Code, bad JSON).
+    """
+    path = config_path or claude_global_config_path()
+    if not path.is_file():
+        return (
+            "~/.claude.json not found — open this project in Claude Code once, then rerun "
+            f"`brainkm install --client claude` (or `brainkm doctor`) to auto-approve the "
+            f"'{server_key}' MCP server."
+        )
+
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return "~/.claude.json is not valid JSON — skipped MCP server approval patch."
+    if not isinstance(data, dict):
+        return "~/.claude.json has an unexpected top-level shape — skipped MCP server approval patch."
+
+    projects = data.setdefault("projects", {})
+    if not isinstance(projects, dict):
+        return "~/.claude.json 'projects' key has an unexpected shape — skipped MCP approval patch."
+
+    project_key = str(root)
+    project = projects.get(project_key)
+    if not isinstance(project, dict):
+        return (
+            "Project not yet registered in ~/.claude.json — open this project in Claude Code "
+            f"once (to accept the folder-trust prompt), then rerun install to auto-approve "
+            f"'{server_key}'."
+        )
+
+    disabled = project.get("disabledMcpjsonServers")
+    if isinstance(disabled, list) and server_key in disabled:
+        return (
+            f"'{server_key}' is listed in disabledMcpjsonServers in ~/.claude.json — remove it "
+            "manually if you want brainkm's MCP tools to load."
+        )
+
+    enabled = project.get("enabledMcpjsonServers")
+    if not isinstance(enabled, list):
+        enabled = []
+    if server_key in enabled:
+        return None
+    project["enabledMcpjsonServers"] = [*enabled, server_key]
+
+    tmp_path = path.with_suffix(path.suffix + ".brainkm-tmp")
+    tmp_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    tmp_path.replace(path)
+    return None
+
+
 def _codex_hook_command(
     brainkm_bin: str,
     *args: str,
@@ -1116,6 +1190,10 @@ def run_install(
         result.files_written.append(mcp_path)
         if http_token:
             restrict_secret_file(mcp_path)
+
+        approval_warning = enable_claude_mcpjson_approval(root)
+        if approval_warning:
+            result.warnings.append(approval_warning)
 
         claude_dir = root / ".claude"
         claude_dir.mkdir(parents=True, exist_ok=True)

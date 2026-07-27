@@ -68,3 +68,30 @@ When shipping a release, keep these in lockstep:
 5. `pytest tests/test_version.py` (asserts pyproject == `__version__`)
 6. Prefer adding a brief row to the Implementation status table in `AI_PROJECT_BRIEF.md`
 7. Public/PyPI first publish: follow [docs/PUBLIC_RELEASE_CHECKLIST.md](docs/PUBLIC_RELEASE_CHECKLIST.md) (installable name must be final; Apache-2.0 + CLA already in place)
+
+# brainkm — project memory routing
+
+Memory accumulates from **hooks** (SessionStart injection, SessionEnd distill,
+PostToolUse observations). You do **not** need to call `remember` for ordinary learning.
+
+Use the **brainkm** MCP tools:
+
+| Question | Tool |
+|----------|------|
+| Why did we choose X? | `recall` |
+| What calls / imports X? Impact of changing Y? | `traverse` |
+| Bounded multi-file task context | `context_pack` (include a symbol or path) |
+| Pin durable truth or correct a wrong auto-capture | `remember` |
+
+Packs are hints — always verify in source before editing.
+Prefer `traverse` for blast-radius; `context_pack` before opening 3+ files.
+Expand truncated ids via `recall` with `truncation_followup: true`.
+
+Installed for Antigravity via `brainkm install --client antigravity`.
+
+## Coexistence with Antigravity native config
+
+- **`.agents/rules` / `AGENTS.md`** = authored static instructions.
+- **brainkm** = searchable project brain (decisions, graph, session survival).
+- Grant `mcp(brainkm/*)` so recall/context_pack are not stuck in Ask mode.
+- Do not stack Mem0 (or similar) with brainkm on the same project.
