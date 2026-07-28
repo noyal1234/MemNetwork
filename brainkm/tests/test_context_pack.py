@@ -204,6 +204,50 @@ def test_compile_context_pack_seeds_symbol_neighborhood(brain_db) -> None:
         conn.close()
 
 
+def test_compile_context_pack_caches_decision_egress_compression(brain_db, monkeypatch) -> None:
+    """Second pack for the same neuron should hit the dual-store cache, not recompress."""
+    from brainkm.services.compression import pipeline as pipeline_mod
+
+    conn = connect(brain_db)
+    try:
+        long_body = " ".join(
+            f"Reason {i}: we chose option A over option B because of tradeoff {i}."
+            for i in range(20)
+        )
+        insert_node(
+            conn,
+            node_id="long-decision",
+            subtype="decision",
+            title="Long decision",
+            content=long_body,
+        )
+        conn.commit()
+
+        calls = {"n": 0}
+        original = pipeline_mod.compress_text
+
+        def counting_compress_text(*args, **kwargs):
+            calls["n"] += 1
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(pipeline_mod, "compress_text", counting_compress_text)
+
+        config = BrainConfig(
+            recall={"abstain_on_low_confidence": False},
+            compression={"decision_egress_lossy": True, "decision_egress_min_pct": 50.0},
+        )
+
+        first = compile_context_pack(conn, "Long decision", config=config)
+        conn.commit()
+        assert calls["n"] == 1
+
+        second = compile_context_pack(conn, "Long decision", config=config)
+        assert calls["n"] == 1
+        assert first.pack_text == second.pack_text
+    finally:
+        conn.close()
+
+
 def test_compile_context_pack_seed_refs_param(brain_db) -> None:
     conn = connect(brain_db)
     try:

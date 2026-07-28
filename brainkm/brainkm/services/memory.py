@@ -149,6 +149,16 @@ def create_neuron(
     return record
 
 
+def _invalidate_compressed_views(conn: sqlite3.Connection, node_id: str) -> None:
+    """Drop cached compressed views for a neuron that just became inactive."""
+    from brainkm.services.compression.dual_store import invalidate_neuron_views
+
+    try:
+        invalidate_neuron_views(conn, node_id)
+    except sqlite3.OperationalError:
+        pass
+
+
 def remember_neuron(
     conn: sqlite3.Connection,
     *,
@@ -322,6 +332,7 @@ def supersede_neuron(
         msg = "valid_until was not materialized from audit_log supersede event"
         raise RuntimeError(msg)
 
+    _invalidate_compressed_views(conn, old_node_id)
     return new_record, retired
 
 
@@ -352,6 +363,7 @@ def forget_neuron(
     if archived.valid_until is None:
         msg = "valid_until was not materialized from audit_log forgotten event"
         raise RuntimeError(msg)
+    _invalidate_compressed_views(conn, node_id)
     return archived
 
 

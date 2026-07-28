@@ -885,16 +885,74 @@ _POLICY_MARKERS = (
 )
 
 
+def _cached_compress(
+    conn: sqlite3.Connection | None,
+    *,
+    neuron_id: str | None,
+    body: str,
+    engine_version: str,
+    intensity: str,
+    ttl_seconds: float | None = None,
+) -> str | None:
+    if conn is None or neuron_id is None:
+        return None
+    from brainkm.services.compression.dual_store import get_compressed_view
+
+    try:
+        return get_compressed_view(
+            conn,
+            neuron_id=neuron_id,
+            full_body=body,
+            engine_version=engine_version,
+            intensity=intensity,
+            ttl_seconds=ttl_seconds,
+        )
+    except sqlite3.Error:
+        return None
+
+
+def _store_compressed(
+    conn: sqlite3.Connection | None,
+    *,
+    neuron_id: str | None,
+    body: str,
+    compressed_text: str,
+    engine_version: str,
+    intensity: str,
+) -> None:
+    if conn is None or neuron_id is None or not compressed_text.strip():
+        return
+    from brainkm.services.compression.dual_store import put_compressed_view
+
+    try:
+        put_compressed_view(
+            conn,
+            neuron_id=neuron_id,
+            full_body=body,
+            compressed_text=compressed_text,
+            engine_version=engine_version,
+            intensity=intensity,
+        )
+    except sqlite3.Error:
+        pass
+
+
 def _summarize_memory_content(
     content: str,
     subtype: str | None,
     *,
     decision_egress_lossy: bool = False,
     decision_egress_min_pct: float = 95.0,
+    conn: sqlite3.Connection | None = None,
+    neuron_id: str | None = None,
+    query: str = "",
+    cache_ttl_seconds: float | None = None,
 ) -> str:
     """Summary-first with policy markers preserved for rule/decision neurons.
 
     Optional lite prose on decision/rule egress only when polarity rubric passes.
+    Compressed text is cached per (neuron_id, body_hash, engine_version, intensity)
+    via the dual-store so repeat egress of the same neuron skips recompression.
     """
     body = content.strip()
     if not body:
@@ -902,22 +960,45 @@ def _summarize_memory_content(
     if subtype in {"rule", "decision"} and token_count(body) <= 80:
         return body
     if subtype in {"rule", "decision"} and decision_egress_lossy:
-        from brainkm.services.compression.pipeline import compress_text
+        from brainkm.services.compression.intent_dial import prose_intensity_for_query
+        from brainkm.services.compression.pipeline import ENGINE_VERSION, compress_text
         from brainkm.services.compression.polarity import meets_answerability_bar
 
-        result = compress_text(
-            body,
-            kind="memory",
-            subtype=subtype,
-            prose_intensity="lite",
-            allow_decision_lossy=True,
+        # subtype=None bypasses intent_dial's decision/rule hard-off — the caller
+        # has already opted into lossy egress; the dial only picks lite vs full.
+        intensity = prose_intensity_for_query(query, subtype=None, default="lite")
+
+        candidate = _cached_compress(
+            conn,
+            neuron_id=neuron_id,
+            body=body,
+            engine_version=ENGINE_VERSION,
+            intensity=intensity,
+            ttl_seconds=cache_ttl_seconds,
         )
+        if candidate is None:
+            result = compress_text(
+                body,
+                kind="memory",
+                subtype=subtype,
+                prose_intensity=intensity,
+                allow_decision_lossy=True,
+            )
+            candidate = result.text
+            _store_compressed(
+                conn,
+                neuron_id=neuron_id,
+                body=body,
+                compressed_text=candidate,
+                engine_version=ENGINE_VERSION,
+                intensity=intensity,
+            )
         if meets_answerability_bar(
             body,
-            result.text,
+            candidate,
             min_pct=decision_egress_min_pct,
         ):
-            return result.text
+            return candidate
     first_line = body.split("\n", 1)[0].strip()
     if len(first_line) > 160:
         first_line = first_line[:157] + "…"
@@ -1205,6 +1286,10 @@ def compile_context_pack(
                 row["subtype"],
                 decision_egress_lossy=config.compression.decision_egress_lossy,
                 decision_egress_min_pct=config.compression.decision_egress_min_pct,
+                conn=conn,
+                neuron_id=row["id"],
+                query=query,
+                cache_ttl_seconds=config.compression.cache_ttl_seconds,
             )
         score = float(ranked.score)
         if ranked.node_id in about_boost_ids:

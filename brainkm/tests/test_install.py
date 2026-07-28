@@ -71,7 +71,9 @@ def test_build_hooks_config_includes_all_events() -> None:
 def test_build_hooks_config_quotes_binary_with_spaces() -> None:
     hooks = build_hooks_config("/Users/dev/My Tools/brainkm")
     command = hooks["hooks"]["sessionStart"][0]["command"]
-    assert command == "'/Users/dev/My Tools/brainkm' session-start --stdin"
+    assert command == (
+        "'/Users/dev/My Tools/brainkm' session-start --stdin --client cursor"
+    )
 
 
 def test_gitignore_entries_cover_secrets() -> None:
@@ -94,9 +96,20 @@ def test_merge_hooks_json_replaces_brainkm_commands() -> None:
     merged = merge_hooks_json(existing, incoming)
 
     commands = [item["command"] for item in merged["hooks"]["sessionStart"]]
-    assert commands == ["/new/brainkm session-start --stdin"]
+    assert commands == ["/new/brainkm session-start --stdin --client cursor"]
     assert merged["hooks"]["preCompact"][0]["command"] == "other-tool --run"
     assert any("handover --stdin" in item["command"] for item in merged["hooks"]["preCompact"])
+    assert any("--client cursor" in item["command"] for item in merged["hooks"]["preCompact"])
+
+
+def test_build_hooks_config_cursor_client_flag_and_pack_matcher() -> None:
+    hooks = build_hooks_config("brainkm")
+    events = hooks["hooks"]
+    assert events["preToolUse"][0]["matcher"] == "Write|Edit|Shell"
+    for key in ("sessionStart", "sessionEnd", "beforeSubmitPrompt"):
+        assert "--client cursor" in events[key][0]["command"]
+    assert "--client cursor" in events["preToolUse"][0]["command"]
+    assert "Read|Grep|Glob" not in events["preToolUse"][0]["matcher"]
 
 
 def test_merge_hooks_json_strips_unsupported_post_compact() -> None:

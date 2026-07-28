@@ -19,6 +19,7 @@ from brainkm.services.capture import capture_transcript_file
 from brainkm.services.config_loader import load_brain_config
 from brainkm.services.handover import parse_precompact_hook_payload
 from brainkm.services.learning import persist_neuron_hits, process_post_tool
+from brainkm.services.mcp_results import filter_active_memory_ids
 from brainkm.services.memory import new_ulid
 from brainkm.services.session_activity import flush_use_counts, record_neuron_activity
 from brainkm.services.snapshot import _TOOL_SEARCH_SELECT, build_frozen_snapshot, resolve_session_id
@@ -367,7 +368,7 @@ def run_session_start(
             source="session_start",
         )
         kind = (client or "").strip().lower() or None
-        if kind in (None, "claude") and snapshot.pack_text and "ToolSearch" in snapshot.pack_text:
+        if kind == "claude" and snapshot.pack_text and "ToolSearch" in snapshot.pack_text:
             record_runtime_metric(
                 conn,
                 session_id=session_id,
@@ -541,7 +542,7 @@ def run_pre_tool_use(
     config: BrainConfig | None = None,
     client: str | None = None,
 ) -> HookRunResult:
-    """PreToolUse — pack for write/edit; routing nudge for Read/Grep/Glob when eligible."""
+    """PreToolUse — pack for write/edit/shell; routing nudge for Read/Grep/Glob when eligible."""
     data = _parse_hook_object(raw)
     # AGY payloads include workspacePaths; resolve before loading BrainConfig.
     if data.get("workspacePaths") or data.get("workspace_paths") or data.get("conversationId"):
@@ -588,10 +589,16 @@ def run_pre_tool_use(
 
             pack = compile_pre_tool_pack(conn, data, config=cfg, project_dir=project_dir)
             if pack is not None:
+                # pack.neurons is empty unless include_structured=true; use the
+                # truncation id list (same as MCP context_pack) filtered to
+                # active memory+procedure — code/graph nodes stay out of counters.
+                hit_ids = filter_active_memory_ids(
+                    conn, list(pack.truncation.included_ids)
+                )
                 persist_neuron_hits(
                     conn,
                     session_id,
-                    [node.node_id for node in pack.neurons],
+                    hit_ids,
                     source="pre_tool",
                     cap=cfg.learning.session_window_size,
                 )
@@ -797,15 +804,16 @@ def _maybe_routing_nudge(
     *,
     client: str | None = None,
 ) -> str | None:
-    """Reminder to use brainkm MCP tools — Claude-only; shared UserPrompt+PreTool budget.
+    """Reminder to use brainkm MCP tools — Claude Code only (ToolSearch friction).
 
     Eligible when brainkm was never used this session, or after
     ``routing_nudge_rearm_after_calls`` tool_use rows since the last mcp call
     (sustained drift). Cap: ``routing_nudge_max_per_session`` (default 5).
     Nudge text is additive outside the SessionStart 1500-token pack (~40–80 tok each).
+    Missing/None client must not inherit Claude ToolSearch copy (Cursor/Codex/AGY).
     """
     kind = (client or "").strip().lower() or None
-    if kind not in (None, "claude"):
+    if kind != "claude":
         return None
     if not cfg.injection.routing_nudge or not session_id:
         return None

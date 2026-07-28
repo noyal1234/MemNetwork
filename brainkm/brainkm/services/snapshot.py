@@ -168,7 +168,7 @@ _TOOL_SEARCH_SELECT = (
 
 
 def _claude_toolsearch_lead_in(session_id: str | None) -> str:
-    """Imperative ToolSearch + session_id only (Claude / default client)."""
+    """Imperative ToolSearch + session_id — Claude Code only (never other hosts)."""
     lines = [
         "## Load brainkm tools first",
         f'Before any brainkm call: ToolSearch "{_TOOL_SEARCH_SELECT}"',
@@ -352,11 +352,8 @@ def build_frozen_snapshot(
     """Build or return the frozen injection snapshot for a session."""
     graph_status = _graph_status_line(conn, session_id, client=client)
     kind = (client or "").strip().lower() or None
-    lead_in = (
-        _claude_toolsearch_lead_in(session_id)
-        if kind in (None, "claude")
-        else None
-    )
+    # Explicit client==claude only — missing/None must not inherit ToolSearch spam.
+    lead_in = _claude_toolsearch_lead_in(session_id) if kind == "claude" else None
 
     if not config.injection.frozen_snapshot:
         neurons = select_injection_neurons(conn, config, context_hint=context_hint)

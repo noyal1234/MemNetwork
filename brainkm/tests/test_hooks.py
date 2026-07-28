@@ -189,16 +189,39 @@ def test_graph_status_line_omits_toolsearch_for_cursor(tmp_path: Path) -> None:
     assert 'session_id="sess-cursor-graph"' in line
 
 
+def test_session_start_without_client_omits_toolsearch(tmp_path: Path) -> None:
+    """Missing --client must not inherit Claude ToolSearch lead_in."""
+    result = run_session_start(
+        json.dumps({"session_id": "sess-no-client"}),
+        project_dir=tmp_path,
+        config=BrainConfig(),
+    )
+    assert result.additional_context is not None
+    assert "ToolSearch" not in result.additional_context
+    assert "Frozen at session start" in result.additional_context
+
+
 def test_user_prompt_submit_nudge_fires_on_first_prompt(tmp_path: Path) -> None:
     migrate(project_dir=tmp_path, run_integrity_check=False)
     result = run_user_prompt_submit(
         json.dumps({"session_id": "sess-nudge", "prompt": "why did we pick X"}),
         project_dir=tmp_path,
         config=BrainConfig(),
+        client="claude",
     )
     assert result.additional_context is not None
     assert "sess-nudge" in result.additional_context
     assert "ToolSearch" in result.additional_context
+
+
+def test_user_prompt_submit_nudge_skipped_without_client(tmp_path: Path) -> None:
+    migrate(project_dir=tmp_path, run_integrity_check=False)
+    result = run_user_prompt_submit(
+        json.dumps({"session_id": "sess-none-nudge", "prompt": "why did we pick X"}),
+        project_dir=tmp_path,
+        config=BrainConfig(),
+    )
+    assert result.additional_context is None
 
 
 def test_user_prompt_submit_nudge_skipped_for_cursor(tmp_path: Path) -> None:
@@ -239,6 +262,7 @@ def test_user_prompt_submit_nudge_fires_even_when_auto_observe_disabled(tmp_path
         json.dumps({"session_id": "sess-nudge-2", "prompt": "why did we pick X"}),
         project_dir=tmp_path,
         config=BrainConfig(capture={"auto_observe": False}),
+        client="claude",
     )
     assert result.reason == "auto_observe disabled"
     assert result.additional_context is not None
@@ -265,6 +289,7 @@ def test_user_prompt_submit_nudge_suppressed_once_brainkm_used(tmp_path: Path) -
         json.dumps({"session_id": session_id, "prompt": "what calls foo"}),
         project_dir=tmp_path,
         config=BrainConfig(),
+        client="claude",
     )
     assert result.additional_context is None
 
@@ -278,6 +303,7 @@ def test_user_prompt_submit_nudge_capped_per_session(tmp_path: Path) -> None:
         json.dumps({"session_id": session_id, "prompt": "first prompt"}),
         project_dir=tmp_path,
         config=cfg,
+        client="claude",
     )
     assert first.additional_context is not None
 
@@ -285,6 +311,7 @@ def test_user_prompt_submit_nudge_capped_per_session(tmp_path: Path) -> None:
         json.dumps({"session_id": session_id, "prompt": "second prompt"}),
         project_dir=tmp_path,
         config=cfg,
+        client="claude",
     )
     assert second.additional_context is None
 
@@ -295,6 +322,7 @@ def test_user_prompt_submit_nudge_disabled_via_config(tmp_path: Path) -> None:
         json.dumps({"session_id": "sess-off", "prompt": "why did we pick X"}),
         project_dir=tmp_path,
         config=BrainConfig(injection={"routing_nudge": False}),
+        client="claude",
     )
     assert result.additional_context is None
 

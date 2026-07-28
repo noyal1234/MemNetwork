@@ -109,11 +109,14 @@ def build_hooks_config(
     *,
     config: BrainConfig | None = None,
 ) -> dict[str, object]:
+    """Cursor hooks — always pass ``--client cursor`` so Claude ToolSearch copy stays gated.
+
+    PreToolUse matcher is pack patterns only (write/edit/shell). Routing-nudge
+    Read/Grep/Glob matchers are Claude-only (see ``build_claude_hooks_config``);
+    packs still transfer. Shell packs require a path/symbol seed.
+    """
     cfg = config or BrainConfig()
-    matcher = pre_tool_matcher(
-        list(cfg.injection.pre_tool_patterns)
-        + list(cfg.injection.routing_nudge_pretool_patterns)
-    )
+    matcher = pre_tool_matcher(list(cfg.injection.pre_tool_patterns))
     # Hook commands run through the IDE's shell — quote the binary path so
     # spaces/metacharacters in install locations cannot alter the command.
     bin_q = shlex.quote(brainkm_bin)
@@ -122,40 +125,40 @@ def build_hooks_config(
         "hooks": {
             "sessionStart": [
                 {
-                    "command": f"{bin_q} session-start --stdin",
+                    "command": f"{bin_q} session-start --stdin --client cursor",
                     "timeout": 30,
                 }
             ],
             "sessionEnd": [
                 {
-                    "command": f"{bin_q} session-end --stdin",
+                    "command": f"{bin_q} session-end --stdin --client cursor",
                     "timeout": 120,
                 }
             ],
             "preCompact": [
                 {
                     "matcher": "auto",
-                    "command": f"{bin_q} handover --stdin",
+                    "command": f"{bin_q} handover --stdin --client cursor",
                     "timeout": 30,
                 }
             ],
             "preToolUse": [
                 {
                     "matcher": matcher,
-                    "command": f"{bin_q} pre-tool --stdin",
+                    "command": f"{bin_q} pre-tool --stdin --client cursor",
                     "timeout": 15,
                 }
             ],
             "postToolUse": [
                 {
                     "matcher": "Write|Edit|Shell",
-                    "command": f"{bin_q} post-tool --stdin",
+                    "command": f"{bin_q} post-tool --stdin --client cursor",
                     "timeout": 5,
                 }
             ],
             "beforeSubmitPrompt": [
                 {
-                    "command": f"{bin_q} user-prompt --stdin",
+                    "command": f"{bin_q} user-prompt --stdin --client cursor",
                     "timeout": 5,
                 }
             ],
@@ -745,25 +748,37 @@ def _brainkm_command_suffix(command: str) -> str | None:
     return command.split(marker, 1)[1].strip()
 
 
+def _brainkm_hook_key(command: str) -> str | None:
+    """Merge identity: brainkm argv after the binary, ignoring ``--client <kind>``.
+
+    Lets ``session-start --stdin`` be replaced by ``session-start --stdin --client cursor``
+    on reinstall without leaving a duplicate legacy hook.
+    """
+    suffix = _brainkm_command_suffix(command)
+    if not suffix:
+        return None
+    return re.sub(r"(?:^|\s)--client\s+\S+", "", suffix).strip() or None
+
+
 def _merge_hook_lists(
     existing: list[object],
     incoming: list[object],
 ) -> list[object]:
     merged = list(existing)
-    incoming_suffixes = {
-        suffix
+    incoming_keys = {
+        key
         for item in incoming
         if isinstance(item, dict)
-        for suffix in [_brainkm_command_suffix(str(item.get("command", "")))]
-        if suffix
+        for key in [_brainkm_hook_key(str(item.get("command", "")))]
+        if key
     }
-    if incoming_suffixes:
+    if incoming_keys:
         merged = [
             row
             for row in merged
             if not (
                 isinstance(row, dict)
-                and _brainkm_command_suffix(str(row.get("command", ""))) in incoming_suffixes
+                and _brainkm_hook_key(str(row.get("command", ""))) in incoming_keys
             )
         ]
 

@@ -3,40 +3,40 @@
   "hooks": {
     "sessionStart": [
       {
-        "command": "brainkm session-start --stdin",
+        "command": "brainkm session-start --stdin --client cursor",
         "timeout": 30
       }
     ],
     "sessionEnd": [
       {
-        "command": "brainkm session-end --stdin",
+        "command": "brainkm session-end --stdin --client cursor",
         "timeout": 120
       }
     ],
     "preCompact": [
       {
         "matcher": "auto",
-        "command": "brainkm handover --stdin",
+        "command": "brainkm handover --stdin --client cursor",
         "timeout": 30
       }
     ],
     "preToolUse": [
       {
-        "matcher": "Write|Edit|Read|Grep|Glob",
-        "command": "brainkm pre-tool --stdin",
+            "matcher": "Write|Edit|Shell",
+            "command": "brainkm pre-tool --stdin --client cursor",
         "timeout": 15
       }
     ],
     "postToolUse": [
       {
         "matcher": "Write|Edit|Shell",
-        "command": "brainkm post-tool --stdin",
+        "command": "brainkm post-tool --stdin --client cursor",
         "timeout": 5
       }
     ],
     "beforeSubmitPrompt": [
       {
-        "command": "brainkm user-prompt --stdin",
+        "command": "brainkm user-prompt --stdin --client cursor",
         "timeout": 5
       }
     ]

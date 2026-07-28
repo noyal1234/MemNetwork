@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import re
 
 from brainkm.adapters.embeddings import cosine_similarity, get_embedder
 from brainkm.services.budget import BudgetLine
 from brainkm.services.memory import token_count
+
+logger = logging.getLogger(__name__)
 
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
 
@@ -64,7 +67,7 @@ def compress_body(
                             latency_ms=stage.latency_ms,
                         )
             except Exception:
-                pass
+                logger.debug("compression event log failed", exc_info=True)
         if token_count(text) <= max_tokens:
             return text
 

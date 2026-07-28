@@ -144,7 +144,12 @@ def filter_active_memory_ids(
     conn: sqlite3.Connection,
     hit_ids: list[str],
 ) -> list[str]:
-    """Return active memory neuron IDs from a candidate list (preserves order)."""
+    """Return active pack-hit neuron IDs (memory + procedure), preserving order.
+
+    Code-graph nodes are excluded — they are not hygiene/feedback targets.
+    ``dead_neuron_count`` remains memory-only; procedures use injected_count
+    via ``archive_ignored_procedures``.
+    """
     if not hit_ids:
         return []
     placeholders = ",".join("?" * len(hit_ids))
@@ -152,7 +157,7 @@ def filter_active_memory_ids(
         f"""
         SELECT id FROM nodes
         WHERE id IN ({placeholders})
-          AND kind = 'memory'
+          AND kind IN ('memory', 'procedure')
           AND valid_until IS NULL
         """,
         hit_ids,

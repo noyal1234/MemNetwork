@@ -391,7 +391,11 @@ class BrainStatsResponse(BaseModel):
     )
     dead_neuron_count: int = Field(
         default=0,
-        description="Active memory neurons with use_count=0 and no pending hits",
+        description=(
+            "Active memory-kind neurons with use_count=0 and no pending "
+            "neuron_hit rows — hygiene signal only, not total pack/content "
+            "delivery (code-graph / procedure-only packs do not clear this)"
+        ),
     )
     hygiene_hint: str | None = Field(
         default=None,
@@ -409,7 +413,8 @@ class BrainStatsResponse(BaseModel):
         default_factory=dict,
         description=(
             "Compression rollups (tokens_in/out by surface), engine_version, "
-            "cache_ttl_seconds — sidecar metrics only"
+            "cache_ttl_seconds — the configured dual-store cache expiry, "
+            "enforced by dual_store.get_compressed_view"
         ),
     )
     # Optional session-scoped fields (populated when request.session_id is set)

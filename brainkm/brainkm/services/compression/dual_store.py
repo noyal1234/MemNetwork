@@ -20,11 +20,13 @@ def get_compressed_view(
     full_body: str,
     engine_version: str,
     intensity: str,
+    ttl_seconds: float | None = None,
 ) -> str | None:
+    """Look up a cached view. Expired rows (older than ttl_seconds) are treated as a miss and purged."""
     h = body_hash(full_body)
     row = conn.execute(
         """
-        SELECT compressed_text
+        SELECT compressed_text, created_at
         FROM compression_views
         WHERE neuron_id = ?
           AND body_hash = ?
@@ -33,7 +35,23 @@ def get_compressed_view(
         """,
         (neuron_id, h, engine_version, intensity),
     ).fetchone()
-    return str(row[0]) if row else None
+    if row is None:
+        return None
+    if ttl_seconds is not None:
+        from datetime import UTC, datetime
+
+        created_at = datetime.fromisoformat(str(row[1]))
+        age_seconds = (datetime.now(UTC) - created_at).total_seconds()
+        if age_seconds > ttl_seconds:
+            conn.execute(
+                """
+                DELETE FROM compression_views
+                WHERE neuron_id = ? AND body_hash = ? AND engine_version = ? AND intensity = ?
+                """,
+                (neuron_id, h, engine_version, intensity),
+            )
+            return None
+    return str(row[0])
 
 
 def put_compressed_view(

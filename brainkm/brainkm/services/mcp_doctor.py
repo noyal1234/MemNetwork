@@ -523,6 +523,12 @@ def inspect_cursor_wiring(project_dir: Path) -> list[str]:
         binary = command.split()[0]
         if binary not in ("brainkm",) and not Path(binary).is_file() and not shutil.which(binary):
             notes.append(f"Hook binary not found: {binary}")
+        if "--client cursor" not in command:
+            notes.append(
+                "Cursor hooks missing `--client cursor` "
+                "(Claude ToolSearch copy may leak) — "
+                "re-run `brainkm connect cursor --hooks`"
+            )
 
     return notes
 

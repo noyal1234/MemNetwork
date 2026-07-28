@@ -82,7 +82,11 @@ class CaptureConfig(BaseModel):
 
 class InjectionConfig(BaseModel):
     session_start: bool = True
-    pre_tool_patterns: list[str] = Field(default_factory=lambda: ["write", "edit"])
+    # Shell/Bash packs only when derive_pre_tool_query finds a path/symbol seed
+    # (plain grep/wc never inject). run_terminal aliases Shell|Bash|run_terminal_cmd.
+    pre_tool_patterns: list[str] = Field(
+        default_factory=lambda: ["write", "edit", "run_terminal"]
+    )
     max_recalls_per_turn: int = Field(default=3, ge=0, le=5)
     frozen_snapshot: bool = True
     routing_nudge: bool = True

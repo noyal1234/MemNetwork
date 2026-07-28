@@ -242,3 +242,83 @@ def test_remember_observation_uses_pipeline():
         assert rec.content is not None
     finally:
         cleanup_ephemeral_project(project, conn)
+
+
+def test_dual_store_view_expires_after_ttl():
+    from brainkm.services.compression.dual_store import get_compressed_view, put_compressed_view
+
+    conn, _db, project = ephemeral_project_brain()
+    try:
+        put_compressed_view(
+            conn,
+            neuron_id="n1",
+            full_body="full body text",
+            compressed_text="short",
+            engine_version="1",
+            intensity="lite",
+        )
+        conn.commit()
+
+        # Fresh row: well within a generous TTL.
+        assert (
+            get_compressed_view(
+                conn,
+                neuron_id="n1",
+                full_body="full body text",
+                engine_version="1",
+                intensity="lite",
+                ttl_seconds=300.0,
+            )
+            == "short"
+        )
+
+        # Backdate created_at past a short TTL to simulate an expired entry.
+        conn.execute(
+            "UPDATE compression_views SET created_at = '2000-01-01T00:00:00+00:00' "
+            "WHERE neuron_id = 'n1'"
+        )
+        conn.commit()
+
+        assert (
+            get_compressed_view(
+                conn,
+                neuron_id="n1",
+                full_body="full body text",
+                engine_version="1",
+                intensity="lite",
+                ttl_seconds=60.0,
+            )
+            is None
+        )
+        # Expired row should be purged, not just skipped.
+        row = conn.execute(
+            "SELECT COUNT(*) FROM compression_views WHERE neuron_id = 'n1'"
+        ).fetchone()
+        assert row[0] == 0
+
+        # No ttl_seconds passed: never expires, regardless of age.
+        put_compressed_view(
+            conn,
+            neuron_id="n2",
+            full_body="full body text",
+            compressed_text="short",
+            engine_version="1",
+            intensity="lite",
+        )
+        conn.execute(
+            "UPDATE compression_views SET created_at = '2000-01-01T00:00:00+00:00' "
+            "WHERE neuron_id = 'n2'"
+        )
+        conn.commit()
+        assert (
+            get_compressed_view(
+                conn,
+                neuron_id="n2",
+                full_body="full body text",
+                engine_version="1",
+                intensity="lite",
+            )
+            == "short"
+        )
+    finally:
+        cleanup_ephemeral_project(project, conn)
