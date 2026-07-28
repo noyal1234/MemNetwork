@@ -47,7 +47,7 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
             "Requires title+body for pin/correct (body aliases: content, text). "
             "kind is always memory; subtype is fact|decision|pattern|context|rule|error. "
             "Hooks (not this tool) are the primary memory path — do not use for ordinary "
-            "session notes."
+            "session notes. Optional session_id attributes usage to per-session brain_stats."
         ),
         RememberRequest,
         RememberResponse,
@@ -58,7 +58,8 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
             "Live project memory search (decisions, rules, errors) with optional "
             "decision_trail supersede history for why/history questions. Abstains on "
             "low confidence. Not for call graphs (traverse) or multi-file packs "
-            "(context_pack)."
+            "(context_pack). Optional session_id attributes usage to per-session "
+            "brain_stats."
         ),
         RecallRequest,
         RecallResponse,
@@ -72,7 +73,8 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
             "match strength, not pack density. Results are in pack_text by default; "
             "neurons/graph_nodes stay empty unless include_structured=true "
             "(shares the same token budget with pack_text). Auto-queues graph refresh "
-            "when stale. For pure call/import/blast-radius questions use traverse."
+            "when stale. For pure call/import/blast-radius questions use traverse. "
+            "Optional session_id attributes usage to per-session brain_stats."
         ),
         ContextPackRequest,
         ContextPackResponse,
@@ -97,7 +99,7 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
             "staleness, review queue, abstention calibration, hygiene hint. "
             "Not a retrieval-correctness score — do not treat as proof packs/recalls "
             "were on-topic. Use before trusting traverse/context_pack when results "
-            "look empty."
+            "look empty. Optional session_id scopes the summary to per-session usage."
         ),
         BrainStatsRequest,
         BrainStatsResponse,

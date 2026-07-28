@@ -17,6 +17,9 @@ This project uses **brainkm** — a local SQLite project brain at `.brain/brain.
 - Memory is filled primarily by **hooks** (SessionEnd distill, PostToolUse observations,
   SessionStart injection). Call **`remember` only to pin** durable project truth or **correct**
   a wrong auto-capture — not for ordinary session learning.
+- Pass **`session_id`** on every brainkm MCP call (SessionStart banner and the UserPromptSubmit
+  reminder both echo the current session_id) — omitting it buckets usage under a shared `__anon__`
+  session and breaks per-session `brain_stats` and procedure learning.
 
 ## Tool routing (locate vs flow vs decisions)
 

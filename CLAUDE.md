@@ -19,7 +19,9 @@ Expand truncated ids via `recall` with `truncation_followup: true`.
 Installed for Claude Code via `brainkm install --client claude`.
 Frozen SessionStart context does not replace live `recall` / `traverse` /
 `context_pack` — call those tools when the question matches
-(load via ToolSearch first if deferred).
+(load via ToolSearch first if deferred). Pass `session_id` (echoed in the
+SessionStart banner and UserPromptSubmit reminder) on every call so usage
+attributes correctly instead of pooling into `__anon__`.
 
 ## Coexistence with Claude native memory
 

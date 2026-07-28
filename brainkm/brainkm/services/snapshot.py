@@ -161,15 +161,26 @@ def select_injection_neurons(
     return selected
 
 
-def _graph_status_line(conn: sqlite3.Connection) -> str | None:
+_TOOL_SEARCH_SELECT = (
+    "select:mcp__brainkm__recall,mcp__brainkm__traverse,mcp__brainkm__context_pack,"
+    "mcp__brainkm__brain_stats,mcp__brainkm__remember,mcp__brainkm__trace_changes"
+)
+
+
+def _graph_status_line(conn: sqlite3.Connection, session_id: str | None = None) -> str | None:
     if not graph_available(conn):
         return None
     node_count, edge_count = graph_counts(conn)
-    return (
+    line = (
         f"Code graph: {node_count} nodes / {edge_count} edges. "
         "For call/import/blast-radius use traverse; for multi-file task context "
-        "use context_pack with a symbol — then verify in source before editing."
+        "use context_pack with a symbol — then verify in source before editing. "
+        f"brainkm tools are deferred: run ToolSearch \"{_TOOL_SEARCH_SELECT}\" before "
+        "your first call."
     )
+    if session_id:
+        line += f" Pass session_id=\"{session_id}\" on every brainkm call for correct attribution."
+    return line
 
 
 def render_injection_pack(
@@ -299,7 +310,7 @@ def build_frozen_snapshot(
     context_hint: str | None = None,
 ) -> InjectionSnapshot:
     """Build or return the frozen injection snapshot for a session."""
-    graph_status = _graph_status_line(conn)
+    graph_status = _graph_status_line(conn, session_id)
 
     if not config.injection.frozen_snapshot:
         neurons = select_injection_neurons(conn, config, context_hint=context_hint)

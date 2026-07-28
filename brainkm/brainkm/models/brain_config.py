@@ -85,6 +85,8 @@ class InjectionConfig(BaseModel):
     pre_tool_patterns: list[str] = Field(default_factory=lambda: ["write", "edit"])
     max_recalls_per_turn: int = Field(default=3, ge=0, le=5)
     frozen_snapshot: bool = True
+    routing_nudge: bool = True
+    routing_nudge_max_per_session: int = Field(default=3, ge=0)
 
 
 class LearningConfig(BaseModel):

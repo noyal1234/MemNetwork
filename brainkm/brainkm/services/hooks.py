@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,12 +14,14 @@ from brainkm.db.migrate import migrate
 from brainkm.db.paths import brain_db_path
 from brainkm.logging_config import get_logger
 from brainkm.models.brain_config import BrainConfig
+from brainkm.services.audit import utc_now_iso
 from brainkm.services.capture import capture_transcript_file
 from brainkm.services.config_loader import load_brain_config
 from brainkm.services.handover import parse_precompact_hook_payload
 from brainkm.services.learning import persist_neuron_hits, process_post_tool
+from brainkm.services.memory import new_ulid
 from brainkm.services.session_activity import flush_use_counts, record_neuron_activity
-from brainkm.services.snapshot import build_frozen_snapshot, resolve_session_id
+from brainkm.services.snapshot import _TOOL_SEARCH_SELECT, build_frozen_snapshot, resolve_session_id
 
 logger = get_logger("services.hooks")
 
@@ -50,7 +53,9 @@ _CLAUDE_EVENT_NAMES: dict[str, str] = {
 }
 
 # Events that may emit Claude context / permission JSON
-_CLAUDE_INJECT_EVENTS = frozenset({"sessionStart", "postCompact", "preToolUse", "subagentStart"})
+_CLAUDE_INJECT_EVENTS = frozenset(
+    {"sessionStart", "postCompact", "preToolUse", "subagentStart", "userPromptSubmit"}
+)
 
 # Codex uses the same PascalCase hookEventName envelope as Claude for inject events.
 _CODEX_INJECT_EVENTS = frozenset({"sessionStart", "userPromptSubmit", "preToolUse", "postCompact"})
@@ -723,38 +728,88 @@ def run_post_tool_use(
     )
 
 
+def _maybe_routing_nudge(
+    conn: sqlite3.Connection,
+    session_id: str | None,
+    cfg: BrainConfig,
+) -> str | None:
+    """Short, self-disabling reminder to use brainkm MCP tools for this session.
+
+    Suppressed once the session has any real brainkm MCP call (source in
+    mcp/mcp_abstained), and capped so a session that never adopts the tools
+    isn't nagged forever.
+    """
+    if not cfg.injection.routing_nudge or not session_id:
+        return None
+    already_used = conn.execute(
+        """
+        SELECT 1 FROM session_activity
+        WHERE session_id = ? AND source IN ('mcp', 'mcp_abstained')
+        LIMIT 1
+        """,
+        (session_id,),
+    ).fetchone()
+    if already_used is not None:
+        return None
+    nudge_count = conn.execute(
+        "SELECT COUNT(*) AS c FROM session_activity WHERE session_id = ? AND kind = 'routing_nudge'",
+        (session_id,),
+    ).fetchone()["c"]
+    if nudge_count >= cfg.injection.routing_nudge_max_per_session:
+        return None
+    conn.execute(
+        """
+        INSERT INTO session_activity (id, session_id, kind, node_id, tool_name, source, created_at)
+        VALUES (?, ?, 'routing_nudge', NULL, NULL, 'hook', ?)
+        """,
+        (new_ulid(), session_id, utc_now_iso()),
+    )
+    return (
+        "brainkm reminder: recall/traverse/context_pack/brain_stats/remember/trace_changes "
+        f'may be deferred — run ToolSearch "{_TOOL_SEARCH_SELECT}" before your first call '
+        f'this session, and pass session_id="{session_id}" on every brainkm call.'
+    )
+
+
 def run_user_prompt_submit(
     raw: str,
     *,
     project_dir: Path | None = None,
     config: BrainConfig | None = None,
 ) -> HookRunResult:
-    """UserPromptSubmit — store a capped prompt gist when auto_observe is on."""
+    """UserPromptSubmit — routing nudge, then store a capped prompt gist when auto_observe is on."""
     cfg = config or load_brain_config(project_dir)
     data = _parse_hook_object(raw)
     session_id = _session_id_from_payload(data)
-    if not cfg.capture.auto_observe:
-        return HookRunResult(
-            hook="UserPromptSubmit",
-            session_id=session_id,
-            skipped=True,
-            reason="auto_observe disabled",
-        )
-    prompt = ""
-    for key in ("prompt", "user_prompt", "message", "text"):
-        value = data.get(key)
-        if isinstance(value, str) and value.strip():
-            prompt = value
-            break
-    if not prompt:
-        return HookRunResult(
-            hook="UserPromptSubmit",
-            session_id=session_id,
-            skipped=True,
-            reason="missing prompt",
-        )
+
     conn = connect(brain_db_path(project_dir))
     try:
+        nudge = _maybe_routing_nudge(conn, session_id, cfg)
+        conn.commit()
+
+        if not cfg.capture.auto_observe:
+            return HookRunResult(
+                hook="UserPromptSubmit",
+                session_id=session_id,
+                skipped=nudge is None,
+                reason="auto_observe disabled",
+                additional_context=nudge,
+            )
+        prompt = ""
+        for key in ("prompt", "user_prompt", "message", "text"):
+            value = data.get(key)
+            if isinstance(value, str) and value.strip():
+                prompt = value
+                break
+        if not prompt:
+            return HookRunResult(
+                hook="UserPromptSubmit",
+                session_id=session_id,
+                skipped=nudge is None,
+                reason="missing prompt",
+                additional_context=nudge,
+            )
+
         from brainkm.services.observe import record_prompt_observation
 
         obs = record_prompt_observation(
@@ -769,8 +824,9 @@ def run_user_prompt_submit(
     return HookRunResult(
         hook="UserPromptSubmit",
         session_id=session_id,
-        skipped=not obs.stored,
+        skipped=not obs.stored and nudge is None,
         reason=obs.skipped_reason,
+        additional_context=nudge,
     )
 
 
