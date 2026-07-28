@@ -22,7 +22,7 @@
     ],
     "preToolUse": [
       {
-        "matcher": "Write|Edit|Shell",
+        "matcher": "Write|Edit|Read|Grep|Glob",
         "command": "brainkm pre-tool --stdin",
         "timeout": 15
       }

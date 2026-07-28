@@ -327,8 +327,9 @@ def _claude_mcp_tool_allow_note(root: Path) -> str | None:
     short = ", ".join(name.removeprefix("mcp__brainkm__") for name in missing)
     return (
         f"Claude .claude/settings.local.json permissions.allow missing brainkm tools "
-        f"({short}) — Claude Code will prompt (or skip) those tools; rerun "
-        "`brainkm install --client claude` or `brainkm connect claude` to seed the full allowlist"
+        f"({short}) — SessionStart self-heals the allowlist on disk; if tools still prompt "
+        "for approval, start a new Claude session (settings reload varies by Claude Code "
+        "version). Or rerun `brainkm install --client claude` / `brainkm connect claude`"
     )
 
 

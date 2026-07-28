@@ -101,10 +101,16 @@ class ClaudeClientAdapter:
             + "SessionStart banner and UserPromptSubmit reminder) on every call so usage "
             + "attributes correctly instead of pooling into `__anon__`.\n"
             + "\n## Coexistence with Claude native memory\n\n"
+            + "| What | Where | Why |\n"
+            + "|------|-------|-----|\n"
+            + "| Personal prefs / debug insights | Claude Auto Memory | Per-user |\n"
+            + "| Project architecture decisions | brainkm (`recall`) | Shared + survives compaction |\n"
+            + "| Team coding conventions | `CLAUDE.md` / `.claude/rules` | Static policy |\n"
+            + "| Wrong auto-captures | brainkm `remember` `action=correct` | Supersedes edge |\n"
+            + "\n"
             + "- **CLAUDE.md / `.claude/rules`** = authored project instructions (static).\n"
             + "- **Claude Auto Memory (`MEMORY.md`)** = Claude's private notes — leave alone.\n"
             + "- **brainkm** = searchable project brain (decisions, graph, compaction survival).\n"
-            + "Prefs/debug notes stay in Auto Memory; durable team decisions → brainkm MCP.\n"
         )
 
     def config_dir_name(self) -> str:

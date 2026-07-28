@@ -250,6 +250,9 @@ def _pattern_matches_tool(pattern: str, tool_name: str) -> bool:
             "run_command",
         ),
         "view": ("view", "view_file", "read_file"),
+        "read": ("read", "view", "view_file", "read_file"),
+        "grep": ("grep", "grep_search", "search_content"),
+        "glob": ("glob", "glob_file_search", "find_by_name"),
     }
     candidates = aliases.get(normalized_pattern, (normalized_pattern,))
     return any(candidate in normalized_tool for candidate in candidates)
@@ -306,6 +309,7 @@ def run_session_start(
     *,
     project_dir: Path | None = None,
     config: BrainConfig | None = None,
+    client: str | None = None,
 ) -> HookRunResult:
     """SessionStart — migrate DB, build frozen injection snapshot (not updated mid-session)."""
     cfg = config or load_brain_config(project_dir)
@@ -324,6 +328,26 @@ def run_session_start(
 
     migrate(project_dir=project_dir, run_integrity_check=True)
 
+    # Claude: merge missing MCP tool allows. Hot-reload of settings.local.json
+    # varies by Claude Code version (docs claim watch/reload; some builds need a
+    # new session for programmatic writes). Doctor copy stays version-neutral.
+    if (client or "").strip().lower() == "claude":
+        try:
+            from brainkm.services.install import ensure_claude_settings_local_permissions
+
+            ensure_claude_settings_local_permissions(
+                project_dir if project_dir is not None else Path.cwd()
+            )
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "SessionStart Claude permissions self-heal failed",
+                exc_info=True,
+            )
+
+    from brainkm.services.hook_session import record_runtime_metric, set_last_hook_session
+
+    set_last_hook_session(session_id=session_id, client=client, project_dir=project_dir)
+
     conn = connect(brain_db_path(project_dir))
     try:
         from brainkm.services.compression.cohort import assign_session_cohort
@@ -334,6 +358,7 @@ def run_session_start(
             session_id,
             cfg,
             context_hint=context_hint,
+            client=client,
         )
         record_neuron_activity(
             conn,
@@ -341,6 +366,14 @@ def run_session_start(
             list(snapshot.neuron_ids),
             source="session_start",
         )
+        kind = (client or "").strip().lower() or None
+        if kind in (None, "claude") and snapshot.pack_text and "ToolSearch" in snapshot.pack_text:
+            record_runtime_metric(
+                conn,
+                session_id=session_id,
+                name="toolsearch_lead_in_shown",
+                source="hook",
+            )
         conn.commit()
     finally:
         conn.close()
@@ -506,8 +539,9 @@ def run_pre_tool_use(
     *,
     project_dir: Path | None = None,
     config: BrainConfig | None = None,
+    client: str | None = None,
 ) -> HookRunResult:
-    """PreToolUse — match configured tools and inject a bounded context_pack when seeded."""
+    """PreToolUse — pack for write/edit; routing nudge for Read/Grep/Glob when eligible."""
     data = _parse_hook_object(raw)
     # AGY payloads include workspacePaths; resolve before loading BrainConfig.
     if data.get("workspacePaths") or data.get("workspace_paths") or data.get("conversationId"):
@@ -519,14 +553,6 @@ def run_pre_tool_use(
     tool_name = _tool_name_from_payload(data)
     session_id = _session_id_from_payload(data)
 
-    if not cfg.injection.pre_tool_patterns:
-        return HookRunResult(
-            hook="PreToolUse",
-            session_id=session_id,
-            skipped=True,
-            reason="no pre_tool patterns configured",
-        )
-
     if tool_name is None:
         return HookRunResult(
             hook="PreToolUse",
@@ -535,10 +561,16 @@ def run_pre_tool_use(
             reason="missing tool name in hook payload",
         )
 
-    matched = any(
-        _pattern_matches_tool(pattern, tool_name) for pattern in cfg.injection.pre_tool_patterns
+    pack_patterns = cfg.injection.pre_tool_patterns
+    nudge_patterns = cfg.injection.routing_nudge_pretool_patterns
+    pack_matched = bool(pack_patterns) and any(
+        _pattern_matches_tool(pattern, tool_name) for pattern in pack_patterns
     )
-    if not matched:
+    nudge_matched = bool(nudge_patterns) and any(
+        _pattern_matches_tool(pattern, tool_name) for pattern in nudge_patterns
+    )
+
+    if not pack_matched and not nudge_matched:
         return HookRunResult(
             hook="PreToolUse",
             session_id=session_id,
@@ -548,23 +580,57 @@ def run_pre_tool_use(
 
     migrate(project_dir=project_dir, run_integrity_check=False)
     conn = connect(brain_db_path(project_dir))
+    pack = None
+    nudge = None
     try:
-        from brainkm.services.context_pack import compile_pre_tool_pack
+        if pack_matched:
+            from brainkm.services.context_pack import compile_pre_tool_pack
 
-        pack = compile_pre_tool_pack(conn, data, config=cfg, project_dir=project_dir)
-        if pack is not None:
-            persist_neuron_hits(
-                conn,
-                session_id,
-                [node.node_id for node in pack.neurons],
-                source="pre_tool",
-                cap=cfg.learning.session_window_size,
-            )
-            conn.commit()
+            pack = compile_pre_tool_pack(conn, data, config=cfg, project_dir=project_dir)
+            if pack is not None:
+                persist_neuron_hits(
+                    conn,
+                    session_id,
+                    [node.node_id for node in pack.neurons],
+                    source="pre_tool",
+                    cap=cfg.learning.session_window_size,
+                )
+        if pack is None and nudge_matched:
+            nudge = _maybe_routing_nudge(conn, session_id, cfg, client=client)
+        conn.commit()
     finally:
         conn.close()
 
-    if pack is None:
+    if pack is not None:
+        logger.info(
+            "hook=PreToolUse session_id=%s tool=%s context_pack=tokens=%d",
+            session_id,
+            tool_name,
+            pack.truncation.tokens_used,
+        )
+        return HookRunResult(
+            hook="PreToolUse",
+            session_id=session_id,
+            skipped=False,
+            reason=None,
+            additional_context=pack.pack_text,
+        )
+
+    if nudge is not None:
+        logger.info(
+            "hook=PreToolUse session_id=%s tool=%s routing_nudge=1",
+            session_id,
+            tool_name,
+        )
+        return HookRunResult(
+            hook="PreToolUse",
+            session_id=session_id,
+            skipped=False,
+            reason=None,
+            additional_context=nudge,
+        )
+
+    if pack_matched:
         logger.info(
             "hook=PreToolUse session_id=%s tool=%s context_pack=skipped no_seed",
             session_id,
@@ -577,19 +643,13 @@ def run_pre_tool_use(
             reason="no meaningful pre-tool seed",
         )
 
-    logger.info(
-        "hook=PreToolUse session_id=%s tool=%s context_pack=tokens=%d",
-        session_id,
-        tool_name,
-        pack.truncation.tokens_used,
-    )
     return HookRunResult(
         hook="PreToolUse",
         session_id=session_id,
-        skipped=False,
-        reason=None,
-        additional_context=pack.pack_text,
+        skipped=True,
+        reason="routing nudge suppressed",
     )
+
 
 
 def run_post_compact(
@@ -597,6 +657,7 @@ def run_post_compact(
     *,
     project_dir: Path | None = None,
     config: BrainConfig | None = None,
+    client: str | None = None,
 ) -> HookRunResult:
     """PostCompact — refresh frozen injection snapshot after compaction."""
     cfg = config or load_brain_config(project_dir)
@@ -613,6 +674,7 @@ def run_post_compact(
             cfg,
             force=True,
             context_hint=context_hint,
+            client=client,
         )
         record_neuron_activity(
             conn,
@@ -732,25 +794,46 @@ def _maybe_routing_nudge(
     conn: sqlite3.Connection,
     session_id: str | None,
     cfg: BrainConfig,
+    *,
+    client: str | None = None,
 ) -> str | None:
-    """Short, self-disabling reminder to use brainkm MCP tools for this session.
+    """Reminder to use brainkm MCP tools — Claude-only; shared UserPrompt+PreTool budget.
 
-    Suppressed once the session has any real brainkm MCP call (source in
-    mcp/mcp_abstained), and capped so a session that never adopts the tools
-    isn't nagged forever.
+    Eligible when brainkm was never used this session, or after
+    ``routing_nudge_rearm_after_calls`` tool_use rows since the last mcp call
+    (sustained drift). Cap: ``routing_nudge_max_per_session`` (default 5).
+    Nudge text is additive outside the SessionStart 1500-token pack (~40–80 tok each).
     """
+    kind = (client or "").strip().lower() or None
+    if kind not in (None, "claude"):
+        return None
     if not cfg.injection.routing_nudge or not session_id:
         return None
-    already_used = conn.execute(
+
+    last_mcp = conn.execute(
         """
-        SELECT 1 FROM session_activity
+        SELECT created_at FROM session_activity
         WHERE session_id = ? AND source IN ('mcp', 'mcp_abstained')
+        ORDER BY created_at DESC
         LIMIT 1
         """,
         (session_id,),
     ).fetchone()
-    if already_used is not None:
-        return None
+    if last_mcp is not None:
+        since = last_mcp["created_at"]
+        drift = conn.execute(
+            """
+            SELECT COUNT(*) AS c FROM session_activity
+            WHERE session_id = ?
+              AND kind = 'tool_use'
+              AND source NOT IN ('mcp', 'mcp_abstained')
+              AND created_at > ?
+            """,
+            (session_id, since),
+        ).fetchone()["c"]
+        if int(drift) < int(cfg.injection.routing_nudge_rearm_after_calls):
+            return None
+
     nudge_count = conn.execute(
         "SELECT COUNT(*) AS c FROM session_activity WHERE session_id = ? AND kind = 'routing_nudge'",
         (session_id,),
@@ -764,11 +847,18 @@ def _maybe_routing_nudge(
         """,
         (new_ulid(), session_id, utc_now_iso()),
     )
+    # Escalate urgency by prior nudge count (shared budget across UserPrompt + PreTool).
+    if nudge_count == 0:
+        return (
+            f'brainkm tools not loaded — run ToolSearch "{_TOOL_SEARCH_SELECT}" now, '
+            f'then pass session_id="{session_id}" on every brainkm call.'
+        )
     return (
-        "brainkm reminder: recall/traverse/context_pack/brain_stats/remember/trace_changes "
-        f'may be deferred — run ToolSearch "{_TOOL_SEARCH_SELECT}" before your first call '
-        f'this session, and pass session_id="{session_id}" on every brainkm call.'
+        f"Still no recent brainkm MCP this session — REQUIRED: ToolSearch "
+        f'"{_TOOL_SEARCH_SELECT}", then recall/traverse/context_pack for '
+        f'decisions/blast-radius/multi-file. session_id="{session_id}"'
     )
+
 
 
 def run_user_prompt_submit(
@@ -776,15 +866,21 @@ def run_user_prompt_submit(
     *,
     project_dir: Path | None = None,
     config: BrainConfig | None = None,
+    client: str | None = None,
 ) -> HookRunResult:
     """UserPromptSubmit — routing nudge, then store a capped prompt gist when auto_observe is on."""
     cfg = config or load_brain_config(project_dir)
     data = _parse_hook_object(raw)
     session_id = _session_id_from_payload(data)
 
+    if session_id:
+        from brainkm.services.hook_session import set_last_hook_session
+
+        set_last_hook_session(session_id=session_id, client=client, project_dir=project_dir)
+
     conn = connect(brain_db_path(project_dir))
     try:
-        nudge = _maybe_routing_nudge(conn, session_id, cfg)
+        nudge = _maybe_routing_nudge(conn, session_id, cfg, client=client)
         conn.commit()
 
         if not cfg.capture.auto_observe:
@@ -835,6 +931,7 @@ def run_subagent_start(
     *,
     project_dir: Path | None = None,
     config: BrainConfig | None = None,
+    client: str | None = None,
 ) -> HookRunResult:
     """SubagentStart — inject frozen pack and register activity for Claude subagents."""
     cfg = config or load_brain_config(project_dir)
@@ -858,6 +955,7 @@ def run_subagent_start(
             session_id,
             cfg,
             context_hint=context_hint,
+            client=client,
         )
         record_neuron_activity(
             conn,
@@ -1086,6 +1184,7 @@ def run_pre_invocation(
     project_dir: Path | None = None,
     config: BrainConfig | None = None,
     event: str = "PreInvocation",
+    client: str | None = None,
 ) -> HookRunResult:
     """Antigravity PreInvocation / SessionStart — inject throttled pack + synthetic precompact."""
     import hashlib
@@ -1177,6 +1276,7 @@ def run_pre_invocation(
             cfg,
             force=did_handover,
             context_hint=context_hint,
+            client=client or "antigravity",
         )
         pack_text = snapshot.pack_text if cfg.injection.frozen_snapshot else None
         pack_hash = hashlib.sha256(pack_text.encode("utf-8")).hexdigest()[:16] if pack_text else ""
@@ -1224,6 +1324,10 @@ def pre_tool_matcher(patterns: list[str]) -> str:
         "write": "Write",
         "edit": "Edit",
         "run_terminal": "Shell",
+        "read": "Read",
+        "grep": "Grep",
+        "glob": "Glob",
+        "view": "Read",
     }
     parts = [mapping.get(pattern, pattern) for pattern in patterns]
     return "|".join(re.escape(part) for part in parts)

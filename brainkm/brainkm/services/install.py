@@ -110,7 +110,10 @@ def build_hooks_config(
     config: BrainConfig | None = None,
 ) -> dict[str, object]:
     cfg = config or BrainConfig()
-    matcher = pre_tool_matcher(cfg.injection.pre_tool_patterns)
+    matcher = pre_tool_matcher(
+        list(cfg.injection.pre_tool_patterns)
+        + list(cfg.injection.routing_nudge_pretool_patterns)
+    )
     # Hook commands run through the IDE's shell — quote the binary path so
     # spaces/metacharacters in install locations cannot alter the command.
     bin_q = shlex.quote(brainkm_bin)
@@ -188,7 +191,10 @@ def build_claude_hooks_config(
 ) -> dict[str, object]:
     """Claude Code hooks fragment for ``.claude/settings.json`` (PascalCase + nested)."""
     cfg = config or BrainConfig()
-    matcher = pre_tool_matcher(cfg.injection.pre_tool_patterns)
+    matcher = pre_tool_matcher(
+        list(cfg.injection.pre_tool_patterns)
+        + list(cfg.injection.routing_nudge_pretool_patterns)
+    )
     # Claude uses Bash instead of Shell for the terminal tool.
     claude_matcher = matcher.replace("Shell", "Bash") if matcher else "Write|Edit|Bash"
     return {

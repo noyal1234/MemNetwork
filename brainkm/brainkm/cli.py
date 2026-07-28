@@ -553,7 +553,7 @@ def session_start_cmd(
 
     _run_stdin_hook(
         "SessionStart",
-        lambda raw: run_session_start(raw, project_dir=project_dir),
+        lambda raw: run_session_start(raw, project_dir=project_dir, client=client),
         event="sessionStart",
         client=client,
     )
@@ -600,7 +600,7 @@ def pre_tool_cmd(
 
     _run_stdin_hook(
         "PreToolUse",
-        lambda raw: run_pre_tool_use(raw, project_dir=project_dir),
+        lambda raw: run_pre_tool_use(raw, project_dir=project_dir, client=client),
         event=event,
         client=client,
     )
@@ -821,7 +821,7 @@ def post_compact_cmd(
 
     _run_stdin_hook(
         "PostCompact",
-        lambda raw: run_post_compact(raw, project_dir=project_dir),
+        lambda raw: run_post_compact(raw, project_dir=project_dir, client=client),
         event="postCompact",
         client=client,
     )
@@ -888,7 +888,7 @@ def user_prompt_cmd(
 
     _run_stdin_hook(
         "UserPromptSubmit",
-        lambda raw: run_user_prompt_submit(raw, project_dir=project_dir),
+        lambda raw: run_user_prompt_submit(raw, project_dir=project_dir, client=client),
         event="userPromptSubmit",
         client=client,
     )
@@ -909,7 +909,7 @@ def subagent_start_cmd(
 
     _run_stdin_hook(
         "SubagentStart",
-        lambda raw: run_subagent_start(raw, project_dir=project_dir),
+        lambda raw: run_subagent_start(raw, project_dir=project_dir, client=client),
         event="subagentStart",
         client=client,
     )
@@ -981,7 +981,9 @@ def pre_invocation_cmd(
 
     _run_stdin_hook(
         "PreInvocation",
-        lambda raw: run_pre_invocation(raw, project_dir=project_dir, event=event),
+        lambda raw: run_pre_invocation(
+            raw, project_dir=project_dir, event=event, client=client
+        ),
         event=event,
         client=client,
     )

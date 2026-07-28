@@ -194,3 +194,42 @@ def test_remember_neuron_stores_clean_content(brain_db) -> None:
         assert "JWT" in row[1]
     finally:
         conn.close()
+
+
+def test_remember_neuron_blocks_secret_in_tags(brain_db) -> None:
+    """Tags enter nodes_fts — secret tags must hit the redaction chokepoint."""
+    conn = connect(brain_db)
+    try:
+        with pytest.raises(RedactionBlockedError):
+            remember_neuron(
+                conn,
+                title="Auth middleware",
+                content="Validate JWT before route handlers",
+                tags=["ok", "sk-live-abcdefghijklmnopqrstuvwxyz123456"],
+            )
+        conn.commit()
+        count = conn.execute("SELECT COUNT(*) FROM nodes").fetchone()[0]
+        assert count == 0
+        fts_blob = conn.execute(
+            "SELECT group_concat(tags, ' ') FROM nodes_fts"
+        ).fetchone()[0]
+        assert fts_blob is None or "sk-live" not in fts_blob
+    finally:
+        conn.close()
+
+
+def test_remember_neuron_stores_clean_tags(brain_db) -> None:
+    conn = connect(brain_db)
+    try:
+        record = remember_neuron(
+            conn,
+            title="Auth middleware",
+            content="Validate JWT before route handlers",
+            tags=["auth", "jwt"],
+        )
+        conn.commit()
+        row = conn.execute("SELECT tags FROM nodes WHERE id = ?", (record.id,)).fetchone()
+        assert '"auth"' in row[0]
+        assert '"jwt"' in row[0]
+    finally:
+        conn.close()

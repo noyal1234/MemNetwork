@@ -25,7 +25,13 @@ attributes correctly instead of pooling into `__anon__`.
 
 ## Coexistence with Claude native memory
 
+| What | Where | Why |
+|------|-------|-----|
+| Personal prefs / debug insights | Claude Auto Memory | Per-user |
+| Project architecture decisions | brainkm (`recall`) | Shared + survives compaction |
+| Team coding conventions | `CLAUDE.md` / `.claude/rules` | Static policy |
+| Wrong auto-captures | brainkm `remember` `action=correct` | Supersedes edge |
+
 - **CLAUDE.md / `.claude/rules`** = authored project instructions (static).
 - **Claude Auto Memory (`MEMORY.md`)** = Claude's private notes — leave alone.
 - **brainkm** = searchable project brain (decisions, graph, compaction survival).
-Prefs/debug notes stay in Auto Memory; durable team decisions → brainkm MCP.

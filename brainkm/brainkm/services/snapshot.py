@@ -167,19 +167,45 @@ _TOOL_SEARCH_SELECT = (
 )
 
 
-def _graph_status_line(conn: sqlite3.Connection, session_id: str | None = None) -> str | None:
+def _claude_toolsearch_lead_in(session_id: str | None) -> str:
+    """Imperative ToolSearch + session_id only (Claude / default client)."""
+    lines = [
+        "## Load brainkm tools first",
+        f'Before any brainkm call: ToolSearch "{_TOOL_SEARCH_SELECT}"',
+    ]
+    if session_id:
+        lines.append(
+            f'Pass session_id="{session_id}" on every brainkm call.'
+        )
+    return "\n".join(lines)
+
+
+_FROZEN_FOOTER = (
+    "Frozen at session start — may be stale; for live answers use recall / "
+    "traverse / context_pack / trace_changes."
+)
+
+
+def _graph_status_line(
+    conn: sqlite3.Connection,
+    session_id: str | None = None,
+    *,
+    client: str | None = None,
+) -> str | None:
+    del client  # ToolSearch lives in Claude lead_in, not the graph line.
     if not graph_available(conn):
         return None
     node_count, edge_count = graph_counts(conn)
     line = (
         f"Code graph: {node_count} nodes / {edge_count} edges. "
         "For call/import/blast-radius use traverse; for multi-file task context "
-        "use context_pack with a symbol — then verify in source before editing. "
-        f"brainkm tools are deferred: run ToolSearch \"{_TOOL_SEARCH_SELECT}\" before "
-        "your first call."
+        "use context_pack with a symbol — then verify in source before editing."
     )
     if session_id:
-        line += f" Pass session_id=\"{session_id}\" on every brainkm call for correct attribution."
+        line += (
+            f' Pass session_id="{session_id}" on every brainkm call for correct '
+            "attribution."
+        )
     return line
 
 
@@ -187,16 +213,21 @@ def render_injection_pack(
     neurons: list[SnapshotNeuron],
     *,
     graph_status: str | None = None,
+    lead_in: str | None = None,
 ) -> str:
+    lines = ["# MemNetwork brain (frozen snapshot)", ""]
+    if lead_in:
+        lines.extend([lead_in.strip(), ""])
     if not neurons:
-        lines = [
-            "# MemNetwork brain (frozen snapshot)",
-            "",
-            "No pinned rules or context neurons yet.",
-            "",
-        ]
+        lines.extend(
+            [
+                "No pinned rules or context neurons yet.",
+                "",
+            ]
+        )
         if graph_status:
             lines.extend([graph_status, ""])
+        lines.extend(["---", _FROZEN_FOOTER, ""])
         return "\n".join(lines)
 
     sections: dict[str, list[SnapshotNeuron]] = {
@@ -215,7 +246,6 @@ def render_injection_pack(
         else:
             sections["Pinned"].append(neuron)
 
-    lines = ["# MemNetwork brain (frozen snapshot)", ""]
     if graph_status:
         lines.extend([graph_status, ""])
     for heading, items in sections.items():
@@ -231,6 +261,7 @@ def render_injection_pack(
                 lines.append(f"- **{item.title}** ({item.subtype or item.kind})")
         lines.append("")
 
+    lines.extend(["---", _FROZEN_FOOTER, ""])
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -239,13 +270,21 @@ def clamp_injection_pack(
     *,
     graph_status: str | None,
     total_tokens: int,
+    lead_in: str | None = None,
 ) -> tuple[list[SnapshotNeuron], str]:
-    """Drop lowest-priority (trailing) neurons until pack_text fits total_tokens."""
+    """Drop lowest-priority (trailing) neurons until pack_text fits total_tokens.
+
+    Lead_in + footer are preferred over neuron body under budget pressure — trim
+    neurons first. Lifecycle: pack once (~1500) + up to routing_nudge_max nudges
+    additive (~40–80 tok each) outside this clamp.
+    """
     kept = list(neurons)
-    pack_text = render_injection_pack(kept, graph_status=graph_status)
+    pack_text = render_injection_pack(kept, graph_status=graph_status, lead_in=lead_in)
     while kept and token_count(pack_text) > total_tokens:
         kept.pop()
-        pack_text = render_injection_pack(kept, graph_status=graph_status)
+        pack_text = render_injection_pack(
+            kept, graph_status=graph_status, lead_in=lead_in
+        )
     if token_count(pack_text) > total_tokens:
         # Hard clip empty/header-only edge case (graph status alone oversized).
         while token_count(pack_text) > total_tokens and len(pack_text) > 80:
@@ -308,9 +347,16 @@ def build_frozen_snapshot(
     *,
     force: bool = False,
     context_hint: str | None = None,
+    client: str | None = None,
 ) -> InjectionSnapshot:
     """Build or return the frozen injection snapshot for a session."""
-    graph_status = _graph_status_line(conn, session_id)
+    graph_status = _graph_status_line(conn, session_id, client=client)
+    kind = (client or "").strip().lower() or None
+    lead_in = (
+        _claude_toolsearch_lead_in(session_id)
+        if kind in (None, "claude")
+        else None
+    )
 
     if not config.injection.frozen_snapshot:
         neurons = select_injection_neurons(conn, config, context_hint=context_hint)
@@ -318,6 +364,7 @@ def build_frozen_snapshot(
             neurons,
             graph_status=graph_status,
             total_tokens=config.budget.total_tokens,
+            lead_in=lead_in,
         )
         now = utc_now_iso()
         return InjectionSnapshot(
@@ -343,6 +390,7 @@ def build_frozen_snapshot(
         neurons,
         graph_status=graph_status,
         total_tokens=config.budget.total_tokens,
+        lead_in=lead_in,
     )
     now = utc_now_iso()
     snapshot = InjectionSnapshot(

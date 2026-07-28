@@ -1,13 +1,42 @@
 """Tests for FTS seeding and 2-hop BFS traversal."""
 
+from datetime import UTC, datetime
+
 from brainkm.db.connection import connect
 from brainkm.models.brain_config import GraphConfig, RecallConfig
-from brainkm.services.search import recall_with_bfs, traverse, type_multiplier
+from brainkm.services.search import _decay_multiplier, recall_with_bfs, traverse, type_multiplier
 from tests.conftest import insert_edge, insert_node
 
 
 def test_type_multiplier_prefers_decisions() -> None:
     assert type_multiplier("memory", "decision") > type_multiplier("memory", "fact")
+
+
+def test_decay_multiplier_offset_independent(monkeypatch) -> None:
+    """Same instant in UTC vs +05:30 must yield the same age (no naive tz stripping)."""
+    import brainkm.services.search as search_mod
+
+    fixed_now = datetime(2026, 7, 28, 12, 0, 0, tzinfo=UTC)
+
+    class _FixedDateTime:
+        @staticmethod
+        def now(tz=None):  # noqa: ANN001
+            assert tz is UTC
+            return fixed_now
+
+        fromisoformat = staticmethod(datetime.fromisoformat)
+        strptime = staticmethod(datetime.strptime)
+
+    monkeypatch.setattr(search_mod, "datetime", _FixedDateTime)
+
+    utc = "2026-07-21T12:00:00+00:00"  # exactly 7 days before fixed_now
+    ist = "2026-07-21T17:30:00+05:30"  # same instant
+    half_life = 7.0
+    a = _decay_multiplier(utc, 0, half_life_days=half_life)
+    b = _decay_multiplier(ist, 0, half_life_days=half_life)
+    assert a == b
+    # 7-day age / 7-day half-life → recency 0.5; use_boost=1.0 → 0.35 + 0.65*0.5 = 0.675
+    assert abs(a - 0.675) < 1e-9
 
 
 def test_recall_with_bfs_spreads_one_hop(brain_db) -> None:

@@ -174,6 +174,18 @@ def remember_neuron(
     """
     cleaned = require_clean(title, content or "", source=source)
     body = cleaned.content
+    # Tags enter nodes_fts — redact each one through the same chokepoint as title/body.
+    # Hard-block secrets/injection raise RedactionBlockedError (same as title/content).
+    cleaned_tags: list[str] | None = None
+    if tags:
+        cleaned_tags = []
+        for tag in tags:
+            tag_text = str(tag).strip() if tag is not None else ""
+            if not tag_text:
+                continue
+            cleaned_tag = require_clean("", tag_text, source=source)
+            if cleaned_tag.content.strip():
+                cleaned_tags.append(cleaned_tag.content.strip())
     if compress and body:
         from brainkm.services.compress import compress_body
 
@@ -193,7 +205,7 @@ def remember_neuron(
         kind=kind,
         subtype=subtype,
         path=path,
-        tags=tags,
+        tags=cleaned_tags,
         source=source,
         session_id=session_id,
         confidence=confidence,

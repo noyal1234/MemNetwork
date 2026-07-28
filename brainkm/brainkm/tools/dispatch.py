@@ -298,7 +298,8 @@ def handle_recall(
             budget=trail_budget,
         )
 
-    top_node_id = result.nodes[0].node_id if result.nodes else None
+    # Use filtered/trimmed nodes — not raw recall ranks (outbound gate may drop #1).
+    top_node_id = nodes[0].node_id if nodes else None
     confidence = confidence_for_top_result(
         abstained=result.abstained,
         result_count=len(nodes),
@@ -659,12 +660,52 @@ async def dispatch_tool(
     """Route MCP tool call to the appropriate handler."""
     config = runtime.config
 
+    # Best-effort session_id fill from last hook SessionStart/UserPromptSubmit.
+    # Shared HTTP + concurrent sessions can mis-attribute when agents omit it.
+    def _with_inferred_session(args: dict[str, Any]) -> dict[str, Any]:
+        sid = args.get("session_id")
+        if isinstance(sid, str) and sid.strip():
+            return args
+        from brainkm.services.hook_session import (
+            infer_session_id_if_missing,
+            maybe_record_first_brainkm_call,
+        )
+
+        conn = connect(brain_db_path(runtime.project_dir))
+        try:
+            inferred, did = infer_session_id_if_missing(conn, None)
+            if inferred:
+                out = dict(args)
+                out["session_id"] = inferred
+                maybe_record_first_brainkm_call(conn, inferred)
+                conn.commit()
+                return out
+            conn.commit()
+        finally:
+            conn.close()
+        return args
+
+    def _note_first_call(session_id: str | None) -> None:
+        from brainkm.services.hook_session import maybe_record_first_brainkm_call
+
+        if not session_id:
+            return
+        conn = connect(brain_db_path(runtime.project_dir))
+        try:
+            maybe_record_first_brainkm_call(conn, session_id)
+            conn.commit()
+        finally:
+            conn.close()
+
     if name == "remember":
+        arguments = _with_inferred_session(arguments)
         request = RememberRequest.model_validate(arguments)
         result = await _run_write(runtime, handle_remember, request, config=config)
+        _note_first_call(request.session_id)
         return result.model_dump()
 
     if name == "recall":
+        arguments = _with_inferred_session(arguments)
         request = RecallRequest.model_validate(arguments)
         result = await _run_write(
             runtime,
@@ -673,9 +714,11 @@ async def dispatch_tool(
             config=config,
             project_dir=runtime.project_dir,
         )
+        _note_first_call(request.session_id)
         return result.model_dump()
 
     if name == "context_pack":
+        arguments = _with_inferred_session(arguments)
         request = ContextPackRequest.model_validate(arguments)
         result = await _run_write(
             runtime,
@@ -684,9 +727,11 @@ async def dispatch_tool(
             config=config,
             project_dir=runtime.project_dir,
         )
+        _note_first_call(request.session_id)
         return result.model_dump()
 
     if name == "traverse":
+        arguments = _with_inferred_session(arguments)
         request = TraverseRequest.model_validate(arguments)
         result = await _run_write(
             runtime,
@@ -695,9 +740,11 @@ async def dispatch_tool(
             config=config,
             project_dir=runtime.project_dir,
         )
+        _note_first_call(request.session_id)
         return result.model_dump()
 
     if name == "brain_stats":
+        arguments = _with_inferred_session(arguments or {})
         request = BrainStatsRequest.model_validate(arguments or {})
         result = await _run_write(
             runtime,
@@ -706,9 +753,11 @@ async def dispatch_tool(
             config=config,
             project_dir=runtime.project_dir,
         )
+        _note_first_call(request.session_id)
         return result.model_dump()
 
     if name == "trace_changes":
+        arguments = _with_inferred_session(arguments)
         request = TraceChangesRequest.model_validate(arguments)
         result = await _run_write(
             runtime,
@@ -717,6 +766,7 @@ async def dispatch_tool(
             config=config,
             project_dir=runtime.project_dir,
         )
+        _note_first_call(request.session_id)
         return result.model_dump()
 
     msg = f"unknown tool: {name}"

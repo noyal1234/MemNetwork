@@ -2,6 +2,25 @@
 
 This project uses **brainkm** — a local SQLite project brain at `.brain/brain.db`.
 
+## MUST (Claude Code)
+
+1. Blast-radius / call/import flow: you **MUST** call `traverse` — never text search alone.
+2. Decisions / "why X": you **MUST** call `recall` unless the SessionStart pack already
+   answers that **exact** question.
+3. Before opening 3+ files for one task: you **MUST** call `context_pack`, then verify in source.
+4. "What changed in this file and why": you **MUST** call `trace_changes`.
+5. SessionStart injects a **FROZEN** snapshot that does **NOT** update. You **MUST** still call
+   live `recall` / `traverse` / `context_pack` / `trace_changes` when the question matches —
+   the snapshot is **NOT** a substitute. Load tools via `ToolSearch` first if deferred.
+6. Pass **`session_id`** (from SessionStart / UserPromptSubmit) on every brainkm call.
+
+**Bypass** (do NOT force brainkm): single-file typo/rename/comment, or a one-line local edit
+with no architectural / blast-radius / multi-file / "why did we" question. Grep/search remains
+correct for symbol locate.
+
+**Counter-rule:** Grep/search is for **locate** only. Finding a file does **NOT** replace
+`recall` / `traverse` / `context_pack` for decisions, blast-radius, or multi-file context.
+
 ## Before reading many files
 
 - Prefer MCP **`traverse`** for call/import/flow and blast-radius questions ("what calls X?",
@@ -12,14 +31,11 @@ This project uses **brainkm** — a local SQLite project brain at `.brain/brain.
   in the query or `seed_refs`), **then verify in source** before editing — packs are hints,
   never a substitute for reading the code you will change.
 - Use **`recall`** for architectural decisions, rules, and past pivots — not chat history alone.
-  SessionStart packs are incomplete; still call live `recall` / `traverse` / `context_pack`
-  when the question matches (load via `ToolSearch` first if tools are deferred).
 - Memory is filled primarily by **hooks** (SessionEnd distill, PostToolUse observations,
   SessionStart injection). Call **`remember` only to pin** durable project truth or **correct**
   a wrong auto-capture — not for ordinary session learning.
-- Pass **`session_id`** on every brainkm MCP call (SessionStart banner and the UserPromptSubmit
-  reminder both echo the current session_id) — omitting it buckets usage under a shared `__anon__`
-  session and breaks per-session `brain_stats` and procedure learning.
+- Omitting `session_id` buckets usage under a shared `__anon__` session and breaks per-session
+  `brain_stats` and procedure learning.
 
 ## Tool routing (locate vs flow vs decisions)
 
@@ -51,12 +67,17 @@ a stale or missing code graph is the usual cause; reads auto-queue a refresh, or
 
 ## Coexistence with Claude native memory
 
+| What to remember | Where it goes | Why |
+|------------------|---------------|-----|
+| Personal prefs / debug insights | Claude Auto Memory | Per-user, not project-shared |
+| Project architecture decisions | brainkm (`recall`) | Survives compaction; shared with Cursor/AGY |
+| Team coding conventions | `CLAUDE.md` / `.claude/rules` | Static, versioned policy |
+| Durable corrections to wrong captures | brainkm `remember` `action=correct` | Writes supersedes edge |
+
 - **CLAUDE.md / `.claude/rules`** = authored project instructions (static).
 - **Claude Auto Memory (`MEMORY.md`)** = Claude's private notes — leave alone; do not rewrite.
 - **brainkm** = searchable project decisions, code graph, and compaction survival.
 - Shared with Cursor / Antigravity: one `brainkm serve` + `connect --http` (AGY MCP field is `serverUrl`).
-
-Prefs and debug insights stay in Auto Memory. Durable team architecture → brainkm.
 
 ## Compaction
 

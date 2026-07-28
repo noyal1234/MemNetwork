@@ -22,16 +22,29 @@ search — it does not replace them.
 | What did we learn about `auth.ts`? | `recall` / `context_pack` with that path in the query |
 | Pin, correct, or archive durable truth | `remember` (`action=pin\|correct\|archive`; hooks are primary capture) |
 
+## MUST (Claude Code)
+
+1. Blast-radius / call/import flow: you **MUST** call `traverse` — never text search alone.
+2. Decisions / "why X": you **MUST** call `recall` unless the SessionStart pack already answers
+   that **exact** question.
+3. Before opening 3+ files for one task: you **MUST** call `context_pack`, then verify in source.
+4. "What changed in this file and why": you **MUST** call `trace_changes`.
+5. SessionStart pack is frozen — if insufficient, you **MUST** still call the live tool.
+   Load via `ToolSearch` first if tools are deferred; pass `session_id` on every call.
+
+**Bypass:** single-file typo/rename/comment or one-line local edit with no architectural /
+blast-radius / multi-file / "why" question. Symbol locate still uses Grep first.
+
 ## Rules
 
 1. Include a **file path or symbol** in `context_pack` / `recall` queries when possible.
 2. Packs are hints — **always verify in source** before editing.
 3. Prefer fewer injected tokens over trusting noise; `recall` abstains on weak matches.
 4. Optional provenance: pass `include_sources=true` on recall/context_pack when debugging trust.
-5. If graph looks empty/wrong, check `brain_stats` — stale graphs auto-queue refresh, or run `brainkm graph sync`.
-6. If brainkm tools are deferred behind `ToolSearch`, load them, then call `recall` /
-   `traverse` / `context_pack` for matching questions. SessionStart packs are incomplete —
-   do not skip live tools because a frozen snapshot was already injected.
+5. If graph looks empty/wrong, check `brain_stats` — stale graphs auto-queue refresh, or run
+   `brainkm graph sync`.
+6. Grep finding a file does **not** replace recall/traverse/context_pack for decisions /
+   blast-radius / multi-file context.
 
 ## Lifecycle (mental model)
 

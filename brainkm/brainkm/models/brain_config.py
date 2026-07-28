@@ -86,7 +86,13 @@ class InjectionConfig(BaseModel):
     max_recalls_per_turn: int = Field(default=3, ge=0, le=5)
     frozen_snapshot: bool = True
     routing_nudge: bool = True
-    routing_nudge_max_per_session: int = Field(default=3, ge=0)
+    routing_nudge_max_per_session: int = Field(default=5, ge=0)
+    # PreToolUse tools that only get a routing nudge (not a context_pack).
+    routing_nudge_pretool_patterns: list[str] = Field(
+        default_factory=lambda: ["read", "grep", "glob"]
+    )
+    # After a real MCP call, re-arm nudge once this many tool_use rows follow.
+    routing_nudge_rearm_after_calls: int = Field(default=12, ge=1)
 
 
 class LearningConfig(BaseModel):

@@ -7,7 +7,7 @@ import re
 import sqlite3
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
@@ -476,10 +476,12 @@ def _decay_multiplier(
             dt = datetime.fromisoformat(ts)
         except ValueError:
             dt = datetime.strptime(updated_at[:19], "%Y-%m-%d %H:%M:%S")
-        age_days = max(
-            0.0,
-            (datetime.now(tz=None) - dt.replace(tzinfo=None)).total_seconds() / 86400.0,
-        )
+        # Treat naive timestamps as UTC; never strip tzinfo (offset-independent age).
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        else:
+            dt = dt.astimezone(UTC)
+        age_days = max(0.0, (datetime.now(UTC) - dt).total_seconds() / 86400.0)
     except Exception:  # noqa: BLE001
         return use_boost
     recency = 0.5 ** (age_days / half_life_days)
