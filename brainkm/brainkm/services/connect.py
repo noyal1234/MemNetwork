@@ -12,6 +12,7 @@ from brainkm.services.client_adapters import get_client_adapter
 from brainkm.services.config_loader import load_brain_config, save_brain_config
 from brainkm.services.install import (
     build_hooks_config,
+    ensure_claude_settings_local_permissions,
     install_client_guidance_assets,
     merge_hooks_json,
     resolve_hook_command,
@@ -176,6 +177,10 @@ def run_connect(
     if http_token:
         restrict_secret_file(mcp_path)
     result.files_written.append(mcp_path)
+
+    if kind == "claude":
+        local_settings = ensure_claude_settings_local_permissions(root)
+        result.files_written.append(local_settings)
 
     if kind == "antigravity" and mirror_global:
         payload = build_mcp_config(

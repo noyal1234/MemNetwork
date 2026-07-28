@@ -12,6 +12,8 @@ This project uses **brainkm** — a local SQLite project brain at `.brain/brain.
   in the query or `seed_refs`), **then verify in source** before editing — packs are hints,
   never a substitute for reading the code you will change.
 - Use **`recall`** for architectural decisions, rules, and past pivots — not chat history alone.
+  SessionStart packs are incomplete; still call live `recall` / `traverse` / `context_pack`
+  when the question matches (load via `ToolSearch` first if tools are deferred).
 - Memory is filled primarily by **hooks** (SessionEnd distill, PostToolUse observations,
   SessionStart injection). Call **`remember` only to pin** durable project truth or **correct**
   a wrong auto-capture — not for ordinary session learning.

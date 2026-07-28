@@ -16,7 +16,10 @@ from brainkm.services.hooks import (
     run_subagent_stop,
 )
 from brainkm.services.install import (
+    BRAINKM_CLAUDE_MCP_TOOL_ALLOWS,
+    BRAINKM_CLAUDE_MCP_TOOL_WILDCARD,
     build_claude_hooks_config,
+    ensure_claude_settings_local_permissions,
     merge_claude_settings_hooks,
     run_install,
 )
@@ -155,6 +158,14 @@ def test_run_install_claude_writes_settings_skill_rules(tmp_path: Path) -> None:
     assert claude_md.is_file()
     assert not (tmp_path / ".claude" / "hooks.json").is_file()
 
+    local = tmp_path / ".claude" / "settings.local.json"
+    assert local.is_file()
+    local_data = json.loads(local.read_text(encoding="utf-8"))
+    allow = local_data["permissions"]["allow"]
+    for tool in BRAINKM_CLAUDE_MCP_TOOL_ALLOWS:
+        assert tool in allow
+    assert "brainkm" in local_data["enabledMcpjsonServers"]
+
     data = json.loads(settings.read_text(encoding="utf-8"))
     assert "SessionStart" in data["hooks"]
     cmd = data["hooks"]["SessionStart"][0]["hooks"][0]["command"]
@@ -163,6 +174,39 @@ def test_run_install_claude_writes_settings_skill_rules(tmp_path: Path) -> None:
 
     cfg = load_brain_config(tmp_path)
     assert cfg.capture.auto_observe is True
+
+
+def test_ensure_claude_settings_local_permissions_creates_and_merges(tmp_path: Path) -> None:
+    path = ensure_claude_settings_local_permissions(tmp_path)
+    assert path == tmp_path / ".claude" / "settings.local.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    allow = data["permissions"]["allow"]
+    assert allow == list(BRAINKM_CLAUDE_MCP_TOOL_ALLOWS)
+    assert data["enabledMcpjsonServers"] == ["brainkm"]
+
+    path.write_text(
+        json.dumps(
+            {
+                "permissions": {"allow": ["Bash", "mcp__brainkm__traverse"]},
+                "enabledMcpjsonServers": ["other"],
+                "keep_me": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    ensure_claude_settings_local_permissions(tmp_path)
+    merged = json.loads(path.read_text(encoding="utf-8"))
+    assert merged["keep_me"] is True
+    allow2 = merged["permissions"]["allow"]
+    assert "Bash" in allow2
+    for tool in BRAINKM_CLAUDE_MCP_TOOL_ALLOWS:
+        assert tool in allow2
+    assert "brainkm" in merged["enabledMcpjsonServers"]
+    assert "other" in merged["enabledMcpjsonServers"]
+
+    before = path.read_text(encoding="utf-8")
+    ensure_claude_settings_local_permissions(tmp_path)
+    assert path.read_text(encoding="utf-8") == before
 
 
 def test_hooks_path_for_client_claude_is_settings() -> None:
@@ -180,6 +224,11 @@ def test_run_connect_claude_writes_settings(tmp_path: Path) -> None:
     assert settings in result.files_written
     data = json.loads(settings.read_text(encoding="utf-8"))
     assert "SubagentStop" in data["hooks"]
+    local = tmp_path / ".claude" / "settings.local.json"
+    assert local in result.files_written
+    local_data = json.loads(local.read_text(encoding="utf-8"))
+    for tool in BRAINKM_CLAUDE_MCP_TOOL_ALLOWS:
+        assert tool in local_data["permissions"]["allow"]
     cfg = load_brain_config(tmp_path)
     assert cfg.capture.auto_observe is True
 
@@ -246,8 +295,79 @@ def test_inspect_claude_wiring_accepts_settings_local_approval(tmp_path: Path) -
     claude = tmp_path / ".claude"
     claude.mkdir()
     (claude / "settings.local.json").write_text(
-        json.dumps({"enabledMcpjsonServers": ["brainkm"]}),
+        json.dumps(
+            {
+                "enabledMcpjsonServers": ["brainkm"],
+                "permissions": {"allow": list(BRAINKM_CLAUDE_MCP_TOOL_ALLOWS)},
+            }
+        ),
         encoding="utf-8",
     )
     notes = inspect_claude_wiring(tmp_path)
     assert not any("enabledMcpjsonServers" in n for n in notes)
+    assert not any("permissions.allow" in n for n in notes)
+
+
+def test_inspect_claude_wiring_warns_on_partial_tool_allowlist(tmp_path: Path) -> None:
+    (tmp_path / ".mcp.json").write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "brainkm": {
+                        "type": "http",
+                        "url": "http://127.0.0.1:8765/mcp/",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    claude = tmp_path / ".claude"
+    claude.mkdir()
+    (claude / "settings.local.json").write_text(
+        json.dumps(
+            {
+                "enabledMcpjsonServers": ["brainkm"],
+                "permissions": {
+                    "allow": [
+                        "mcp__brainkm__brain_stats",
+                        "mcp__brainkm__traverse",
+                        "mcp__brainkm__context_pack",
+                    ]
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    notes = inspect_claude_wiring(tmp_path)
+    assert any("permissions.allow missing brainkm tools" in n for n in notes)
+    assert any("recall" in n for n in notes)
+
+
+def test_inspect_claude_wiring_accepts_tool_wildcard(tmp_path: Path) -> None:
+    (tmp_path / ".mcp.json").write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "brainkm": {
+                        "type": "http",
+                        "url": "http://127.0.0.1:8765/mcp/",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    claude = tmp_path / ".claude"
+    claude.mkdir()
+    (claude / "settings.local.json").write_text(
+        json.dumps(
+            {
+                "enabledMcpjsonServers": ["brainkm"],
+                "permissions": {"allow": [BRAINKM_CLAUDE_MCP_TOOL_WILDCARD]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    notes = inspect_claude_wiring(tmp_path)
+    assert not any("permissions.allow" in n for n in notes)

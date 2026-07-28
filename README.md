@@ -18,11 +18,15 @@ Survive chat compaction — share memory across Cursor, Antigravity, Claude Code
 
 <br/>
 
-[![Cursor](https://img.shields.io/badge/Cursor-000000?style=flat-square&logo=cursor&logoColor=white)](docs/install/cursor.md)
-[![Google Antigravity](https://img.shields.io/badge/Google%20Antigravity-4285F4?style=flat-square&logo=google&logoColor=white)](docs/install/antigravity.md)
-[![Claude Code](https://img.shields.io/badge/Claude%20Code-D97706?style=flat-square&logo=anthropic&logoColor=white)](docs/install/claude-code.md)
-[![OpenAI Codex](https://img.shields.io/badge/OpenAI%20Codex-00A67E?style=flat-square&logo=openai&logoColor=white)](docs/install/codex.md)
-[![Generic MCP](https://img.shields.io/badge/Generic%20MCP-6E56CF?style=flat-square)](docs/install/generic.md)
+<!-- Host badges on one HTML line: keeps a single centered row in GitHub + Cursor preview.
+     shields.io dropped the OpenAI Simple Icons glyph, so Codex is text-only (same as Generic). -->
+<p>
+  <a href="docs/install/cursor.md"><img src="https://img.shields.io/badge/Cursor-000000?style=flat-square&logo=cursor&logoColor=white" alt="Cursor" height="20" /></a>
+  <a href="docs/install/antigravity.md"><img src="https://img.shields.io/badge/Google%20Antigravity-4285F4?style=flat-square&logo=google&logoColor=white" alt="Google Antigravity" height="20" /></a>
+  <a href="docs/install/claude-code.md"><img src="https://img.shields.io/badge/Claude%20Code-D97706?style=flat-square&logo=anthropic&logoColor=white" alt="Claude Code" height="20" /></a>
+  <a href="docs/install/codex.md"><img src="https://img.shields.io/badge/OpenAI%20Codex-00A67E?style=flat-square" alt="OpenAI Codex" height="20" /></a>
+  <a href="docs/install/generic.md"><img src="https://img.shields.io/badge/Generic%20MCP-6E56CF?style=flat-square" alt="Generic MCP" height="20" /></a>
+</p>
 
 <br/>
 

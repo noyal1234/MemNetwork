@@ -17,6 +17,9 @@ Prefer `traverse` for blast-radius; `context_pack` before opening 3+ files.
 Expand truncated ids via `recall` with `truncation_followup: true`.
 
 Installed for Claude Code via `brainkm install --client claude`.
+Frozen SessionStart context does not replace live `recall` / `traverse` /
+`context_pack` — call those tools when the question matches
+(load via ToolSearch first if deferred).
 
 ## Coexistence with Claude native memory
 

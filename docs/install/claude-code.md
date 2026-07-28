@@ -49,12 +49,25 @@ Claude Code **silently skips loading the server** — no error, hooks and `.mcp.
 both look correctly wired, but `recall` / `traverse` / `context_pack` / etc. simply
 never appear.
 
+Separately, Claude Code gates **individual MCP tools** behind
+`.claude/settings.local.json` → `permissions.allow`. Server approval alone is not
+enough: if only some tools are listed (e.g. `traverse` but not `recall`), Claude
+will prompt on every call to the missing tools and often skips them. `brainkm
+install --client claude` / `brainkm connect claude` seed **both**:
+
+1. Server approval (`enabledMcpjsonServers`, global and/or settings.local)
+2. Full tool allowlist (`mcp__brainkm__remember|recall|context_pack|traverse|brain_stats|trace_changes`)
+
+`brainkm doctor` flags an incomplete allowlist. After changing approvals or allows,
+start a **new** Claude Code session — MCP connections are established once at
+session start.
+
 HTTP entries in `.mcp.json` must also include `"type": "http"` alongside `url`.
 Claude Code ≥2.1.202 treats `url` without `type` as a misconfigured stdio server and
 skips it (diagnostic: `has a "url" but no "type"`). `brainkm install` / `connect`
 write this field automatically.
 
-`brainkm install --client claude` auto-approves this for you (patches
+`brainkm install --client claude` auto-approves the server for you (patches
 `~/.claude.json` directly) as of the install described here — but only if the
 project has already been opened in Claude Code at least once (i.e. Claude Code
 has already created a `projects[<path>]` entry for it). If you run install
@@ -70,11 +83,12 @@ If you see that warning: open the project in Claude Code once, then rerun
 `brainkm install --client claude` (or just `brainkm doctor`, which re-checks and
 reports the same gap without rewriting anything else). `brainkm doctor` also flags
 if approval ever drifts out of sync later (e.g. someone manually disables the
-server in `~/.claude.json`).
+server in `~/.claude.json`), and if `permissions.allow` is missing any brainkm tools.
 
 Also note: MCP connections are established once at session start — approving the
-server does **not** retroactively add tools to an already-running session. Start a
-**new** Claude Code session after approval to pick up the MCP tools.
+server or expanding the tool allowlist does **not** retroactively add tools to an
+already-running session. Start a **new** Claude Code session after approval to pick
+up the MCP tools.
 
 **Concurrency caveat:** if a Claude Code session for this project is already
 running when you run `brainkm install --client claude`, that session holds its
@@ -104,6 +118,7 @@ brainkm configure
 | `CLAUDE.md` | Static instructions upsert (coexists with Auto Memory) |
 | `.brain/` | Live SQLite brain |
 | `~/.claude.json` → `projects[<path>].enabledMcpjsonServers` | Global MCP-server approval (auto-patched by install; see above) |
+| `.claude/settings.local.json` → `permissions.allow` | Per-tool MCP allowlist (full brainkm set seeded by install/connect) |
 
 Verify hooks with `brainkm doctor` — Claude only loads hooks from **settings.json**.
 `brainkm doctor` also verifies the `~/.claude.json` MCP approval state.

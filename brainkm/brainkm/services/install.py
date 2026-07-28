@@ -26,6 +26,16 @@ logger = get_logger("services.install")
 
 CURSOR_MIN_VERSION_NOTE = "0.46"
 BRAINKM_MCP_SERVER_KEY = "brainkm"
+# Claude Code permission names for MCP tools (must stay in sync with TOOL_DEFINITIONS).
+BRAINKM_CLAUDE_MCP_TOOL_ALLOWS: tuple[str, ...] = (
+    "mcp__brainkm__remember",
+    "mcp__brainkm__recall",
+    "mcp__brainkm__context_pack",
+    "mcp__brainkm__traverse",
+    "mcp__brainkm__brain_stats",
+    "mcp__brainkm__trace_changes",
+)
+BRAINKM_CLAUDE_MCP_TOOL_WILDCARD = "mcp__brainkm__*"
 # Cursor does not implement postCompact (use preCompact handover + sessionStart instead).
 # postToolUseFailure is Claude-oriented; Cursor surfaces failures on postToolUse payloads.
 CURSOR_UNSUPPORTED_HOOK_EVENTS = frozenset({"postCompact", "postToolUseFailure"})
@@ -365,6 +375,63 @@ def enable_claude_mcpjson_approval(
     tmp_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     tmp_path.replace(path)
     return None
+
+
+def ensure_claude_settings_local_permissions(
+    root: Path,
+    *,
+    server_key: str = BRAINKM_MCP_SERVER_KEY,
+    tool_allows: tuple[str, ...] = BRAINKM_CLAUDE_MCP_TOOL_ALLOWS,
+) -> Path:
+    """Merge brainkm MCP tool allows + server enable into ``.claude/settings.local.json``.
+
+    Claude Code gates individual MCP tools behind ``permissions.allow`` separately
+    from server approval. A partial allowlist (e.g. only traverse/context_pack)
+    makes Claude reluctant to call ``recall`` / ``trace_changes`` / ``remember``
+    because each call prompts for approval. This helper unions the full tool set
+    without removing user allows or other keys.
+
+    Also ensures ``enabledMcpjsonServers`` contains ``server_key`` (Claude Code
+    ≥2.1.196 honors project-local approval here in addition to ``~/.claude.json``).
+    """
+    root = resolve_project_dir(root)
+    path = root / ".claude" / "settings.local.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    data: dict[str, object] = {}
+    if path.is_file():
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                data = loaded
+        except json.JSONDecodeError:
+            data = {}
+
+    permissions = data.get("permissions")
+    if not isinstance(permissions, dict):
+        permissions = {}
+    allow = permissions.get("allow")
+    if not isinstance(allow, list):
+        allow = []
+    allow_strs = [str(item) for item in allow]
+    for tool in tool_allows:
+        if tool not in allow_strs:
+            allow_strs.append(tool)
+    permissions["allow"] = allow_strs
+    data["permissions"] = permissions
+
+    enabled = data.get("enabledMcpjsonServers")
+    if not isinstance(enabled, list):
+        enabled = []
+    enabled_strs = [str(item) for item in enabled]
+    if server_key not in enabled_strs:
+        enabled_strs.append(server_key)
+    data["enabledMcpjsonServers"] = enabled_strs
+
+    tmp_path = path.with_suffix(path.suffix + ".brainkm-tmp")
+    tmp_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    tmp_path.replace(path)
+    return path
 
 
 def _codex_hook_command(
@@ -1194,6 +1261,9 @@ def run_install(
         approval_warning = enable_claude_mcpjson_approval(root)
         if approval_warning:
             result.warnings.append(approval_warning)
+
+        local_settings = ensure_claude_settings_local_permissions(root)
+        result.files_written.append(local_settings)
 
         claude_dir = root / ".claude"
         claude_dir.mkdir(parents=True, exist_ok=True)

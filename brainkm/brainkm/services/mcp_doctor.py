@@ -14,6 +14,8 @@ from brainkm import __version__
 from brainkm.services.config_loader import load_brain_config
 from brainkm.services.connect import hooks_path_for_client, mcp_config_path_for_client
 from brainkm.services.install import (
+    BRAINKM_CLAUDE_MCP_TOOL_ALLOWS,
+    BRAINKM_CLAUDE_MCP_TOOL_WILDCARD,
     BRAINKM_MCP_SERVER_KEY,
     claude_global_config_path,
     resolve_hook_command,
@@ -290,6 +292,46 @@ def _claude_mcp_entry_type_note(entry: object) -> str | None:
     )
 
 
+def _claude_settings_local_missing_tool_allows(root: Path) -> list[str]:
+    """Return brainkm MCP tool names missing from ``permissions.allow``.
+
+    A covering ``mcp__brainkm__*`` wildcard counts as complete. Missing
+    ``settings.local.json`` or an empty allowlist means every tool is missing.
+    """
+    path = root / ".claude" / "settings.local.json"
+    if not path.is_file():
+        return list(BRAINKM_CLAUDE_MCP_TOOL_ALLOWS)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return list(BRAINKM_CLAUDE_MCP_TOOL_ALLOWS)
+    if not isinstance(data, dict):
+        return list(BRAINKM_CLAUDE_MCP_TOOL_ALLOWS)
+    permissions = data.get("permissions")
+    if not isinstance(permissions, dict):
+        return list(BRAINKM_CLAUDE_MCP_TOOL_ALLOWS)
+    allow = permissions.get("allow")
+    if not isinstance(allow, list):
+        return list(BRAINKM_CLAUDE_MCP_TOOL_ALLOWS)
+    allow_set = {str(item) for item in allow}
+    if BRAINKM_CLAUDE_MCP_TOOL_WILDCARD in allow_set:
+        return []
+    return [tool for tool in BRAINKM_CLAUDE_MCP_TOOL_ALLOWS if tool not in allow_set]
+
+
+def _claude_mcp_tool_allow_note(root: Path) -> str | None:
+    """Warn when Claude tool permissions omit brainkm MCP tools."""
+    missing = _claude_settings_local_missing_tool_allows(root)
+    if not missing:
+        return None
+    short = ", ".join(name.removeprefix("mcp__brainkm__") for name in missing)
+    return (
+        f"Claude .claude/settings.local.json permissions.allow missing brainkm tools "
+        f"({short}) — Claude Code will prompt (or skip) those tools; rerun "
+        "`brainkm install --client claude` or `brainkm connect claude` to seed the full allowlist"
+    )
+
+
 def inspect_claude_wiring(project_dir: Path) -> list[str]:
     """Extra Claude silent-memory checks for doctor."""
     notes: list[str] = []
@@ -313,6 +355,9 @@ def inspect_claude_wiring(project_dir: Path) -> list[str]:
                 approval_note = _claude_mcpjson_approval_note(root)
                 if approval_note:
                     notes.append(approval_note)
+                allow_note = _claude_mcp_tool_allow_note(root)
+                if allow_note:
+                    notes.append(allow_note)
         except json.JSONDecodeError:
             notes.append("Claude .mcp.json is not valid JSON")
 

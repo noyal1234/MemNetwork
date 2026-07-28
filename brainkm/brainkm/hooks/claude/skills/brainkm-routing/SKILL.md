@@ -1,13 +1,15 @@
 ---
 name: brainkm-routing
 description: >-
-  When to use brainkm MCP tools (recall, context_pack, traverse, trace_changes) vs Cursor search.
-  Prefer file-seeded recall and verify packs in source. Install with brainkm install.
+  When to use brainkm MCP tools (recall, context_pack, traverse, trace_changes) vs
+  Grep/project search. Prefer file-seeded recall and verify packs in source.
+  Install with brainkm install.
 ---
 
 # brainkm tool routing
 
-brainkm is this project's brain (`.brain/brain.db`). It complements Cursor — it does not replace `@codebase`.
+brainkm is this project's brain (`.brain/brain.db`). It complements Grep and project
+search — it does not replace them.
 
 ## Use first
 
@@ -27,6 +29,9 @@ brainkm is this project's brain (`.brain/brain.db`). It complements Cursor — i
 3. Prefer fewer injected tokens over trusting noise; `recall` abstains on weak matches.
 4. Optional provenance: pass `include_sources=true` on recall/context_pack when debugging trust.
 5. If graph looks empty/wrong, check `brain_stats` — stale graphs auto-queue refresh, or run `brainkm graph sync`.
+6. If brainkm tools are deferred behind `ToolSearch`, load them, then call `recall` /
+   `traverse` / `context_pack` for matching questions. SessionStart packs are incomplete —
+   do not skip live tools because a frozen snapshot was already injected.
 
 ## Lifecycle (mental model)
 

@@ -95,6 +95,9 @@ class ClaudeClientAdapter:
         return (
             AGENTS_SNIPPET
             + "\nInstalled for Claude Code via `brainkm install --client claude`.\n"
+            + "Frozen SessionStart context does not replace live `recall` / `traverse` / "
+            + "`context_pack` — call those tools when the question matches "
+            + "(load via ToolSearch first if deferred).\n"
             + "\n## Coexistence with Claude native memory\n\n"
             + "- **CLAUDE.md / `.claude/rules`** = authored project instructions (static).\n"
             + "- **Claude Auto Memory (`MEMORY.md`)** = Claude's private notes — leave alone.\n"
