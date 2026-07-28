@@ -5,18 +5,23 @@ This project uses **brainkm** — a local SQLite project brain at `.brain/brain.
 ## MUST (Claude Code)
 
 1. Blast-radius / call/import flow: you **MUST** call `traverse` — never text search alone.
-2. Decisions / "why X": you **MUST** call `recall` unless the SessionStart pack already
-   answers that **exact** question.
+2. Decisions / "why X": you **MUST** call `recall`. The SessionStart pack is a hint only —
+   it never substitutes for the live call, even if it looks like it already answers the question.
 3. Before opening 3+ files for one task: you **MUST** call `context_pack`, then verify in source.
 4. "What changed in this file and why": you **MUST** call `trace_changes`.
 5. SessionStart injects a **FROZEN** snapshot that does **NOT** update. You **MUST** still call
    live `recall` / `traverse` / `context_pack` / `trace_changes` when the question matches —
-   the snapshot is **NOT** a substitute. Load tools via `ToolSearch` first if deferred.
+   the snapshot is **NOT** a substitute. Tools are deferred: call `ToolSearch` **once** at the
+   start of the session (not per-tool) to load all six brainkm schemas, then call them directly
+   for the rest of the session.
 6. Pass **`session_id`** (from SessionStart / UserPromptSubmit) on every brainkm call.
 
-**Bypass** (do NOT force brainkm): single-file typo/rename/comment, or a one-line local edit
-with no architectural / blast-radius / multi-file / "why did we" question. Grep/search remains
-correct for symbol locate.
+**Bypass is narrow, not a default.** The only case where skipping brainkm is correct: a pure
+mechanical edit (typo fix, rename, formatting) with zero judgment calls — nothing that requires
+knowing *why* code is the way it is, *what* it affects, or *how it changed*. If the task touches
+more than one file, changes behavior, or you're about to explain a design choice, that is not
+this case — call the tool. When in doubt, call it; an unnecessary call costs a few hundred
+tokens, a skipped one costs the whole point of having a project brain.
 
 **Counter-rule:** Grep/search is for **locate** only. Finding a file does **NOT** replace
 `recall` / `traverse` / `context_pack` for decisions, blast-radius, or multi-file context.

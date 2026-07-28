@@ -25,15 +25,18 @@ search — it does not replace them.
 ## MUST (Claude Code)
 
 1. Blast-radius / call/import flow: you **MUST** call `traverse` — never text search alone.
-2. Decisions / "why X": you **MUST** call `recall` unless the SessionStart pack already answers
-   that **exact** question.
+2. Decisions / "why X": you **MUST** call `recall`. The SessionStart pack is a hint only —
+   never a substitute for the live call, even if it looks like it already answers the question.
 3. Before opening 3+ files for one task: you **MUST** call `context_pack`, then verify in source.
 4. "What changed in this file and why": you **MUST** call `trace_changes`.
 5. SessionStart pack is frozen — if insufficient, you **MUST** still call the live tool.
-   Load via `ToolSearch` first if tools are deferred; pass `session_id` on every call.
+   Tools are deferred: call `ToolSearch` **once** at session start to load all six brainkm
+   schemas, not per-tool. Pass `session_id` on every call.
 
-**Bypass:** single-file typo/rename/comment or one-line local edit with no architectural /
-blast-radius / multi-file / "why" question. Symbol locate still uses Grep first.
+**Bypass is narrow, not a default:** only a pure mechanical edit (typo, rename, formatting)
+with zero judgment calls. Anything touching more than one file, changing behavior, or requiring
+you to explain *why*/*what breaks*/*what changed* is not this case — call the tool. When in
+doubt, call it.
 
 ## Rules
 
