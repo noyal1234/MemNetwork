@@ -50,7 +50,10 @@ def build_mcp_server_entry(
     if client is not None:
         field = http_url_field_for_client(client)
     if transport == "http":
+        # Claude Code ≥2.1.202 treats url-without-type as stdio and skips the
+        # server ("has a url but no type"). Cursor/AGY ignore unknown keys.
         entry: dict[str, object] = {
+            "type": "http",
             field: mcp_http_url(host=host, port=port),
         }
         if http_token:
@@ -115,7 +118,11 @@ def build_mcp_config_from_brain(
 
 
 def normalize_mcp_entry_transport_fields(entry: dict[str, object]) -> dict[str, object]:
-    """Ensure HTTP entries keep one URL key; drop stale stdio fields when HTTP."""
+    """Ensure HTTP entries keep one URL key; drop stale stdio fields when HTTP.
+
+    Also injects ``type: http`` when a URL is present — required by Claude Code
+    ≥2.1.202 (url-without-type is skipped as a misconfigured stdio entry).
+    """
     out = dict(entry)
     has_http = "url" in out or "serverUrl" in out
     if has_http:
@@ -124,10 +131,13 @@ def normalize_mcp_entry_transport_fields(entry: dict[str, object]) -> dict[str, 
         # Prefer serverUrl when both present (Antigravity).
         if "serverUrl" in out and "url" in out:
             out.pop("url", None)
+        if out.get("type") not in ("http", "sse", "ws", "streamable-http"):
+            out["type"] = "http"
     else:
         out.pop("url", None)
         out.pop("serverUrl", None)
         out.pop("headers", None)
+        out.pop("type", None)
     return out
 
 

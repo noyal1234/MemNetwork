@@ -24,7 +24,18 @@ def test_build_mcp_config_http_uses_url() -> None:
     payload = transport_build(dev=True, transport="http", port=8765)
     server = payload["mcpServers"]["brainkm"]
     assert server["url"] == "http://127.0.0.1:8765/mcp/"
+    assert server["type"] == "http"
     assert "command" not in server
+
+
+def test_normalize_mcp_entry_injects_http_type() -> None:
+    from brainkm.services.mcp_transport import normalize_mcp_entry_transport_fields
+
+    out = normalize_mcp_entry_transport_fields(
+        {"url": "http://127.0.0.1:8765/mcp/", "headers": {"Authorization": "Bearer x"}}
+    )
+    assert out["type"] == "http"
+    assert out["url"] == "http://127.0.0.1:8765/mcp/"
 
 
 def test_build_mcp_config_stdio_still_spawns() -> None:
@@ -65,6 +76,7 @@ def test_connect_claude_writes_project_mcp(tmp_path: Path) -> None:
     assert "SessionStart" in settings["hooks"]
     mcp = json.loads((tmp_path / ".mcp.json").read_text(encoding="utf-8"))
     assert "url" in mcp["mcpServers"]["brainkm"]
+    assert mcp["mcpServers"]["brainkm"]["type"] == "http"
 
 
 def test_connect_codex_writes_codex_dir(tmp_path: Path) -> None:

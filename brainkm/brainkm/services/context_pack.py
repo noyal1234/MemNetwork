@@ -634,8 +634,165 @@ def extract_seed_candidates(
     return candidates
 
 
+# Shell binaries / flags that must not alone seed a PreToolUse pack.
+_SHELL_SEED_NOISE = frozenset(
+    {
+        "grep",
+        "egrep",
+        "fgrep",
+        "rg",
+        "ag",
+        "ack",
+        "wc",
+        "ls",
+        "ll",
+        "cat",
+        "head",
+        "tail",
+        "less",
+        "more",
+        "echo",
+        "printf",
+        "true",
+        "false",
+        "cd",
+        "pwd",
+        "which",
+        "type",
+        "find",
+        "xargs",
+        "sort",
+        "uniq",
+        "cut",
+        "tr",
+        "sed",
+        "awk",
+        "chmod",
+        "chown",
+        "mkdir",
+        "rm",
+        "cp",
+        "mv",
+        "touch",
+        "git",
+        "gh",
+        "npm",
+        "npx",
+        "pip",
+        "pip3",
+        "pytest",
+        "python",
+        "python3",
+        "curl",
+        "wget",
+        "jq",
+        "file",
+        "stat",
+        "du",
+        "df",
+        "timeout",
+        "env",
+        "export",
+        "source",
+        "bash",
+        "zsh",
+        "sh",
+        "brew",
+        "docker",
+        "make",
+        "cmake",
+        "node",
+        "deno",
+        "uv",
+        "uvx",
+        "brainkm",
+    }
+)
+_NON_SOURCE_PATH_SUFFIXES = (
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".ico",
+    ".pdf",
+    ".zip",
+    ".tar",
+    ".gz",
+    ".dmg",
+    ".mp4",
+    ".mov",
+    ".wav",
+    ".log",
+)
+
+
+def _seed_from_shell_command(command: str) -> str | None:
+    """Extract path/symbol seeds from a shell command; never return the raw command.
+
+    Plain ``grep`` / ``wc -l`` / screenshot paths must not auto-inject a context pack.
+    """
+    text = (command or "").strip()
+    if len(text) < 3:
+        return None
+
+    keep: list[str] = []
+    seen: set[str] = set()
+
+    def add(token: str) -> None:
+        cleaned = token.strip().strip("'\"`")
+        if not cleaned or cleaned in seen:
+            return
+        lower = cleaned.lower()
+        if lower in _SHELL_SEED_NOISE or lower in _STOPWORDS:
+            return
+        if cleaned.startswith("-"):
+            return
+        if any(lower.endswith(suf) for suf in _NON_SOURCE_PATH_SUFFIXES):
+            return
+        seen.add(cleaned)
+        keep.append(cleaned)
+
+    for match in _PATH_RE.finditer(text):
+        add(match.group(0))
+    for match in _BACKTICK_RE.finditer(text):
+        add(match.group(1))
+    for match in _CAMEL_RE.finditer(text):
+        if len(match.group(1)) >= 4:
+            add(match.group(1))
+    for match in _SNAKE_RE.finditer(text):
+        token = match.group(1)
+        if "_" in token and len(token) >= 6 and token.lower() not in _SHELL_SEED_NOISE:
+            add(token)
+
+    if not keep:
+        return None
+    # Require at least one concrete path or CamelCase/snake symbol — not flag soup.
+    if not _query_has_strong_seed(" ".join(keep)) and not any("/" in t or "." in t for t in keep):
+        # Allow long snake symbols (e.g. remember_neuron) as sole seed.
+        if not any("_" in t and len(t) >= 8 for t in keep):
+            return None
+    return " ".join(keep[:5])[:500]
+
+
 def derive_pre_tool_query(payload: dict[str, object]) -> str | None:
-    """Build a context_pack seed from PreToolUse hook payload; None when no meaningful seed."""
+    """Build a context_pack seed from PreToolUse hook payload; None when no meaningful seed.
+
+    Write/Edit path fields are preferred. Shell/Bash ``command`` is mined for
+    source paths/symbols only — the raw command string is never used as the seed
+    (avoids injecting packs on every ``grep`` / ``wc -l``).
+    """
+    path_fields = (
+        "path",
+        "file_path",
+        "filePath",
+        "target_file",
+        "TargetFile",
+        "AbsolutePath",
+        "DirectoryPath",
+        "SearchPath",
+    )
     for key in ("tool_input", "toolInput", "arguments", "input", "params"):
         raw = payload.get(key)
         if raw is None:
@@ -643,38 +800,36 @@ def derive_pre_tool_query(payload: dict[str, object]) -> str | None:
         if isinstance(raw, str):
             text = raw.strip()
             if len(text) >= 8:
-                return text[:500]
+                # Raw string payloads are usually shell command lines.
+                return _seed_from_shell_command(text) or (
+                    text[:500] if _query_has_strong_seed(text) else None
+                )
             try:
                 raw = json.loads(text)
             except json.JSONDecodeError:
                 continue
         if isinstance(raw, dict):
-            parts: list[str] = []
-            for field in (
-                "path",
-                "file_path",
-                "filePath",
-                "target_file",
-                "TargetFile",
-                "AbsolutePath",
-                "command",
-                "CommandLine",
-                "DirectoryPath",
-                "SearchPath",
-                "Url",
-                "query",
-            ):
+            path_parts: list[str] = []
+            for field in path_fields:
                 value = raw.get(field)
                 if value is not None and str(value).strip():
-                    parts.append(str(value).strip())
-            if parts:
-                return " ".join(parts)[:500]
+                    path_parts.append(str(value).strip())
+            if path_parts:
+                return " ".join(path_parts)[:500]
 
-    tool_name = payload.get("tool_name") or payload.get("toolName") or payload.get("tool")
-    if tool_name is not None:
-        name = str(tool_name).strip()
-        if len(name) >= 8:
-            return name
+            for field in ("command", "CommandLine"):
+                value = raw.get(field)
+                if value is not None and str(value).strip():
+                    return _seed_from_shell_command(str(value))
+
+            for field in ("Url", "query"):
+                value = raw.get(field)
+                if value is not None and str(value).strip():
+                    text = str(value).strip()
+                    if len(text) >= 8:
+                        return text[:500]
+
+    # Never seed from tool name alone (e.g. "run_terminal_cmd") — always noise.
     return None
 
 

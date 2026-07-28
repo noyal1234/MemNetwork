@@ -209,3 +209,45 @@ def test_inspect_claude_wiring_warns_on_legacy_hooks_json(tmp_path: Path) -> Non
     notes = inspect_claude_wiring(tmp_path)
     assert any("Legacy .claude/hooks.json" in n for n in notes)
     assert any("settings.json" in n for n in notes)
+
+
+def test_inspect_claude_wiring_warns_on_http_url_without_type(tmp_path: Path) -> None:
+    (tmp_path / ".mcp.json").write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "brainkm": {
+                        "url": "http://127.0.0.1:8765/mcp/",
+                        "headers": {"Authorization": "Bearer x"},
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    notes = inspect_claude_wiring(tmp_path)
+    assert any('no "type": "http"' in n for n in notes)
+
+
+def test_inspect_claude_wiring_accepts_settings_local_approval(tmp_path: Path) -> None:
+    (tmp_path / ".mcp.json").write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "brainkm": {
+                        "type": "http",
+                        "url": "http://127.0.0.1:8765/mcp/",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    claude = tmp_path / ".claude"
+    claude.mkdir()
+    (claude / "settings.local.json").write_text(
+        json.dumps({"enabledMcpjsonServers": ["brainkm"]}),
+        encoding="utf-8",
+    )
+    notes = inspect_claude_wiring(tmp_path)
+    assert not any("enabledMcpjsonServers" in n for n in notes)

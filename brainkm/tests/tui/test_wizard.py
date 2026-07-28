@@ -9,6 +9,7 @@ from unittest.mock import patch
 from brainkm.tui.app import BrainkmConfigureApp
 from brainkm.tui.screens.wizard import (
     STEP_APIKEY,
+    STEP_CLAUDE_CLI,
     STEP_CLIENT,
     STEP_CURSOR_CLI,
     STEP_DISTILL,
@@ -296,6 +297,72 @@ async def test_wizard_cursor_cli_run_with_mocked_install(tmp_path: Path) -> None
                     ok=True,
                     found=True,
                     bin_path="/tmp/fake-agent",
+                    stdout_tail="ok",
+                ),
+            ),
+        ):
+            await pilot.click("#btn-wizard-run")
+            await pilot.pause(1.5)
+
+        assert STEPS[screen._current_step] == STEP_APIKEY
+
+
+async def test_wizard_claude_cli_step_auto_skipped_when_claude_not_selected(
+    tmp_path: Path,
+) -> None:
+    """Default apps=["cursor"]: Claude CLI step is irrelevant and auto-skipped."""
+    app = BrainkmConfigureApp(project_dir=tmp_path)
+    async with app.run_test(size=(140, 70)) as pilot:
+        await pilot.pause(0.3)
+        # client, install, doctor, semantic, distill (default cursor)
+        for _ in range(5):
+            await pilot.click("#btn-wizard-run")
+            await pilot.pause(1.5)
+
+        screen = app.screen
+        assert STEPS[screen._current_step] == STEP_CURSOR_CLI
+        await pilot.click("#btn-wizard-skip")
+        await pilot.pause(0.2)
+
+        # Claude Code CLI step is auto-skipped since "claude" isn't a selected app.
+        assert STEPS[screen._current_step] == STEP_APIKEY
+
+
+async def test_wizard_claude_cli_run_with_mocked_install(tmp_path: Path) -> None:
+    from brainkm.services.claude_advisor import ClaudeCliInstallResult, ClaudeCliStatus
+
+    app = BrainkmConfigureApp(project_dir=tmp_path)
+    async with app.run_test(size=(140, 70)) as pilot:
+        await pilot.pause(0.3)
+        from textual.widgets import Checkbox
+
+        screen = app.screen
+        assert STEPS[screen._current_step] == STEP_CLIENT
+        screen.query_one("#wizard-app-claude", Checkbox).value = True
+
+        # client, install, doctor, semantic, distill, cursor-cli (skip) → claude-cli
+        for _ in range(5):
+            await pilot.click("#btn-wizard-run")
+            await pilot.pause(1.5)
+        await pilot.click("#btn-wizard-skip")
+        await pilot.pause(0.2)
+
+        assert STEPS[screen._current_step] == STEP_CLAUDE_CLI
+
+        with (
+            patch(
+                "brainkm.services.claude_advisor.probe_claude_cli",
+                side_effect=[
+                    ClaudeCliStatus(found=False),
+                    ClaudeCliStatus(found=True, bin_path="/tmp/fake-claude"),
+                ],
+            ),
+            patch(
+                "brainkm.services.claude_advisor.install_claude_cli",
+                return_value=ClaudeCliInstallResult(
+                    ok=True,
+                    found=True,
+                    bin_path="/tmp/fake-claude",
                     stdout_tail="ok",
                 ),
             ),

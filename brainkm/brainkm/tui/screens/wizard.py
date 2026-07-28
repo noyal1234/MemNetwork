@@ -37,6 +37,7 @@ STEP_DOCTOR = "step-doctor"
 STEP_SEMANTIC = "step-semantic"
 STEP_DISTILL = "step-distill"
 STEP_CURSOR_CLI = "step-cursor-cli"
+STEP_CLAUDE_CLI = "step-claude-cli"
 STEP_APIKEY = "step-apikey"
 STEP_GRAPH = "step-graph"
 STEP_VIZ_LLM = "step-viz-llm"
@@ -50,6 +51,7 @@ STEPS = [
     STEP_SEMANTIC,
     STEP_DISTILL,
     STEP_CURSOR_CLI,
+    STEP_CLAUDE_CLI,
     STEP_APIKEY,
     STEP_GRAPH,
     STEP_VIZ_LLM,
@@ -125,7 +127,8 @@ class WizardScreen(Screen):
 
     Walks through: project dir → agent client → install → hardware doctor →
     semantic quality (consent) → distill mode → Cursor agent CLI (optional) →
-    API key → graph sync → viz WebLLM prefetch (optional) → done.
+    Claude Code CLI (optional) → API key → graph sync →
+    viz WebLLM prefetch (optional) → done.
     """
 
     BINDINGS = [
@@ -157,7 +160,7 @@ class WizardScreen(Screen):
                 classes="panel-title",
             )
             yield Static(
-                "Step 1 of 11 — Set up your project brain",
+                f"Step 1 of {len(STEPS)} — Set up your project brain",
                 id="wizard-progress",
                 classes="wizard-progress",
             )
@@ -276,9 +279,31 @@ class WizardScreen(Screen):
                 )
                 yield Static("", id="wizard-cursor-cli-status")
 
-            # --- Step 8: API key ---
+            # --- Step 8: Optional Claude Code CLI install ---
+            with Vertical(classes="wizard-step", id=STEP_CLAUDE_CLI):
+                yield Static(
+                    "8 ─ Claude Code CLI (Optional)",
+                    classes="step-title",
+                )
+                yield Static(
+                    "Only relevant when Claude Code is one of your selected apps. "
+                    "Installs the `claude` CLI so it can run `/mcp` and pick up "
+                    ".mcp.json / hooks written in Step 3.",
+                    id="wizard-claude-cli-description",
+                    classes="step-description",
+                )
+                yield Static(
+                    "1. Install: npm install -g @anthropic-ai/claude-code\n"
+                    "2. Verify: which claude\n"
+                    "3. Check wiring: brainkm doctor",
+                    id="wizard-claude-cli-checklist",
+                    classes="step-description",
+                )
+                yield Static("", id="wizard-claude-cli-status")
+
+            # --- Step 9: API key ---
             with Vertical(classes="wizard-step", id=STEP_APIKEY):
-                yield Static("8 ─ API Key (Optional)", classes="step-title")
+                yield Static("9 ─ API Key (Optional)", classes="step-title")
                 yield Static(
                     "If you chose 'groq', paste your GROQ_API_KEY below.\n"
                     "Cloud distill uploads transcript excerpts off this machine — "
@@ -296,7 +321,7 @@ class WizardScreen(Screen):
 
             # --- Step 9: Graph sync ---
             with Vertical(classes="wizard-step", id=STEP_GRAPH):
-                yield Static("9 ─ Graph Sync (Optional)", classes="step-title")
+                yield Static("10 ─ Graph Sync (Optional)", classes="step-title")
                 yield Static(
                     "Run Graphify AST extraction and import into brain.db.",
                     classes="step-description",
@@ -305,7 +330,7 @@ class WizardScreen(Screen):
 
             # --- Step 10: Viz WebLLM prefetch ---
             with Vertical(classes="wizard-step", id=STEP_VIZ_LLM):
-                yield Static("10 ─ Viz Chat Model (Optional)", classes="step-title")
+                yield Static("11 ─ Viz Chat Model (Optional)", classes="step-title")
                 yield Static(
                     "Prefetch an on-device WebLLM model for `brainkm viz` Ask-your-brain.\n"
                     "Weights go to ~/.cache/brainkm/webllm/ (once). The browser still needs\n"
@@ -577,6 +602,16 @@ class WizardScreen(Screen):
                 status.update("[dim]● Skipped — heuristic Cursor distill still works[/]")
             except Exception:
                 pass
+        elif step == STEP_CLAUDE_CLI:
+            self.log_panel.log_info(
+                "Skipped Claude Code CLI — install later with: "
+                "npm install -g @anthropic-ai/claude-code"
+            )
+            try:
+                status = self.query_one("#wizard-claude-cli-status", Static)
+                status.update("[dim]● Skipped — install later, then run `brainkm doctor`[/]")
+            except Exception:
+                pass
         elif step == STEP_VIZ_LLM:
             self.log_panel.log_info(
                 "Skipped WebLLM prefetch — load a model later in the viz Ask panel"
@@ -587,6 +622,19 @@ class WizardScreen(Screen):
             except Exception:
                 pass
         self._advance()
+        self._maybe_skip_claude_cli_step()
+
+    def _maybe_skip_claude_cli_step(self) -> None:
+        """Auto-advance past the optional Claude Code CLI step when not selected."""
+        if (
+            "claude" not in self._selected_apps
+            and self._current_step < len(STEPS)
+            and STEPS[self._current_step] == STEP_CLAUDE_CLI
+        ):
+            self.log_panel.log_info(
+                "Skipping Claude Code CLI step — Claude Code is not among the selected apps"
+            )
+            self._advance()
 
     def _advance(self) -> None:
         if self._current_step < len(STEPS) - 1:
@@ -608,6 +656,7 @@ class WizardScreen(Screen):
             STEP_SEMANTIC: self._apply_semantic,
             STEP_DISTILL: self._apply_distill_mode,
             STEP_CURSOR_CLI: self._run_cursor_cli,
+            STEP_CLAUDE_CLI: self._run_claude_cli,
             STEP_APIKEY: self._apply_api_key,
             STEP_GRAPH: self._run_graph_sync,
             STEP_VIZ_LLM: self._run_viz_llm_prefetch,
@@ -950,6 +999,60 @@ class WizardScreen(Screen):
         except Exception as exc:
             return {"step": STEP_CURSOR_CLI, "error": str(exc)}
 
+    def _run_claude_cli(self) -> None:
+        """Optional Claude Code CLI install — only relevant when claude is selected."""
+        claude_relevant = "claude" in self._selected_apps
+        try:
+            desc = self.query_one("#wizard-claude-cli-description", Static)
+            if claude_relevant:
+                desc.update(
+                    "Installs the `claude` CLI so Claude Code can run `/mcp` and pick up "
+                    ".mcp.json / hooks written in Step 3."
+                )
+            else:
+                desc.update(
+                    f"Skipped — Claude Code CLI only applies when Claude Code is a selected "
+                    f"app (selected apps: {', '.join(self._selected_apps) or self._client})."
+                )
+        except Exception:
+            pass
+        if not claude_relevant:
+            self.log_panel.log_info(
+                "Skipping Claude Code CLI — Claude Code is not among the selected apps"
+            )
+            self._advance()
+            return
+        self.log_panel.log_info("Checking Claude Code CLI…")
+        self._do_claude_cli()
+
+    @work(thread=True, group="wizard", exit_on_error=False)
+    def _do_claude_cli(self) -> dict[str, Any]:
+        from brainkm.services.claude_advisor import (
+            format_claude_cli_report,
+            install_claude_cli,
+            probe_claude_cli,
+        )
+
+        try:
+            status = probe_claude_cli()
+            installed = False
+            install_error: str | None = None
+            if not status.found:
+                install_result = install_claude_cli()
+                installed = True
+                install_error = install_result.error
+                status = probe_claude_cli()
+            return {
+                "step": STEP_CLAUDE_CLI,
+                "found": status.found,
+                "bin_path": status.bin_path,
+                "installed": installed,
+                "install_error": install_error,
+                "formatted": format_claude_cli_report(status),
+            }
+        except Exception as exc:
+            return {"step": STEP_CLAUDE_CLI, "error": str(exc)}
+
     @work(thread=True, group="wizard", exit_on_error=False)
     def _do_apply_distill(self) -> dict[str, Any]:
         import json
@@ -1274,6 +1377,7 @@ class WizardScreen(Screen):
                     "Skipping Agent CLI step — requires client=cursor and distill_mode=cursor"
                 )
                 self._advance()
+            self._maybe_skip_claude_cli_step()
 
         elif step == STEP_CURSOR_CLI:
             if result.get("error"):
@@ -1297,6 +1401,30 @@ class WizardScreen(Screen):
                     status.update(
                         f"[bold yellow]● Agent CLI unavailable[/] "
                         f"({escape_markup(str(err))}) — heuristic distill still works"
+                    )
+            self._advance()
+            self._maybe_skip_claude_cli_step()
+
+        elif step == STEP_CLAUDE_CLI:
+            if result.get("error"):
+                self.log_panel.log_warning(f"Claude Code CLI step: {result['error']}")
+                status = self.query_one("#wizard-claude-cli-status", Static)
+                status.update(f"[bold yellow]● {escape_markup(str(result['error']))}[/]")
+            else:
+                if result.get("installed"):
+                    self.log_panel.log_info("Ran: npm install -g @anthropic-ai/claude-code")
+                for line in result.get("formatted", "").strip().splitlines():
+                    self.log_panel.log_plain(line)
+                status = self.query_one("#wizard-claude-cli-status", Static)
+                if result.get("found"):
+                    path = escape_markup(str(result.get("bin_path", "?")))
+                    status.update(f"[bold green]✓ Claude Code CLI ready[/] ({path})")
+                else:
+                    err = result.get("install_error") or "not found after install"
+                    status.update(
+                        f"[bold yellow]● Claude Code CLI unavailable[/] "
+                        f"({escape_markup(str(err))}) — install manually, then run "
+                        "`brainkm doctor`"
                     )
             self._advance()
 

@@ -205,16 +205,44 @@ def claude_hooks_wired(project_dir: Path) -> bool:
     )
 
 
+def _claude_settings_local_approves_mcp(root: Path, server_key: str) -> bool:
+    """True when untracked ``.claude/settings.local.json`` enables ``server_key``.
+
+    Claude Code ≥2.1.196 honors ``enabledMcpjsonServers`` here after folder trust
+    (in addition to ``~/.claude.json`` project entries).
+    """
+    path = root / ".claude" / "settings.local.json"
+    if not path.is_file():
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return False
+    if not isinstance(data, dict):
+        return False
+    disabled = data.get("disabledMcpjsonServers")
+    if isinstance(disabled, list) and server_key in disabled:
+        return False
+    if data.get("enableAllProjectMcpServers") is True:
+        return True
+    enabled = data.get("enabledMcpjsonServers")
+    return isinstance(enabled, list) and server_key in enabled
+
+
 def _claude_mcpjson_approval_note(root: Path) -> str | None:
-    """Read-only check: is ``brainkm`` in this project's enabledMcpjsonServers?
+    """Read-only check: is ``brainkm`` approved for this project's ``.mcp.json``?
 
     Claude Code silently skips loading any ``.mcp.json`` server that hasn't
-    been approved via this global-config list — a project-trust dialog
-    accepting the *folder* does not imply approval of servers inside it.
-    Missing/malformed state here means the MCP tools (recall/traverse/
-    context_pack/...) will not load even though hooks and .mcp.json look
-    correctly wired.
+    been approved — a project-trust dialog accepting the *folder* does not
+    imply approval of servers inside it. Approval may live in
+    ``~/.claude.json`` ``projects[<path>].enabledMcpjsonServers`` or in
+    untracked ``.claude/settings.local.json``. Missing state means the MCP
+    tools (recall/traverse/context_pack/...) will not load even though hooks
+    and .mcp.json look correctly wired.
     """
+    if _claude_settings_local_approves_mcp(root, BRAINKM_MCP_SERVER_KEY):
+        return None
+
     path = claude_global_config_path()
     if not path.is_file():
         return None  # Claude Code never initialized here; hooks-only checks still apply.
@@ -238,11 +266,28 @@ def _claude_mcpjson_approval_note(root: Path) -> str | None:
     enabled = project.get("enabledMcpjsonServers")
     if not isinstance(enabled, list) or BRAINKM_MCP_SERVER_KEY not in enabled:
         return (
-            f"'{BRAINKM_MCP_SERVER_KEY}' not in enabledMcpjsonServers in ~/.claude.json — "
+            f"'{BRAINKM_MCP_SERVER_KEY}' not in enabledMcpjsonServers in ~/.claude.json "
+            "(and not in .claude/settings.local.json) — "
             "MCP tools (recall/traverse/context_pack/...) will not load; rerun "
             "`brainkm install --client claude` to auto-approve, or approve manually in Claude Code"
         )
     return None
+
+
+def _claude_mcp_entry_type_note(entry: object) -> str | None:
+    """Claude Code ≥2.1.202 skips HTTP entries that lack an explicit transport type."""
+    if not isinstance(entry, dict):
+        return None
+    if "url" not in entry and "serverUrl" not in entry:
+        return None
+    transport_type = entry.get("type")
+    if transport_type in ("http", "sse", "ws", "streamable-http"):
+        return None
+    return (
+        "Claude .mcp.json brainkm entry has url/serverUrl but no \"type\": \"http\" — "
+        "Claude Code ≥2.1.202 skips the server; rerun `brainkm install --client claude` "
+        "(or `brainkm connect claude --http`)"
+    )
 
 
 def inspect_claude_wiring(project_dir: Path) -> list[str]:
@@ -262,6 +307,9 @@ def inspect_claude_wiring(project_dir: Path) -> list[str]:
             if not isinstance(servers, dict) or BRAINKM_MCP_SERVER_KEY not in servers:
                 notes.append("Claude .mcp.json has no brainkm server entry")
             else:
+                type_note = _claude_mcp_entry_type_note(servers.get(BRAINKM_MCP_SERVER_KEY))
+                if type_note:
+                    notes.append(type_note)
                 approval_note = _claude_mcpjson_approval_note(root)
                 if approval_note:
                     notes.append(approval_note)

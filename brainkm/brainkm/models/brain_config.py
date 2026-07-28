@@ -82,7 +82,7 @@ class CaptureConfig(BaseModel):
 
 class InjectionConfig(BaseModel):
     session_start: bool = True
-    pre_tool_patterns: list[str] = Field(default_factory=lambda: ["write", "edit", "run_terminal"])
+    pre_tool_patterns: list[str] = Field(default_factory=lambda: ["write", "edit"])
     max_recalls_per_turn: int = Field(default=3, ge=0, le=5)
     frozen_snapshot: bool = True
 

@@ -31,6 +31,31 @@ def test_derive_pre_tool_query_returns_none_for_empty() -> None:
     assert derive_pre_tool_query({}) is None
 
 
+def test_derive_pre_tool_query_skips_plain_shell_noise() -> None:
+    assert derive_pre_tool_query({"tool_input": {"command": "wc -l"}}) is None
+    assert derive_pre_tool_query({"tool_input": {"command": "grep -n foo"}}) is None
+    assert (
+        derive_pre_tool_query(
+            {"tool_input": {"command": "open Screenshot_2026-07-27_at_6.10.30_PM.png"}}
+        )
+        is None
+    )
+
+
+def test_derive_pre_tool_query_shell_keeps_source_path_or_symbol() -> None:
+    assert (
+        derive_pre_tool_query(
+            {"tool_input": {"command": "pytest brainkm/tests/test_hooks.py -q"}}
+        )
+        is not None
+    )
+    seed = derive_pre_tool_query(
+        {"tool_input": {"command": "rg -n remember_neuron brainkm/"}}
+    )
+    assert seed is not None
+    assert "remember_neuron" in seed or "brainkm" in seed
+
+
 def test_extract_seed_candidates_paths_symbols_and_stopwords() -> None:
     cands = extract_seed_candidates(
         "How does AuthService connect to user_repo in services/auth.py?"

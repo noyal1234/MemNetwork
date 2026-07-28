@@ -73,6 +73,7 @@ def test_normalize_prefers_server_url_when_url_differs() -> None:
     }
     out = normalize_mcp_entry_transport_fields(entry)
     assert out["serverUrl"] == "http://127.0.0.1:8765/mcp/"
+    assert out["type"] == "http"
     assert "url" not in out
     assert "command" not in out
     assert "args" not in out

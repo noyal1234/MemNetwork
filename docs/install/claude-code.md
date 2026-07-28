@@ -44,9 +44,15 @@ Claude Code gates any server declared in a project's `.mcp.json` behind a **sepa
 approval from folder trust** — accepting the "trust this folder" prompt does **not**
 imply approval of MCP servers inside it. Only after that second approval does the
 server name land in `projects[<path>].enabledMcpjsonServers` inside the global
-`~/.claude.json`. Until then, Claude Code **silently skips loading the server** — no
-error, hooks and `.mcp.json` both look correctly wired, but `recall` / `traverse` /
-`context_pack` / etc. simply never appear.
+`~/.claude.json` (or in untracked `.claude/settings.local.json`). Until then,
+Claude Code **silently skips loading the server** — no error, hooks and `.mcp.json`
+both look correctly wired, but `recall` / `traverse` / `context_pack` / etc. simply
+never appear.
+
+HTTP entries in `.mcp.json` must also include `"type": "http"` alongside `url`.
+Claude Code ≥2.1.202 treats `url` without `type` as a misconfigured stdio server and
+skips it (diagnostic: `has a "url" but no "type"`). `brainkm install` / `connect`
+write this field automatically.
 
 `brainkm install --client claude` auto-approves this for you (patches
 `~/.claude.json` directly) as of the install described here — but only if the
