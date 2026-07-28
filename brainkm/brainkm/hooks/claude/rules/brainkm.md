@@ -15,6 +15,14 @@ This project uses **brainkm** — a local SQLite project brain at `.brain/brain.
    start of the session (not per-tool) to load all six brainkm schemas, then call them directly
    for the rest of the session.
 6. Pass **`session_id`** (from SessionStart / UserPromptSubmit) on every brainkm call.
+7. **Symptom before forensics.** On any error, traceback, or "X isn't working / isn't firing /
+   went silent", you **MUST** call `recall` with the raw error or symptom text *before* manual
+   debugging. Recurring environment breakage (venv, hooks, MCP wiring) is usually already in
+   memory; rediscovering it by hand is the most expensive way to be right. A reproducible stack
+   trace is **not** a reason to skip this — it is the highest-signal query you can send.
+8. **Pin what you solved.** After diagnosing a non-obvious failure, call `remember`
+   (`subtype=error`) with the symptom, the cause, and the fix. Hooks capture transcripts, but a
+   raw chunk ranks far below a real neuron — an undocumented fix will be rediscovered.
 
 **Bypass is narrow, not a default.** The only case where skipping brainkm is correct: a pure
 mechanical edit (typo fix, rename, formatting) with zero judgment calls — nothing that requires
@@ -61,6 +69,26 @@ If `traverse` / `context_pack` results look empty or wrong, check **`brain_stats
 a stale or missing code graph is the usual cause; reads auto-queue a refresh, or run
 `brainkm graph sync`. Empty `traverse` responses include a `hint`, `resolved_id`, and
 `impact_summary` when the graph matched but had no neighbors.
+
+### Diagnose mode (something is broken)
+
+The rows above are **build mode** — planning a change. When something is *failing*, the same
+tools answer different questions, and the trigger is the **symptom**, not a decision:
+
+| Symptom-side question | Use first | Why |
+|-----------------------|-----------|-----|
+| Any error text, traceback, or exception | **`recall`** with the raw error string | Past occurrences and their fixes are neurons — query the error *before* hand-debugging |
+| "X is silent / not firing / stopped working" | **`recall`** (symptom phrasing routes to DEBUG intent) | DEBUG boosts `error` neurons; "why" phrasing alone boosts decisions and buries them |
+| "This worked before — what broke it?" | **`trace_changes`** (path) | Regression bisect against the live commit timeline |
+| "What could reach this failing symbol?" | **`traverse`** (`direction=in`) | Callers/producers of the bad state, not just blast radius |
+| Debugging that spans 3+ files | **`context_pack`** | The 3-file rule applies to diagnosis, not only to editing |
+| You just solved a non-obvious failure | **`remember`** (`subtype=error`) | Otherwise the fix survives only as a raw transcript chunk and will not rank for the next person |
+
+**Order matters.** A reproducible stack trace feels more authoritative than memory, so the
+instinct is to start hand-debugging immediately. Call `recall` first — it is one call, and an
+error string is the highest-signal query this brain can receive. Recurring environment
+breakage (venv, hooks, MCP wiring) is exactly the class that is already in memory and gets
+rediscovered the hard way.
 
 ## What lives in the brain
 

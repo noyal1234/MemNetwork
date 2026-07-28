@@ -29,7 +29,7 @@ class IntentRouting:
 
 _PATH_HINT = re.compile(r"[\w./-]+\.(py|ts|tsx|js|jsx|go|rs|java|md)\b")
 _WHY = re.compile(
-    r"\b(why|reason|decision|chose|chosen|instead of|pivot|trade-?off)\b",
+    r"\b(why|reason|rationale|decision|chose|chosen|instead of|pivot|trade-?off)\b",
     re.I,
 )
 _IMPACT = re.compile(
@@ -41,7 +41,26 @@ _TEMPORAL = re.compile(
     re.I,
 )
 _DEBUG = re.compile(
-    r"\b(error|bug|fix|fail|broken|exception|stack|crash)\b",
+    r"\b(error|bug|fix|fail(s|ed|ing|ure)?|broken|exception|stack|crash|"
+    r"traceback|regression|misconfigur\w*|[A-Za-z]*Error|[A-Za-z]*Exception)\b",
+    re.I,
+)
+# Symptom-side phrasing: what a user types before they know the cause. These
+# queries are cause-seeking, but carry none of the _DEBUG error vocabulary.
+_SYMPTOM = re.compile(
+    r"("
+    r"\b(not|never|no longer|stopped|isn'?t|aren'?t|doesn'?t|don'?t|won'?t|wasn'?t)\b"
+    r"[\w\s]{0,20}?"
+    r"\b(work\w*|call\w*|fir\w*|run\w*|load\w*|start\w*|trigger\w*|inject\w*|appear\w*|show\w*|us\w*)\b"
+    r"|\b(silent\w*|silently|hangs?|hung|stuck|nothing happens|no output|"
+    r"empty|missing|ignored|skipped|quiet)\b"
+    r")",
+    re.I,
+)
+# Decision-seeking markers keep genuine "why did we choose X" in WHY even when
+# the same sentence mentions a failure.
+_DECISION_MARKER = re.compile(
+    r"\b(chose|chosen|choose|instead of|trade-?off|decision|pivot|rationale)\b",
     re.I,
 )
 _LOCATE = re.compile(
@@ -125,6 +144,12 @@ def classify_intent(query: str) -> QueryIntent:
         return QueryIntent.LOCATE
     if _IMPACT.search(query):
         return QueryIntent.IMPACT
+    # Cause-seeking beats WHY: "why is X not firing" is a debug query, not a
+    # decision query. WHY boosts decision/rule/fact and never surfaces error
+    # neurons, which is exactly what symptom-side lookups need. Explicit
+    # decision markers ("why did we choose X") keep their WHY routing.
+    if (_DEBUG.search(query) or _SYMPTOM.search(query)) and not _DECISION_MARKER.search(query):
+        return QueryIntent.DEBUG
     if _WHY.search(query):
         return QueryIntent.WHY
     if _TEMPORAL.search(query):

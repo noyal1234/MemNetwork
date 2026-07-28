@@ -13,6 +13,21 @@ Use the **brainkm** MCP tools:
 | What changed in this file recently, and why? | `trace_changes` (path) — use this instead of `git log`/Bash for a single file's history, even mid process/ops debugging |
 | Pin durable truth or correct a wrong auto-capture | `remember` |
 
+**Diagnose mode.** The rows above are build mode. When something is *broken*, the trigger is the
+symptom, not a decision:
+
+| Question | Tool |
+|----------|------|
+| Any error text, traceback, or exception | `recall` with the **raw error string**, before hand-debugging |
+| "X is silent / not firing / stopped working" | `recall` (symptom phrasing routes to DEBUG intent, which boosts `error` neurons) |
+| "This worked before — what broke it?" | `trace_changes` (regression bisect) |
+| "What could reach this failing symbol?" | `traverse` (`direction=in`) |
+| You just solved a non-obvious failure | `remember` (`subtype=error`) — otherwise it stays a raw transcript chunk and won't rank |
+
+A reproducible stack trace is **not** a reason to skip `recall` — it is the highest-signal query
+the brain can receive. Recurring environment breakage (venv, hooks, MCP wiring) is exactly the
+class already in memory that gets rediscovered by hand.
+
 Packs are hints — always verify in source before editing.
 Prefer `traverse` for blast-radius; `context_pack` before opening 3+ files.
 Expand truncated ids via `recall` with `truncation_followup: true`.

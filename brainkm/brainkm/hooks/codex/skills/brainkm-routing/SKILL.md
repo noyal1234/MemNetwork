@@ -20,6 +20,9 @@ replace Grep or filesystem tools.
 | Understand a module before editing 3+ files | `context_pack` (include path or symbol) |
 | What did we learn about `auth.ts`? | `recall` / `context_pack` with that path in the query |
 | Pin, correct, or archive durable truth | `remember` (`action=pin\|correct\|archive`; hooks are primary capture) |
+| **Something is broken** — error text, traceback, "not firing", "went silent" | `recall` with the raw error/symptom **first**, before hand-debugging |
+| "This worked before — what broke it?" | `trace_changes` (regression bisect) |
+| You just solved a non-obvious failure | `remember` (`subtype=error`) — else it stays a raw chunk and won't rank |
 
 ## Rules
 

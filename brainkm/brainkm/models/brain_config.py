@@ -144,6 +144,16 @@ class RecallConfig(BaseModel):
     rerank: bool = False
     decay_half_life_days: float = Field(default=30.0, ge=1.0, le=3650.0)
     feedback_boost: bool = True
+    direct_match_boost: float = Field(
+        default=1.6,
+        ge=1.0,
+        le=5.0,
+        description=(
+            "Recall-only multiplier for nodes that matched the query text directly (FTS), "
+            "so PPR hubs reached via co_activated edges cannot outrank literal matches. "
+            "1.0 disables."
+        ),
+    )
     max_per_session: int = Field(
         default=3,
         ge=1,

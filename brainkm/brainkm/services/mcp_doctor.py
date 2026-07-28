@@ -937,6 +937,13 @@ def build_mcp_doctor_report(
             "then brainkm PostToolUse may observe the compact output"
         )
 
+    try:
+        from brainkm.services.cli_health import doctor_cli_health_notes
+
+        client_notes.extend(doctor_cli_health_notes(root))
+    except Exception:  # noqa: BLE001
+        pass
+
     return McpDoctorReport(
         project_dir=root,
         health_ok=health_ok,

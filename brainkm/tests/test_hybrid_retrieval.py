@@ -48,6 +48,30 @@ def test_classify_intent_routing() -> None:
     assert route_query("why choose X").token_budget_fraction < 1.0
 
 
+def test_symptom_queries_route_to_debug_and_boost_error() -> None:
+    """Symptom-side phrasing must reach error neurons.
+
+    These carry no _DEBUG error vocabulary, so they used to fall through to
+    WHY/GENERAL — both of which boost decision/rule/fact and never error,
+    burying the very neuron written to answer them.
+    """
+    for query in (
+        "why are brainkm tools not being called hooks silent",
+        "hooks are not firing",
+        "the CLI stopped working",
+        "nothing happens when I run it",
+        "session start injection is silently skipped",
+    ):
+        assert classify_intent(query) == QueryIntent.DEBUG, query
+        assert "error" in route_query(query).boost_subtypes, query
+
+
+def test_decision_markers_keep_why_routing() -> None:
+    """A failure mentioned inside a decision question is still a WHY query."""
+    assert classify_intent("why did we choose PPR instead of BFS") == QueryIntent.WHY
+    assert classify_intent("what was the rationale for the retry fix") == QueryIntent.WHY
+
+
 def test_hybrid_seed_and_ppr(tmp_path: Path) -> None:
     conn = _brain(tmp_path)
     try:

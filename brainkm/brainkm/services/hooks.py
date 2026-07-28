@@ -379,6 +379,20 @@ def run_session_start(
     finally:
         conn.close()
 
+    pack_text = snapshot.pack_text if cfg.injection.frozen_snapshot else None
+    # Surface launcher heal/break breadcrumbs (Cursor swallows hook exit codes).
+    try:
+        from brainkm.services.cli_health import consume_cli_health_notice
+
+        notice = consume_cli_health_notice(
+            project_dir if project_dir is not None else Path.cwd()
+        )
+    except Exception:  # noqa: BLE001
+        notice = None
+    if notice:
+        pack_text = f"{notice}\n\n{pack_text}" if pack_text else notice
+        logger.warning("hook=SessionStart cli_health_notice=%s", notice)
+
     logger.info(
         "hook=SessionStart session_id=%s migrated=1 snapshot_neurons=%d",
         session_id,
@@ -389,7 +403,7 @@ def run_session_start(
         session_id=session_id,
         skipped=False,
         reason=None,
-        additional_context=snapshot.pack_text if cfg.injection.frozen_snapshot else None,
+        additional_context=pack_text,
         snapshot_neuron_ids=snapshot.neuron_ids,
     )
 

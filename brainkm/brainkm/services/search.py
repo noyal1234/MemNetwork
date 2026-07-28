@@ -512,7 +512,15 @@ def rank_activated_nodes(
     *,
     boost_subtypes: tuple[str, ...] = (),
     recall: RecallConfig | None = None,
+    direct_match_ids: frozenset[str] | None = None,
 ) -> list[RankedNode]:
+    """Score activated nodes.
+
+    ``direct_match_ids`` are nodes that matched the query text directly (FTS).
+    Recall passes them so graph hubs reached purely via ``co_activated`` edges
+    cannot outrank literal matches; ``traverse`` leaves it None (structure is
+    the point there, so no lexical thumb on the scale).
+    """
     if not activations:
         return []
 
@@ -558,6 +566,12 @@ def rank_activated_nodes(
             multiplier *= 0.45
         elif kind == "memory" and subtype == "episode":
             multiplier *= 0.7
+        # Literal query matches outrank pure graph expansion. Without this the
+        # score carries no lexical signal at all — BM25 only picks seeds, then
+        # PPR mass decides order, so a well-connected hub reached via
+        # co_activated can bury the neuron that actually answers the query.
+        if direct_match_ids and node_id in direct_match_ids:
+            multiplier *= recall_cfg.direct_match_boost
         score = info.activation * float(confidence) * multiplier
         score *= _decay_multiplier(
             updated_at,
@@ -755,6 +769,7 @@ def recall_with_bfs(
         activations,
         boost_subtypes=routing.boost_subtypes,
         recall=recall_cfg,
+        direct_match_ids=frozenset(fts_bm25_by_id),
     )
 
     if recall_cfg.rerank:

@@ -2,9 +2,18 @@
 
 from datetime import UTC, datetime
 
+import pytest
+
 from brainkm.db.connection import connect
 from brainkm.models.brain_config import GraphConfig, RecallConfig
-from brainkm.services.search import _decay_multiplier, recall_with_bfs, traverse, type_multiplier
+from brainkm.services.search import (
+    _ActivationMeta,
+    _decay_multiplier,
+    rank_activated_nodes,
+    recall_with_bfs,
+    traverse,
+    type_multiplier,
+)
 from tests.conftest import insert_edge, insert_node
 
 
@@ -128,5 +137,78 @@ def test_traverse_unresolved_hint(brain_db) -> None:
         assert result.nodes == []
         assert result.resolved_id is None
         assert result.hint is not None
+    finally:
+        conn.close()
+
+
+def test_direct_match_outranks_co_activated_hub(brain_db) -> None:
+    """A neuron that literally matches the query must beat a co_activated hub.
+
+    Regression: score was activation * confidence * type_multiplier with no
+    lexical term, so BM25 only chose seeds and PPR mass decided order. A
+    'decision' (multiplier 2.0) reached purely via co_activated edges could
+    outrank the 'error' neuron (1.5) written to answer that exact query.
+    """
+    conn = connect(brain_db)
+    try:
+        insert_node(
+            conn,
+            node_id="error-neuron",
+            subtype="error",
+            title="hooks silently skipped when pth file is hidden",
+            content="UF_HIDDEN makes site.py skip the editable install",
+        )
+        insert_node(
+            conn,
+            node_id="hub-decision",
+            subtype="decision",
+            title="unrelated architecture choice",
+            content="prefer bounded packs over file dumps",
+        )
+        conn.commit()
+
+        # Equal activation isolates the type multiplier vs the new lexical term.
+        activations = {
+            "error-neuron": _ActivationMeta(activation=0.10, depth=0),
+            "hub-decision": _ActivationMeta(
+                activation=0.10, depth=1, via="error-neuron", relationship="co_activated"
+            ),
+        }
+        cfg = RecallConfig()
+
+        baseline = rank_activated_nodes(conn, activations, recall=cfg)
+        assert baseline[0].node_id == "hub-decision", "precondition: hub wins without the fix"
+
+        boosted = rank_activated_nodes(
+            conn,
+            activations,
+            recall=cfg,
+            direct_match_ids=frozenset({"error-neuron"}),
+        )
+        assert boosted[0].node_id == "error-neuron", [n.node_id for n in boosted]
+    finally:
+        conn.close()
+
+
+def test_direct_match_boost_is_recall_only(brain_db) -> None:
+    """traverse() passes no direct_match_ids, so structural ranking is unchanged."""
+    conn = connect(brain_db)
+    try:
+        insert_node(conn, node_id="a", subtype="fact", title="alpha", content="x")
+        insert_node(conn, node_id="b", subtype="fact", title="beta", content="y")
+        conn.commit()
+        activations = {
+            "a": _ActivationMeta(activation=0.2, depth=0),
+            "b": _ActivationMeta(activation=0.1, depth=1),
+        }
+        cfg = RecallConfig()
+        without = rank_activated_nodes(conn, activations, recall=cfg)
+        explicit_none = rank_activated_nodes(
+            conn, activations, recall=cfg, direct_match_ids=None
+        )
+        assert [n.node_id for n in without] == [n.node_id for n in explicit_none]
+        # Recency decay reads the wall clock, so scores differ in the last bits.
+        for lhs, rhs in zip(without, explicit_none, strict=True):
+            assert lhs.score == pytest.approx(rhs.score, rel=1e-6)
     finally:
         conn.close()

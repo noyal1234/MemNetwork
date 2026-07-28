@@ -47,7 +47,11 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
             "Requires title+body for pin/correct (body aliases: content, text). "
             "kind is always memory; subtype is fact|decision|pattern|context|rule|error. "
             "Hooks (not this tool) are the primary memory path — do not use for ordinary "
-            "session notes. Optional session_id attributes usage to per-session brain_stats."
+            "session notes. DO use it after diagnosing a non-obvious failure: pin the "
+            "symptom, cause, and fix as subtype=error, or the finding survives only as a "
+            "raw transcript chunk that ranks far below a real neuron and will be "
+            "rediscovered by hand. Optional session_id attributes usage to per-session "
+            "brain_stats."
         ),
         RememberRequest,
         RememberResponse,
@@ -56,8 +60,12 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
         "recall",
         (
             "Live project memory search (decisions, rules, errors) with optional "
-            "decision_trail supersede history for why/history questions. Abstains on "
-            "low confidence. Not for call graphs (traverse) or multi-file packs "
+            "decision_trail supersede history for why/history questions. Also the "
+            "first call when something is BROKEN: query with the raw error text, "
+            "traceback, or symptom ('X not firing', 'went silent') before hand-"
+            "debugging — past failures and their fixes are stored as error neurons, "
+            "and symptom phrasing routes to DEBUG intent which boosts them. Abstains "
+            "on low confidence. Not for call graphs (traverse) or multi-file packs "
             "(context_pack). Optional session_id attributes usage to per-session "
             "brain_stats."
         ),
@@ -73,7 +81,8 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
             "match strength, not pack density. Results are in pack_text by default; "
             "neurons/graph_nodes stay empty unless include_structured=true "
             "(shares the same token budget with pack_text). Auto-queues graph refresh "
-            "when stale. For pure call/import/blast-radius questions use traverse. "
+            "when stale. The 3-file rule covers debugging too, not only editing. "
+            "For pure call/import/blast-radius questions use traverse. "
             "Optional session_id attributes usage to per-session brain_stats."
         ),
         ContextPackRequest,
@@ -84,7 +93,9 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
         (
             "Impact analysis: AST neighborhood (callers/callees/imports) plus "
             "impact_summary (hop counts, high fan-in risk) and linked decision/error "
-            "neurons. Prefer for 'what breaks if I change Y?'. Pass from_ref (or "
+            "neurons. Prefer for 'what breaks if I change Y?'; with direction=in it "
+            "also answers the diagnostic form, 'what could reach this failing symbol?'. "
+            "Pass from_ref (or "
             "alias query/symbol/path); abstains when the ref is ambiguous. Optional "
             "session_id attributes usage to per-session brain_stats. Not for "
             "decisions-only (recall) or multi-file task packs (context_pack)."
@@ -110,7 +121,8 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
             "Change history for a single project-relative path: live git log "
             "--follow joined to brain commit↔session↔decision links. Rejects globs "
             "and git pathspec magic. Git subjects/diff text are sanitized for "
-            "injection. Prefer for 'what changed here recently and why?'. Not for "
+            "injection. Prefer for 'what changed here recently and why?' and for the "
+            "regression form, 'this worked before — what broke it?'. Not for "
             "AST blast-radius (traverse) or decisions-only (recall)."
         ),
         TraceChangesRequest,

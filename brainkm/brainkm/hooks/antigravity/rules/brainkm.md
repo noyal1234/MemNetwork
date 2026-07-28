@@ -24,6 +24,26 @@ Do **not** treat brainkm as a second project search index. Use Grep/search to **
 
 If `traverse` / `context_pack` results look empty or wrong, check **`brain_stats`** first — a stale or missing code graph is the usual cause; reads auto-queue a refresh, or run `brainkm graph sync`. Empty `traverse` responses include a `hint`, `resolved_id`, and `impact_summary` when the graph matched but had no neighbors.
 
+### Diagnose mode (something is broken)
+
+The rows above are **build mode** — planning a change. When something is *failing*, the same
+tools answer different questions, and the trigger is the **symptom**, not a decision:
+
+| Symptom-side question | Use first | Why |
+|-----------------------|-----------|-----|
+| Any error text, traceback, or exception | **`recall`** with the raw error string | Past occurrences and their fixes are neurons — query the error *before* hand-debugging |
+| "X is silent / not firing / stopped working" | **`recall`** (symptom phrasing routes to DEBUG intent) | DEBUG boosts `error` neurons; "why" phrasing alone boosts decisions and buries them |
+| "This worked before — what broke it?" | **`trace_changes`** (path) | Regression bisect against the live commit timeline |
+| "What could reach this failing symbol?" | **`traverse`** (`direction=in`) | Callers/producers of the bad state, not just blast radius |
+| Debugging that spans 3+ files | **`context_pack`** | The 3-file rule applies to diagnosis, not only to editing |
+| You just solved a non-obvious failure | **`remember`** (`subtype=error`) | Otherwise the fix survives only as a raw transcript chunk and will not rank for the next person |
+
+**Order matters.** A reproducible stack trace feels more authoritative than memory, so the
+instinct is to start hand-debugging immediately. Call `recall` first — it is one call, and an
+error string is the highest-signal query this brain can receive. Recurring environment
+breakage (venv, hooks, MCP wiring) is exactly the class that is already in memory and gets
+rediscovered the hard way.
+
 ## 🚨 MANDATORY BRAINKM ROUTING FOR ANTIGRAVITY
 1. **BEFORE proposing architectural changes or refactors**, you MUST execute `mcp_brainkm_recall` to fetch past architectural decisions.
 2. **BEFORE editing functions across multiple files**, you MUST execute `mcp_brainkm_traverse` with the symbol/path to analyze blast radius and dependencies.
