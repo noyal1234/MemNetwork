@@ -166,7 +166,7 @@ def test_feedback_and_consolidate(tmp_path: Path) -> None:
             content="Use local ONNX MiniLM for T1 semantic search offline.",
             subtype="decision",
         )
-        record_injected(conn, [a.id, b.id])
+        record_injected(conn, [a.id, b.id], session_id="sess-hybrid")
         record_used(conn, [a.id])
         conn.commit()
         result = consolidate_neurons(conn, dry_run=False, similarity_threshold=0.85)

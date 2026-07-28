@@ -1206,10 +1206,15 @@ def compile_context_pack(
         prefer_procedures=_is_procedure_intent(query),
     )
     final_ids = {line.node_id for line in neuron_kept + graph_kept + proc_kept}
-    try:
-        record_injected(conn, [line.node_id for line in neuron_kept])
-    except Exception:  # noqa: BLE001
-        pass
+    if session_id:
+        try:
+            record_injected(
+                conn,
+                [line.node_id for line in neuron_kept],
+                session_id=session_id,
+            )
+        except Exception:  # noqa: BLE001
+            pass
     dropped = [nid for nid in manifest.included_ids if nid not in final_ids]
     if dropped:
         manifest = manifest.model_copy(

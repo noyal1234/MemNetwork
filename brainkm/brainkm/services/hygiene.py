@@ -125,7 +125,12 @@ def purge_noisy_neurons(
             if node_id not in archived_ids:
                 archived_ids.append(node_id)
     if decay:
+        from brainkm.models.brain_config import BrainConfig
         from brainkm.services.consolidate import decay_unused_neurons
+        from brainkm.services.learning import (
+            decay_co_activation_edges,
+            purge_session_learning_state,
+        )
 
         decay_result = decay_unused_neurons(
             conn,
@@ -137,20 +142,56 @@ def purge_noisy_neurons(
             if node_id not in archived_ids:
                 archived_ids.append(node_id)
                 kept = max(0, kept - 1)
+        learning = (
+            config.learning
+            if isinstance(config, BrainConfig)
+            else BrainConfig().learning
+        )
+        decay_co_activation_edges(
+            conn,
+            idle_days=learning.co_activation_idle_days,
+            decay_factor=learning.co_activation_decay_factor,
+            min_weight=learning.co_activation_min_weight,
+            dry_run=dry_run,
+        )
+        if not dry_run:
+            purge_session_learning_state(
+                conn,
+                retention_days=learning.session_state_retention_days,
+            )
     if not dry_run and archived_ids:
         conn.commit()
     # Collapse historical duplicate tool_chain titles (Write→Shell spam).
-    from brainkm.services.procedures import dedupe_tool_chain_procedures
+    from brainkm.services.procedures import (
+        archive_ignored_procedures,
+        dedupe_tool_chain_procedures,
+    )
 
     proc_archived = dedupe_tool_chain_procedures(conn, dry_run=dry_run)
     for node_id in proc_archived:
         if node_id not in archived_ids:
             archived_ids.append(node_id)
             kept = max(0, kept - 1)
-    if not dry_run and proc_archived:
+    from brainkm.models.brain_config import BrainConfig
+
+    learning = (
+        config.learning if isinstance(config, BrainConfig) else BrainConfig().learning
+    )
+    ignored_procs = archive_ignored_procedures(
+        conn,
+        max_ignore_rate=learning.promote_max_ignore_rate,
+        min_injected_count=learning.archive_min_injected_count,
+        half_life_days=learning.promote_ignore_half_life_days,
+        dry_run=dry_run,
+    )
+    for node_id in ignored_procs:
+        if node_id not in archived_ids:
+            archived_ids.append(node_id)
+            kept = max(0, kept - 1)
+    if not dry_run and (proc_archived or ignored_procs):
         conn.commit()
     return HygieneResult(
-        scanned=len(rows) + len(proc_archived),
+        scanned=len(rows) + len(proc_archived) + len(ignored_procs),
         archived=len(archived_ids),
         kept=kept,
         archived_ids=tuple(archived_ids),

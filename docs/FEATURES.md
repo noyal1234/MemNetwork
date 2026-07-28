@@ -56,7 +56,7 @@ Hooks wire brainkm into each host’s agent lifecycle so memory keeps working wh
 | **PreCompact** / synthetic precompact | Runs handover *before* the host’s lossy summarize — architectural truth is saved first. |
 | **PostCompact** | Refreshes the frozen injection snapshot after compaction so the next turns still see the brain. |
 | **PreToolUse** | Injects a bounded `context_pack` before matched write/edit/shell tools — less blind editing. |
-| **PostToolUse** | Records capped observations when `capture.auto_observe` is on; requests graph sync after Write/Edit; runs the learning loop (co-activation / procedures). |
+| **PostToolUse** | Records capped observations when `capture.auto_observe` is on; requests graph sync after Write/Edit; runs the learning loop (episode-gated co-activation / saturating weights / procedure promotion). |
 | **PostToolUseFailure** | Failure observation (hosts that support it). |
 | **UserPromptSubmit** | Capped prompt gist observation (where the host supports it). |
 

@@ -92,6 +92,28 @@ class LearningConfig(BaseModel):
     max_tool_nodes: int = Field(default=20, ge=1, le=50)
     auto_capture_confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     session_window_size: int = Field(default=20, ge=5, le=100)
+    co_activation_delta: float = Field(default=1.0, gt=0.0)
+    co_activation_max_weight: float = Field(default=10.0, ge=1.0)
+    co_activation_idle_days: int = Field(default=30, ge=1)
+    co_activation_decay_factor: float = Field(default=0.5, gt=0.0, le=1.0)
+    co_activation_min_weight: float = Field(default=0.3, ge=0.0)
+    promote_max_ignore_rate: float = Field(default=0.5, ge=0.0, le=1.0)
+    promote_min_injected_count: int = Field(default=3, ge=1)
+    archive_min_injected_count: int = Field(default=5, ge=1)
+    promote_ignore_half_life_days: int = Field(default=60, ge=1)
+    session_state_retention_days: int = Field(default=14, ge=1)
+
+    @model_validator(mode="after")
+    def _validate_learning_bounds(self) -> LearningConfig:
+        if self.co_activation_max_weight < float(self.co_activation_threshold):
+            raise ValueError(
+                "co_activation_max_weight must be >= co_activation_threshold"
+            )
+        if self.archive_min_injected_count < self.promote_min_injected_count:
+            raise ValueError(
+                "archive_min_injected_count must be >= promote_min_injected_count"
+            )
+        return self
 
 
 class RecallConfig(BaseModel):

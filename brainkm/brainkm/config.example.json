@@ -67,7 +67,18 @@
   "learning": {
     "co_activation_threshold": 3,
     "max_tool_nodes": 20,
-    "auto_capture_confidence": 0.5
+    "auto_capture_confidence": 0.5,
+    "session_window_size": 20,
+    "co_activation_delta": 1.0,
+    "co_activation_max_weight": 10.0,
+    "co_activation_idle_days": 30,
+    "co_activation_decay_factor": 0.5,
+    "co_activation_min_weight": 0.3,
+    "promote_max_ignore_rate": 0.5,
+    "promote_min_injected_count": 3,
+    "archive_min_injected_count": 5,
+    "promote_ignore_half_life_days": 60,
+    "session_state_retention_days": 14
   },
   "recall": {
     "abstain_on_low_confidence": true,

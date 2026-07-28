@@ -281,16 +281,17 @@ def check_and_promote(
     if not session_id:
         return []
 
+    learning = config.learning
     tool_names = load_recent_tool_names(
         conn,
         session_id,
-        limit=config.learning.session_window_size,
+        limit=learning.session_window_size,
     )
     session_neuron_ids = set(
         load_recent_neuron_ids(
             conn,
             session_id,
-            limit=config.learning.session_window_size,
+            limit=learning.session_window_size,
         )
     )
     if len(session_neuron_ids) < 2 or len(ordered_external_tools(tool_names)) < 2:
@@ -299,11 +300,13 @@ def check_and_promote(
     promoted: list[str] = []
     for first, second in find_promotable_pairs(
         conn,
-        threshold=config.learning.co_activation_threshold,
+        threshold=learning.co_activation_threshold,
         session_neuron_ids=session_neuron_ids,
     ):
         # Skip invalid/archived references quickly.
         if resolve_node_ref(conn, first) is None or resolve_node_ref(conn, second) is None:
+            continue
+        if _pair_blocked_by_ignore(conn, first, second, learning=learning):
             continue
         created = upsert_procedure_neuron(
             conn,
@@ -314,3 +317,63 @@ def check_and_promote(
         if created is not None:
             promoted.append(created)
     return promoted
+
+
+def _pair_blocked_by_ignore(
+    conn: sqlite3.Connection,
+    first: str,
+    second: str,
+    *,
+    learning: object,
+) -> bool:
+    from brainkm.models.brain_config import LearningConfig
+    from brainkm.services.feedback import ignore_rate
+
+    cfg = learning if isinstance(learning, LearningConfig) else LearningConfig()
+    for node_id in (first, second):
+        rate, injected = ignore_rate(
+            conn,
+            node_id,
+            half_life_days=cfg.promote_ignore_half_life_days,
+        )
+        if (
+            injected >= cfg.promote_min_injected_count
+            and rate > cfg.promote_max_ignore_rate
+        ):
+            return True
+    return False
+
+def archive_ignored_procedures(
+    conn: sqlite3.Connection,
+    *,
+    max_ignore_rate: float = 0.5,
+    min_injected_count: int = 5,
+    half_life_days: int = 60,
+    dry_run: bool = False,
+) -> list[str]:
+    """Soft-archive procedures with high effective ignore rate (stricter sample floor)."""
+    from brainkm.services.feedback import ignore_rate
+    from brainkm.services.memory import forget_neuron
+
+    rows = conn.execute(
+        """
+        SELECT id
+        FROM nodes
+        WHERE valid_until IS NULL
+          AND kind = 'procedure'
+        """
+    ).fetchall()
+    archived: list[str] = []
+    for row in rows:
+        node_id = str(row["id"])
+        rate, injected = ignore_rate(conn, node_id, half_life_days=half_life_days)
+        if injected < min_injected_count or rate <= max_ignore_rate:
+            continue
+        archived.append(node_id)
+        if not dry_run:
+            forget_neuron(
+                conn,
+                node_id,
+                reason="hygiene: procedure ignored above archive threshold",
+            )
+    return archived

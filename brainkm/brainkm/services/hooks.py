@@ -441,6 +441,23 @@ def run_session_end(
         from brainkm.services.session_activity import clear_file_seeds
 
         clear_file_seeds(conn, result.session_id)
+        from brainkm.services.feedback import mark_ignored_since_injection
+        from brainkm.services.learning import (
+            decay_co_activation_edges,
+            delete_session_learning_state,
+        )
+
+        mark_ignored_since_injection(conn, session_id=result.session_id)
+        # DROP unconsumed pairwise episode — no PostTool evidence ⇒ no reinforcement.
+        delete_session_learning_state(conn, result.session_id)
+        if cfg.decay.enabled and cfg.decay.consolidate_on_session_end:
+            decay_co_activation_edges(
+                conn,
+                idle_days=cfg.learning.co_activation_idle_days,
+                decay_factor=cfg.learning.co_activation_decay_factor,
+                min_weight=cfg.learning.co_activation_min_weight,
+                dry_run=False,
+            )
         from brainkm.services.lifecycle import archive_expired_observations
 
         archive_expired_observations(conn, config=cfg, dry_run=False)

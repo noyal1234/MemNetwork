@@ -258,7 +258,7 @@ def test_check_and_promote_ignores_unrelated_global_pairs(brain_db) -> None:
 
 
 def test_process_post_tool_e2e_promotes_procedure(brain_db) -> None:
-    """Full loop: session hits → repeated PostTool → procedure with tool chain body."""
+    """Full loop: three hit episodes → procedure with tool chain body."""
     conn = connect(brain_db)
     window = get_learning_window()
     window.reset()
@@ -277,10 +277,8 @@ def test_process_post_tool_e2e_promotes_procedure(brain_db) -> None:
             relationship="co_activated",
             weight=10,
         )
-        persist_neuron_hits(conn, "sess-e2e", ["n1", "n2"], source="recall")
-        conn.commit()
-
         for tool in ("Edit", "Write", "Edit"):
+            persist_neuron_hits(conn, "sess-e2e", ["n1", "n2"], source="recall")
             process_post_tool(conn, "sess-e2e", tool, {}, config=cfg)
         conn.commit()
 

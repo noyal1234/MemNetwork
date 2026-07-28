@@ -74,6 +74,33 @@ def test_core_tables_exist(brain_db) -> None:
         conn.close()
 
 
+def test_learning_hebbian_migration_objects(brain_db) -> None:
+    conn = connect(brain_db)
+    try:
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            ).fetchall()
+        }
+        assert "session_learning_state" in tables
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(edges)").fetchall()}
+        assert "decayed_at" in cols
+        fb_cols = {
+            row[1] for row in conn.execute("PRAGMA table_info(neuron_feedback)").fetchall()
+        }
+        assert "last_ignored" in fb_cols
+        indexes = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'index'"
+            ).fetchall()
+        }
+        assert "idx_session_activity_injected" in indexes
+    finally:
+        conn.close()
+
+
 def test_foreign_key_cascade_on_forget(brain_db) -> None:
     from tests.conftest import insert_edge, insert_node
 
