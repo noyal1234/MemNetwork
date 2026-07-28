@@ -175,7 +175,10 @@ def test_targeted_inject_increments(brain_db) -> None:
         conn.close()
 
 
-def test_ambient_then_post_tool_marks_used(brain_db) -> None:
+def test_ambient_post_tool_does_not_mark_used(brain_db) -> None:
+    """Ambient (SessionStart) hits never open a pending episode, so PostToolUse
+    must not credit them as "used" — mirrors the existing injected_count == 0
+    ambient rule (test_ambient_only_never_archive_via_ignore)."""
     conn = connect(brain_db)
     window = get_learning_window()
     window.reset()
@@ -187,8 +190,7 @@ def test_ambient_then_post_tool_marks_used(brain_db) -> None:
         row = conn.execute(
             "SELECT used_count FROM neuron_feedback WHERE node_id = 'amb'"
         ).fetchone()
-        assert row is not None
-        assert int(row["used_count"]) >= 1
+        assert row is None or int(row["used_count"]) == 0
     finally:
         window.reset()
         conn.close()
@@ -246,7 +248,9 @@ def test_peek_missing_row_empty(brain_db) -> None:
         conn.close()
 
 
-def test_used_after_consume_via_lingering_pending(brain_db) -> None:
+def test_used_increments_once_per_episode_not_per_tool_call(brain_db) -> None:
+    """A single recall opens one episode — used_count must credit it exactly
+    once, not once per subsequent (possibly unrelated) PostToolUse event."""
     conn = connect(brain_db)
     window = get_learning_window()
     window.reset()
@@ -261,7 +265,7 @@ def test_used_after_consume_via_lingering_pending(brain_db) -> None:
         row = conn.execute(
             "SELECT used_count FROM neuron_feedback WHERE node_id = 'n1'"
         ).fetchone()
-        assert int(row["used_count"]) >= 3
+        assert int(row["used_count"]) == 1
     finally:
         window.reset()
         conn.close()

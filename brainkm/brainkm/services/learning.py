@@ -529,16 +529,15 @@ def process_post_tool(
         cap=learning.session_window_size,
     )
 
-    pending_ids = _peek_pending_node_ids(conn, session_id)
-    used_ids = pending_ids or load_recent_neuron_ids(
-        conn, session_id, limit=learning.session_window_size
-    )
-    if used_ids:
+    # Episode-gated: "used" fires once per freshly-claimed episode (mirrors the
+    # co-activation gate below), never per subsequent unrelated tool call — the
+    # CAS in _consume_pending_coact already guarantees at-most-once delivery.
+    consumed = _consume_pending_coact(conn, session_id)
+    if consumed:
         from brainkm.services.feedback import record_used
 
-        record_used(conn, list(used_ids))
+        record_used(conn, list(consumed))
 
-    consumed = _consume_pending_coact(conn, session_id)
     if consumed is not None and len(consumed) >= 2:
         for index, first in enumerate(consumed):
             for second in consumed[index + 1 :]:
