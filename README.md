@@ -9,27 +9,20 @@
 One SQLite brain. Six MCP tools. Bounded context packs.  
 Survive chat compaction — share memory across Cursor, Antigravity, Claude Code, and Codex.
 
-<!-- HTML + display:inline: Cursor markdown preview treats ![badge] images as
-     block-level, so markdown rows stack vertically. GitHub keeps them inline
-     either way; this keeps both renderers as wrapping horizontal rows. -->
-<p>
-  <a href="brainkm/pyproject.toml"><img src="https://img.shields.io/badge/version-0.8.5-3d9a8b?style=flat-square" alt="Version" height="20" style="display:inline" /></a>
-  <a href="brainkm/pyproject.toml"><img src="https://img.shields.io/badge/python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python" height="20" style="display:inline" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-red?style=flat-square" alt="License" height="20" style="display:inline" /></a>
-  <a href="docs/FEATURES.md"><img src="https://img.shields.io/badge/MCP-6%20tools-1a2332?style=flat-square" alt="MCP" height="20" style="display:inline" /></a>
-  <a href="docs/BENCHMARKS.md"><img src="https://img.shields.io/badge/token%20reduction-95.2%25-2d6a4f?style=flat-square" alt="Token Reduction" height="20" style="display:inline" /></a>
-  <a href="docs/benchmarks/2026-07-21-footprint.md"><img src="https://img.shields.io/badge/idle-~55--70MB%20RAM-2d6a4f?style=flat-square" alt="Footprint" height="20" style="display:inline" /></a>
-</p>
+[![Version](https://img.shields.io/badge/version-0.8.5-3d9a8b?style=flat-square)](brainkm/pyproject.toml)
+[![Python](https://img.shields.io/badge/python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](brainkm/pyproject.toml)
+[![License](https://img.shields.io/badge/license-Apache%202.0-red?style=flat-square)](LICENSE)
+[![MCP](https://img.shields.io/badge/MCP-6%20tools-1a2332?style=flat-square)](docs/FEATURES.md)
+[![Token Reduction](https://img.shields.io/badge/token%20reduction-95.2%25-2d6a4f?style=flat-square)](docs/BENCHMARKS.md)
+[![Footprint](https://img.shields.io/badge/idle-~55--70MB%20RAM-2d6a4f?style=flat-square)](docs/benchmarks/2026-07-21-footprint.md)
 
 <br/>
 
-<p>
-  <a href="docs/install/cursor.md"><img src="https://img.shields.io/badge/Cursor-000000?style=flat-square&logo=cursor&logoColor=white" alt="Cursor" height="20" style="display:inline" /></a>
-  <a href="docs/install/antigravity.md"><img src="https://img.shields.io/badge/Google%20Antigravity-4285F4?style=flat-square&logo=google&logoColor=white" alt="Google Antigravity" height="20" style="display:inline" /></a>
-  <a href="docs/install/claude-code.md"><img src="https://img.shields.io/badge/Claude%20Code-D97706?style=flat-square&logo=anthropic&logoColor=white" alt="Claude Code" height="20" style="display:inline" /></a>
-  <a href="docs/install/codex.md"><img src="https://img.shields.io/badge/OpenAI%20Codex-00A67E?style=flat-square&logo=openai&logoColor=white" alt="OpenAI Codex" height="20" style="display:inline" /></a>
-  <a href="docs/install/generic.md"><img src="https://img.shields.io/badge/Generic%20MCP-6E56CF?style=flat-square" alt="Generic MCP" height="20" style="display:inline" /></a>
-</p>
+[![Cursor](https://img.shields.io/badge/Cursor-000000?style=flat-square&logo=cursor&logoColor=white)](docs/install/cursor.md)
+[![Google Antigravity](https://img.shields.io/badge/Google%20Antigravity-4285F4?style=flat-square&logo=google&logoColor=white)](docs/install/antigravity.md)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-D97706?style=flat-square&logo=anthropic&logoColor=white)](docs/install/claude-code.md)
+[![OpenAI Codex](https://img.shields.io/badge/OpenAI%20Codex-00A67E?style=flat-square&logo=openai&logoColor=white)](docs/install/codex.md)
+[![Generic MCP](https://img.shields.io/badge/Generic%20MCP-6E56CF?style=flat-square)](docs/install/generic.md)
 
 <br/>
 
