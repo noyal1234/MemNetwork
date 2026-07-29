@@ -79,9 +79,51 @@ async def test_dashboard_loads_brain_status(tui_project: Path) -> None:
         assert "(" in distill_row[1], f"expected readiness suffix, got {distill_row[1]!r}"
 
 
-async def test_dashboard_groq_panel_shows_model_and_rate_limit(
+async def test_dashboard_serve_panel_shows_mismatch_and_restart_button(
     tui_project: Path,
 ) -> None:
+    """Stale HTTP serve enables Restart and surfaces package vs serve versions."""
+    from brainkm.models.brain_config import BrainConfig, McpConfig
+    from brainkm.services.config_loader import save_brain_config
+
+    save_brain_config(
+        tui_project,
+        BrainConfig(mcp=McpConfig(transport="http", http_port=18769)),
+    )
+    app = BrainkmConfigureApp(project_dir=tui_project)
+    async with app.run_test(size=(140, 60)) as pilot:
+        await pilot.pause(0.3)
+        restart = app.screen.query_one("#btn-restart-serve", Button)
+        start = app.screen.query_one("#btn-start-serve", Button)
+        app.screen._render_serve_status(
+            {
+                "running": True,
+                "transport": "http",
+                "url": "http://127.0.0.1:18769/health",
+                "port": 18769,
+                "detail": '{"ok":true,"version":"0.0.1"}',
+                "serve_version": "0.0.1",
+                "package_version": "0.8.6",
+                "version_mismatch": True,
+            }
+        )
+        await pilot.pause(0.1)
+        panel = app.screen.query_one("#serve-status", StatusPanel)
+        labels = [item[0] for item in panel._items]
+        assert "Package" in labels
+        assert "Port" in labels
+        assert "Serve" not in labels
+        assert "URL" not in labels
+        assert "Observe" not in labels
+        assert any(item[0] == "Fix" and "Restart" in item[1] for item in panel._items)
+        assert restart.disabled is False
+        assert start.disabled is False  # Start also force-restarts when stale
+        # Labels must be visible (height:1 + border:tall blanks them).
+        assert "Start" in str(start.label)
+        assert "Restart" in str(restart.label)
+        stop = app.screen.query_one("#btn-stop-serve", Button)
+        assert "Stop" in str(stop.label)
+
     """Groq doctor must show the config model (accent) and surface 429 in red."""
     app = BrainkmConfigureApp(project_dir=tui_project)
     async with app.run_test(size=(140, 60)) as pilot:

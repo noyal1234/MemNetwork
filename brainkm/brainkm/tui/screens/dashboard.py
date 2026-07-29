@@ -39,6 +39,11 @@ class DashboardScreen(Screen):
         self._last_graph_data: dict[str, Any] = {}
         self._pending_review_count = 0
 
+    @property
+    def _root(self) -> Path:
+        """Project root — never None (Path ops in workers require a real Path)."""
+        return self._project_dir if self._project_dir is not None else Path.cwd()
+
     def compose(self) -> ComposeResult:
         yield Header()
         with VerticalScroll(id="dashboard-container"):
@@ -50,11 +55,15 @@ class DashboardScreen(Screen):
                 with Vertical(id="status-sidebar"):
                     yield StatusPanel(title="[ STATUS ]", id="brain-status")
                     yield StatusPanel(title="[ SHARED BRAIN ]", id="serve-status")
-                    with Horizontal(classes="panel-actions"):
+                    with Vertical(classes="panel-actions", id="serve-actions"):
                         yield Button(
-                            bracket_label("Start Brain"),
+                            bracket_label("Start"),
                             id="btn-start-serve",
                             classes="-primary",
+                        )
+                        yield Button(
+                            bracket_label("Restart"),
+                            id="btn-restart-serve",
                         )
                         yield Button(
                             bracket_label("Stop"),
@@ -268,31 +277,20 @@ class DashboardScreen(Screen):
     def _load_serve_status(self) -> dict[str, Any]:
         try:
             from brainkm.services.config_loader import load_brain_config
-            from brainkm.services.mcp_doctor import (
-                antigravity_hooks_wired,
-                claude_hooks_wired,
-                codex_hooks_wired,
-            )
             from brainkm.services.serve_helper import get_serve_status
 
-            cfg = load_brain_config(self._project_dir)
-            status = get_serve_status(self._project_dir)
-            claude_dir = (self._project_dir / ".claude").is_dir() or (
-                self._project_dir / ".mcp.json"
-            ).is_file()
-            agy_dir = (self._project_dir / ".agents").is_dir()
-            codex_dir = (self._project_dir / ".codex").is_dir()
+            root = self._root
+            cfg = load_brain_config(root)
+            status = get_serve_status(root)
             return {
                 "running": status.running,
                 "transport": cfg.mcp.transport,
-                "auto_observe": cfg.capture.auto_observe,
                 "url": status.health_url,
+                "port": cfg.mcp.http_port,
                 "detail": status.detail,
-                "claude_hooks": claude_hooks_wired(self._project_dir) if claude_dir else None,
-                "antigravity_hooks": (
-                    antigravity_hooks_wired(self._project_dir) if agy_dir else None
-                ),
-                "codex_hooks": (codex_hooks_wired(self._project_dir) if codex_dir else None),
+                "serve_version": status.serve_version,
+                "package_version": status.package_version,
+                "version_mismatch": status.version_mismatch,
             }
         except Exception as exc:
             return {"error": str(exc), "running": False, "transport": "?"}
@@ -300,6 +298,7 @@ class DashboardScreen(Screen):
     def _render_serve_status(self, data: dict[str, Any]) -> None:
         panel = self.query_one("#serve-status", StatusPanel)
         start_btn = self.query_one("#btn-start-serve", Button)
+        restart_btn = self.query_one("#btn-restart-serve", Button)
         stop_btn = self.query_one("#btn-stop-serve", Button)
         if data.get("error"):
             panel.set_items(
@@ -308,39 +307,36 @@ class DashboardScreen(Screen):
             return
         transport = str(data.get("transport", "?"))
         running = bool(data.get("running"))
+        mismatch = bool(data.get("version_mismatch"))
+        pkg_ver = str(data.get("package_version") or "?")
+        serve_ver = data.get("serve_version")
         items: list[tuple[str, str, str]]
         if transport == "stdio":
             items = [
                 ("Mode", "simple (auto)", "ok"),
-                ("Observe", "on" if data.get("auto_observe") else "off", "ok"),
                 ("Note", "no serve needed", "muted"),
             ]
             start_btn.disabled = True
+            restart_btn.disabled = True
             stop_btn.disabled = True
         else:
+            server_tone = "warning" if mismatch else ("ok" if running else "warning")
+            server_label = "running" if running else "stopped"
+            if mismatch:
+                server_label = f"stale {serve_ver or '?'}"
+            port = data.get("port")
             items = [
                 ("Mode", "shared HTTP", "accent"),
-                ("Server", "running" if running else "stopped", "ok" if running else "warning"),
-                ("Observe", "on" if data.get("auto_observe") else "off", "ok"),
-                ("URL", str(data.get("url", ""))[:48], "muted"),
+                ("Server", server_label, server_tone),
+                ("Port", str(port) if port is not None else "?", "muted"),
             ]
-            start_btn.disabled = running
+            if mismatch:
+                items.append(("Package", pkg_ver, "muted"))
+                items.append(("Fix", "Restart", "warning"))
+            # Start also force-restarts when stale; Restart always available on HTTP.
+            start_btn.disabled = running and not mismatch
+            restart_btn.disabled = False
             stop_btn.disabled = not running
-        claude_hooks = data.get("claude_hooks")
-        if claude_hooks is True:
-            items.append(("Claude hooks", "settings.json", "ok"))
-        elif claude_hooks is False:
-            items.append(("Claude hooks", "missing", "warning"))
-        agy_hooks = data.get("antigravity_hooks")
-        if agy_hooks is True:
-            items.append(("AGY hooks", ".agents/hooks.json", "ok"))
-        elif agy_hooks is False:
-            items.append(("AGY hooks", "missing", "warning"))
-        codex_hooks = data.get("codex_hooks")
-        if codex_hooks is True:
-            items.append(("Codex hooks", ".codex/hooks.json", "ok"))
-        elif codex_hooks is False:
-            items.append(("Codex hooks", "missing", "warning"))
         panel.set_items(items)
 
     # --- Ollama ---
@@ -633,6 +629,7 @@ class DashboardScreen(Screen):
             "btn-graph-status": self._run_graph_status_action,
             "btn-mcp-doctor-refresh": self._refresh_mcp_doctor,
             "btn-start-serve": self._run_start_serve,
+            "btn-restart-serve": self._run_restart_serve,
             "btn-stop-serve": self._run_stop_serve,
         }
         handler = handlers.get(event.button.id or "")
@@ -643,6 +640,10 @@ class DashboardScreen(Screen):
         self.notify("Starting shared brain…", severity="information")
         self._do_start_serve()
 
+    def _run_restart_serve(self) -> None:
+        self.notify("Restarting shared brain…", severity="information")
+        self._do_restart_serve()
+
     def _run_stop_serve(self) -> None:
         self.notify("Stopping shared brain…", severity="information")
         self._do_stop_serve()
@@ -652,15 +653,41 @@ class DashboardScreen(Screen):
         from brainkm.services.serve_helper import start_serve_background
 
         try:
+            # force when stale so Start Brain also replaces a mismatched process.
             status = start_serve_background(self._project_dir, dev=True)
             return {
                 "action": "start_serve",
-                "ok": status.running,
+                "ok": status.running and not status.version_mismatch,
                 "url": status.health_url,
-                "error": None if status.running else status.detail,
+                "serve_version": status.serve_version,
+                "error": None
+                if status.running and not status.version_mismatch
+                else (
+                    f"stale serve {status.serve_version} (package {status.package_version})"
+                    if status.version_mismatch
+                    else status.detail
+                ),
             }
         except Exception as exc:
             return {"action": "start_serve", "ok": False, "error": str(exc)}
+
+    @work(thread=True, group="dashboard-action", exit_on_error=False)
+    def _do_restart_serve(self) -> dict[str, Any]:
+        from brainkm.services.serve_helper import restart_serve_background
+
+        try:
+            status = restart_serve_background(self._project_dir, dev=True)
+            return {
+                "action": "restart_serve",
+                "ok": status.running and not status.version_mismatch,
+                "url": status.health_url,
+                "serve_version": status.serve_version,
+                "error": None
+                if status.running and not status.version_mismatch
+                else status.detail,
+            }
+        except Exception as exc:
+            return {"action": "restart_serve", "ok": False, "error": str(exc)}
 
     @work(thread=True, group="dashboard-action", exit_on_error=False)
     def _do_stop_serve(self) -> dict[str, Any]:
@@ -671,7 +698,6 @@ class DashboardScreen(Screen):
             return {"action": "stop_serve", "ok": True}
         except Exception as exc:
             return {"action": "stop_serve", "ok": False, "error": str(exc)}
-
     def _run_groq_refresh(self) -> None:
         self.notify("Refreshing Groq status…", severity="information")
         self._load_groq_status()
@@ -895,7 +921,7 @@ class DashboardScreen(Screen):
         if not result.get("ok"):
             detail = result.get("error") or result.get("message") or "failed"
             self.notify(escape_markup(f"{action}: {detail}"), severity="error")
-            if action in {"start_serve", "stop_serve"}:
+            if action in {"start_serve", "stop_serve", "restart_serve"}:
                 self._load_serve_status()
             return
 
@@ -904,7 +930,18 @@ class DashboardScreen(Screen):
             self._load_ollama_status()
             self._load_brain_status()
         elif action == "start_serve":
-            self.notify("Shared brain running", severity="information")
+            ver = result.get("serve_version")
+            self.notify(
+                f"Shared brain running ({ver})" if ver else "Shared brain running",
+                severity="information",
+            )
+            self._load_serve_status()
+        elif action == "restart_serve":
+            ver = result.get("serve_version")
+            self.notify(
+                f"Shared brain restarted ({ver})" if ver else "Shared brain restarted",
+                severity="information",
+            )
             self._load_serve_status()
         elif action == "stop_serve":
             self.notify("Shared brain stopped", severity="information")

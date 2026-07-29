@@ -429,7 +429,7 @@ Each action is a button that spawns a Textual `Worker`. Output is captured line-
 
 **Purpose:** Guided alternative to manually running `brainkm install --client …` + doctor commands. Activated automatically when `.brain/` does not exist, or via the `w` keybinding.
 
-**Steps (sequential screens) — as of 0.8.5:**
+**Steps (sequential screens) — as of 0.8.6:**
 
 ```mermaid
 flowchart LR
@@ -453,7 +453,7 @@ flowchart LR
 | **4–10** | Same as before (doctor, semantic, distill, …). Distill radios include `claude` / `antigravity` / `codex`. | — |
 | **Done** | Plain next steps (client tips when selected). Shared mode: **Start Brain** button (background `serve`). | `serve_helper.start_serve_background` |
 
-Dashboard **Shared Brain** panel shows Observe on/off; Claude → **Claude hooks**; Antigravity `.agents/` → **AGY hooks**; Codex `.codex/` → **Codex hooks**.
+Dashboard **Shared Brain** panel shows Observe on/off, package vs serve version (warns when stale after a bump), and **Start / Restart / Stop**. Claude → **Claude hooks**; Antigravity `.agents/` → **AGY hooks**; Codex `.codex/` → **Codex hooks**.
 
 **MCP Doctor** panel lists cursor / claude / agy / codex (absent Codex shows as `missing`, same as Claude). Success hook dry-runs (e.g. Antigravity `injectSteps envelope ok`) render as muted **Probe**; real wiring problems stay orange **Notes**.
 

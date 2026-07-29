@@ -1,6 +1,6 @@
 [project]
 name = "brainkm"
-version = "0.8.5"
+version = "0.8.6"
 description = "MemNetwork — local project brain MCP server (SQLite FTS5 + graph memory)"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -52,8 +52,12 @@ endtask = [
     "cursor-sdk>=0.1.0",
 ]
 
-[project.scripts]
-brainkm = "brainkm.cli:app"
+# Console entry is scripts/brainkm (full launcher with macOS .pth heal), installed
+# via tool.setuptools.script-files — not [project.scripts] importlib wrappers,
+# which fail before heal when editable .pth files are UF_HIDDEN.
+
+[tool.setuptools]
+script-files = ["scripts/brainkm"]
 
 [build-system]
 requires = ["setuptools>=75.0"]

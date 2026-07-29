@@ -7,17 +7,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BRAINKM_DIR="$(dirname "$SCRIPT_DIR")"
 PROJECT_ROOT="$(dirname "$BRAINKM_DIR")"
 VENV_DIR="${VENV_DIR:-$PROJECT_ROOT/.venv}"
-LAUNCHER_SRC="$SCRIPT_DIR/brainkm_launcher.py"
+LAUNCHER_SRC="$SCRIPT_DIR/brainkm"
 BRAINKM_BIN="$VENV_DIR/bin/brainkm"
 
 install_brainkm_launcher() {
   # Pin shebang to the venv interpreter. A bare `#!/usr/bin/env python3` lets
   # Cursor/MCP pick system Python (often 3.14) which lacks brainkm deps.
+  # Prefer scripts/brainkm (setuptools script-files); fall back to *_launcher.py.
+  local src="$LAUNCHER_SRC"
+  if [[ ! -f "$src" ]]; then
+    src="$SCRIPT_DIR/brainkm_launcher.py"
+  fi
   local venv_python
   venv_python="$("$VENV_DIR/bin/python" -c 'import sys; print(sys.executable)')"
   {
     echo "#!$venv_python"
-    tail -n +2 "$LAUNCHER_SRC"
+    tail -n +2 "$src"
   } >"$BRAINKM_BIN"
   chmod +x "$BRAINKM_BIN"
 }

@@ -37,7 +37,7 @@ brainkm install --dev
 brainkm graph sync          # optional: first code graph
 brainkm graph status
 pytest
-brainkm version   # expect 0.8.5
+brainkm version   # expect 0.8.6
 ```
 
 Restart your IDE or reload MCP servers after `brainkm install --dev`.
@@ -82,7 +82,9 @@ Opens the dashboard (or first-run wizard if `.brain/` is missing). See [TUI_APP_
 
 On macOS, files inside `.venv` can be marked `UF_HIDDEN`. Python 3.12+ ignores hidden editable-install `.pth` files, so the setuptools console script may stop working until the venv is repaired.
 
-Quick fix (no reinstall):
+**0.8.6+:** the installed `.venv/bin/brainkm` launcher clears hidden flags on invoke, writes `.brain/cli_health.json`, and SessionStart / `brainkm doctor` surface a one-shot notice when a heal (or hard break) happened. Cursor hook exit codes alone are easy to miss.
+
+Quick fix (no reinstall) if auto-heal is not enough:
 
 ```bash
 bash brainkm/scripts/repair_venv.sh
@@ -94,7 +96,7 @@ Full reset:
 bash brainkm/scripts/setup_dev.sh
 ```
 
-`setup_dev.sh` installs a bootstrap launcher at `.venv/bin/brainkm` so the CLI and MCP server keep working even when `.pth` files are hidden. The launcher shebang is pinned to `.venv/bin/python` (and re-execs that interpreter if somehow started via system `python3`) so Cursor MCP does not need an activated shell.
+`setup_dev.sh` / `repair_venv.sh` install a bootstrap launcher at `.venv/bin/brainkm` (and editable installs use `scripts/brainkm` via setuptools `script-files`, not an importlib wrapper) so the CLI and MCP server keep working even when `.pth` files are hidden. The launcher shebang is pinned to `.venv/bin/python` (and re-execs that interpreter if somehow started via system `python3`) so Cursor MCP does not need an activated shell.
 
 ### What each step does
 

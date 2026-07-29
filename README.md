@@ -13,7 +13,7 @@ Survive chat compaction — share memory across Cursor, Antigravity, Claude Code
      cells / single-line markdown still stack. Separate cells force a row. -->
 <table align="center">
   <tr>
-    <td><a href="brainkm/pyproject.toml"><img src="https://img.shields.io/badge/version-0.8.5-3d9a8b?style=flat-square" alt="Version" /></a></td>
+    <td><a href="brainkm/pyproject.toml"><img src="https://img.shields.io/badge/version-0.8.6-3d9a8b?style=flat-square" alt="Version" /></a></td>
     <td><a href="brainkm/pyproject.toml"><img src="https://img.shields.io/badge/python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python" /></a></td>
     <td><a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-red?style=flat-square" alt="License" /></a></td>
     <td><a href="docs/FEATURES.md"><img src="https://img.shields.io/badge/MCP-6%20tools-1a2332?style=flat-square" alt="MCP" /></a></td>
@@ -130,7 +130,7 @@ Restart the IDE (or reload MCP servers), then optionally:
 
 ```bash
 brainkm viz       # browser graph explorer
-brainkm version   # expect 0.8.5
+brainkm version   # expect 0.8.6
 ```
 
 Full setup → [docs/INSTALL.md](docs/INSTALL.md) · per host → [Cursor](docs/install/cursor.md) · [Antigravity](docs/install/antigravity.md) · [Claude](docs/install/claude-code.md) · [Codex](docs/install/codex.md)
@@ -241,10 +241,11 @@ Strict path: **MCP tool → service → adapter → SQLite** (DB-touching handle
 
 ## Status
 
-**brainkm 0.8.5** — six MCP tools, content-class token compression, first-class Cursor / Claude / Antigravity / Codex hosts, per-host install guides, git commit↔session joins, shared HTTP hardening, included `brainkm viz`.
+**brainkm 0.8.6** — six MCP tools, content-class token compression, macOS CLI auto-heal + SessionStart/doctor breadcrumbs, first-class Cursor / Claude / Antigravity / Codex hosts, per-host install guides, git commit↔session joins, shared HTTP hardening, included `brainkm viz`.
 
 - [x] Local SQLite brain + **6** MCP tools
 - [x] Content-class compression pipeline + optional `[compression]` LLMLingua
+- [x] macOS `.venv` UF_HIDDEN auto-heal + `cli_health` SessionStart/doctor notices
 - [x] Cursor / Claude / Antigravity / Codex adapters
 - [x] Compaction survival (PreCompact + SessionEnd)
 - [x] Pack-vs-dump token benchmarks (**95.2%** live / **~94%** `compare`; full-agent A/B deferred)

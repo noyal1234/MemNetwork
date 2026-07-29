@@ -20,11 +20,11 @@ brainkm --help
 | `brainkm install` | Scaffold `.brain/`, MCP config, hooks, rule | `--project-dir`, `--dev`, `--force`, `--no-graph`, `--client cursor\|claude\|antigravity\|codex\|generic`, `--http`, `--host`, `--port` | `brainkm install --dev --client antigravity` |
 | `brainkm serve` | Shared HTTP MCP server (alias of `mcp --http`) | `--project-dir`, `--host`, `--port`, `--allow-remote` | `brainkm serve --project-dir .` |
 | `brainkm connect` | Wire a client to stdio or shared HTTP (MCP + hooks + routing rules/skills; writes Bearer for HTTP) | `--project-dir`, `--http/--stdio`, `--hooks/--no-hooks`, `--host`, `--port`, `--dev`, `--mirror-global` (Antigravity) | `brainkm connect codex --http --hooks` |
-| `brainkm doctor` | Health + client wiring + auto_observe / dual-writer / missing Bearer checks | `--project-dir`, `--host`, `--port` | `brainkm doctor` |
+| `brainkm doctor` | Health + client wiring + auto_observe / dual-writer / missing Bearer + macOS CLI heal breadcrumbs | `--project-dir`, `--host`, `--port` | `brainkm doctor` |
 | `brainkm migrate` | Apply pending SQLite migrations | `--project-dir` | `brainkm migrate` |
 | `brainkm configure` | Launch Textual config dashboard (wizard / status / forms / actions) | `--project-dir` | `brainkm configure` |
 
-> **Tip:** Prefer `brainkm configure` (0.8.5): app checkboxes (Cursor / Claude / Antigravity / Codex) → one app = silent stdio; two+ = shared HTTP + **Start Brain**. Codex writes `.codex/config.toml` + hooks (trust project + `/hooks`). Semantic Quality consent is separate. Power users: `serve` + `connect --http`. Requires `pip install -e "./brainkm[tui]"`. Semantic weights: `pip install -e "./brainkm[semantic]"`. Per-host guides: [install/](install/). Design notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
+> **Tip:** Prefer `brainkm configure` (0.8.6): app checkboxes (Cursor / Claude / Antigravity / Codex) → one app = silent stdio; two+ = shared HTTP + **Start Brain**. Codex writes `.codex/config.toml` + hooks (trust project + `/hooks`). Semantic Quality consent is separate. Power users: `serve` + `connect --http`. Requires `pip install -e "./brainkm[tui]"`. Semantic weights: `pip install -e "./brainkm[semantic]"`. Per-host guides: [install/](install/). Design notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
 >
 > **Dashboard:** the **MCP Doctor** panel shows the same wiring report as `brainkm doctor` (color-coded). **Review Queue** lists low-confidence auto-captures for `y` approve / `n` reject.
 

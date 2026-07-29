@@ -51,7 +51,7 @@ Hooks wire brainkm into each host’s agent lifecycle so memory keeps working wh
 
 | Hook | Benefit |
 |------|---------|
-| **SessionStart** / inject | Migrates the DB and injects a frozen context pack so the agent starts with project memory (hosts that cache prefixes keep that win). |
+| **SessionStart** / inject | Migrates the DB and injects a frozen context pack so the agent starts with project memory (hosts that cache prefixes keep that win). Also surfaces a one-shot macOS CLI heal/break notice from `.brain/cli_health.json` when present. |
 | **SessionEnd** / idle Stop | Distills the transcript into neurons after you finish — decisions do not die with the tab. |
 | **PreCompact** / synthetic precompact | Runs handover *before* the host’s lossy summarize — architectural truth is saved first. |
 | **PostCompact** | Refreshes the frozen injection snapshot after compaction so the next turns still see the brain. |
@@ -208,7 +208,7 @@ Design notes: [research/TOKEN_COMPRESSION.md](research/TOKEN_COMPRESSION.md).
 | **Distill mode: `mcp`** (legacy → `claude`) | Host MCP sampling when the client supports it. |
 | **Chrome cleaning** | Strips host UI / tool chrome before extract so neurons are not full of noise. |
 | **Injection noise gate** | Packs re-filter junk at injection time — distilled trash stays out of the agent window. |
-| **Doctors** | `ollama` / `groq` / `cursor` / `semantic doctor` — readiness checks before you rely on a mode. |
+| **Doctors** | `ollama` / `groq` / `cursor` / `semantic doctor` — readiness checks before you rely on a mode. `brainkm doctor` also warns on macOS UF_HIDDEN `.pth` / broken CLI breadcrumbs. |
 
 ---
 
@@ -230,7 +230,8 @@ Design notes: [research/TOKEN_COMPRESSION.md](research/TOKEN_COMPRESSION.md).
 |---------|---------|
 | **`brainkm configure` TUI** | **Recommended setup:** pick coding apps (checkboxes), Semantic Quality consent, Start Brain for shared mode, live status (incl. MCP Doctor), validated config edits. |
 | **`brainkm install`** | Scaffolds `.brain/`, MCP config, hooks, and rules for **Cursor**, **Claude Code**, **Antigravity**, **Codex**, or **generic** MCP hosts (`--http` for shared). Per-host exclusivity: [install/](install/). |
-| **`serve` / `connect` / `doctor`** | Shared HTTP brain wiring and health checks (TUI Start/Stop wraps serve) — one brain for every connected IDE. |
+| **`serve` / `connect` / `doctor`** | Shared HTTP brain wiring and health checks (TUI Start/Stop/**Restart** wraps serve) — one brain for every connected IDE. Doctor also flags macOS CLI import heal/break breadcrumbs. Dashboard shows package vs serve version and warns on mismatch. |
+| **macOS CLI auto-heal** | Launcher clears `UF_HIDDEN` on `.venv` `*.pth`, writes `.brain/cli_health.json`; SessionStart injects a one-shot notice. Hard fix: `bash brainkm/scripts/repair_venv.sh`. |
 | **`migrate`** | Applies pending SQLite migrations when the package advances. |
 | **Multi-root config** | Point `project_roots` at monorepo packages so one brain spans related trees. |
 

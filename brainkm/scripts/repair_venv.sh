@@ -23,7 +23,10 @@ if [[ "$(uname -s)" == "Darwin" ]] && command -v chflags >/dev/null 2>&1; then
   fi
 fi
 
-LAUNCHER_SRC="$SCRIPT_DIR/brainkm_launcher.py"
+LAUNCHER_SRC="$SCRIPT_DIR/brainkm"
+if [[ ! -f "$LAUNCHER_SRC" ]]; then
+  LAUNCHER_SRC="$SCRIPT_DIR/brainkm_launcher.py"
+fi
 BRAINKM_BIN="$VENV_DIR/bin/brainkm"
 # Pin shebang to the venv interpreter (Cursor MCP does not activate the venv).
 VENV_PYTHON="$("$VENV_DIR/bin/python" -c 'import sys; print(sys.executable)')"
