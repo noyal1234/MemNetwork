@@ -32,7 +32,9 @@ def build_brain_status_summary(project_dir: Path | None = None) -> dict[str, Any
         )
         from brainkm.services.git_note import (
             detect_external_hook_manager,
+            post_checkout_hook_installed,
             post_commit_hook_installed,
+            post_merge_hook_installed,
         )
         from brainkm.services.install import resolve_project_dir
 
@@ -48,6 +50,11 @@ def build_brain_status_summary(project_dir: Path | None = None) -> dict[str, Any
 
         want_hook = should_install_commit_hook(root, cfg)
         hook_on_disk = post_commit_hook_installed(root)
+        # post-checkout/post-merge ride the same commit_trace gate — they keep the
+        # code graph / frozen snapshot from describing a tree HEAD no longer matches.
+        result["branch_hooks_installed"] = post_checkout_hook_installed(
+            root
+        ) and post_merge_hook_installed(root)
         external = detect_external_hook_manager(root)
         explicit = raw_config_has_commit_trace(root)
         result["commit_trace"] = want_hook
@@ -75,6 +82,7 @@ def build_brain_status_summary(project_dir: Path | None = None) -> dict[str, Any
         result["auto_observe"] = False
         result["mcp_transport"] = "?"
         result["commit_trace"] = False
+        result["branch_hooks_installed"] = False
         result["commit_trace_label"] = "?"
         result["commit_trace_color"] = "muted"
         result["commit_trace_error"] = str(exc)

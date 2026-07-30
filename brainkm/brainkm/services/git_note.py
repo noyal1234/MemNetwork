@@ -6,6 +6,7 @@ Diffs are never stored — only metadata git cannot know. Live history comes fro
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import subprocess
 from dataclasses import dataclass
@@ -26,6 +27,9 @@ SESSION_LOOKBACK_HOURS = 48
 MAX_SESSION_NEURONS = 40
 MAX_FILES_IN_CONTENT = 40
 HOOK_MARKER = "# brainkm-commit-trace"
+POST_CHECKOUT_MARKER = "# brainkm-branch-checkout"
+POST_MERGE_MARKER = "# brainkm-branch-merge"
+BRANCH_STATE_KEY = "last_branch_state"
 
 
 @dataclass(frozen=True)
@@ -434,13 +438,13 @@ def _hook_snippet(brainkm_bin: str) -> str:
     )
 
 
-def _strip_brainkm_hook_block(text: str) -> str:
-    """Remove brainkm commit-trace block (legacy one-liner or PATH if/fi form)."""
+def _strip_brainkm_hook_block(text: str, *, marker: str = HOOK_MARKER) -> str:
+    """Remove a brainkm hook block (legacy one-liner or PATH if/fi form) for ``marker``."""
     lines = text.splitlines(keepends=True)
     out: list[str] = []
     i = 0
     while i < len(lines):
-        if HOOK_MARKER not in lines[i]:
+        if marker not in lines[i]:
             out.append(lines[i])
             i += 1
             continue
@@ -576,3 +580,255 @@ def uninstall_post_commit_hook(project_dir: Path) -> bool:
     else:
         hook_path.write_text(cleaned + "\n", encoding="utf-8")
     return True
+
+
+# --- post-checkout / post-merge (VCS state-change hooks) --------------------
+#
+# The code graph and every session's frozen SessionStart pack describe the
+# tree as of when they were built. A branch switch or merge can silently
+# invalidate both without brain_stats' time-based staleness check ever
+# noticing (nothing about it is *time*-stale, it is *content*-stale). These
+# hooks stamp the new branch/SHA and force a rebuild on next access instead
+# of serving a pack that describes a different tree.
+
+
+def _hooks_dir_for(project_dir: Path) -> Path | None:
+    root = project_dir.resolve()
+    git_dir = _run_git(root, "rev-parse", "--git-dir")
+    if git_dir.returncode != 0:
+        return None
+    hooks_dir = Path(git_dir.stdout.strip())
+    if not hooks_dir.is_absolute():
+        hooks_dir = root / hooks_dir
+    return hooks_dir / "hooks"
+
+
+def _post_checkout_snippet(brainkm_bin: str) -> str:
+    """Only fires ``branch-changed`` on a real branch switch (git's 3rd arg == 1).
+
+    ``git`` invokes ``post-checkout`` for plain file checkouts too
+    (``git checkout -- file``); those must not invalidate the snapshot.
+    """
+    bin_q = quote(brainkm_bin)
+    return (
+        f"{POST_CHECKOUT_MARKER}\n"
+        f'ROOT="$(git rev-parse --show-toplevel)"\n'
+        f'if [ "$3" = "1" ]; then\n'
+        f"  if command -v brainkm >/dev/null 2>&1; then\n"
+        f'    brainkm branch-changed --project-dir "$ROOT" --event checkout >/dev/null 2>&1 || true\n'
+        f"  elif [ -x {bin_q} ]; then\n"
+        f'    {bin_q} branch-changed --project-dir "$ROOT" --event checkout >/dev/null 2>&1 || true\n'
+        f"  fi\n"
+        f"fi\n"
+    )
+
+
+def _post_merge_snippet(brainkm_bin: str) -> str:
+    bin_q = quote(brainkm_bin)
+    return (
+        f"{POST_MERGE_MARKER}\n"
+        f'ROOT="$(git rev-parse --show-toplevel)"\n'
+        f"if command -v brainkm >/dev/null 2>&1; then\n"
+        f'  brainkm branch-changed --project-dir "$ROOT" --event merge >/dev/null 2>&1 || true\n'
+        f"elif [ -x {bin_q} ]; then\n"
+        f'  {bin_q} branch-changed --project-dir "$ROOT" --event merge >/dev/null 2>&1 || true\n'
+        f"fi\n"
+    )
+
+
+def _install_generic_hook(
+    project_dir: Path,
+    *,
+    hook_name: str,
+    marker: str,
+    snippet: str,
+    force: bool = False,
+) -> HookInstallResult:
+    """Shared install body for post-checkout/post-merge (post-commit keeps its own
+    long-lived implementation above, unchanged, to avoid touching its behavior)."""
+    root = project_dir.resolve()
+    warnings: list[str] = []
+
+    external = detect_external_hook_manager(root)
+    if external and not force:
+        msg = (
+            f"{hook_name} hook skipped ({external}); "
+            "wire brainkm branch-changed into that manager manually, or unset it"
+        )
+        logger.warning(msg)
+        return HookInstallResult(path=None, installed=False, skipped=True, warnings=(msg,))
+
+    hooks_dir = _hooks_dir_for(root)
+    if hooks_dir is None:
+        msg = f"install {hook_name}: not a git repo at {root}"
+        logger.warning(msg)
+        return HookInstallResult(path=None, installed=False, skipped=True, warnings=(msg,))
+
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+    hook_path = hooks_dir / hook_name
+    appended = False
+
+    if hook_path.is_file():
+        existing = hook_path.read_text(encoding="utf-8")
+        had_marker = marker in existing
+        cleaned = _strip_brainkm_hook_block(existing, marker=marker).rstrip()
+        if cleaned and not had_marker:
+            appended = True
+            warnings.append(
+                f"appended brainkm block to existing {hook_name} (foreign hook preserved)"
+            )
+        new_body = (cleaned + "\n\n" + snippet) if cleaned else ("#!/bin/sh\n" + snippet)
+        hook_path.write_text(
+            new_body if new_body.endswith("\n") else new_body + "\n",
+            encoding="utf-8",
+        )
+    else:
+        hook_path.write_text("#!/bin/sh\n" + snippet, encoding="utf-8")
+
+    hook_path.chmod(hook_path.stat().st_mode | 0o111)
+    return HookInstallResult(
+        path=hook_path,
+        installed=True,
+        skipped=False,
+        warnings=tuple(warnings),
+        appended_to_existing=appended,
+    )
+
+
+def _hook_installed(project_dir: Path, *, hook_name: str, marker: str) -> bool:
+    hooks_dir = _hooks_dir_for(project_dir)
+    if hooks_dir is None:
+        return False
+    hook_path = hooks_dir / hook_name
+    if not hook_path.is_file():
+        return False
+    try:
+        return marker in hook_path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+
+def _uninstall_hook(project_dir: Path, *, hook_name: str, marker: str) -> bool:
+    hooks_dir = _hooks_dir_for(project_dir)
+    if hooks_dir is None:
+        return False
+    hook_path = hooks_dir / hook_name
+    if not hook_path.is_file():
+        return False
+    text = hook_path.read_text(encoding="utf-8")
+    if marker not in text:
+        return False
+    cleaned = _strip_brainkm_hook_block(text, marker=marker).strip()
+    if cleaned in {"", "#!/bin/sh", "#!/bin/bash"}:
+        hook_path.unlink(missing_ok=True)
+    else:
+        hook_path.write_text(cleaned + "\n", encoding="utf-8")
+    return True
+
+
+def install_post_checkout_hook(
+    project_dir: Path, *, brainkm_bin: str, force: bool = False
+) -> HookInstallResult:
+    """Write ``.git/hooks/post-checkout`` that stamps branch state on real branch switches."""
+    return _install_generic_hook(
+        project_dir,
+        hook_name="post-checkout",
+        marker=POST_CHECKOUT_MARKER,
+        snippet=_post_checkout_snippet(brainkm_bin),
+        force=force,
+    )
+
+
+def post_checkout_hook_installed(project_dir: Path) -> bool:
+    return _hook_installed(project_dir, hook_name="post-checkout", marker=POST_CHECKOUT_MARKER)
+
+
+def uninstall_post_checkout_hook(project_dir: Path) -> bool:
+    return _uninstall_hook(project_dir, hook_name="post-checkout", marker=POST_CHECKOUT_MARKER)
+
+
+def install_post_merge_hook(
+    project_dir: Path, *, brainkm_bin: str, force: bool = False
+) -> HookInstallResult:
+    """Write ``.git/hooks/post-merge`` that stamps branch state and queues a graph sync."""
+    return _install_generic_hook(
+        project_dir,
+        hook_name="post-merge",
+        marker=POST_MERGE_MARKER,
+        snippet=_post_merge_snippet(brainkm_bin),
+        force=force,
+    )
+
+
+def post_merge_hook_installed(project_dir: Path) -> bool:
+    return _hook_installed(project_dir, hook_name="post-merge", marker=POST_MERGE_MARKER)
+
+
+def uninstall_post_merge_hook(project_dir: Path) -> bool:
+    return _uninstall_hook(project_dir, hook_name="post-merge", marker=POST_MERGE_MARKER)
+
+
+@dataclass(frozen=True)
+class BranchChangeResult:
+    branch: str | None
+    git_hash: str
+    invalidated_snapshots: int
+    graph_sync_queued: bool
+
+
+def stamp_branch_change(
+    conn: sqlite3.Connection,
+    *,
+    project_dir: Path,
+    event: str,
+) -> BranchChangeResult:
+    """Invalidate frozen snapshots (+ queue graph sync on merge) after a branch change.
+
+    Snapshots are keyed per session_id, but a branch switch invalidates every
+    cached snapshot regardless of which session built it — there is only one
+    checked-out tree at a time, so all of them now describe a stale tree.
+    """
+    root = project_dir.resolve()
+    git_hash, branch = current_git_metadata(root)
+    now = utc_now_iso()
+
+    conn.execute(
+        """
+        INSERT INTO brain_runtime (key, value, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(key) DO UPDATE SET
+          value = excluded.value,
+          updated_at = excluded.updated_at
+        """,
+        (
+            BRANCH_STATE_KEY,
+            json.dumps(
+                {"branch": branch, "git_hash": git_hash, "event": event},
+                separators=(",", ":"),
+            ),
+            now,
+        ),
+    )
+    invalidated = conn.execute("DELETE FROM session_snapshots").rowcount
+
+    graph_sync_queued = False
+    if event == "merge":
+        from brainkm.services.graphify_sync import request_graph_sync
+
+        request_graph_sync(project_dir)
+        graph_sync_queued = True
+
+    logger.info(
+        "branch-changed event=%s branch=%s sha=%s invalidated_snapshots=%d graph_sync_queued=%s",
+        event,
+        branch,
+        (git_hash or "")[:12],
+        invalidated,
+        graph_sync_queued,
+    )
+    return BranchChangeResult(
+        branch=branch,
+        git_hash=git_hash or "",
+        invalidated_snapshots=int(invalidated or 0),
+        graph_sync_queued=graph_sync_queued,
+    )

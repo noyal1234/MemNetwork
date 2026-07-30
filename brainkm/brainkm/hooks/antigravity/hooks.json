@@ -15,6 +15,13 @@
         "timeout": 30
       }
     ],
+    "PostInvocation": [
+      {
+        "type": "command",
+        "command": "brainkm post-tool --stdin --event PostInvocation --client antigravity",
+        "timeout": 15
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "write_to_file|replace_file_content|multi_replace_file_content|run_command",

@@ -42,6 +42,9 @@ def test_build_claude_hooks_config_schema() -> None:
     assert cmd.startswith("/usr/local/bin/brainkm ")
     assert "--client claude" in cmd
     assert start["hooks"][0]["type"] == "command"
+    # Distinguishes cold-start sources from resume so run_session_start can skip
+    # re-injecting an already-seen frozen snapshot on resume.
+    assert start["matcher"] == "startup|resume|clear"
 
     post = events["PostCompact"][0]["hooks"][0]["command"]
     assert "post-compact --stdin" in post

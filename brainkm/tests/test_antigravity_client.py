@@ -105,6 +105,17 @@ def test_antigravity_stdout_envelopes() -> None:
     assert build_antigravity_hook_stdout(empty, "Stop") == {"decision": "stop"}
 
 
+def test_build_antigravity_hooks_wires_post_invocation() -> None:
+    """build_antigravity_hook_stdout already handles PostInvocation identically to
+    PostToolUse — this was previously unreachable because no hook entry called it."""
+    config = build_antigravity_hooks_config("/bin/brainkm")
+    assert "PostInvocation" in config["brainkm"]
+    entry = config["brainkm"]["PostInvocation"][0]
+    assert entry["command"].startswith("/bin/brainkm post-tool")
+    assert "--event PostInvocation" in entry["command"]
+    assert "--client antigravity" in entry["command"]
+
+
 def test_merge_antigravity_hooks_preserves_foreign() -> None:
     existing = {
         "other": {"PreInvocation": [{"type": "command", "command": "echo hi"}]},

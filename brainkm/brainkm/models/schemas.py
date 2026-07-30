@@ -514,3 +514,38 @@ class TraceChangesResponse(BaseModel):
     uncommitted: TraceUncommitted = Field(default_factory=TraceUncommitted)
     truncation: TruncationManifest
     hint: str | None = None
+
+
+class FeedbackRequest(BaseModel):
+    """Explicit signal on a node_id previously returned by recall/context_pack/traverse."""
+
+    node_ids: list[str] = Field(..., min_length=1, max_length=20)
+    signal: Literal["used", "not_used", "wrong"] = Field(
+        ...,
+        description=(
+            "used=this was the answer; wrong=this was incorrect/misleading; "
+            "not_used=looked at it, not relevant (neutral, no-op)"
+        ),
+    )
+    session_id: str | None = None
+
+
+class FeedbackResponse(BaseModel):
+    updated: list[str] = Field(default_factory=list)
+
+
+class CheckpointRequest(BaseModel):
+    """Force a handover distill outside host PreCompact (Antigravity, generic MCP)."""
+
+    session_id: str | None = None
+    reason: str | None = Field(
+        default=None,
+        description="Optional note for why checkpoint was called (audit only)",
+    )
+
+
+class CheckpointResponse(BaseModel):
+    checkpoint_ok: bool = False
+    neuron_count: int = 0
+    skipped: bool = False
+    reason: str | None = None

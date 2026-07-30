@@ -34,6 +34,8 @@ BRAINKM_CLAUDE_MCP_TOOL_ALLOWS: tuple[str, ...] = (
     "mcp__brainkm__traverse",
     "mcp__brainkm__brain_stats",
     "mcp__brainkm__trace_changes",
+    "mcp__brainkm__feedback",
+    "mcp__brainkm__checkpoint",
 )
 BRAINKM_CLAUDE_MCP_TOOL_WILDCARD = "mcp__brainkm__*"
 # Cursor does not implement postCompact (use preCompact handover + sessionStart instead).
@@ -204,6 +206,7 @@ def build_claude_hooks_config(
         "hooks": {
             "SessionStart": _claude_event_group(
                 _claude_hook_command(brainkm_bin, "session-start", "--stdin", timeout=30),
+                matcher="startup|resume|clear",
             ),
             "SessionEnd": _claude_event_group(
                 _claude_hook_command(brainkm_bin, "session-end", "--stdin", timeout=120),
@@ -627,6 +630,18 @@ def build_antigravity_hooks_config(
                     "--event",
                     "PreInvocation",
                     timeout=30,
+                ),
+            ],
+            # build_antigravity_hook_stdout already handles PostInvocation identically to
+            # PostToolUse (services/hooks.py) — this entry was the missing wiring that made
+            # that branch unreachable. Same handler (run_post_tool_use), different event name.
+            "PostInvocation": [
+                _cmd(
+                    "post-tool",
+                    "--stdin",
+                    "--event",
+                    "PostInvocation",
+                    timeout=15,
                 ),
             ],
             "PreToolUse": [
@@ -1424,14 +1439,45 @@ def run_install(
                 )
         except Exception as exc:
             result.warnings.append(f"commit-trace hook skipped: {exc}")
+
+        # Same commit_trace gate covers post-checkout/post-merge (VCS state-change
+        # hooks) — both keep the code graph / frozen snapshot from silently
+        # describing a tree that no longer matches HEAD after a branch switch.
+        try:
+            from brainkm.services.git_note import (
+                install_post_checkout_hook,
+                install_post_merge_hook,
+            )
+
+            checkout_result = install_post_checkout_hook(
+                root, brainkm_bin=resolve_hook_command(dev=dev)
+            )
+            result.warnings.extend(checkout_result.warnings)
+            if checkout_result.installed and checkout_result.path is not None:
+                result.files_written.append(checkout_result.path)
+
+            merge_result = install_post_merge_hook(root, brainkm_bin=resolve_hook_command(dev=dev))
+            result.warnings.extend(merge_result.warnings)
+            if merge_result.installed and merge_result.path is not None:
+                result.files_written.append(merge_result.path)
+        except Exception as exc:
+            result.warnings.append(f"branch-change hooks skipped: {exc}")
     elif cfg.git.commit_trace and config_dst.is_file() and not raw_config_has_commit_trace(root):
         pass  # already warned via grandfather
     elif not cfg.git.commit_trace:
         try:
-            from brainkm.services.git_note import uninstall_post_commit_hook
+            from brainkm.services.git_note import (
+                uninstall_post_checkout_hook,
+                uninstall_post_commit_hook,
+                uninstall_post_merge_hook,
+            )
 
             if uninstall_post_commit_hook(root):
                 result.warnings.append("removed brainkm post-commit hook (commit_trace=false)")
+            if uninstall_post_checkout_hook(root):
+                result.warnings.append("removed brainkm post-checkout hook (commit_trace=false)")
+            if uninstall_post_merge_hook(root):
+                result.warnings.append("removed brainkm post-merge hook (commit_trace=false)")
         except Exception as exc:
             result.warnings.append(f"commit-trace uninstall skipped: {exc}")
 

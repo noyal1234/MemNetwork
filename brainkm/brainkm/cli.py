@@ -1208,6 +1208,62 @@ def review_reject_cmd(
         raise typer.Exit(code=1)
 
 
+procedures_app = typer.Typer(help="Inspect/archive learned tool-chain procedures (V2)")
+app.add_typer(procedures_app, name="procedures")
+
+
+@procedures_app.command("list")
+def procedures_list_cmd(
+    limit: int = typer.Option(20, "--limit", help="Max procedures, most-used first"),
+    project_dir: Path | None = typer.Option(None, "--project-dir"),
+) -> None:
+    """List active learned procedures (Write→Shell style tool chains)."""
+    from brainkm.db.connection import connect
+    from brainkm.db.paths import brain_db_path
+    from brainkm.services.procedures import list_procedure_nodes
+
+    conn = connect(brain_db_path(project_dir))
+    try:
+        items = list_procedure_nodes(conn, limit=limit)
+    finally:
+        conn.close()
+    if not items:
+        typer.echo("No procedures learned yet.")
+        return
+    for item in items:
+        typer.echo(f"{item.node_id}\tuse_count={item.use_count}\t{item.title}")
+
+
+@procedures_app.command("archive")
+def procedures_archive_cmd(
+    node_id: str = typer.Argument(...),
+    reason: str = typer.Option("manual archive via CLI", "--reason"),
+    project_dir: Path | None = typer.Option(None, "--project-dir"),
+) -> None:
+    """Soft-archive a wrong or stale procedure so it stops re-injecting into packs."""
+    from brainkm.db.connection import connect
+    from brainkm.db.paths import brain_db_path
+    from brainkm.services.memory import forget_neuron
+    from brainkm.services.write_queue import run_blocking
+
+    def _archive() -> bool:
+        conn = connect(brain_db_path(project_dir))
+        try:
+            forget_neuron(conn, node_id, reason=reason)
+            conn.commit()
+            return True
+        except ValueError:
+            return False
+        finally:
+            conn.close()
+
+    if run_blocking(_archive):
+        typer.echo(f"Archived {node_id}")
+    else:
+        typer.echo(f"No procedure found for {node_id}", err=True)
+        raise typer.Exit(code=1)
+
+
 @app.command("hygiene")
 def hygiene_cmd(
     project_dir: Path | None = typer.Option(
@@ -1417,6 +1473,50 @@ def git_note_cmd(
         f"created={result.created} files={result.files_linked} "
         f"neurons={result.neurons_linked} session={result.session_id or '-'}"
     )
+
+
+@app.command("branch-changed")
+def branch_changed_cmd(
+    project_dir: Path | None = typer.Option(
+        None,
+        "--project-dir",
+        help="Target project root (defaults to cwd)",
+    ),
+    event: str = typer.Option(
+        "checkout",
+        "--event",
+        help="checkout|merge — merge additionally queues a graph sync",
+    ),
+) -> None:
+    """post-checkout/post-merge hook target: invalidate stale frozen snapshots.
+
+    Fail-soft by design — this must never break the user's ``git checkout``/
+    ``git merge``. Any failure is logged and swallowed (exit 0).
+    """
+    from brainkm.db.connection import connect
+    from brainkm.db.migrate import migrate
+    from brainkm.db.paths import brain_db_path
+    from brainkm.services.git_note import stamp_branch_change
+    from brainkm.services.install import resolve_project_dir
+
+    try:
+        root = resolve_project_dir(project_dir)
+        migrate(project_dir=root, run_integrity_check=False)
+        conn = connect(brain_db_path(root))
+        try:
+            result = stamp_branch_change(conn, project_dir=root, event=event)
+            conn.commit()
+        finally:
+            conn.close()
+        typer.echo(
+            f"branch-changed event={event} branch={result.branch or '-'} "
+            f"sha={result.git_hash[:12] if result.git_hash else '-'} "
+            f"invalidated={result.invalidated_snapshots} "
+            f"graph_sync_queued={result.graph_sync_queued}"
+        )
+    except Exception as exc:  # pragma: no cover - defensive, must never block git
+        logger.error("branch-changed failed: %s", exc)
+        typer.echo(f"branch-changed: skipped ({exc})", err=True)
 
 
 @app.command("trace")

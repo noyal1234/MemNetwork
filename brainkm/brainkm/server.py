@@ -20,8 +20,12 @@ from brainkm.logging_config import get_logger
 from brainkm.models.schemas import (
     BrainStatsRequest,
     BrainStatsResponse,
+    CheckpointRequest,
+    CheckpointResponse,
     ContextPackRequest,
     ContextPackResponse,
+    FeedbackRequest,
+    FeedbackResponse,
     RecallRequest,
     RecallResponse,
     RememberRequest,
@@ -127,6 +131,31 @@ TOOL_DEFINITIONS: list[tuple[str, str, type, type]] = [
         ),
         TraceChangesRequest,
         TraceChangesResponse,
+    ),
+    (
+        "feedback",
+        (
+            "Explicit used/wrong signal on node_ids returned by a prior recall, "
+            "context_pack, or traverse call. signal=used means it was the answer; "
+            "signal=wrong means it was incorrect or misleading; signal=not_used is "
+            "a neutral no-op. Not a general rating tool — only for ids this session "
+            "actually saw in another tool's response."
+        ),
+        FeedbackRequest,
+        FeedbackResponse,
+    ),
+    (
+        "checkpoint",
+        (
+            "Force a handover distill now, for hosts with no native PreCompact "
+            "(Antigravity, generic MCP clients) — Cursor/Claude/Codex already get "
+            "this automatically and do not need it. Resolves the transcript path "
+            "cached from this session's SessionStart/UserPromptSubmit hooks; "
+            "returns skipped=true with a reason if none is cached (use remember "
+            "directly instead in that case)."
+        ),
+        CheckpointRequest,
+        CheckpointResponse,
     ),
 ]
 

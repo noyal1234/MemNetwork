@@ -22,7 +22,12 @@ from brainkm.services.learning import persist_neuron_hits, process_post_tool
 from brainkm.services.mcp_results import filter_active_memory_ids
 from brainkm.services.memory import new_ulid
 from brainkm.services.session_activity import flush_use_counts, record_neuron_activity
-from brainkm.services.snapshot import _TOOL_SEARCH_SELECT, build_frozen_snapshot, resolve_session_id
+from brainkm.services.snapshot import (
+    _TOOL_SEARCH_SELECT,
+    build_frozen_snapshot,
+    get_frozen_snapshot,
+    resolve_session_id,
+)
 
 logger = get_logger("services.hooks")
 
@@ -305,6 +310,21 @@ def _context_hint_from_payload(data: dict[str, object]) -> str | None:
     return None
 
 
+def _transcript_path_from_payload(data: dict[str, object]) -> str | None:
+    """Same key set ``parse_precompact_hook_payload`` accepts, for opportunistic caching.
+
+    SessionStart/UserPromptSubmit payloads carry this on hosts that expose a
+    transcript file (Claude, Cursor, Codex); caching it here lets the
+    ``checkpoint`` MCP tool force a handover later without needing a native
+    PreCompact event.
+    """
+    value = data.get("transcript_path") or data.get("transcriptPath") or data.get("transcript")
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
 def run_session_start(
     raw: str,
     *,
@@ -317,6 +337,7 @@ def run_session_start(
     data = _parse_hook_object(raw) if raw.strip() else {}
     session_id = _session_id_from_payload(data) or resolve_session_id(data)
     context_hint = _context_hint_from_payload(data)
+    source = str(data.get("source") or "").strip().lower()
 
     if not cfg.injection.session_start:
         logger.info("hook=SessionStart session_id=%s skipped=session_start_disabled", session_id)
@@ -347,13 +368,23 @@ def run_session_start(
 
     from brainkm.services.hook_session import record_runtime_metric, set_last_hook_session
 
-    set_last_hook_session(session_id=session_id, client=client, project_dir=project_dir)
+    set_last_hook_session(
+        session_id=session_id,
+        client=client,
+        transcript_path=_transcript_path_from_payload(data),
+        project_dir=project_dir,
+    )
 
     conn = connect(brain_db_path(project_dir))
     try:
         from brainkm.services.compression.cohort import assign_session_cohort
 
         assign_session_cohort(conn, session_id, cfg.compression)
+        # A "resume" reusing a session_id that already has a frozen snapshot means
+        # the resumed transcript already saw this exact pack in an earlier turn —
+        # re-injecting identical content wastes tokens for no new information.
+        # "startup"/"clear" always get a snapshot (cold start, no prior context).
+        had_existing_snapshot = get_frozen_snapshot(conn, session_id) is not None
         snapshot = build_frozen_snapshot(
             conn,
             session_id,
@@ -379,8 +410,15 @@ def run_session_start(
     finally:
         conn.close()
 
-    pack_text = snapshot.pack_text if cfg.injection.frozen_snapshot else None
-    # Surface launcher heal/break breadcrumbs (Cursor swallows hook exit codes).
+    resume_skip = source == "resume" and had_existing_snapshot
+    pack_text = snapshot.pack_text if (cfg.injection.frozen_snapshot and not resume_skip) else None
+    if resume_skip:
+        logger.info(
+            "hook=SessionStart session_id=%s resume_skip=1 (frozen snapshot already seen)",
+            session_id,
+        )
+    # Surface launcher heal/break breadcrumbs (Cursor swallows hook exit codes) —
+    # independent of resume_skip; a CLI-health warning is not memory-pack content.
     try:
         from brainkm.services.cli_health import consume_cli_health_notice
 
@@ -761,6 +799,10 @@ def run_post_tool_use(
     if tool_name or cfg.capture.auto_observe:
         conn = connect(brain_db_path(project_dir))
         try:
+            if tool_name:
+                from brainkm.services.tool_feedback import record_tool_result
+
+                record_tool_result(conn, tool_name, failed=failed)
             if (
                 tool_name
                 and not failed
@@ -898,7 +940,12 @@ def run_user_prompt_submit(
     if session_id:
         from brainkm.services.hook_session import set_last_hook_session
 
-        set_last_hook_session(session_id=session_id, client=client, project_dir=project_dir)
+        set_last_hook_session(
+            session_id=session_id,
+            client=client,
+            transcript_path=_transcript_path_from_payload(data),
+            project_dir=project_dir,
+        )
 
     conn = connect(brain_db_path(project_dir))
     try:

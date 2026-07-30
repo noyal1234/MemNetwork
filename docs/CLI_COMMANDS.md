@@ -24,7 +24,7 @@ brainkm --help
 | `brainkm migrate` | Apply pending SQLite migrations | `--project-dir` | `brainkm migrate` |
 | `brainkm configure` | Launch Textual config dashboard (wizard / status / forms / actions) | `--project-dir` | `brainkm configure` |
 
-> **Tip:** Prefer `brainkm configure` (0.8.6): app checkboxes (Cursor / Claude / Antigravity / Codex) → one app = silent stdio; two+ = shared HTTP + **Start Brain**. Codex writes `.codex/config.toml` + hooks (trust project + `/hooks`). Semantic Quality consent is separate. Power users: `serve` + `connect --http`. Requires `pip install -e "./brainkm[tui]"`. Semantic weights: `pip install -e "./brainkm[semantic]"`. Per-host guides: [install/](install/). Design notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
+> **Tip:** Prefer `brainkm configure` (0.9.0): app checkboxes (Cursor / Claude / Antigravity / Codex) → one app = silent stdio; two+ = shared HTTP + **Start Brain**. Codex writes `.codex/config.toml` + hooks (trust project + `/hooks`). Semantic Quality consent is separate. Power users: `serve` + `connect --http`. Requires `pip install -e "./brainkm[tui]"`. Semantic weights: `pip install -e "./brainkm[semantic]"`. Per-host guides: [install/](install/). Design notes: [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
 >
 > **Dashboard:** the **MCP Doctor** panel shows the same wiring report as `brainkm doctor` (color-coded). **Review Queue** lists low-confidence auto-captures for `y` approve / `n` reject.
 
@@ -83,6 +83,19 @@ Multi-IDE opt-in: set `graphify.auto_sync.watch_filesystem: true` in `.brain/con
 | `brainkm review list` | List low-confidence pending neurons | `--project-dir` | `brainkm review list` |
 | `brainkm review approve` | Approve pending neuron (`confidence=1.0`) | `--project-dir` | `brainkm review approve <node_id>` |
 | `brainkm review reject` | Reject + soft-archive via `forget` | `--project-dir` | `brainkm review reject <node_id>` |
+
+---
+
+## Learned procedures
+
+Previously had zero exposure (no CLI, no MCP tool) — only reachable via the learning loop
+internally. A wrong or stale procedure would otherwise keep re-injecting into every pack until it
+aged out on its own.
+
+| Command | Purpose | Key flags | Example |
+|---------|---------|-----------|---------|
+| `brainkm procedures list` | List active learned tool-chain procedures, most-used first | `--limit`, `--project-dir` | `brainkm procedures list` |
+| `brainkm procedures archive` | Soft-archive a wrong/stale procedure | `--reason`, `--project-dir` | `brainkm procedures archive <node_id>` |
 
 ---
 

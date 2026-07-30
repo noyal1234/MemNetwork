@@ -57,6 +57,53 @@ def test_run_pre_tool_use_skips_unmatched_tool(tmp_path: Path) -> None:
     assert result.reason == "tool not matched"
 
 
+def test_run_session_start_resume_skips_reinjection_of_seen_pack(tmp_path: Path) -> None:
+    """A 'resume' reusing a session_id whose snapshot already exists must not
+    re-inject the identical pack — the resumed transcript already saw it."""
+    first = run_session_start(
+        json.dumps({"session_id": "sess-resume-1", "source": "startup"}),
+        project_dir=tmp_path,
+        config=BrainConfig(),
+    )
+    assert first.skipped is False
+
+    resumed = run_session_start(
+        json.dumps({"session_id": "sess-resume-1", "source": "resume"}),
+        project_dir=tmp_path,
+        config=BrainConfig(),
+    )
+    assert resumed.additional_context is None
+
+
+def test_run_session_start_startup_always_injects_even_with_prior_snapshot(
+    tmp_path: Path,
+) -> None:
+    """Only source=resume is suppressed — a fresh startup with a stale/reused
+    session_id must still get its pack (no false suppression)."""
+    run_session_start(
+        json.dumps({"session_id": "sess-startup-1", "source": "startup"}),
+        project_dir=tmp_path,
+        config=BrainConfig(),
+    )
+    second = run_session_start(
+        json.dumps({"session_id": "sess-startup-1", "source": "startup"}),
+        project_dir=tmp_path,
+        config=BrainConfig(),
+    )
+    assert second.additional_context is not None
+
+
+def test_run_session_start_resume_on_new_session_id_still_injects(tmp_path: Path) -> None:
+    """resume with no prior snapshot for this session_id (first time brainkm has
+    seen it) must not be suppressed — nothing has been shown yet."""
+    result = run_session_start(
+        json.dumps({"session_id": "sess-resume-first-time", "source": "resume"}),
+        project_dir=tmp_path,
+        config=BrainConfig(),
+    )
+    assert result.additional_context is not None
+
+
 def test_run_session_start_respects_disabled_injection(tmp_path: Path) -> None:
     result = run_session_start(
         "{}",

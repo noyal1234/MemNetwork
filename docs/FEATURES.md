@@ -1,6 +1,6 @@
 # brainkm — Features
 
-**brainkm** is a local, project-scoped brain for **agentic coding IDEs** — anything that can speak MCP. One `.brain/brain.db`, six tools, and thin host adapters. It remembers *why* you chose something, maps how your code connects, and injects bounded context so agents stop re-reading files and re-explaining past decisions — even after chat compaction.
+**brainkm** is a local, project-scoped brain for **agentic coding IDEs** — anything that can speak MCP. One `.brain/brain.db`, eight tools, and thin host adapters. It remembers *why* you chose something, maps how your code connects, and injects bounded context so agents stop re-reading files and re-explaining past decisions — even after chat compaction.
 
 It is **not** a Cursor-only product. Cursor is a first-class host and currently the **deepest** path (hooks + PreCompact + distill) because that is where we dogfood hardest. Claude Code, Antigravity, Codex, and generic MCP clients share the same brain; adapter depth follows what each IDE exposes.
 
@@ -25,7 +25,14 @@ Long agent sessions burn tokens and lose context. Compaction summarizes the chat
 
 ## Agent tools (MCP)
 
-Six sharp tools the agent (or you) can call. Typed `outputSchema` so clients know the shape of every response.
+Eight sharp tools the agent (or you) can call. Typed `outputSchema` so clients know the shape of every response.
+
+Tool count is a deliberate cost tradeoff, not a headline number — each tool's schema is sent on
+every request. `remember`/`recall`/`context_pack`/`traverse`/`brain_stats`/`trace_changes` cost
+~6,400 tokens together (4.3x the default 1500-token pack budget); `feedback`/`checkpoint` were
+added on top of that only because neither capability is reachable any other way (see below).
+`review` and `procedures` cover similar gaps but stay CLI-only (`brainkm review ...`, `brainkm
+procedures ...`) precisely to avoid growing this further.
 
 | Tool | What it does |
 |------|----------------|
@@ -35,6 +42,8 @@ Six sharp tools the agent (or you) can call. Typed `outputSchema` so clients kno
 | **`traverse`** | Impact analysis: AST neighborhood + `impact_summary` (hop counts, high fan-in risk) + linked decision/error neurons. Prefer for blast-radius. |
 | **`brain_stats`** | Health snapshot: neuron/graph counts, MCP usage, abstention rate, dead neurons, hygiene hint, compression rollups. Optional per-session breakdown. |
 | **`trace_changes`** | File change history: **live** `git log --follow` + uncommitted `git diff`, joined to brain commit↔session↔decision links from `brainkm git-note`. Diffs stay in git (not ingested). |
+| **`feedback`** | Explicit `signal=used\|not_used\|wrong` on a node_id returned by a prior `recall`/`context_pack`/`traverse` — the only path where the agent itself corrects the learning loop's training signal instead of it being inferred. |
+| **`checkpoint`** | Force a handover distill now, for hosts with no native PreCompact (Antigravity, generic MCP). Cursor/Claude/Codex already get this from their own PreCompact hook and do not need it. |
 
 Graph refresh and session context are automatic (hooks + stale-graph auto-queue). Manual CLI: `brainkm graph sync`, `brainkm hygiene`, `brainkm repair --backfill-links --backfill-supersedes`.
 
@@ -175,7 +184,8 @@ Graphify maps structure; the host’s semantic codebase index still finds symbol
 | **Intent routing** | Budgets adapt to the kind of question (decision vs navigation vs error) so packs stay on-task. |
 | **Summary-first packs** | Lead with gists, then detail — agents get the point before burning tokens. |
 | **≤1500 token budget** | Hard cap on agent-facing packs. Predictable cost; no silent multi-file dumps. |
-| **Usage feedback ranking** | What the agent actually used gets boosted; unused noise decays over time. |
+| **Usage feedback ranking** | What the agent actually used gets boosted; unused noise decays. MCP `feedback` (`used` / `wrong`) writes an explicit training signal (migration `012_tool_feedback`) instead of waiting on heuristics alone. |
+| **Learned procedures** | Session-scoped tool-chain promotion (ordered payloads, not title lists). Inspect/archive via `brainkm procedures list` / `archive`. |
 
 Optional semantic stack: `pip install -e "./brainkm[semantic]"` + `brainkm semantic doctor` (or TUI consent). Default stays hashing / FTS-first.
 

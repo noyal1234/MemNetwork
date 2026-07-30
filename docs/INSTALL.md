@@ -37,7 +37,7 @@ brainkm install --dev
 brainkm graph sync          # optional: first code graph
 brainkm graph status
 pytest
-brainkm version   # expect 0.8.6
+brainkm version   # expect 0.9.0
 ```
 
 Restart your IDE or reload MCP servers after `brainkm install --dev`.

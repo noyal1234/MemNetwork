@@ -6,17 +6,17 @@
 
 **Local project memory for agentic coding IDEs.**
 
-One SQLite brain. Six MCP tools. Bounded context packs.  
+One SQLite brain. Eight MCP tools. Bounded context packs.  
 Survive chat compaction — share memory across Cursor, Antigravity, Claude Code, and Codex.
 
 <!-- One badge per <td>: GitHub README <img> is display:block, so multi-img
      cells / single-line markdown still stack. Separate cells force a row. -->
 <table align="center">
   <tr>
-    <td><a href="brainkm/pyproject.toml"><img src="https://img.shields.io/badge/version-0.8.6-3d9a8b?style=flat-square" alt="Version" /></a></td>
+    <td><a href="brainkm/pyproject.toml"><img src="https://img.shields.io/badge/version-0.9.0-3d9a8b?style=flat-square" alt="Version" /></a></td>
     <td><a href="brainkm/pyproject.toml"><img src="https://img.shields.io/badge/python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python" /></a></td>
     <td><a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-red?style=flat-square" alt="License" /></a></td>
-    <td><a href="docs/FEATURES.md"><img src="https://img.shields.io/badge/MCP-6%20tools-1a2332?style=flat-square" alt="MCP" /></a></td>
+    <td><a href="docs/FEATURES.md"><img src="https://img.shields.io/badge/MCP-8%20tools-1a2332?style=flat-square" alt="MCP" /></a></td>
     <td><a href="docs/BENCHMARKS.md"><img src="https://img.shields.io/badge/token%20reduction-95.2%25-2d6a4f?style=flat-square" alt="Token Reduction" /></a></td>
     <td><a href="docs/benchmarks/2026-07-21-footprint.md"><img src="https://img.shields.io/badge/idle-~55--70MB%20RAM-2d6a4f?style=flat-square" alt="Footprint" /></a></td>
   </tr>
@@ -130,7 +130,7 @@ Restart the IDE (or reload MCP servers), then optionally:
 
 ```bash
 brainkm viz       # browser graph explorer
-brainkm version   # expect 0.8.6
+brainkm version   # expect 0.9.0
 ```
 
 Full setup → [docs/INSTALL.md](docs/INSTALL.md) · per host → [Cursor](docs/install/cursor.md) · [Antigravity](docs/install/antigravity.md) · [Claude](docs/install/claude-code.md) · [Codex](docs/install/codex.md)
@@ -144,6 +144,7 @@ Full setup → [docs/INSTALL.md](docs/INSTALL.md) · per host → [Cursor](docs/
 - **Smart retrieval** — Zero-LLM default (FTS5 BM25 + weighted PPR); optional MiniLM via `[semantic]`; abstain on low confidence
 - **Token compression** — Content-class pipeline on packs/egress (protect decisions; RTK-lite tool logs; session dedup); optional `[compression]` LLMLingua
 - **Pin / correct only** — Hooks + `auto_observe` fill the brain; MCP `remember` is pin, correct, or archive — not everyday notes
+- **Learning loop** — MCP `feedback` corrects ranking; `checkpoint` forces handover on hosts without PreCompact; `brainkm procedures` lists/archives learned tool chains
 - **Local-first privacy** — Secrets redacted on write and before injection; brain stays on disk
 
 Catalog → [docs/FEATURES.md](docs/FEATURES.md)
@@ -241,9 +242,10 @@ Strict path: **MCP tool → service → adapter → SQLite** (DB-touching handle
 
 ## Status
 
-**brainkm 0.8.6** — six MCP tools, content-class token compression, macOS CLI auto-heal + SessionStart/doctor breadcrumbs, first-class Cursor / Claude / Antigravity / Codex hosts, per-host install guides, git commit↔session joins, shared HTTP hardening, included `brainkm viz`.
+**brainkm 0.9.0** — eight MCP tools (incl. `feedback` + `checkpoint`), session-scoped procedure learning, WriteQueue CLI resilience, content-class token compression, macOS CLI auto-heal, first-class Cursor / Claude / Antigravity / Codex hosts, per-host install guides, git commit↔session joins, shared HTTP hardening, included `brainkm viz`.
 
-- [x] Local SQLite brain + **6** MCP tools
+- [x] Local SQLite brain + **8** MCP tools
+- [x] Explicit MCP `feedback` + host `checkpoint` (Antigravity / generic)
 - [x] Content-class compression pipeline + optional `[compression]` LLMLingua
 - [x] macOS `.venv` UF_HIDDEN auto-heal + `cli_health` SessionStart/doctor notices
 - [x] Cursor / Claude / Antigravity / Codex adapters

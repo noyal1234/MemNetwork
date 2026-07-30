@@ -5,10 +5,40 @@ from __future__ import annotations
 import hashlib
 import re
 import sqlite3
+from dataclasses import dataclass
 
 from brainkm.models.brain_config import BrainConfig
 from brainkm.services.memory import new_ulid, remember_neuron
 from brainkm.services.search import resolve_node_ref
+
+
+@dataclass(frozen=True)
+class ProcedureItem:
+    node_id: str
+    title: str
+    use_count: int
+
+
+def list_procedure_nodes(conn: sqlite3.Connection, *, limit: int = 20) -> list[ProcedureItem]:
+    """Active procedure neurons, most-used first (CLI/MCP surface — was zero exposure before).
+
+    A wrong or stale procedure otherwise keeps re-injecting into every pack
+    until it ages out on its own via ``archive_ignored_procedures``.
+    """
+    rows = conn.execute(
+        """
+        SELECT id, title, COALESCE(use_count, 0) AS use_count
+        FROM nodes
+        WHERE valid_until IS NULL AND kind = 'procedure'
+        ORDER BY use_count DESC, updated_at DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+    return [
+        ProcedureItem(node_id=row["id"], title=row["title"], use_count=int(row["use_count"]))
+        for row in rows
+    ]
 
 _INTERNAL_TOOLS = frozenset(
     {

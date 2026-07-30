@@ -5,7 +5,9 @@ from __future__ import annotations
 from brainkm.db.connection import connect
 from brainkm.models.brain_config import BrainConfig
 from brainkm.services.learning import get_learning_window, persist_neuron_hits, process_post_tool
+from brainkm.services.memory import remember_neuron
 from brainkm.services.procedures import (
+    list_procedure_nodes,
     check_and_promote,
     find_promotable_pairs,
     ordered_external_tools,
@@ -300,3 +302,114 @@ def test_process_post_tool_e2e_promotes_procedure(brain_db) -> None:
     finally:
         window.reset()
         conn.close()
+
+
+# --- list_procedure_nodes / CLI (Workstream A') ------------------------------
+
+
+def test_list_procedure_nodes_orders_by_use_count(brain_db) -> None:
+    conn = connect(brain_db)
+    try:
+        low = remember_neuron(
+            conn, title="Low use", content="x", kind="procedure", subtype="tool_chain"
+        )
+        high = remember_neuron(
+            conn, title="High use", content="y", kind="procedure", subtype="tool_chain"
+        )
+        conn.execute("UPDATE nodes SET use_count = 1 WHERE id = ?", (low.id,))
+        conn.execute("UPDATE nodes SET use_count = 9 WHERE id = ?", (high.id,))
+        conn.commit()
+
+        items = list_procedure_nodes(conn, limit=20)
+        ids = [item.node_id for item in items]
+        assert ids.index(high.id) < ids.index(low.id)
+        assert items[ids.index(high.id)].use_count == 9
+    finally:
+        conn.close()
+
+
+def test_list_procedure_nodes_excludes_archived(brain_db) -> None:
+    from brainkm.services.memory import forget_neuron
+
+    conn = connect(brain_db)
+    try:
+        record = remember_neuron(
+            conn, title="Archived proc", content="z", kind="procedure", subtype="tool_chain"
+        )
+        conn.commit()
+        forget_neuron(conn, record.id, reason="test")
+        conn.commit()
+
+        items = list_procedure_nodes(conn, limit=20)
+        assert record.id not in {item.node_id for item in items}
+    finally:
+        conn.close()
+
+
+def test_procedures_list_cli_command(tmp_path) -> None:
+    from typer.testing import CliRunner
+
+    from brainkm.cli import app
+    from brainkm.db.migrate import migrate
+
+    migrate(project_dir=tmp_path, run_integrity_check=False)
+    conn = connect(tmp_path / ".brain" / "brain.db")
+    try:
+        remember_neuron(
+            conn, title="Write to Shell", content="body", kind="procedure", subtype="tool_chain"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["procedures", "list", "--project-dir", str(tmp_path)])
+    assert result.exit_code == 0
+    assert "Write to Shell" in result.stdout
+
+
+def test_procedures_archive_cli_command(tmp_path) -> None:
+    from typer.testing import CliRunner
+
+    from brainkm.cli import app
+    from brainkm.db.migrate import migrate
+
+    migrate(project_dir=tmp_path, run_integrity_check=False)
+    conn = connect(tmp_path / ".brain" / "brain.db")
+    try:
+        record = remember_neuron(
+            conn, title="Bad proc", content="body", kind="procedure", subtype="tool_chain"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app, ["procedures", "archive", record.id, "--project-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 0
+    assert "Archived" in result.stdout
+
+    conn = connect(tmp_path / ".brain" / "brain.db")
+    try:
+        row = conn.execute(
+            "SELECT valid_until FROM nodes WHERE id = ?", (record.id,)
+        ).fetchone()
+        assert row["valid_until"] is not None
+    finally:
+        conn.close()
+
+
+def test_procedures_archive_cli_missing_node_exits_nonzero(tmp_path) -> None:
+    from typer.testing import CliRunner
+
+    from brainkm.cli import app
+    from brainkm.db.migrate import migrate
+
+    migrate(project_dir=tmp_path, run_integrity_check=False)
+    runner = CliRunner()
+    result = runner.invoke(
+        app, ["procedures", "archive", "does-not-exist", "--project-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 1

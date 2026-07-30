@@ -41,6 +41,8 @@ Use the **brainkm** MCP tools:
 | Bounded multi-file task context | `context_pack` (include a symbol or path) |
 | What changed in this file recently, and why? | `trace_changes` (path) — use instead of `git log`/Bash, even mid process/ops debugging |
 | Pin durable truth or correct a wrong auto-capture | `remember` |
+| A returned node_id from recall/context_pack/traverse was right or wrong | `feedback` (signal=used/wrong) |
+| Force a save now (no native PreCompact on this host) | `checkpoint` |
 
 Packs are hints — always verify in source before editing.
 Prefer `traverse` for blast-radius; `context_pack` before opening 3+ files.

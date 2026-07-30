@@ -84,6 +84,57 @@ def record_used(conn: sqlite3.Connection, node_ids: list[str]) -> None:
         )
 
 
+def record_explicit_feedback(
+    conn: sqlite3.Connection,
+    node_ids: list[str],
+    signal: str,
+) -> list[str]:
+    """Explicit agent-supplied feedback for a previously-returned node_id.
+
+    Unlike ``record_used`` (called heuristically from the learning loop) and
+    ``mark_ignored_since_injection`` (a batch sweep over every neuron), this is
+    the only path where the agent itself says "this was right" or "this was
+    wrong" about a specific recall/context_pack/traverse hit. ``"used"`` maps
+    to the existing ``record_used`` counter; ``"wrong"`` bumps ``ignored_count``
+    immediately instead of waiting for the next batch sweep to infer it from
+    injected-without-used timing. ``"not_used"`` is accepted as a neutral
+    no-op (the agent looked at it but it wasn't relevant, not actively wrong)
+    so callers don't have to pick between "used" and "wrong" when neither fits.
+
+    Returns the node_ids actually updated (empty if the table isn't migrated
+    yet or no valid ids were given).
+    """
+    if not node_ids or not _table_ready(conn):
+        return []
+    if signal == "used":
+        record_used(conn, node_ids)
+        return list(node_ids)
+    if signal == "not_used":
+        return []
+    if signal != "wrong":
+        msg = f"unknown feedback signal: {signal!r}"
+        raise ValueError(msg)
+
+    now = _now()
+    updated: list[str] = []
+    for node_id in node_ids:
+        if not node_id:
+            continue
+        _ensure_row(conn, node_id)
+        conn.execute(
+            """
+            UPDATE neuron_feedback
+            SET ignored_count = ignored_count + 1,
+                last_ignored = ?,
+                updated_at = ?
+            WHERE node_id = ?
+            """,
+            (now, now, node_id),
+        )
+        updated.append(node_id)
+    return updated
+
+
 def mark_ignored_since_injection(
     conn: sqlite3.Connection,
     *,

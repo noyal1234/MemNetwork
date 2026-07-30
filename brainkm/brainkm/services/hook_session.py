@@ -42,6 +42,7 @@ class LastHookSession:
     session_id: str
     client: str | None
     updated_at: str
+    transcript_path: str | None = None
 
 
 def _parse_iso(ts: str) -> datetime:
@@ -82,10 +83,19 @@ def set_last_hook_session(
     *,
     session_id: str,
     client: str | None = None,
+    transcript_path: Path | str | None = None,
     project_dir: Path | None = None,
     db_path: Path | None = None,
 ) -> None:
-    """Upsert last_hook_session on a dedicated connection (BEGIN IMMEDIATE)."""
+    """Upsert last_hook_session on a dedicated connection (BEGIN IMMEDIATE).
+
+    ``transcript_path`` is optional per call site — SessionStart usually has
+    it, UserPromptSubmit often does not re-derive it. When omitted (None) for
+    the *same* session_id already cached, the previously cached path is kept
+    rather than overwritten with None, so a later ``checkpoint`` MCP call can
+    still resolve it. A different session_id always starts fresh (an old
+    session's transcript path must never leak into a new one).
+    """
     if not session_id or session_id == ANON_SESSION_ID:
         return
     path = db_path if db_path is not None else brain_db_path(project_dir)
@@ -98,6 +108,7 @@ def set_last_hook_session(
                 (LAST_HOOK_SESSION_KEY,),
             ).fetchone()
             now = utc_now_iso()
+            resolved_transcript_path = str(transcript_path) if transcript_path else None
             if row is not None:
                 try:
                     prev = json.loads(row["value"])
@@ -114,10 +125,16 @@ def set_last_hook_session(
                             name="concurrent_session_conflict",
                             source="hook",
                         )
+                    if resolved_transcript_path is None and prev_sid == session_id:
+                        resolved_transcript_path = prev.get("transcript_path")
                 except (TypeError, ValueError, json.JSONDecodeError):
                     pass
             payload = json.dumps(
-                {"session_id": session_id, "client": client},
+                {
+                    "session_id": session_id,
+                    "client": client,
+                    "transcript_path": resolved_transcript_path,
+                },
                 separators=(",", ":"),
             )
             conn.execute(
@@ -183,16 +200,39 @@ def get_last_hook_session(
             _cache_value = None
             return None
         client = data.get("client")
+        transcript_path = data.get("transcript_path")
         parsed = LastHookSession(
             session_id=sid,
             client=str(client) if client else None,
             updated_at=row["updated_at"],
+            transcript_path=str(transcript_path) if transcript_path else None,
         )
         _cache_value = parsed
         return parsed
     except (TypeError, ValueError, json.JSONDecodeError):
         _cache_value = None
         return None
+
+
+def get_last_transcript_path(
+    conn: sqlite3.Connection,
+    session_id: str | None,
+    *,
+    max_age_s: float = DEFAULT_MAX_AGE_S,
+) -> Path | None:
+    """Resolve the transcript path cached for ``session_id`` (checkpoint MCP tool).
+
+    This is a single-slot cache (one "last hook session" row, not a per-session
+    map) — if ``session_id`` doesn't match what's cached, return None rather
+    than handing back a different session's transcript path. ``session_id is
+    None`` accepts whatever is cached (best-effort inference path).
+    """
+    cached = get_last_hook_session(conn, max_age_s=max_age_s)
+    if cached is None or not cached.transcript_path:
+        return None
+    if session_id and cached.session_id != session_id:
+        return None
+    return Path(cached.transcript_path)
 
 
 def maybe_record_first_brainkm_call(

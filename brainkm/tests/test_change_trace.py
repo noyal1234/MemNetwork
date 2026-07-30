@@ -369,3 +369,143 @@ def test_should_install_fresh_defaults_true(tmp_path: Path) -> None:
         should_install_commit_hook(tmp_path, BrainConfig(git=GitConfig(commit_trace=False)))
         is False
     )
+
+
+# --- post-checkout / post-merge (Workstream C) -------------------------------
+
+
+def test_install_post_checkout_hook(git_project: Path) -> None:
+    from brainkm.services.git_note import (
+        POST_CHECKOUT_MARKER,
+        install_post_checkout_hook,
+        post_checkout_hook_installed,
+        uninstall_post_checkout_hook,
+    )
+
+    result = install_post_checkout_hook(git_project, brainkm_bin="brainkm")
+    assert result.installed is True
+    assert result.path is not None
+    text = result.path.read_text(encoding="utf-8")
+    assert POST_CHECKOUT_MARKER in text
+    assert "branch-changed" in text
+    assert '"$3" = "1"' in text  # only real branch switches, not file checkouts
+    assert post_checkout_hook_installed(git_project) is True
+
+    # Reinstall merges, does not duplicate forever.
+    install_post_checkout_hook(git_project, brainkm_bin="brainkm")
+    text2 = result.path.read_text(encoding="utf-8")
+    assert text2.count(POST_CHECKOUT_MARKER) == 1
+
+    assert uninstall_post_checkout_hook(git_project) is True
+    assert post_checkout_hook_installed(git_project) is False
+
+
+def test_install_post_merge_hook(git_project: Path) -> None:
+    from brainkm.services.git_note import (
+        POST_MERGE_MARKER,
+        install_post_merge_hook,
+        post_merge_hook_installed,
+        uninstall_post_merge_hook,
+    )
+
+    result = install_post_merge_hook(git_project, brainkm_bin="brainkm")
+    assert result.installed is True
+    assert result.path is not None
+    text = result.path.read_text(encoding="utf-8")
+    assert POST_MERGE_MARKER in text
+    assert "branch-changed" in text
+    assert "--event merge" in text
+    assert post_merge_hook_installed(git_project) is True
+    assert uninstall_post_merge_hook(git_project) is True
+
+
+def test_branch_hooks_independent_markers(git_project: Path) -> None:
+    """Installing checkout + merge hooks must not clobber each other's markers."""
+    from brainkm.services.git_note import (
+        install_post_checkout_hook,
+        install_post_merge_hook,
+        post_checkout_hook_installed,
+        post_merge_hook_installed,
+    )
+
+    install_post_checkout_hook(git_project, brainkm_bin="brainkm")
+    install_post_merge_hook(git_project, brainkm_bin="brainkm")
+    assert post_checkout_hook_installed(git_project) is True
+    assert post_merge_hook_installed(git_project) is True
+
+
+def test_branch_hooks_skip_when_husky_present(git_project: Path) -> None:
+    from brainkm.services.git_note import install_post_checkout_hook, install_post_merge_hook
+
+    (git_project / ".husky").mkdir()
+    checkout_result = install_post_checkout_hook(git_project, brainkm_bin="brainkm")
+    merge_result = install_post_merge_hook(git_project, brainkm_bin="brainkm")
+    assert checkout_result.skipped is True
+    assert merge_result.skipped is True
+
+
+def test_stamp_branch_change_invalidates_snapshots_and_queues_sync(git_project: Path) -> None:
+    from brainkm.services.git_note import stamp_branch_change
+    from brainkm.services.graphify_sync import clear_graph_sync_request, request_graph_sync
+
+    root = git_project
+    conn = connect(root / ".brain" / "brain.db")
+    try:
+        clear_graph_sync_request(root)
+        conn.execute(
+            "INSERT INTO session_snapshots (session_id, pack_text, neuron_ids, token_count, "
+            "created_at) VALUES ('sess-a', 'stale pack', '[]', 10, datetime('now'))"
+        )
+        conn.commit()
+
+        checkout_result = stamp_branch_change(conn, project_dir=root, event="checkout")
+        conn.commit()
+        assert checkout_result.invalidated_snapshots == 1
+        assert checkout_result.graph_sync_queued is False
+        remaining = conn.execute("SELECT COUNT(*) FROM session_snapshots").fetchone()[0]
+        assert remaining == 0
+
+        conn.execute(
+            "INSERT INTO session_snapshots (session_id, pack_text, neuron_ids, token_count, "
+            "created_at) VALUES ('sess-b', 'stale pack 2', '[]', 10, datetime('now'))"
+        )
+        conn.commit()
+        merge_result = stamp_branch_change(conn, project_dir=root, event="merge")
+        conn.commit()
+        assert merge_result.invalidated_snapshots == 1
+        assert merge_result.graph_sync_queued is True
+    finally:
+        conn.close()
+    # request_graph_sync writes a flag file the next context_pack/traverse call
+    # picks up — clean it up so this test doesn't leak state to others.
+    clear_graph_sync_request(root)
+
+
+def test_install_writes_branch_change_hooks(tmp_path: Path) -> None:
+    from brainkm.services.install import run_install
+
+    _git(tmp_path, "init")
+    result = run_install(
+        project_dir=tmp_path,
+        dev=True,
+        no_graph=True,
+        force=True,
+        config=BrainConfig(),
+    )
+    written_names = {p.name for p in result.files_written}
+    assert "post-checkout" in written_names
+    assert "post-merge" in written_names
+
+
+def test_branch_changed_cli_command(git_project: Path) -> None:
+    from typer.testing import CliRunner
+
+    from brainkm.cli import app
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app, ["branch-changed", "--project-dir", str(git_project), "--event", "checkout"]
+    )
+    assert result.exit_code == 0
+    assert "branch-changed" in result.stdout
+    assert "event=checkout" in result.stdout

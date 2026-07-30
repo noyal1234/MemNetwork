@@ -103,7 +103,7 @@ async def test_dashboard_serve_panel_shows_mismatch_and_restart_button(
                 "port": 18769,
                 "detail": '{"ok":true,"version":"0.0.1"}',
                 "serve_version": "0.0.1",
-                "package_version": "0.8.6",
+                "package_version": "0.9.0",
                 "version_mismatch": True,
             }
         )

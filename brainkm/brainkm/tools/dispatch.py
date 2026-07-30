@@ -13,8 +13,12 @@ from brainkm.models.brain_config import BrainConfig
 from brainkm.models.schemas import (
     BrainStatsRequest,
     BrainStatsResponse,
+    CheckpointRequest,
+    CheckpointResponse,
     ContextPackRequest,
     ContextPackResponse,
+    FeedbackRequest,
+    FeedbackResponse,
     ForgetRequest,
     ForgetResponse,
     GraphSyncRequest,
@@ -45,6 +49,7 @@ from brainkm.services.decision_trail import (
     should_include_history,
     trim_decision_trail,
 )
+from brainkm.services.feedback import record_explicit_feedback
 from brainkm.services.impact import linked_memories_for_code_nodes
 from brainkm.services.learning import persist_neuron_hits
 from brainkm.services.mcp_results import (
@@ -592,6 +597,83 @@ def handle_brain_stats(
     )
 
 
+def handle_feedback(
+    conn: sqlite3.Connection,
+    request: FeedbackRequest,
+) -> FeedbackResponse:
+    """Explicit used/wrong signal on node_ids from a prior recall/context_pack/traverse."""
+    updated = record_explicit_feedback(conn, request.node_ids, request.signal)
+    record_mcp_tool_use(conn, request.session_id, "feedback", result_count=len(updated))
+    _maintenance(conn)
+    conn.commit()
+    return FeedbackResponse(updated=updated)
+
+
+def handle_checkpoint(
+    conn: sqlite3.Connection,
+    request: CheckpointRequest,
+    *,
+    config: BrainConfig,
+    project_dir: Path,
+) -> CheckpointResponse:
+    """Agent-forced handover distill for hosts without native PreCompact.
+
+    Resolves the transcript path cached from SessionStart/UserPromptSubmit
+    (``get_last_transcript_path``) rather than requiring the caller to know
+    its own transcript location, which varies by host and isn't reliably
+    knowable mid-turn. If nothing was cached (unknown host, or called before
+    any lifecycle hook fired this session), returns ``skipped`` with an
+    actionable reason instead of silently no-op'ing.
+    """
+    from brainkm.services.handover import run_handover
+    from brainkm.services.hook_session import get_last_transcript_path
+
+    transcript_path = get_last_transcript_path(conn, request.session_id)
+    if transcript_path is None:
+        record_mcp_tool_use(conn, request.session_id, "checkpoint", result_count=0)
+        _maintenance(conn)
+        conn.commit()
+        return CheckpointResponse(
+            checkpoint_ok=False,
+            neuron_count=0,
+            skipped=True,
+            reason=(
+                "no transcript path cached for this session — this host may not "
+                "report one, or no lifecycle hook has fired yet; use remember "
+                "directly to pin what you need saved"
+            ),
+        )
+
+    if not transcript_path.is_file():
+        record_mcp_tool_use(conn, request.session_id, "checkpoint", result_count=0)
+        _maintenance(conn)
+        conn.commit()
+        return CheckpointResponse(
+            checkpoint_ok=False,
+            neuron_count=0,
+            skipped=True,
+            reason=f"cached transcript path no longer exists: {transcript_path}",
+        )
+
+    result = run_handover(
+        transcript_path,
+        project_dir=project_dir,
+        config=config,
+        session_id=request.session_id,
+    )
+    record_mcp_tool_use(
+        conn, request.session_id, "checkpoint", result_count=result.neuron_count
+    )
+    _maintenance(conn)
+    conn.commit()
+    return CheckpointResponse(
+        checkpoint_ok=result.checkpoint_ok,
+        neuron_count=result.neuron_count,
+        skipped=result.skipped,
+        reason=result.reason,
+    )
+
+
 def handle_graph_sync(
     project_dir: Path,
     request: GraphSyncRequest,
@@ -762,6 +844,26 @@ async def dispatch_tool(
         result = await _run_write(
             runtime,
             handle_trace_changes,
+            request,
+            config=config,
+            project_dir=runtime.project_dir,
+        )
+        _note_first_call(request.session_id)
+        return result.model_dump()
+
+    if name == "feedback":
+        arguments = _with_inferred_session(arguments)
+        request = FeedbackRequest.model_validate(arguments)
+        result = await _run_write(runtime, handle_feedback, request)
+        _note_first_call(request.session_id)
+        return result.model_dump()
+
+    if name == "checkpoint":
+        arguments = _with_inferred_session(arguments)
+        request = CheckpointRequest.model_validate(arguments)
+        result = await _run_write(
+            runtime,
+            handle_checkpoint,
             request,
             config=config,
             project_dir=runtime.project_dir,

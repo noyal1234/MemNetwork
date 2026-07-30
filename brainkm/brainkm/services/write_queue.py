@@ -27,12 +27,44 @@ class WriteQueue:
         ] = asyncio.Queue()
         self._worker_task: asyncio.Task[None] | None = None
 
+    def _has_live_worker(self) -> bool:
+        """True when the worker is still running on the *current* event loop.
+
+        Async tests (and MCP) start the global queue on a loop that then closes.
+        A leftover ``_worker_task`` that is done or bound to another loop must
+        not be treated as a live MCP worker — otherwise ``run_blocking`` enqueues
+        work nobody will process and hangs forever.
+        """
+        task = self._worker_task
+        if task is None or task.done():
+            return False
+        try:
+            return task.get_loop() is asyncio.get_running_loop()
+        except RuntimeError:
+            return False
+
+    def _discard_stale_worker(self) -> None:
+        """Drop a dead/cross-loop worker and its queue without awaiting it."""
+        self._worker_task = None
+        self._queue = asyncio.Queue()
+
     async def start(self) -> None:
-        if self._worker_task is None:
-            self._worker_task = asyncio.create_task(self._worker())
+        if self._has_live_worker():
+            return
+        if self._worker_task is not None:
+            self._discard_stale_worker()
+        self._worker_task = asyncio.create_task(self._worker())
 
     async def stop(self) -> None:
         if self._worker_task is None:
+            return
+        if self._worker_task.done():
+            self._worker_task = None
+            return
+        if not self._has_live_worker():
+            # Task is still marked incomplete but belongs to another loop —
+            # we cannot safely await it from here.
+            self._discard_stale_worker()
             return
         await self._queue.put(None)
         await self._worker_task
@@ -40,8 +72,7 @@ class WriteQueue:
 
     async def run(self, fn: Callable[..., T], /, *args: Any, **kwargs: Any) -> T:
         """Enqueue a blocking callable and await its result."""
-        if self._worker_task is None:
-            await self.start()
+        await self.start()
         loop = asyncio.get_running_loop()
         future: asyncio.Future[T] = loop.create_future()
         await self._queue.put((fn, args, kwargs, future))
@@ -88,6 +119,12 @@ def get_write_queue() -> WriteQueue:
     return _write_queue
 
 
+def reset_write_queue_for_tests() -> None:
+    """Drop the process-global queue (test isolation only)."""
+    global _write_queue
+    _write_queue = None
+
+
 def run_blocking(fn: Callable[..., T], /, *args: Any, **kwargs: Any) -> T:
     """Run ``fn`` through the WriteQueue from sync CLI code.
 
@@ -98,7 +135,7 @@ def run_blocking(fn: Callable[..., T], /, *args: Any, **kwargs: Any) -> T:
 
     async def _run() -> T:
         queue = get_write_queue()
-        started_here = queue._worker_task is None
+        started_here = not queue._has_live_worker()
         if started_here:
             await queue.start()
         try:

@@ -527,3 +527,183 @@ def test_remember_request_accepts_content_text_aliases() -> None:
     req3 = RememberRequest.model_validate({"content": "Chose SQLite for V1 local brain storage."})
     assert req3.body.startswith("Chose SQLite")
     assert req3.title.startswith("Chose SQLite")
+
+
+# --- feedback (Workstream A1) ------------------------------------------------
+
+
+def test_feedback_used_marks_record_used(runtime, tmp_path) -> None:
+    from brainkm.models.schemas import FeedbackRequest
+    from brainkm.tools.dispatch import handle_feedback
+
+    conn = connect(tmp_path / ".brain" / "brain.db")
+    try:
+        created = handle_remember(conn, RememberRequest(title="A", body="B fact"))
+        conn.commit()
+
+        response = handle_feedback(
+            conn, FeedbackRequest(node_ids=[created.node_id], signal="used")
+        )
+        conn.commit()
+        assert response.updated == [created.node_id]
+
+        row = conn.execute(
+            "SELECT used_count FROM neuron_feedback WHERE node_id = ?",
+            (created.node_id,),
+        ).fetchone()
+        assert row is not None
+        assert row["used_count"] == 1
+    finally:
+        conn.close()
+
+
+def test_feedback_wrong_marks_ignored(runtime, tmp_path) -> None:
+    from brainkm.models.schemas import FeedbackRequest
+    from brainkm.tools.dispatch import handle_feedback
+
+    conn = connect(tmp_path / ".brain" / "brain.db")
+    try:
+        created = handle_remember(conn, RememberRequest(title="A", body="B fact"))
+        conn.commit()
+
+        response = handle_feedback(
+            conn, FeedbackRequest(node_ids=[created.node_id], signal="wrong")
+        )
+        conn.commit()
+        assert response.updated == [created.node_id]
+
+        row = conn.execute(
+            "SELECT ignored_count, last_ignored FROM neuron_feedback WHERE node_id = ?",
+            (created.node_id,),
+        ).fetchone()
+        assert row is not None
+        assert row["ignored_count"] == 1
+        assert row["last_ignored"] is not None
+    finally:
+        conn.close()
+
+
+def test_feedback_not_used_is_noop(runtime, tmp_path) -> None:
+    from brainkm.models.schemas import FeedbackRequest
+    from brainkm.tools.dispatch import handle_feedback
+
+    conn = connect(tmp_path / ".brain" / "brain.db")
+    try:
+        created = handle_remember(conn, RememberRequest(title="A", body="B fact"))
+        conn.commit()
+
+        response = handle_feedback(
+            conn, FeedbackRequest(node_ids=[created.node_id], signal="not_used")
+        )
+        conn.commit()
+        assert response.updated == []
+    finally:
+        conn.close()
+
+
+@pytest.mark.asyncio
+async def test_dispatch_tool_feedback_end_to_end(runtime, tmp_path) -> None:
+    conn = connect(tmp_path / ".brain" / "brain.db")
+    try:
+        created = handle_remember(conn, RememberRequest(title="A", body="B fact"))
+        conn.commit()
+    finally:
+        conn.close()
+
+    result = await dispatch_tool(
+        "feedback",
+        {"node_ids": [created.node_id], "signal": "used", "session_id": "sess-fb-1"},
+        runtime,
+    )
+    assert result["updated"] == [created.node_id]
+
+
+# --- checkpoint (Workstream A2) ----------------------------------------------
+
+
+def test_checkpoint_skipped_without_cached_transcript_path(runtime, tmp_path) -> None:
+    from brainkm.models.schemas import CheckpointRequest
+    from brainkm.tools.dispatch import handle_checkpoint
+
+    conn = connect(tmp_path / ".brain" / "brain.db")
+    try:
+        response = handle_checkpoint(
+            conn,
+            CheckpointRequest(session_id="sess-no-transcript"),
+            config=BrainConfig(),
+            project_dir=tmp_path,
+        )
+        assert response.skipped is True
+        assert response.checkpoint_ok is False
+        assert response.reason is not None and "no transcript path" in response.reason
+    finally:
+        conn.close()
+
+
+def test_checkpoint_uses_cached_transcript_path(runtime, tmp_path) -> None:
+    import json
+
+    from brainkm.models.schemas import CheckpointRequest
+    from brainkm.services.hook_session import set_last_hook_session
+    from brainkm.tools.dispatch import handle_checkpoint
+
+    transcript = tmp_path / "sess-checkpoint.jsonl"
+    rows = [
+        {
+            "role": "user",
+            "message": {
+                "content": [
+                    {"type": "text", "text": "We decided to cache the pig in a barn."}
+                ]
+            },
+        },
+    ]
+    transcript.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+
+    set_last_hook_session(
+        session_id="sess-checkpoint-1",
+        client="antigravity",
+        transcript_path=transcript,
+        project_dir=tmp_path,
+    )
+
+    conn = connect(tmp_path / ".brain" / "brain.db")
+    try:
+        response = handle_checkpoint(
+            conn,
+            CheckpointRequest(session_id="sess-checkpoint-1"),
+            config=BrainConfig(capture={"distill_mode": "rules"}),
+            project_dir=tmp_path,
+        )
+        assert response.skipped is False
+        assert response.checkpoint_ok is True
+    finally:
+        conn.close()
+
+
+def test_checkpoint_skipped_when_session_id_mismatches_cache(runtime, tmp_path) -> None:
+    """A stale/foreign session_id must not receive another session's transcript."""
+    from brainkm.models.schemas import CheckpointRequest
+    from brainkm.services.hook_session import set_last_hook_session
+    from brainkm.tools.dispatch import handle_checkpoint
+
+    transcript = tmp_path / "sess-other.jsonl"
+    transcript.write_text("{}\n", encoding="utf-8")
+    set_last_hook_session(
+        session_id="sess-owner",
+        client="claude",
+        transcript_path=transcript,
+        project_dir=tmp_path,
+    )
+
+    conn = connect(tmp_path / ".brain" / "brain.db")
+    try:
+        response = handle_checkpoint(
+            conn,
+            CheckpointRequest(session_id="sess-different"),
+            config=BrainConfig(),
+            project_dir=tmp_path,
+        )
+        assert response.skipped is True
+    finally:
+        conn.close()

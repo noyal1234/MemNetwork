@@ -1,11 +1,21 @@
 """Tests for the asyncio write queue."""
 
+from __future__ import annotations
+
+import asyncio
 import sqlite3
+from pathlib import Path
 
 import pytest
 
 from brainkm.db.connection import connect
-from brainkm.services.write_queue import WriteQueue
+from brainkm.db.migrate import migrate
+from brainkm.services.write_queue import (
+    WriteQueue,
+    get_write_queue,
+    reset_write_queue_for_tests,
+    run_blocking,
+)
 from tests.conftest import insert_node
 
 
@@ -55,3 +65,62 @@ async def test_write_queue_retries_on_busy(brain_db) -> None:
     assert result == "ok"
     assert attempts["count"] == 2
     await queue.stop()
+
+
+@pytest.mark.asyncio
+async def test_start_resurrects_worker_after_loop_dies(brain_db) -> None:
+    """A done/cross-loop worker must not block a later start on a new loop."""
+    queue = WriteQueue()
+    await queue.start()
+    worker = queue._worker_task
+    assert worker is not None
+    await queue.stop()
+    assert worker.done()
+    # Simulate abandoned global state after an async pytest loop closed mid-flight:
+    # leave a done task pointer instead of clearing it.
+    queue._worker_task = worker
+
+    await queue.start()
+    assert queue._has_live_worker()
+    assert queue._worker_task is not worker
+
+    def write_once() -> str:
+        conn = connect(brain_db)
+        try:
+            insert_node(conn, node_id="resurrect", title="ok")
+            conn.commit()
+            return "ok"
+        finally:
+            conn.close()
+
+    assert await queue.run(write_once) == "ok"
+    await queue.stop()
+
+
+def test_run_blocking_survives_stale_global_worker(tmp_path: Path) -> None:
+    """CLI ``run_blocking`` must not hang when MCP/async tests left a dead worker."""
+    migrate(project_dir=tmp_path, run_integrity_check=False)
+    reset_write_queue_for_tests()
+
+    async def _poison_global() -> None:
+        queue = get_write_queue()
+        await queue.start()
+        # Leave the task pointer set but stop consuming — mirrors a closed loop
+        # where awaiting the old worker is impossible.
+        task = queue._worker_task
+        assert task is not None
+        await queue._queue.put(None)
+        await task
+        # Intentionally leave _worker_task pointing at the finished task.
+
+    asyncio.run(_poison_global())
+
+    queue = get_write_queue()
+    assert queue._worker_task is not None
+    assert queue._worker_task.done()
+
+    def _write() -> str:
+        return "alive"
+
+    assert run_blocking(_write) == "alive"
+    reset_write_queue_for_tests()
