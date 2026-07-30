@@ -1,7 +1,8 @@
 """Uniform multi-host endtask protocol (Cursor / Antigravity / future hosts).
 
-``endtask_protocol/1`` — shared fixture tiers, MCP integrity, nullable tokens,
-and run manifests so scorecards are comparable across hosts.
+``endtask_protocol/1.1`` — shared fixture tiers, MCP integrity, nullable tokens,
+run manifests, and with-arm MCP routing prefix so scorecards are comparable
+across hosts. Publish set label: ``endtask_h2h/2`` (see ``H2H_PUBLISH_SET``).
 """
 
 from __future__ import annotations
@@ -23,8 +24,23 @@ from brainkm.services.endtask_bench import (
     select_tasks,
 )
 
-PROTOCOL_VERSION = "endtask_protocol/1"
+PROTOCOL_VERSION = "endtask_protocol/1.1"
 TokensSource = Literal["host_usage", "unavailable"]
+
+# Publish-set label for docs / scorecard notes (dated H2H refresh).
+# v1 = first Core/Full protocol (Jul 2026); v2 = Cursor+AGY Core both publishable
+# with shared WITH_ARM_MCP_PREFIX (Cursor routing parity, 2026-07-30).
+H2H_PUBLISH_SET = "endtask_h2h/2"
+
+# Shared with-arm prompt nudge (Cursor / Antigravity / Claude harnesses).
+# Required for fair --require-mcp H2H under protocol/1.1 — without it, agents
+# often solve path-explicit tasks via Grep/Read and never call brainkm.
+WITH_ARM_MCP_PREFIX = (
+    "ROUTING: This workspace has a brainkm MCP server. Before grepping or "
+    "opening many files, call brainkm tools first "
+    "(context_pack and/or recall with a path/symbol; traverse for callers). "
+    "Verify pack hints in source. Then complete the TASK.\n\n"
+)
 
 BRAINKM_MCP_TOOLS = frozenset(
     {
@@ -34,6 +50,8 @@ BRAINKM_MCP_TOOLS = frozenset(
         "traverse",
         "trace_changes",
         "remember",
+        "feedback",
+        "checkpoint",
     }
 )
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Antigravity CLI endtask A/B — uniform ``endtask_protocol/1`` Path A.
+"""Antigravity CLI endtask A/B — uniform ``endtask_protocol/1.1`` Path A.
 
 Default: shared ``endtask_v1`` Core/Full tiers (Cursor graders + MCP integrity).
 Optional ``--tier host-smoke`` keeps the older AGY-only soft-grade scenarios.
@@ -50,6 +50,7 @@ from brainkm.services.endtask_bench import (  # noqa: E402
 )
 from brainkm.services.endtask_protocol import (  # noqa: E402
     PROTOCOL_VERSION,
+    WITH_ARM_MCP_PREFIX,
     RunManifest,
     build_run_id,
     build_stdio_mcp_config,
@@ -65,13 +66,6 @@ from brainkm.services.endtask_protocol import (  # noqa: E402
     write_protocol_ndjson,
 )
 from brainkm.services.memory import token_count  # noqa: E402
-
-WITH_ARM_MCP_PREFIX = (
-    "ROUTING: This workspace has a brainkm MCP server. Before grepping or "
-    "opening many files, call brainkm tools first "
-    "(context_pack and/or recall with a path/symbol; traverse for callers). "
-    "Verify pack hints in source. Then complete the TASK.\n\n"
-)
 
 AGY_TOOL_STEP_TYPES = frozenset(
     {

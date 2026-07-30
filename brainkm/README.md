@@ -4,6 +4,9 @@ Local project brain for **agentic coding IDEs** — MCP server backed by SQLite 
 
 **Product overview** (hero, features, benchmarks, multi-host setup): see the repo root [README.md](../README.md).
 
+**End-task H2H** (publish set `endtask_h2h/2`): Cursor + Antigravity Core under
+`endtask_protocol/1.1` — see [docs/BENCHMARKS.md](../docs/BENCHMARKS.md).
+
 **Version:** `0.9.0`
 
 **License:** Apache-2.0 (see repo root [LICENSE](../LICENSE) and [NOTICE](../NOTICE)). Copyright © 2026 Noyal Bastin Benny.

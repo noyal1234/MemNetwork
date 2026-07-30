@@ -56,6 +56,8 @@ from brainkm.services.endtask_bench import (  # noqa: E402
 )
 from brainkm.services.endtask_protocol import (  # noqa: E402
     PROTOCOL_VERSION,
+    H2H_PUBLISH_SET,
+    WITH_ARM_MCP_PREFIX,
     RunManifest,
     build_run_id,
     count_mcp_activity,
@@ -97,7 +99,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument(
         "--protocol-scorecard",
         action="store_true",
-        help="Write uniform endtask_protocol/1 markdown (manifest + mcp_ok + nullable tokens)",
+        help="Write uniform endtask_protocol/1.1 markdown (manifest + mcp_ok + nullable tokens)",
     )
     p.add_argument(
         "--backend",
@@ -189,13 +191,17 @@ def _run_agent(
         ) from exc
 
     mcp_servers = None
+    # with-arm: load project rules (brainkm.mdc) so routing matches IDE install.
+    # without: empty sources so AGENTS.md / rules cannot leak brainkm guidance.
+    setting_sources: list[str] = []
     if arm == "with_brainkm":
         mcp_servers = {"brainkm": _brainkm_mcp_command(worktree)}
+        setting_sources = ["project"]
 
     options = AgentOptions(
         api_key=api_key,
         model=model,
-        local=LocalAgentOptions(cwd=str(worktree), setting_sources=[]),
+        local=LocalAgentOptions(cwd=str(worktree), setting_sources=setting_sources),
         mcp_servers=mcp_servers,
     )
 
@@ -518,8 +524,14 @@ def _run_cursor_suite(
                         )
                         install_brainkm_rule(worktree)
                         print(f"  seeded brain: {seed_info}")
+                    base_prompt = str(task["prompt"])
+                    prompt = (
+                        WITH_ARM_MCP_PREFIX + base_prompt
+                        if arm == "with_brainkm"
+                        else base_prompt
+                    )
                     final_text, tokens, status, tool_calls = _run_agent(
-                        prompt=str(task["prompt"]),
+                        prompt=prompt,
                         worktree=worktree,
                         arm=arm,
                         model=model,
@@ -609,9 +621,11 @@ def _run_cursor_suite(
         notes=[
             "backend=cursor",
             f"protocol={PROTOCOL_VERSION}",
+            f"h2h_publish_set={H2H_PUBLISH_SET}",
             f"tier={tier_label}",
             f"repeats={plan.repeats}",
             "tokens_source=host_usage when SDK returns usage",
+            "with-arm MCP routing: WITH_ARM_MCP_PREFIX + setting_sources=project",
             "Nondeterministic — re-run with --repeats 3 before publishing claims.",
         ],
     )

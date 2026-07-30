@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Claude Code CLI endtask A/B — uniform ``endtask_protocol/1`` (agent with
+"""Claude Code CLI endtask A/B — uniform ``endtask_protocol/1.1`` (agent with
 brainkm vs without), same shared ``endtask_v1`` Core/Full fixture as the Cursor
 and Antigravity harnesses.
 
@@ -58,6 +58,7 @@ from brainkm.services.endtask_bench import (  # noqa: E402
 )
 from brainkm.services.endtask_protocol import (  # noqa: E402
     PROTOCOL_VERSION,
+    WITH_ARM_MCP_PREFIX,
     RunManifest,
     build_run_id,
     build_stdio_mcp_config,
@@ -70,13 +71,6 @@ from brainkm.services.endtask_protocol import (  # noqa: E402
     utc_now_iso,
     write_manifest_json,
     write_protocol_ndjson,
-)
-
-WITH_ARM_MCP_PREFIX = (
-    "ROUTING: This workspace has a brainkm MCP server. Before grepping or "
-    "opening many files, call brainkm tools first "
-    "(context_pack and/or recall with a path/symbol; traverse for callers). "
-    "Verify pack hints in source. Then complete the TASK.\n\n"
 )
 
 

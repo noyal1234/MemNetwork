@@ -86,6 +86,6 @@ hard-slice brain **1.00** vs BM25 **0.55**, mean pack **~323**/1500, micro gate 
 - Full LoCoMo / BEAM runs (wrong shape for a project brain).
 - Official LongMemEval QA + LLM judge.
 - Running agentmemory’s TypeScript harness against brainkm (nice-to-have).
-- End-task A/B live publication (`python brainkm/scripts/endtask_harness.py --repeats 3`)
-  — harness + fixture shipped; needs `CURSOR_API_KEY` for the headline claim.
+- End-task **Full** tier (120) and Claude/Codex hosts — Core H2H for Cursor +
+  Antigravity is published (`endtask_h2h/2`; see [BENCHMARKS.md](../BENCHMARKS.md)).
 - Full-500 `--semantic` until stratified hybrid ≥ FTS.

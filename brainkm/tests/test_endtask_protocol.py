@@ -7,6 +7,8 @@ from pathlib import Path
 from brainkm.services.endtask_bench import EndTaskReport, EndTaskRunRecord, load_endtask_fixture
 from brainkm.services.endtask_protocol import (
     PROTOCOL_VERSION,
+    H2H_PUBLISH_SET,
+    WITH_ARM_MCP_PREFIX,
     RunManifest,
     core_task_ids,
     count_mcp_activity,
@@ -92,3 +94,19 @@ def test_render_tokens_na_when_unsupported() -> None:
     assert "N/A" in md
     assert PROTOCOL_VERSION in md
     assert "Mean prompt tokens" in md
+
+
+def test_with_arm_mcp_prefix_shared() -> None:
+    assert PROTOCOL_VERSION == "endtask_protocol/1.1"
+    assert H2H_PUBLISH_SET == "endtask_h2h/2"
+    assert "brainkm MCP" in WITH_ARM_MCP_PREFIX
+    assert "context_pack" in WITH_ARM_MCP_PREFIX
+    assert WITH_ARM_MCP_PREFIX.endswith("\n\n")
+
+
+def test_cursor_harness_applies_with_arm_routing() -> None:
+    script = Path(__file__).resolve().parents[1] / "scripts" / "endtask_harness.py"
+    text = script.read_text(encoding="utf-8")
+    assert "WITH_ARM_MCP_PREFIX" in text
+    assert 'setting_sources = ["project"]' in text
+    assert "WITH_ARM_MCP_PREFIX + base_prompt" in text

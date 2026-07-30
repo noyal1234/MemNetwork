@@ -1,6 +1,7 @@
 """Tests for PreToolUse context_pack hook."""
 
 import json
+from pathlib import Path
 
 from brainkm.db.connection import connect
 from brainkm.models.brain_config import BrainConfig
@@ -108,9 +109,12 @@ def test_pre_tool_use_records_procedure_hits_from_included_ids(brain_db) -> None
             conn,
             node_id="proc-edit-shell",
             kind="procedure",
-            subtype="tool_chain",
-            title="Edit → Shell",
-            content="Tools: Edit → Shell\n\n1. Edit\n2. Shell\nRelated: src/auth/middleware.py",
+            subtype="workflow",
+            title="Rotate auth middleware secret",
+            content=(
+                "Rotate the signing secret, redeploy, then invalidate sessions.\n"
+                "Related: src/auth/middleware.py"
+            ),
         )
         conn.commit()
     finally:
@@ -138,6 +142,73 @@ def test_pre_tool_use_records_procedure_hits_from_included_ids(brain_db) -> None
         assert "proc-edit-shell" in {row[0] for row in rows}
     finally:
         conn.close()
+
+
+def test_pre_tool_pack_excludes_bare_tool_chains(brain_db) -> None:
+    """Auto-learned tool_chains describe the agent's keystrokes, not the project."""
+    project_dir = brain_db.parent.parent
+    conn = connect(brain_db)
+    try:
+        insert_node(
+            conn,
+            node_id="proc-bare-chain",
+            kind="procedure",
+            subtype="tool_chain",
+            title="Edit → Shell",
+            content="Tools: Edit → Shell\n\n1. Edit\n2. Shell\nRelated: src/auth/middleware.py",
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    payload = json.dumps(
+        {
+            "tool_name": "Edit",
+            "tool_input": {"file_path": "src/auth/middleware.py"},
+            "session_id": "no-chain-sess",
+        }
+    )
+    run_pre_tool_use(payload, project_dir=project_dir, config=BrainConfig())
+
+    conn = connect(brain_db)
+    try:
+        rows = conn.execute(
+            """
+            SELECT node_id FROM session_activity
+            WHERE session_id = ? AND kind = 'neuron_hit' AND source = 'pre_tool'
+            """,
+            ("no-chain-sess",),
+        ).fetchall()
+        assert "proc-bare-chain" not in {row[0] for row in rows}
+    finally:
+        conn.close()
+
+
+def test_pre_tool_pack_query_drops_dirs_above_project_root() -> None:
+    """Absolute seeds must not contribute the machine's directory names to FTS."""
+    from brainkm.services.context_pack import _project_relative_seed, path_stem_tokens
+
+    root = Path("/tmp/some-project")
+    seed = "/tmp/some-project/pkg/services/hooks.py"
+    tokens = path_stem_tokens(_project_relative_seed(seed, root))
+    assert "hooks" in tokens or "services" in tokens
+    assert "tmp" not in tokens
+    assert "some" not in tokens
+
+
+def test_pre_tool_abstained_pack_injects_nothing(brain_db) -> None:
+    """A pack with no concrete seed must inject nothing, not weak FTS overlap."""
+    project_dir = brain_db.parent.parent
+    payload = json.dumps(
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": "wc -l zzzznonexistent_thing_xyz"},
+            "session_id": "abstain-sess",
+        }
+    )
+    result = run_pre_tool_use(payload, project_dir=project_dir, config=BrainConfig())
+    assert result.additional_context is None
+    assert result.skipped is True
 
 
 def test_pre_tool_shell_with_path_seed_injects(brain_db) -> None:

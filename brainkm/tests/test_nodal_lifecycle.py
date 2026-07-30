@@ -46,7 +46,7 @@ def test_promote_creates_distilled_from_and_path(tmp_path: Path) -> None:
         obs = remember_neuron(
             conn,
             title="tool: Write → src/auth.py",
-            content="ok",
+            content="Rewrote token refresh to retry once on a 401 before failing.",
             subtype=OBSERVATION_SUBTYPE,
             path="src/auth.py",
             session_id="sess-1",
@@ -78,6 +78,34 @@ def test_promote_creates_distilled_from_and_path(tmp_path: Path) -> None:
             (row[0], code.id),
         ).fetchone()
         assert edge is not None
+        # A promoted successful tool call is an observation, never a decision —
+        # decision is uncapped in packs and must stay reserved for real ones.
+        subtype = conn.execute("SELECT subtype FROM nodes WHERE id = ?", (row[0],)).fetchone()[0]
+        assert subtype == OBSERVATION_SUBTYPE
+    finally:
+        conn.close()
+
+
+def test_promote_archives_trivial_observation_bodies(tmp_path: Path) -> None:
+    """An observation whose whole body is "ok" carries nothing — archive it."""
+    conn = _tmp_brain(tmp_path)
+    try:
+        remember_neuron(
+            conn,
+            title="tool: Bash → wc -l",
+            content="ok",
+            subtype=OBSERVATION_SUBTYPE,
+            session_id="sess-1",
+            source="auto_observe",
+            tags=["observe_fp:def", "tool:Bash"],
+            confidence=0.3,
+        )
+        cfg = BrainConfig(capture=CaptureConfig(auto_observe=True))
+        result = promote_session_observations(
+            conn, session_id="sess-1", config=cfg, project_dir=tmp_path
+        )
+        assert result.promoted == 0
+        assert result.archived == 1
     finally:
         conn.close()
 

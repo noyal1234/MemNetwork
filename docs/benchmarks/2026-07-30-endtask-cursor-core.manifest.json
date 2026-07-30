@@ -1,0 +1,27 @@
+{
+  "protocol_version": "endtask_protocol/1.1",
+  "fixture_id": "endtask_v1",
+  "fixture_version": 1,
+  "tier": "core",
+  "brainkm_version": "0.9.0",
+  "host": "cursor",
+  "host_cli_version": "cursor-sdk",
+  "model": "composer-2.5",
+  "repo_git_sha": "8851ebf",
+  "harness_git_sha": "8851ebf",
+  "started_at": "2026-07-30T07:26:02.152342+00:00",
+  "finished_at": "2026-07-30T07:26:02.152542+00:00",
+  "run_id": "2026-07-30-cursor-core-8851ebf",
+  "h2h_publish_set": "endtask_h2h/2",
+  "tokens_supported": true,
+  "notes": [
+    "backend=cursor",
+    "protocol=endtask_protocol/1.1",
+    "h2h_publish_set=endtask_h2h/2",
+    "tier=core",
+    "repeats=3",
+    "tokens_source=host_usage when SDK returns usage",
+    "with-arm MCP routing: WITH_ARM_MCP_PREFIX + setting_sources=project",
+    "Nondeterministic — re-run with --repeats 3 before publishing claims."
+  ]
+}

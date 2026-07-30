@@ -51,13 +51,18 @@ Optional LLM judge (Ollama): `brainkm bench run task --judge`
 
 ### End-task A/B (agent with brainkm vs without)
 
-Uniform protocol **`endtask_protocol/1`** — shared fixture `endtask_v1`, Core/Full
-tiers, MCP integrity via `session_activity`, nullable host tokens.
+Uniform protocol **`endtask_protocol/1.1`** — shared fixture `endtask_v1`, Core/Full
+tiers, MCP integrity via `session_activity`, nullable host tokens, and shared
+with-arm MCP routing (`WITH_ARM_MCP_PREFIX`).
+
+**Publish set:** **`endtask_h2h/2`** (2026-07-30, brainkm **0.9.0**) — Cursor +
+Antigravity Core both measured under the same schedule. Prior cards remain under
+[History](#end-task-history-preserved).
 
 | Tier | Schedule | When to publish |
 |------|----------|-----------------|
 | **Core** | 6 pinned tasks × 2 × 3 = **36** | Required before claiming a host “measured” |
-| **Full** | 20 tasks × 2 × 3 = **120** | Cursor-class / public H2H parity |
+| **Full** | 20 tasks × 2 × 3 = **120** | Cursor-class / public Full parity (optional stretch) |
 
 ```bash
 pip install -e "./brainkm[endtask]"   # cursor-sdk
@@ -77,18 +82,41 @@ python brainkm/scripts/antigravity_endtask_harness.py \
 **Groq** remains knowledge-only pack A/B (`--backend groq`). Claude/Codex: pending
 (same protocol when those benches start).
 
-Latest artifacts:
+#### Current artifacts (`endtask_h2h/2`)
 
-| Host | Tier | Card |
-|------|------|------|
-| Cursor | Full (legacy publish) | [2026-07-21-endtask-cursor](benchmarks/2026-07-21-endtask-cursor.md) |
-| Antigravity | **Core** `endtask_protocol/1` | [2026-07-22-endtask-antigravity-core](benchmarks/2026-07-22-endtask-antigravity-core.md) |
-| Antigravity | host-smoke (pre-protocol) | [2026-07-22-antigravity-endtask](benchmarks/2026-07-22-antigravity-endtask.md) |
+| Host | Tier | Protocol | Card |
+|------|------|----------|------|
+| **Cursor** | **Core** | `endtask_protocol/1.1` | [2026-07-30-endtask-cursor-core](benchmarks/2026-07-30-endtask-cursor-core.md) |
+| **Antigravity** | **Core** | `endtask_protocol/1` (prefix already applied; Core-compatible) | [2026-07-22-endtask-antigravity-core](benchmarks/2026-07-22-endtask-antigravity-core.md) |
 
-**Pack-vs-dump (public token claim):** `compare`, Antigravity live, and
+#### Cross-host Core (`endtask_h2h/2`)
+
+| Host | Pass with / without | mcp_ok | Mean MCP_db (with) | Mean prompt tokens |
+|------|---------------------|--------|--------------------|--------------------|
+| **Cursor** | **18/18** / 17/18 | **18/18** | **1.4** | **−30%** (71 115 vs 102 091) |
+| **Antigravity** | **18/18** / 12/18 | **18/18** | **1.7** | N/A (print-mode) |
+| Claude / Codex | pending | — | — | — |
+
+Compare pass / tools / mcp across hosts; **% token reduction only** where
+`tokens_supported=true` (Cursor today).
+
+**Pack-vs-dump (public pack claim):** `compare`, Antigravity live, and
 `brainkm/scripts/antigravity_trajectory_bench.py` (Antigravity-**themed** scenarios;
 `--mode tokens-only` by default — **not** an IDE tool-loop bench).
 
+#### End-task history (preserved)
+
+| When | Label | What it is | Artifact |
+|------|-------|------------|----------|
+| 2026-07-21 | Cursor Full (pre-protocol) | 120 runs, content+tokens only; MCP injected but **not** gated | [2026-07-21-endtask-cursor](benchmarks/2026-07-21-endtask-cursor.md) (−5% tokens, 60/60) |
+| 2026-07-22 | AGY host-smoke | Pre-protocol AGY smoke | [2026-07-22-antigravity-endtask](benchmarks/2026-07-22-antigravity-endtask.md) |
+| 2026-07-30 | Cursor Core pre-routing | Protocol Core **before** WITH_ARM_MCP_PREFIX — mcp_ok **9/18** | [2026-07-30-endtask-cursor-core-pre-mcp-routing](benchmarks/2026-07-30-endtask-cursor-core-pre-mcp-routing.md) |
+| 2026-07-22 | AGY Core (current AGY) | First protocol Core publish | [2026-07-22-endtask-antigravity-core](benchmarks/2026-07-22-endtask-antigravity-core.md) |
+| 2026-07-30 | Cursor Core (current Cursor) | Protocol **1.1** + routing; mcp_ok **18/18**, **−30%** tokens | [2026-07-30-endtask-cursor-core](benchmarks/2026-07-30-endtask-cursor-core.md) |
+
+Protocol **1 → 1.1:** same Core/Full + MCP integrity; **1.1** requires shared
+`WITH_ARM_MCP_PREFIX` (and Cursor `setting_sources=project`) so `--require-mcp`
+measures real brainkm use, not optional Grep/Read shortcuts.
 ## Headline: recall@budget (≤1500-token pack)
 
 brainkm’s contract is not “gold in top-5 of an unbounded list” — it is **gold fact
@@ -209,7 +237,7 @@ Same metric class as the Antigravity Live section below: **full multi-file dump*
 `brainkm context_pack` (**no in-built agent tool loop** — Grep/Read/edit not in the
 loop). Cursor-shaped queries (token budget, MCP dispatch, Graphify routing, session
 snapshot) live in `compare_v1`. **Not** the Cursor full-agent endtask suite
-([2026-07-21-endtask-cursor](benchmarks/2026-07-21-endtask-cursor.md)).
+([2026-07-30-endtask-cursor-core](benchmarks/2026-07-30-endtask-cursor-core.md)).
 
 | Scenario | Without (dump) | With (pack) | Savings |
 |----------|----------------|-------------|---------|
@@ -221,24 +249,23 @@ snapshot) live in `compare_v1`. **Not** the Cursor full-agent endtask suite
 Average **~94% token reduction (~15.7×)** across 4 Cursor-framed scenarios.
 Reproduce: `brainkm bench run compare`.
 
-> #### End-task A/B scorecard — Cursor (full tool run)
+> #### End-task A/B scorecard — Cursor Core (`endtask_protocol/1.1`, publish set `endtask_h2h/2`)
 >
-> **Finding:** On a saturated fixture (both arms **60/60**), brainkm still cut
-> **~5% mean prompt tokens** (76 940 vs 80 762) across **120** live Cursor agent
-> runs (`composer-2.5`, MCP stdio injected per arm). That is the first measured
-> *session-level* savings claim — distinct from the ~94% pack-vs-dump figure above.
+> **Finding:** On Core (36 live `composer-2.5` runs, `--require-mcp`, with-arm
+> `WITH_ARM_MCP_PREFIX` + `setting_sources=project`), brainkm went **18/18 pass**
+> vs **17/18 without**, with **mcp_ok 18/18** on both arms (with mean **MCP_db=1.4**).
+> Session prompt tokens: **−30%** (71 115 vs 102 091) — distinct from the ~94%
+> pack-vs-dump figure above.
 >
-> | Arm | Pass | Mean prompt tokens |
-> |-----|------|--------------------|
-> | **with brainkm** | **60/60** | **76 940** (**−5%** vs without) |
-> | without | 60/60 | 80 762 |
+> | Arm | Pass | Mean tools | Mean MCP_db | mcp_ok | Mean prompt tokens |
+> |-----|------|------------|-------------|--------|--------------------|
+> | **with brainkm** | **18/18** | **9.8** | **1.4** | **18/18** | **71 115 (−30%)** |
+> | without | 17/18 | 15.7 | 0.0 | 18/18 | 102 091 |
 >
-> **Roadmap:** treat **5% → ~20%** session token reduction as the next product
-> target (fewer post-pack re-reads / redundant Grep·Read loops while keeping
-> pass rate). Full scorecard:
-> [2026-07-21-endtask-cursor](benchmarks/2026-07-21-endtask-cursor.md).
-> Re-run with `--tier core|full --protocol-scorecard` to emit `endtask_protocol/1`
-> manifests aligned with Antigravity Core.
+> Full scorecard:
+> [2026-07-30-endtask-cursor-core](benchmarks/2026-07-30-endtask-cursor-core.md).
+> Historical Full (−5%, pre-protocol) and pre-routing Core (9/18 mcp_ok) are under
+> [End-task history](#end-task-history-preserved).
 
 ### Antigravity Live Benchmark (Token Usage Reduction & Quality Run)
 
@@ -253,12 +280,12 @@ Pack-vs-dump on Antigravity-shaped queries (`.agents/` / HTTP MCP `serverUrl` / 
 
 Average **95.2% token reduction (~21.4× savings)** across Antigravity scenarios while surfacing exact AST nodes and historical project decisions without noise. Full report: [docs/benchmarks/2026-07-21-antigravity-live.md](benchmarks/2026-07-21-antigravity-live.md).
 
-> #### End-task A/B scorecard — Antigravity Core (`endtask_protocol/1`)
+> #### End-task A/B scorecard — Antigravity Core (`endtask_protocol/1`, publish set `endtask_h2h/2`)
 >
-> **Finding:** On the **same Core 6-task subset** as Cursor will use under
-> protocol/1 (36 live `agy --print` runs, Cursor regex/checker graders,
-> `--home-mcp-swap --require-mcp`), brainkm went **18/18 pass vs 12/18 without**,
-> with **mcp_ok 18/18** on both arms (with mean **MCP_db=1.7**, without **0**).
+> **Finding:** On the **same Core 6-task subset** as Cursor (36 live `agy --print`
+> runs, Cursor regex/checker graders, `--home-mcp-swap --require-mcp`, with-arm
+> MCP prefix), brainkm went **18/18 pass vs 12/18 without**, with **mcp_ok 18/18**
+> on both arms (with mean **MCP_db=1.7**, without **0**).
 > Tokens: **N/A** (AGY print-mode does not expose session usage).
 >
 > | Arm | Pass | Mean tools | Mean MCP_db | mcp_ok | Tokens |
@@ -267,19 +294,18 @@ Average **95.2% token reduction (~21.4× savings)** across Antigravity scenarios
 > | without | 12/18 | 16.1 | 0.0 | 18/18 | N/A |
 >
 > Significance: **quality + proven MCP use** on a uniform fixture — not pack-vs-dump.
-> Full tier (120) still required for Cursor Full parity. Card:
-> [2026-07-22-endtask-antigravity-core](benchmarks/2026-07-22-endtask-antigravity-core.md).
+> Card: [2026-07-22-endtask-antigravity-core](benchmarks/2026-07-22-endtask-antigravity-core.md).
 >
-> #### Cross-host Core (protocol/1)
+> #### Cross-host Core (`endtask_h2h/2`)
 >
 > | Host | Tier | Pass with / without | mcp_ok | Mean prompt tokens |
 > |------|------|---------------------|--------|--------------------|
-> | Antigravity | Core | **18/18** / 12/18 | 18/18 | N/A |
-> | Cursor | Full (pre-protocol card) | 60/60 / 60/60 | — | **−5%** (76 940 vs 80 762) |
+> | Cursor | Core (`1.1`) | **18/18** / 17/18 | **18/18** | **−30%** (71 115 vs 102 091) |
+> | Antigravity | Core (`1`) | **18/18** / 12/18 | **18/18** | N/A |
 > | Claude / Codex | — | pending | — | — |
 >
 > Compare pass/tools/mcp across hosts; **% token reduction only** where
-> `tokens_supported=true` (Cursor today).
+> `tokens_supported=true` (Cursor today). Full tier (120) remains optional stretch.
 
 ### Pack-vs-dump proxy script (Antigravity-themed)
 

@@ -285,7 +285,7 @@ Details: [SECURITY.md](SECURITY.md).
 | **`bench probe`** | Live `context_pack` size for one query vs a naive multi-file baseline. |
 | **Abstention calibrate** | Tune recall thresholds from fixtures so silence vs noise matches your corpus. |
 
-Headline targets (see [BENCHMARKS.md](BENCHMARKS.md)): **`bench run cma`** for public agentic-memory comparison (ability accuracy + ≤1500 pack tokens + latency); **`bench run eval`** for product IR/task/latency gates. `compare` remains a token-savings proxy only.
+Headline targets (see [BENCHMARKS.md](BENCHMARKS.md)): **`bench run cma`** for public agentic-memory comparison (ability accuracy + ≤1500 pack tokens + latency); **`bench run eval`** for product IR/task/latency gates. `compare` remains a pack-vs-dump token proxy. Full-agent Core H2H is published as **`endtask_h2h/2`** (Cursor + Antigravity).
 
 ---
 
