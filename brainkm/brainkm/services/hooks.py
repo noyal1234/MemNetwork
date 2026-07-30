@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -77,6 +78,10 @@ class HookRunResult:
     reason: str | None
     additional_context: str | None = None
     snapshot_neuron_ids: tuple[str, ...] = ()
+    # Set only by PreToolUse when a tool call has a strictly better brainkm
+    # route (see _redundant_git_history_deny). Advisory additional_context
+    # loses to reflex; a deny is the only signal that forces a re-route.
+    deny_reason: str | None = None
 
 
 def build_cursor_hook_stdout(result: HookRunResult, event: str) -> dict[str, object]:
@@ -105,6 +110,17 @@ def build_claude_hook_stdout(result: HookRunResult, event: str) -> dict[str, obj
     """
     if event not in _CLAUDE_INJECT_EVENTS:
         return None
+    if event == "preToolUse" and result.deny_reason:
+        # The one case brainkm blocks: an exactly-equivalent brainkm route
+        # exists. The reason text is model-facing and must name the tool and
+        # the escape hatch, or the deny just becomes a dead end.
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": result.deny_reason,
+            }
+        }
     if result.skipped or not result.additional_context:
         # PreToolUse still should not block — silence with allow is fine.
         if event == "preToolUse":
@@ -264,6 +280,96 @@ def _pattern_matches_tool(pattern: str, tool_name: str) -> bool:
     return any(candidate in normalized_tool for candidate in candidates)
 
 
+# Single-file history listing — exactly what trace_changes answers.
+_GIT_HISTORY_SUBCOMMANDS = frozenset({"log", "blame", "whatchanged"})
+# Flags that ask for diff/patch text. trace_changes deliberately leaves diffs in
+# git, so these are NOT redundant and must stay allowed or the deny is a trap.
+_GIT_DIFF_FLAGS = (
+    "-p",
+    "-u",
+    "-L",
+    "-S",
+    "-G",
+    "--patch",
+    "--unified",
+    "--stat",
+    "--numstat",
+    "--shortstat",
+    "--name-only",
+    "--name-status",
+    "--pretty",
+    "--format",
+)
+
+
+def _shell_command_from_payload(data: dict[str, object]) -> str | None:
+    """Extract the shell command line from a PreToolUse payload (Bash/Shell)."""
+    for key in ("tool_input", "toolInput", "arguments", "input", "params"):
+        raw = data.get(key)
+        if isinstance(raw, str) and raw.strip():
+            return raw.strip()
+        if isinstance(raw, dict):
+            for field in ("command", "cmd", "command_line", "CommandLine"):
+                value = raw.get(field)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+    return None
+
+
+def _redundant_git_history_deny(
+    data: dict[str, object],
+    *,
+    project_dir: Path | None,
+) -> str | None:
+    """Deny reason when a shell command duplicates ``trace_changes``, else None.
+
+    Deliberately narrow: only *history listing* for a path that exists in the
+    repo. ``git show <sha>`` (whole-commit) and any diff-text request pass
+    through — those are not things ``trace_changes`` answers, and denying them
+    would train the agent to treat the block as noise.
+    """
+    command = _shell_command_from_payload(data)
+    if not command:
+        return None
+    try:
+        tokens = shlex.split(command, comments=False, posix=True)
+    except ValueError:
+        return None  # unbalanced quotes — never block on a command we cannot parse
+    # `git` must be an actually-invoked command, not text inside a quoted
+    # argument (e.g. `echo '{"command": "git log x.py"}' | tool`), so match
+    # tokens rather than searching the raw string.
+    subcommand_at = None
+    for index, token in enumerate(tokens[:-1]):
+        if Path(token).name == "git" and tokens[index + 1] in _GIT_HISTORY_SUBCOMMANDS:
+            subcommand_at = index + 1
+            break
+    if subcommand_at is None:
+        return None
+    args = tokens[subcommand_at + 1 :]
+    if any(arg in _GIT_DIFF_FLAGS for arg in args):
+        return None
+    # Local import: install.py imports pre_tool_matcher from this module.
+    from brainkm.services.install import resolve_project_dir
+
+    root = resolve_project_dir(project_dir)
+    for token in args:
+        if token.startswith("-") or "." not in token:
+            continue
+        candidate = (root / token).resolve()
+        if candidate.is_file():
+            return (
+                f"brainkm: use trace_changes for single-file history, not `{command}`.\n"
+                f"Call mcp__brainkm__trace_changes(path='{token}') — it returns the same "
+                "commit timeline joined to the sessions and decisions behind each change, "
+                "which git alone cannot tell you.\n"
+                "If the tools are not loaded yet: "
+                'ToolSearch "select:mcp__brainkm__trace_changes".\n'
+                "If you specifically need diff text (which trace_changes does not return), "
+                "re-run this command with -p / --stat and it will be allowed."
+            )
+    return None
+
+
 def build_antigravity_hook_stdout(
     result: HookRunResult,
     event: str,
@@ -355,11 +461,17 @@ def run_session_start(
     # new session for programmatic writes). Doctor copy stays version-neutral.
     if (client or "").strip().lower() == "claude":
         try:
-            from brainkm.services.install import ensure_claude_settings_local_permissions
-
-            ensure_claude_settings_local_permissions(
-                project_dir if project_dir is not None else Path.cwd()
+            from brainkm.services.install import (
+                ensure_claude_pretool_matcher,
+                ensure_claude_settings_local_permissions,
             )
+
+            heal_root = project_dir if project_dir is not None else Path.cwd()
+            ensure_claude_settings_local_permissions(heal_root)
+            # A matcher written before a pre_tool_patterns default was added
+            # silently stops PreToolUse from firing for whole tool classes.
+            if ensure_claude_pretool_matcher(heal_root, config=cfg):
+                logger.info("hook=SessionStart claude_pretool_matcher=healed")
         except Exception:  # noqa: BLE001
             logger.warning(
                 "SessionStart Claude permissions self-heal failed",
@@ -613,6 +725,28 @@ def run_pre_tool_use(
             skipped=True,
             reason="missing tool name in hook payload",
         )
+
+    # Deny before any pack work: a blocked call needs no context injected, and
+    # this must not depend on the DB being reachable.
+    if (
+        (client or "").strip().lower() == "claude"
+        and cfg.injection.deny_redundant_shell
+        and _pattern_matches_tool("run_terminal", tool_name)
+    ):
+        deny_reason = _redundant_git_history_deny(data, project_dir=project_dir)
+        if deny_reason:
+            logger.info(
+                "hook=PreToolUse session_id=%s tool=%s deny=redundant_git_history",
+                session_id,
+                tool_name,
+            )
+            return HookRunResult(
+                hook="PreToolUse",
+                session_id=session_id,
+                skipped=False,
+                reason="redundant with trace_changes",
+                deny_reason=deny_reason,
+            )
 
     pack_patterns = cfg.injection.pre_tool_patterns
     nudge_patterns = cfg.injection.routing_nudge_pretool_patterns
@@ -883,6 +1017,7 @@ def _maybe_routing_nudge(
         """,
         (session_id,),
     ).fetchone()
+    drift_calls = 0
     if last_mcp is not None:
         since = last_mcp["created_at"]
         drift = conn.execute(
@@ -897,6 +1032,7 @@ def _maybe_routing_nudge(
         ).fetchone()["c"]
         if int(drift) < int(cfg.injection.routing_nudge_rearm_after_calls):
             return None
+        drift_calls = int(drift)
 
     nudge_count = conn.execute(
         "SELECT COUNT(*) AS c FROM session_activity WHERE session_id = ? AND kind = 'routing_nudge'",
@@ -911,6 +1047,16 @@ def _maybe_routing_nudge(
         """,
         (new_ulid(), session_id, utc_now_iso()),
     )
+    # Drift and never-loaded are different states. Claiming "tools not loaded"
+    # at an agent that already called them is checkably false, and a nudge the
+    # agent can falsify is one it learns to discount — so keep the copy honest.
+    if drift_calls:
+        return (
+            f"{drift_calls} tool calls since your last brainkm call — tools are already "
+            "loaded. If this stretch involved decisions, blast-radius, multi-file context, "
+            "or a single file's history, use recall/traverse/context_pack/trace_changes "
+            f'instead of re-deriving. session_id="{session_id}"'
+        )
     # Escalate urgency by prior nudge count (shared budget across UserPrompt + PreTool).
     if nudge_count == 0:
         return (

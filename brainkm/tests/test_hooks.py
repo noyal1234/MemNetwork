@@ -47,6 +47,124 @@ def test_run_pre_tool_use_matches_write(tmp_path: Path) -> None:
     assert result.reason == "no meaningful pre-tool seed"
 
 
+def _git_history_payload(command: str) -> str:
+    return json.dumps(
+        {"tool_name": "Bash", "session_id": "s1", "tool_input": {"command": command}}
+    )
+
+
+def test_pre_tool_denies_single_file_git_history(tmp_path: Path) -> None:
+    """Single-file `git log` is exactly trace_changes — deny, don't merely nudge."""
+    target = tmp_path / "svc.py"
+    target.write_text("x = 1\n", encoding="utf-8")
+    result = run_pre_tool_use(
+        _git_history_payload("git log --oneline svc.py"),
+        project_dir=tmp_path,
+        config=BrainConfig(),
+        client="claude",
+    )
+    assert result.deny_reason is not None
+    assert "trace_changes" in result.deny_reason
+    out = build_claude_hook_stdout(result, "preToolUse")
+    assert out is not None
+    assert out["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert out["hookSpecificOutput"]["permissionDecisionReason"] == result.deny_reason
+
+
+def test_pre_tool_allows_git_history_asking_for_diff_text(tmp_path: Path) -> None:
+    """trace_changes leaves diffs in git, so -p must stay reachable."""
+    (tmp_path / "svc.py").write_text("x = 1\n", encoding="utf-8")
+    result = run_pre_tool_use(
+        _git_history_payload("git log -p svc.py"),
+        project_dir=tmp_path,
+        config=BrainConfig(),
+        client="claude",
+    )
+    assert result.deny_reason is None
+
+
+def test_pre_tool_allows_whole_commit_git_show(tmp_path: Path) -> None:
+    """`git show --stat <sha>` spans many files — not a trace_changes question."""
+    result = run_pre_tool_use(
+        _git_history_payload("git show --stat 1a89fb1"),
+        project_dir=tmp_path,
+        config=BrainConfig(),
+        client="claude",
+    )
+    assert result.deny_reason is None
+
+
+def test_pre_tool_deny_ignores_git_inside_quoted_argument(tmp_path: Path) -> None:
+    """`git log` inside a quoted string is data, not an invocation."""
+    (tmp_path / "svc.py").write_text("x = 1\n", encoding="utf-8")
+    result = run_pre_tool_use(
+        _git_history_payload("""echo '{"command": "git log svc.py"}' | some-tool --stdin"""),
+        project_dir=tmp_path,
+        config=BrainConfig(),
+        client="claude",
+    )
+    assert result.deny_reason is None
+
+
+def test_pre_tool_deny_ignores_grep_for_git_log_literal(tmp_path: Path) -> None:
+    (tmp_path / "svc.py").write_text("x = 1\n", encoding="utf-8")
+    result = run_pre_tool_use(
+        _git_history_payload('grep -n "git log" svc.py'),
+        project_dir=tmp_path,
+        config=BrainConfig(),
+        client="claude",
+    )
+    assert result.deny_reason is None
+
+
+def test_pre_tool_deny_never_blocks_unparseable_command(tmp_path: Path) -> None:
+    """Unbalanced quotes must fail open, not block the agent."""
+    (tmp_path / "svc.py").write_text("x = 1\n", encoding="utf-8")
+    result = run_pre_tool_use(
+        _git_history_payload("git log svc.py 'unbalanced"),
+        project_dir=tmp_path,
+        config=BrainConfig(),
+        client="claude",
+    )
+    assert result.deny_reason is None
+
+
+def test_pre_tool_denies_git_history_in_a_pipeline(tmp_path: Path) -> None:
+    (tmp_path / "svc.py").write_text("x = 1\n", encoding="utf-8")
+    result = run_pre_tool_use(
+        _git_history_payload("git log svc.py | head -20"),
+        project_dir=tmp_path,
+        config=BrainConfig(),
+        client="claude",
+    )
+    assert result.deny_reason is not None
+
+
+def test_pre_tool_deny_is_claude_only(tmp_path: Path) -> None:
+    """Cursor/Codex deny semantics differ; brainkm must not block them."""
+    (tmp_path / "svc.py").write_text("x = 1\n", encoding="utf-8")
+    result = run_pre_tool_use(
+        _git_history_payload("git log --oneline svc.py"),
+        project_dir=tmp_path,
+        config=BrainConfig(),
+        client="cursor",
+    )
+    assert result.deny_reason is None
+
+
+def test_pre_tool_deny_respects_config_opt_out(tmp_path: Path) -> None:
+    (tmp_path / "svc.py").write_text("x = 1\n", encoding="utf-8")
+    config = BrainConfig()
+    config.injection.deny_redundant_shell = False
+    result = run_pre_tool_use(
+        _git_history_payload("git log --oneline svc.py"),
+        project_dir=tmp_path,
+        config=config,
+        client="claude",
+    )
+    assert result.deny_reason is None
+
+
 def test_run_pre_tool_use_skips_unmatched_tool(tmp_path: Path) -> None:
     result = run_pre_tool_use(
         json.dumps({"tool_name": "WebSearch", "session_id": "s1"}),
@@ -453,7 +571,13 @@ def test_routing_nudge_rearms_after_drift(tmp_path: Path) -> None:
         client="claude",
     )
     assert result.additional_context is not None
-    assert "REQUIRED" in result.additional_context or "ToolSearch" in result.additional_context
+    # Drift copy must route to the tools without claiming they are unloaded —
+    # the agent can see that it already called them, and a falsifiable nudge
+    # is one it learns to ignore.
+    assert "trace_changes" in result.additional_context
+    assert "already loaded" in result.additional_context
+    assert "not loaded" not in result.additional_context
+    assert "ToolSearch" not in result.additional_context
 
 
 def test_pre_tool_matcher_includes_read_patterns() -> None:

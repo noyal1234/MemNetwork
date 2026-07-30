@@ -77,11 +77,60 @@ def passes_quality_gate(item: DistilledNeuron) -> bool:
     return True
 
 
+# Bodies that carry no recoverable information. Auto-captured tool observations
+# routinely store these as their whole content ("ok" alone accounted for 142 of
+# 187 promoted observations), which then rank in the pack's decisions channel.
+_TRIVIAL_BODIES = frozenset(
+    {
+        "ok",
+        "ok.",
+        "okay",
+        "done",
+        "done.",
+        "yes",
+        "no",
+        "n/a",
+        "na",
+        "none",
+        "null",
+        "true",
+        "false",
+        "success",
+        "succeeded",
+        "failed",
+        "empty",
+        "0",
+        "1",
+    }
+)
+# Real hand-pinned neurons run as short as 22 chars ("Located at FEATURES.md"),
+# so this floor stays below that to avoid rejecting terse but genuine facts.
+_MIN_SUBSTANCE_CHARS = 20
+
+
+def has_substance(*, title: str, content: str | None) -> bool:
+    """False when a neuron's body carries no recoverable information.
+
+    Judged on the body when present, else the title — a neuron whose entire
+    content is ``ok`` says nothing that survives being read back later.
+    """
+    t = (title or "").strip()
+    body = (content or "").strip()
+    substance = body or t
+    if not substance:
+        return False
+    if " ".join(substance.casefold().split()) in _TRIVIAL_BODIES:
+        return False
+    return len(substance) >= _MIN_SUBSTANCE_CHARS
+
+
 def passes_noise_gate(*, title: str, content: str | None) -> bool:
     """Stricter chrome/tool-spam check for injection & hygiene (does not reject long titles)."""
     t = (title or "").strip()
     body = (content or "").strip() or t
     if not t or not body:
+        return False
+    if not has_substance(title=title, content=content):
         return False
     if BOILERPLATE.match(t):
         return False

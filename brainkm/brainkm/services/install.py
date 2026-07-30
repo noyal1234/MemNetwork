@@ -446,6 +446,68 @@ def ensure_claude_settings_local_permissions(
     return path
 
 
+def ensure_claude_pretool_matcher(
+    root: Path,
+    *,
+    config: BrainConfig | None = None,
+) -> bool:
+    """Heal a stale ``PreToolUse`` matcher in ``.claude/settings.json``.
+
+    An install predating a new ``injection.pre_tool_patterns`` default leaves a
+    narrower matcher on disk forever: reinstall replaces it, but nothing tells
+    the user to reinstall, so the hook silently stops firing for whole tool
+    classes. The concrete case this fixes is a matcher written before
+    ``run_terminal`` was a default — Bash calls then bypass PreToolUse entirely,
+    which is precisely where brainkm most needs to intervene.
+
+    Only widens: tokens the user added by hand are preserved. Returns True when
+    the file was rewritten.
+    """
+    root = resolve_project_dir(root)
+    path = root / ".claude" / "settings.json"
+    if not path.is_file():
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return False
+    if not isinstance(data, dict):
+        return False
+    hooks = data.get("hooks")
+    if not isinstance(hooks, dict):
+        return False
+    groups = hooks.get("PreToolUse")
+    if not isinstance(groups, list):
+        return False
+
+    cfg = config or BrainConfig()
+    expected = pre_tool_matcher(
+        list(cfg.injection.pre_tool_patterns) + list(cfg.injection.routing_nudge_pretool_patterns)
+    ).replace("Shell", "Bash")
+    if not expected:
+        return False
+    expected_tokens = [tok for tok in expected.split("|") if tok]
+
+    changed = False
+    for group in groups:
+        if not isinstance(group, dict) or not _claude_group_has_brainkm(group):
+            continue
+        current = group.get("matcher")
+        current_tokens = [tok for tok in str(current).split("|") if tok] if current else []
+        missing = [tok for tok in expected_tokens if tok not in current_tokens]
+        if not missing:
+            continue
+        group["matcher"] = "|".join([*current_tokens, *missing])
+        changed = True
+
+    if not changed:
+        return False
+    tmp_path = path.with_suffix(path.suffix + ".brainkm-tmp")
+    tmp_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    tmp_path.replace(path)
+    return True
+
+
 def _codex_hook_command(
     brainkm_bin: str,
     *args: str,

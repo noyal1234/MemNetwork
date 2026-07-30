@@ -289,7 +289,11 @@ def promote_session_observations(
         except json.JSONDecodeError:
             tags = []
         failed = FAILED_TAG in tags
-        subtype = "error" if failed else "decision"
+        # A successful tool call is an observation, not a decision. Filing these
+        # as `decision` put them in the same uncapped bucket as hand-pinned
+        # architecture decisions, where they outranked the real ones in every
+        # context_pack. `observation` is capped at 1 per pack (_PACK_MEMORY_CAPS).
+        subtype = "error" if failed else OBSERVATION_SUBTYPE
         conf = 0.55 if failed else 0.45
         if not passes_stored_neuron_gate(title=title, content=content):
             forget_neuron(conn, row["id"], reason="observe_promote: failed quality gate")

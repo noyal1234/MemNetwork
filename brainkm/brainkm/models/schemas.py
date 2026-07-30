@@ -243,6 +243,14 @@ class ContextPackResponse(BaseModel):
     graph_hint: str | None = None
     sources: dict[str, list[ProvenanceSource]] = Field(default_factory=dict)
     confidence: Literal["high", "medium", "low"] = "medium"
+    abstained: bool = Field(
+        default=False,
+        description=(
+            "True when nothing concrete seeded the pack and recall abstained — the "
+            "remaining text is weak FTS overlap, not a retrieval hit. Prefer a "
+            "retry with a file path or symbol over trusting an abstained pack."
+        ),
+    )
 
 
 class SessionStatusRequest(BaseModel):

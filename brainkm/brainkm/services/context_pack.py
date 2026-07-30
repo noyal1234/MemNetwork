@@ -456,6 +456,12 @@ def _select_procedures_for_pack(
         is_linked = row["id"] in linked
         if overlap < 1 and not is_linked and not procedure_intent:
             continue
+        # Auto-learned tool_chains ("Bash → Write") describe the agent's own
+        # keystrokes, not the project. They earned a procedures slot on nearly
+        # every pack via incidental token overlap; require an explicit
+        # procedure-shaped query before spending the slot on them.
+        if row["subtype"] == "tool_chain" and not procedure_intent:
+            continue
         use_count = float(row["use_count"] or 0)
         score = float(overlap) * 10.0 + min(use_count, 50.0) * 0.01
         if is_linked:
@@ -1361,13 +1367,14 @@ def compile_context_pack(
         seed_ids=resolved_seed_ids,
     )
 
-    if _should_abstain_pack(
+    pack_abstained = _should_abstain_pack(
         query=query,
         seed_refs=seed_refs,
         recall_abstained=bool(getattr(recall, "abstained", False)),
         neuron_lines=neuron_lines,
         graph_lines=graph_lines,
-    ):
+    )
+    if pack_abstained:
         had_noise = bool(graph_lines or proc_lines)
         graph_lines = []
         graph_results = []
@@ -1540,6 +1547,7 @@ def compile_context_pack(
         graph_hint=graph_hint,
         sources=sources,
         confidence=confidence,
+        abstained=pack_abstained,
     )
 
 
@@ -1648,7 +1656,10 @@ def compile_pre_tool_pack(
     # unresolved docs/config paths still FTS toward related code (install/codex).
     if "/" in seed or _PATH_RE.search(seed):
         seed_refs = [seed.strip()]
-        stems = path_stem_tokens(seed)
+        # Tokenize the project-relative path only. Absolute paths otherwise
+        # contribute the machine's directory names ("users noyal desktop …")
+        # to the FTS query, diluting it with tokens no neuron can match.
+        stems = path_stem_tokens(_project_relative_seed(seed, project_dir))
         if stems:
             query = f"{seed} {' '.join(stems)}"
     session_id = None
@@ -1657,7 +1668,7 @@ def compile_pre_tool_pack(
         if value is not None and str(value).strip():
             session_id = str(value).strip()
             break
-    return compile_context_pack(
+    pack = compile_context_pack(
         conn,
         query,
         config=config,
@@ -1666,3 +1677,25 @@ def compile_pre_tool_pack(
         slots=slots,
         session_id=session_id,
     )
+    # Inject nothing rather than weak FTS overlap. An unprompted pack that turns
+    # out to be boilerplate costs real tokens and teaches the agent to skim past
+    # every later pack, including the good ones; an empty injection costs zero.
+    if pack.abstained:
+        return None
+    return pack
+
+
+def _project_relative_seed(seed: str, project_dir: Path | None) -> str:
+    """Strip directory components above the project root from a path-like seed."""
+    cleaned = (seed or "").strip().strip("`'\"")
+    if not cleaned.startswith("/"):
+        return cleaned
+    try:
+        from brainkm.services.install import resolve_project_dir
+
+        root = resolve_project_dir(project_dir)
+        return str(Path(cleaned).resolve().relative_to(root.resolve()))
+    except (ValueError, OSError):
+        # Outside the project (or unresolvable) — fall back to the basename so
+        # the query keeps the filename without the machine's directory names.
+        return Path(cleaned).name

@@ -11,6 +11,80 @@ from brainkm.services.install import (
 )
 
 
+def _settings_with_pretool_matcher(root: Path, matcher: str) -> Path:
+    path = root / ".claude" / "settings.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "matcher": matcher,
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": "brainkm pre-tool --stdin --client claude",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_ensure_claude_pretool_matcher_adds_missing_bash(tmp_path: Path) -> None:
+    """A matcher predating the run_terminal default never fires on Bash."""
+    from brainkm.services.install import ensure_claude_pretool_matcher
+
+    path = _settings_with_pretool_matcher(tmp_path, "Write|Edit|Read|Grep|Glob")
+    assert ensure_claude_pretool_matcher(tmp_path) is True
+    matcher = json.loads(path.read_text())["hooks"]["PreToolUse"][0]["matcher"]
+    assert "Bash" in matcher.split("|")
+    # Idempotent: a healed file is not rewritten again.
+    assert ensure_claude_pretool_matcher(tmp_path) is False
+
+
+def test_ensure_claude_pretool_matcher_preserves_user_tokens(tmp_path: Path) -> None:
+    """Heal only widens — hand-added matcher entries survive."""
+    from brainkm.services.install import ensure_claude_pretool_matcher
+
+    path = _settings_with_pretool_matcher(tmp_path, "Write|CustomTool")
+    assert ensure_claude_pretool_matcher(tmp_path) is True
+    tokens = json.loads(path.read_text())["hooks"]["PreToolUse"][0]["matcher"].split("|")
+    assert "CustomTool" in tokens
+    assert "Bash" in tokens
+
+
+def test_ensure_claude_pretool_matcher_ignores_foreign_groups(tmp_path: Path) -> None:
+    """Non-brainkm hook groups must not be touched."""
+    from brainkm.services.install import ensure_claude_pretool_matcher
+
+    path = tmp_path / ".claude" / "settings.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "matcher": "Write",
+                            "hooks": [{"type": "command", "command": "other-tool check"}],
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert ensure_claude_pretool_matcher(tmp_path) is False
+    assert json.loads(path.read_text())["hooks"]["PreToolUse"][0]["matcher"] == "Write"
+
+
 def test_build_mcp_config_dev_uses_local_binary() -> None:
     payload = build_mcp_config(dev=True)
     server = payload["mcpServers"]["brainkm"]

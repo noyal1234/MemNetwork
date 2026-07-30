@@ -97,6 +97,10 @@ class InjectionConfig(BaseModel):
     )
     # After a real MCP call, re-arm nudge once this many tool_use rows follow.
     routing_nudge_rearm_after_calls: int = Field(default=12, ge=1)
+    # Deny (not just nudge) shell commands that exactly duplicate a brainkm
+    # tool — currently single-file `git log/blame` vs trace_changes. Advisory
+    # context loses to habit; only a deny reliably re-routes. Claude Code only.
+    deny_redundant_shell: bool = True
 
 
 class LearningConfig(BaseModel):
