@@ -87,7 +87,7 @@
         <animate attributeName="opacity" values="0.5;1;0.5" dur="2.4s" repeatCount="indefinite"/>
       </circle>
       <text x="76" y="70" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#f0f4f8">MCP server</text>
-      <text x="76" y="86" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="9.5" fill="#9aafc0">6 tools · stdio / HTTP</text>
+      <text x="76" y="86" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="9.5" fill="#9aafc0">8 tools · stdio / HTTP</text>
     </g>
     <g>
       <rect x="152" y="40" width="120" height="58" rx="8" fill="#141c28" stroke="#c4a35a" stroke-width="1.3"/>
