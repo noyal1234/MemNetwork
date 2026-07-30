@@ -184,7 +184,7 @@ Hooks are the **primary** memory path. MCP `remember` is pin / correct / archive
 | Layer | Reality in this repo | Role |
 |-------|----------------------|------|
 | **Hosts** | Cursor · Antigravity · Claude Code · Codex · generic MCP | Chat + host-specific hooks; symbol locate stays with the host index / Grep |
-| **MCP server** | `server.py` `TOOL_DEFINITIONS` — **6** tools | Agent-facing contract (stdio or HTTP) |
+| **MCP server** | `server.py` `TOOL_DEFINITIONS` — **8** tools | Agent-facing contract (stdio or HTTP) |
 | **Hook CLI** | `brainkm session-start` / `handover` / `session-end` / `agent-stop` / … | Separate processes; persist activity in SQLite (not in-memory across hooks) |
 | **Services** | `services/` — memory, recall, context_pack, capture, hooks, handover, budget, WriteQueue, … | Business logic; handlers stay thin |
 | **Adapters** | Graphify, distill backends, transcripts, redaction, optional embeddings | I/O and extractors |
@@ -202,6 +202,8 @@ Strict path: **MCP tool → service → adapter → SQLite** (DB-touching handle
 | **`trace_changes`** | “What changed in this file recently and why?” (live git + brain joins) |
 | **`remember`** | Pin, correct, or archive — not everyday notes |
 | **`brain_stats`** | Graph empty? Brain health? |
+| **`feedback`** | Mark recalled neurons used / wrong (learning signal) |
+| **`checkpoint`** | Force handover distill now (hosts without native PreCompact) |
 
 <details>
 <summary><strong>Tool routing matrix</strong></summary>
@@ -214,6 +216,8 @@ Strict path: **MCP tool → service → adapter → SQLite** (DB-touching handle
 | What changed in this file recently / why? | **`trace_changes`** |
 | Understand one module (3+ files) | **`context_pack`**, then verify in source |
 | Pin a decision / fix bad memory | **`remember`** |
+| Was this recall useful / wrong? | **`feedback`** |
+| Force a distill now (no PreCompact host) | **`checkpoint`** |
 | Cross-project prefs / static policy | Host Memories / rules — not brainkm |
 
 </details>
