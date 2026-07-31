@@ -211,3 +211,31 @@ brainkm hygiene             # soft-archive them
 ```
 
 Use MCP `brain_stats` for usage / abstention / dead-neuron counts. After upgrading brainkm, reload the MCP server so Cursor picks up the new tools and budget behavior.
+
+## Uninstall
+
+TUI: `brainkm configure` → **Actions** → **[ Uninstall ]** (pick hosts, optionally tick purge).
+
+```bash
+brainkm uninstall --dry-run          # report only, changes nothing
+brainkm uninstall                    # unwire every host detected in this project
+brainkm uninstall --client codex     # repeatable; one host at a time
+brainkm uninstall --purge            # also delete .brain/ and brainkm .gitignore lines
+```
+
+What it touches per host:
+
+| Host | Removed from |
+|------|--------------|
+| Cursor | `.cursor/mcp.json`, `.cursor/hooks.json`, `.cursor/rules/brainkm.mdc`, `.cursor/skills/brainkm-routing/`, `.cursor/hooks.claude.example.json`, `AGENTS.md` section |
+| Claude | `.mcp.json`, `.claude/settings.json`, `.claude/settings.local.json` (brainkm allows + server enable), `~/.claude.json` (this project's approval), `.claude/rules/`, `.claude/skills/`, `CLAUDE.md` section |
+| Antigravity | `.agents/mcp_config.json`, `.agents/hooks.json` (`brainkm` handler), `.agents/rules/`, `.agents/skills/`, `AGENTS.md` section |
+| Codex | `.codex/config.toml` (`[mcp_servers.brainkm]`), `.codex/hooks.json`, `.codex/rules/`, `.codex/skills/`, `AGENTS.md` section |
+
+Shared files are edited, not deleted — foreign MCP servers and hooks survive, and a file is
+removed only when brainkm was the only thing left in it. `post-commit` / `post-checkout` /
+`post-merge` git hooks and a running `brainkm serve` are cleaned up only once no host is
+still wired. `.brain/` (your neurons, graph, config) is user data and is kept unless
+`--purge` is passed.
+
+Reload the IDE afterwards so it drops the removed MCP server and hooks.

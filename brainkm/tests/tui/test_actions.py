@@ -121,6 +121,48 @@ async def test_action_button_writes_to_log(tui_project: Path) -> None:
         assert len(log.rich_log.lines) >= 2
 
 
+async def test_uninstall_button_opens_modal_and_cancel_keeps_wiring(tui_project: Path) -> None:
+    """The destructive action is modal-gated — Cancel must leave the project wired."""
+    from brainkm.services.install import run_install
+    from brainkm.tui.widgets.uninstall_modal import UninstallModal
+
+    run_install(project_dir=tui_project, dev=True, no_graph=True, client="cursor")
+
+    app = BrainkmConfigureApp(project_dir=tui_project)
+    async with app.run_test(size=(140, 60)) as pilot:
+        app.switch_screen("actions")
+        await pilot.pause(0.3)
+        await pilot.click("#btn-uninstall")
+        await pilot.pause(0.3)
+        assert isinstance(app.screen, UninstallModal)
+        # Cursor is wired, so its checkbox is pre-selected.
+        assert app.screen.selected_clients() == ["cursor"]
+        await pilot.click("#btn-uninstall-cancel")
+        await pilot.pause(0.3)
+        assert (tui_project / ".cursor" / "mcp.json").is_file()
+
+
+async def test_uninstall_modal_confirm_removes_wiring(tui_project: Path) -> None:
+    from brainkm.services.install import run_install
+
+    run_install(project_dir=tui_project, dev=True, no_graph=True, client="cursor")
+
+    app = BrainkmConfigureApp(project_dir=tui_project)
+    async with app.run_test(size=(140, 60)) as pilot:
+        app.switch_screen("actions")
+        await pilot.pause(0.3)
+        await pilot.click("#btn-uninstall")
+        await pilot.pause(0.3)
+        await pilot.click("#btn-uninstall-confirm")
+        await pilot.pause(2.0)
+        assert not (tui_project / ".cursor" / "mcp.json").exists()
+        # .brain/ is user data — the purge box was left unchecked.
+        assert (tui_project / ".brain").is_dir()
+        log = app.screen.query_one("#action-log", RichLogPanel)
+        text = " ".join(str(line) for line in log.rich_log.lines)
+        assert "Uninstalled brainkm" in text
+
+
 async def test_export_writes_to_this_projects_brain_dir(tui_project: Path) -> None:
     app = BrainkmConfigureApp(project_dir=tui_project)
     async with app.run_test(size=(140, 60)) as pilot:

@@ -924,6 +924,60 @@ ConfirmDiscardModal .modal-buttons Button {
     min-width: 12;
 }
 
+/* === Uninstall modal === */
+
+UninstallModal {
+    align: center middle;
+}
+
+UninstallModal #uninstall-box {
+    width: 64;
+    height: auto;
+    border: solid $error;
+    background: $surface-alt;
+    padding: 1 2;
+}
+
+UninstallModal .modal-title {
+    text-style: bold;
+    color: $error;
+    height: 1;
+    margin-bottom: 1;
+}
+
+UninstallModal .modal-body {
+    color: $text;
+    height: auto;
+    margin-bottom: 1;
+}
+
+UninstallModal #uninstall-app-list {
+    height: auto;
+    margin-bottom: 1;
+}
+
+UninstallModal #uninstall-purge {
+    height: auto;
+    margin-bottom: 1;
+}
+
+UninstallModal .modal-hint {
+    color: $text-muted;
+    height: auto;
+    margin-bottom: 1;
+}
+
+UninstallModal .modal-buttons {
+    layout: horizontal;
+    height: 3;
+    align: right middle;
+}
+
+UninstallModal .modal-buttons Button {
+    margin: 0 0 0 1;
+    min-width: 12;
+}
+
 /* === Review detail modal === */
 
 ReviewDetailModal {

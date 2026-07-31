@@ -65,6 +65,13 @@ class ActionsScreen(Screen):
                 yield Button(bracket_label("Bench: budget"), id="btn-bench-budget")
                 yield Button(bracket_label("Bench: compaction"), id="btn-bench-compaction")
 
+            with Horizontal(classes="action-buttons-row"):
+                yield Button(
+                    bracket_label("Uninstall"),
+                    id="btn-uninstall",
+                    classes="-error",
+                )
+
             # --- Log output (primary focus — fills remaining screen height) ---
             yield RichLogPanel(title="[ ACTION LOG ]", id="action-log")
         yield Footer()
@@ -93,6 +100,7 @@ class ActionsScreen(Screen):
             "btn-repair": self._run_repair,
             "btn-viz-open": self._run_viz_open,
             "btn-viz-demo": self._run_viz_demo,
+            "btn-uninstall": self._prompt_uninstall,
         }
         if btn_id.startswith("btn-bench-"):
             suite = btn_id.replace("btn-bench-", "")
@@ -328,6 +336,63 @@ class ActionsScreen(Screen):
             "handle": handle,
         }
 
+    # ------------------------------------------------------------------
+    # Uninstall (modal-confirmed — removes wiring, keeps .brain/ unless purge)
+    # ------------------------------------------------------------------
+
+    def _prompt_uninstall(self) -> None:
+        from brainkm.services.connect import detect_wired_clients
+        from brainkm.tui.widgets.uninstall_modal import UninstallChoice, UninstallModal
+
+        try:
+            wired = detect_wired_clients(self._project_dir)
+        except Exception:
+            wired = []
+
+        def _after(choice: UninstallChoice | None) -> None:
+            if choice is None:
+                return
+            self._begin_action(
+                f"Uninstalling brainkm for {', '.join(choice.clients)}"
+                f"{' + purging .brain/' if choice.purge else ''}…"
+            )
+            self._do_uninstall(choice.clients, choice.purge)
+
+        self.app.push_screen(
+            UninstallModal(project_dir=self._project_dir, wired=wired),
+            _after,
+        )
+
+    @work(thread=True, group="action", exit_on_error=False)
+    def _do_uninstall(self, clients: list[str], purge: bool) -> dict[str, Any]:
+        from brainkm.services.uninstall import run_uninstall
+
+        try:
+            result = run_uninstall(
+                project_dir=self._project_dir,
+                clients=clients,
+                purge=purge,
+            )
+        except Exception as exc:
+            return {"action": "uninstall", "error": str(exc)}
+        root = result.project_dir
+
+        def _rel(path: Path) -> str:
+            try:
+                return str(path.relative_to(root))
+            except ValueError:
+                return str(path)
+
+        return {
+            "action": "uninstall",
+            "clients": result.clients,
+            "purged": result.purged,
+            "removed": [_rel(p) for p in result.files_removed],
+            "cleaned": [_rel(p) for p in result.files_rewritten],
+            "warnings": list(result.warnings),
+            "changed": result.changed,
+        }
+
     def on_unmount(self) -> None:
         handle = self._viz_handle
         if handle is not None:
@@ -420,6 +485,25 @@ class ActionsScreen(Screen):
                 self.log_panel.log_success(f"{suite}: {passed}/{total} passed")
             else:
                 self.log_panel.log_error(f"{suite}: {passed}/{total} passed")
+
+        elif action == "uninstall":
+            for rel in result.get("removed", []):
+                self.log_panel.log_plain(f"removed {rel}")
+            for rel in result.get("cleaned", []):
+                self.log_panel.log_plain(f"cleaned {rel}")
+            for warning in result.get("warnings", []):
+                self.log_panel.log_warning(warning)
+            clients = ", ".join(result.get("clients", [])) or "?"
+            if not result.get("changed"):
+                self.log_panel.log_warning(f"No brainkm wiring found for {clients}.")
+                return
+            suffix = " and deleted .brain/" if result.get("purged") else " (.brain/ kept)"
+            self.log_panel.log_success(f"Uninstalled brainkm for {clients}{suffix}")
+            self.notify(
+                f"brainkm uninstalled for {clients}{suffix}",
+                severity="warning",
+                timeout=8,
+            )
 
         elif action == "viz":
             if "handle" in result:

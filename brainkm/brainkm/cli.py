@@ -434,6 +434,84 @@ def install_cmd(
         typer.echo(f"  warning: {warning}", err=True)
 
 
+@app.command("uninstall")
+def uninstall_cmd(
+    project_dir: Path | None = typer.Option(
+        None,
+        "--project-dir",
+        help="Target project root (defaults to cwd)",
+    ),
+    client: list[str] = typer.Option(
+        [],
+        "--client",
+        help=(
+            "Client to unwire (repeatable): cursor | claude | antigravity | codex. "
+            "Default: every client detected in this project."
+        ),
+    ),
+    purge: bool = typer.Option(
+        False,
+        "--purge",
+        help="Also delete .brain/ (project memory) and brainkm .gitignore entries",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Show what would be removed without changing anything",
+    ),
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        "-y",
+        help="Skip the confirmation prompt",
+    ),
+) -> None:
+    """Remove brainkm MCP config, hooks, and rules (keeps .brain/ unless --purge)."""
+    from brainkm.services.uninstall import run_uninstall
+
+    targets = list(client) or None
+    if not yes and not dry_run:
+        scope = ", ".join(targets) if targets else "all detected clients"
+        extra = " and DELETE .brain/ project memory" if purge else " (.brain/ is kept)"
+        typer.echo(f"About to remove brainkm wiring for {scope}{extra}.")
+        if not typer.confirm("Continue?"):
+            raise typer.Abort
+
+    try:
+        result = run_uninstall(
+            project_dir=project_dir,
+            clients=targets,
+            purge=purge,
+            dry_run=dry_run,
+        )
+    except ValueError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+
+    prefix = "Would uninstall" if dry_run else "Uninstalled"
+    typer.echo(
+        f"{prefix} brainkm from {result.project_dir} (clients={', '.join(result.clients)})"
+    )
+    for path in result.files_removed:
+        typer.echo(f"  removed {_display_path(path, result.project_dir)}")
+    for path in result.files_rewritten:
+        typer.echo(f"  cleaned {_display_path(path, result.project_dir)}")
+    for path in result.files_kept:
+        typer.echo(f"  kept    {_display_path(path, result.project_dir)}")
+    for warning in result.warnings:
+        typer.echo(f"  warning: {warning}", err=True)
+    if not result.purged and not dry_run:
+        typer.echo("  .brain/ kept — rerun with --purge to delete project memory.")
+
+
+def _display_path(path: Path, root: Path) -> str:
+    """Project-relative when inside the project, absolute otherwise (e.g. ~/.claude.json)."""
+    try:
+        return str(path.relative_to(root))
+    except ValueError:
+        return str(path)
+
+
 def _run_stdin_hook(
     handler_name: str,
     handler,

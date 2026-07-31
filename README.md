@@ -142,6 +142,22 @@ brainkm version   # expect 0.9.0
 
 Full setup → [docs/INSTALL.md](docs/INSTALL.md) · per host → [Cursor](docs/install/cursor.md) · [Antigravity](docs/install/antigravity.md) · [Claude](docs/install/claude-code.md) · [Codex](docs/install/codex.md)
 
+### Uninstall
+
+`brainkm configure` → **Actions** → **[ Uninstall ]**, or from the CLI:
+
+```bash
+brainkm uninstall --dry-run             # show what would go
+brainkm uninstall                       # every wired IDE; keeps .brain/
+brainkm uninstall --client cursor       # just one host
+brainkm uninstall --purge               # also delete .brain/ (project memory)
+```
+
+Removal is subtractive: only brainkm's MCP entry, hooks, rules and `AGENTS.md`/`CLAUDE.md`
+section are stripped — anything else in those files stays. Git hooks and a running shared
+brain are torn down once no host is left wired. `.brain/` is your memory and survives
+unless you pass `--purge`.
+
 ---
 
 ## Features

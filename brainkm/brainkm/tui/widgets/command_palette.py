@@ -42,6 +42,7 @@ _COMMAND_TO_SCREEN: dict[str, str] = {
     "repair": "actions",
     "viz": "actions",
     "install": "wizard",
+    "uninstall": "actions",
 }
 
 _NAV_COMMANDS: tuple[tuple[str, str, str], ...] = (
