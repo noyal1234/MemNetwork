@@ -9,6 +9,8 @@ This project uses **brainkm** — a local SQLite project brain at `.brain/brain.
 - **MUST call** MCP **`context_pack`** for multi-file task context (include a symbol or file path in the query or `seed_refs`), then verify in source before editing.
 - **MUST call** MCP **`recall`** for architectural decisions, rules, and past pivots before proposing architectural changes.
 - Memory accumulates from **hooks** (PreInvocation inject, Stop distill, PostToolUse observations). Call **`remember` only to pin** durable project truth or **correct** a wrong auto-capture.
+- After a `recall` / `context_pack` / `traverse` result **clearly answered** the question (or was **clearly wrong/misleading**), call **`feedback`** with those `node_id`s and `signal=used` or `signal=wrong`. Skip routine packs; `not_used` is a no-op.
+- No native PreCompact: call **`checkpoint`** before long context loss when you need a forced handover distill (or pin with `remember` if no transcript is cached).
 
 ## Tool routing (locate vs flow vs decisions)
 
@@ -19,6 +21,8 @@ This project uses **brainkm** — a local SQLite project brain at `.brain/brain.
 | "What changed in file Y recently / why?" | **`trace_changes`** (path) | Live git timeline + commit joins |
 | "Why did we choose X?" | **`recall`** | Decisions live in neurons, not the code index |
 | Understand one module (would open 3+ files) | **`context_pack`** then targeted reads | Bounded pack vs file dumps |
+| Prior recall/pack node was clearly the answer or wrong | **`feedback`** (`used` / `wrong`) | Explicit ranking signal; heuristics miss this |
+| Force handover without PreCompact | **`checkpoint`** | Antigravity / generic MCP have no native PreCompact |
 
 Do **not** treat brainkm as a second project search index. Use Grep/search to **locate**; use Graphify (`traverse` for flow, `context_pack` for task packs) to explain structure. Never skip reading source because a pack abstained or looked incomplete — prefer fewer injected tokens over trusting noise.
 
@@ -53,7 +57,8 @@ rediscovered the hard way.
 
 Dispatch brainkm tools via Antigravity's lazy MCP wrapper: `call_mcp_tool` with server
 `brainkm` and tool name `recall` / `traverse` / `context_pack` / `trace_changes` /
-`brain_stats` / `remember`. Do **not** invent names like `mcp_brainkm_recall`.
+`brain_stats` / `remember` / `feedback` / `checkpoint`. Do **not** invent names like
+`mcp_brainkm_recall`.
 
 1. Blast-radius / "what calls X" / impact of changing Y: you **MUST** call `traverse`
    (pass a symbol or path). **Never** rely on text search alone for call/import flow.

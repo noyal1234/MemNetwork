@@ -1,8 +1,8 @@
 ---
 name: brainkm-routing
 description: >-
-  When to use brainkm MCP tools (recall, context_pack, traverse, trace_changes) vs
-  Grep/project search. Prefer file-seeded recall and verify packs in source.
+  When to use brainkm MCP tools (recall, context_pack, traverse, trace_changes, feedback)
+  vs Grep/project search. Prefer file-seeded recall and verify packs in source.
   Install with brainkm install.
 ---
 
@@ -21,6 +21,7 @@ search — it does not replace them.
 | Understand a module before editing 3+ files | `context_pack` (include path or symbol) |
 | What did we learn about `auth.ts`? | `recall` / `context_pack` with that path in the query |
 | Pin, correct, or archive durable truth | `remember` (`action=pin\|correct\|archive`; hooks are primary capture) |
+| Prior recall/pack node was clearly the answer or wrong | `feedback` (`signal=used\|wrong` on those `node_id`s; skip routine packs) |
 | **Something is broken** — error text, traceback, "not firing", "went silent" | `recall` with the raw error/symptom **first**, before hand-debugging |
 | "This worked before — what broke it?" | `trace_changes` (regression bisect) |
 | You just solved a non-obvious failure | `remember` (`subtype=error`) — else it stays a raw chunk and won't rank |
@@ -33,7 +34,7 @@ search — it does not replace them.
 3. Before opening 3+ files for one task: you **MUST** call `context_pack`, then verify in source.
 4. "What changed in this file and why": you **MUST** call `trace_changes`.
 5. SessionStart pack is frozen — if insufficient, you **MUST** still call the live tool.
-   Tools are deferred: call `ToolSearch` **once** at session start to load all six brainkm
+   Tools are deferred: call `ToolSearch` **once** at session start to load all eight brainkm
    schemas, not per-tool. Pass `session_id` on every call.
 
 **Bypass is narrow, not a default:** only a pure mechanical edit (typo, rename, formatting)
@@ -51,6 +52,8 @@ doubt, call it.
    `brainkm graph sync`.
 6. Grep finding a file does **not** replace recall/traverse/context_pack for decisions /
    blast-radius / multi-file context.
+7. After a recall/pack clearly helped (or misled), call `feedback` — do **not** call
+   `checkpoint` (PreCompact already handovers).
 
 ## Lifecycle (mental model)
 

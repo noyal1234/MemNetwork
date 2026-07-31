@@ -43,7 +43,8 @@ Full clone setup: [docs/INSTALL.md](docs/INSTALL.md). Per-host: [docs/install/](
 | Path | In git? | Purpose |
 |------|---------|---------|
 | `cursor-policy/README.md` | Yes | Notes on local `.cursor/rules/` (not versioned) |
-| `.cursor/skills/` | Yes | Backend implementation skill |
+| `.cursor/skills/memnetwork-backend/` | Yes | Backend implementation skill |
+| `.cursor/skills/brainkm-routing/` / `terse-agent/` | No | Cursor install output (templates live under `hooks/cursor/skills/`) |
 | `.cursor/*.example` | Yes | Cursor MCP/hooks config shape before install |
 | `.cursor/rules/` | No | Policy rules + `brainkm.mdc` (local only) |
 | `.cursor/hooks.json` / `.cursor/mcp.json` | No | Machine-local Cursor wiring (install output) |
@@ -82,6 +83,8 @@ Use the **brainkm** MCP tools:
 | What calls / imports X? Impact of changing Y? | `traverse` |
 | Bounded multi-file task context | `context_pack` (include a symbol or path) |
 | Pin durable truth or correct a wrong auto-capture | `remember` |
+| Prior recall/pack node was clearly the answer or wrong | `feedback` (`signal=used\|wrong`; skip routine packs) |
+| Force handover without PreCompact | `checkpoint` |
 
 Packs are hints — always verify in source before editing.
 Prefer `traverse` for blast-radius; `context_pack` before opening 3+ files.

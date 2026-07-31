@@ -12,6 +12,7 @@ Use the **brainkm** MCP tools:
 | Bounded multi-file task context | `context_pack` (include a symbol or path) |
 | What changed in this file recently, and why? | `trace_changes` (path) — use this instead of `git log`/Bash for a single file's history, even mid process/ops debugging |
 | Pin durable truth or correct a wrong auto-capture | `remember` |
+| Prior recall/pack node was clearly the answer or wrong | `feedback` (`signal=used\|wrong` on those `node_id`s; skip routine packs) |
 
 **Diagnose mode.** The rows above are build mode. When something is *broken*, the trigger is the
 symptom, not a decision:

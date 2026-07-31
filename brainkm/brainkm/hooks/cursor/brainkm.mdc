@@ -23,6 +23,10 @@ This project uses **brainkm** — a local SQLite project brain at `.brain/brain.
   SessionStart injection). Call **`remember` only to pin** durable project truth,
   **correct** a wrong auto-capture (`action=correct`), or **archive** noise
   (`action=archive`) — not for ordinary session learning.
+- After a `recall` / `context_pack` / `traverse` result **clearly answered** the question
+  (or was **clearly wrong/misleading**), call **`feedback`** with those `node_id`s and
+  `signal=used` or `signal=wrong`. Skip routine packs; `not_used` is a no-op. Do **not**
+  call `checkpoint` on Cursor — PreCompact already runs handover.
 
 ## Tool routing (locate vs flow vs decisions)
 
@@ -33,6 +37,7 @@ This project uses **brainkm** — a local SQLite project brain at `.brain/brain.
 | "What changed in file Y recently / why?" | **`trace_changes`** (path) | Live git timeline + commit joins |
 | "Why did we choose X?" | **`recall`** | Decisions + supersede trail live in neurons |
 | Understand one module (would open 3+ files) | **`context_pack`** then targeted reads | Bounded pack vs file dumps |
+| Prior recall/pack node was clearly the answer or wrong | **`feedback`** (`used` / `wrong`) | Explicit ranking signal; heuristics miss this |
 
 Do **not** treat brainkm as a second `@codebase`. Use Cursor to **locate**; use Graphify
 (`traverse` for flow, `context_pack` for task packs) to explain structure. Never skip reading

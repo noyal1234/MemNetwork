@@ -16,6 +16,8 @@ graphify-out/
 .cursor/mcp.json
 .cursor/hooks.json
 .cursor/rules/
+.cursor/skills/brainkm-routing/
+.cursor/skills/terse-agent/
 
 # --- Antigravity (machine-local / install output) ---
 .agents/
