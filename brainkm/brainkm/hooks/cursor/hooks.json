@@ -39,6 +39,12 @@
         "command": "brainkm user-prompt --stdin --client cursor",
         "timeout": 5
       }
+    ],
+    "stop": [
+      {
+        "command": "brainkm agent-stop --stdin --client cursor",
+        "timeout": 15
+      }
     ]
   }
 }

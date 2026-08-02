@@ -417,6 +417,15 @@ class BrainStatsResponse(BaseModel):
         default_factory=dict,
         description="Traverse abstentions in 7d keyed by unresolved|ambiguous",
     )
+    tool_failure_rates: dict[str, float] = Field(
+        default_factory=dict,
+        description=(
+            "Per-tool failure rate (0-1) for tools with >=5 recorded calls, "
+            "from tool_feedback. Populated by PostToolUse failure detection "
+            "(capture.detect_tool_failure) — sparse on hosts/sessions where "
+            "that flag has been off or too few calls have accumulated"
+        ),
+    )
     compression: dict[str, object] = Field(
         default_factory=dict,
         description=(

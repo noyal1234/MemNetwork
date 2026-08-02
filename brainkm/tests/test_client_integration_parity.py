@@ -148,6 +148,18 @@ def test_inspect_cursor_wiring_missing_user_prompt(tmp_path: Path) -> None:
     notes = inspect_cursor_wiring(tmp_path)
     assert any("beforeSubmitPrompt" in n for n in notes)
     assert any("Shell" in n for n in notes)
+    # P7: stop is a real Cursor hook event (fires when the agent loop ends,
+    # distinct from sessionEnd) and must be flagged missing like any other.
+    assert any("stop" in n for n in notes)
+
+
+def test_run_install_cursor_writes_stop_hook(tmp_path: Path) -> None:
+    run_install(tmp_path, dev=True, force=True, client="cursor", no_graph=True)
+    hooks = json.loads((tmp_path / ".cursor" / "hooks.json").read_text(encoding="utf-8"))
+    stop_entries = hooks["hooks"]["stop"]
+    assert stop_entries
+    assert "agent-stop" in stop_entries[0]["command"]
+    assert "--client cursor" in stop_entries[0]["command"]
 
 
 def test_doctor_report_uses_client_notes_label(tmp_path: Path) -> None:

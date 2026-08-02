@@ -12,6 +12,7 @@ from brainkm.services.abstention_calibrate import load_calibration
 from brainkm.services.channel_health import graph_available, graph_counts
 from brainkm.services.review import list_pending
 from brainkm.services.session_activity import ANON_SESSION_ID
+from brainkm.services.tool_feedback import get_tool_failure_rates
 
 
 def collect_brain_stats(
@@ -121,6 +122,7 @@ def collect_brain_stats(
         hygiene_hint=hygiene_hint,
         outbound_gate_7d=_outbound_gate_stats(conn),
         traverse_abstain_7d=_traverse_abstain_stats(conn),
+        tool_failure_rates=get_tool_failure_rates(conn),
         compression=compression,
         **session_fields,
     )

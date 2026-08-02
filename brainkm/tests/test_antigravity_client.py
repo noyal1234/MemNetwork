@@ -244,6 +244,40 @@ def test_get_distill_adapter_claude_and_antigravity() -> None:
     assert agy.mode == "antigravity"
 
 
+def test_pre_invocation_caches_transcript_for_checkpoint(tmp_path: Path) -> None:
+    """P1: AGY has no SessionStart/UserPromptSubmit hook, so run_pre_invocation
+    is the only place that can cache session->transcript for the checkpoint
+    MCP tool. Without this, checkpoint always returned skipped on Antigravity.
+    """
+    from brainkm.db.connection import connect
+    from brainkm.db.paths import brain_db_path
+    from brainkm.services.hook_session import (
+        clear_hook_session_caches_for_tests,
+        get_last_transcript_path,
+    )
+    from brainkm.services.hooks import run_pre_invocation
+
+    transcript = tmp_path / "agy.jsonl"
+    transcript.write_text('{"role":"user","content":"hi"}\n', encoding="utf-8")
+    payload = json.dumps(
+        {
+            "conversationId": "agy-sess-1",
+            "transcriptPath": str(transcript),
+            "workspacePaths": [str(tmp_path)],
+            "invocationNum": 0,
+        }
+    )
+
+    clear_hook_session_caches_for_tests()
+    run_pre_invocation(payload, project_dir=tmp_path, client="antigravity")
+
+    conn = connect(brain_db_path(tmp_path))
+    try:
+        assert get_last_transcript_path(conn, "agy-sess-1") == transcript
+    finally:
+        conn.close()
+
+
 def test_antigravity_transcript_fixture() -> None:
     from brainkm.adapters.transcript_v1 import ANTIGRAVITY_JSONL, parse_transcript_file
 

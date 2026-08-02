@@ -161,9 +161,16 @@ def select_injection_neurons(
     return selected
 
 
+# Keep in sync with the "all seven" wording in hooks/claude/rules/brainkm.md and
+# hooks/claude/skills/brainkm-routing/SKILL.md. `feedback` is required by those
+# rules (used/wrong signal after recall/context_pack/traverse), so omitting it
+# here made the one-ToolSearch rule unfollowable — a second ToolSearch was
+# needed just to load feedback's schema. `checkpoint` is deliberately excluded:
+# Claude has native PreCompact and the rules tell it not to call checkpoint.
 _TOOL_SEARCH_SELECT = (
     "select:mcp__brainkm__recall,mcp__brainkm__traverse,mcp__brainkm__context_pack,"
-    "mcp__brainkm__brain_stats,mcp__brainkm__remember,mcp__brainkm__trace_changes"
+    "mcp__brainkm__brain_stats,mcp__brainkm__remember,mcp__brainkm__trace_changes,"
+    "mcp__brainkm__feedback"
 )
 
 

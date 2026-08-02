@@ -71,6 +71,16 @@ class CaptureConfig(BaseModel):
             "conflict suggestion (still prefer explicit action=correct)"
         ),
     )
+    detect_tool_failure: bool = Field(
+        default=True,
+        description=(
+            "Infer tool failure from the PostToolUse payload (is_error/exit_code/"
+            "error text fields). Only Claude has a native PostToolUseFailure event "
+            "(Cursor does not — see install.CURSOR_UNSUPPORTED_HOOK_EVENTS); this "
+            "makes tool_feedback and FAIL observations host-neutral. Conservative "
+            "matcher — set false if it produces false-positive error neurons."
+        ),
+    )
 
     @field_validator("distill_mode", mode="before")
     @classmethod
@@ -87,6 +97,11 @@ class InjectionConfig(BaseModel):
     pre_tool_patterns: list[str] = Field(
         default_factory=lambda: ["write", "edit", "run_terminal"]
     )
+    # Despite the name, this is not enforced per conversational turn — hooks
+    # run in separate subprocesses from the long-lived MCP server and cannot
+    # reset its in-process RecallLimitState, so there is no real turn boundary
+    # to push in. It is a rolling RecallLimitState.window_seconds (30s) cap
+    # instead: N recalls within any 30s window, not N per user message.
     max_recalls_per_turn: int = Field(default=3, ge=0, le=5)
     frozen_snapshot: bool = True
     routing_nudge: bool = True

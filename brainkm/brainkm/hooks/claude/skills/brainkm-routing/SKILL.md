@@ -1,9 +1,9 @@
 ---
 name: brainkm-routing
 description: >-
-  When to use brainkm MCP tools (recall, context_pack, traverse, trace_changes, feedback)
-  vs Grep/project search. Prefer file-seeded recall and verify packs in source.
-  Install with brainkm install.
+  When to use brainkm MCP tools (recall, context_pack, traverse, trace_changes,
+  feedback) vs project search. Prefer file-seeded recall and verify packs in
+  source. Install with brainkm install.
 ---
 
 # brainkm tool routing
@@ -34,7 +34,7 @@ search — it does not replace them.
 3. Before opening 3+ files for one task: you **MUST** call `context_pack`, then verify in source.
 4. "What changed in this file and why": you **MUST** call `trace_changes`.
 5. SessionStart pack is frozen — if insufficient, you **MUST** still call the live tool.
-   Tools are deferred: call `ToolSearch` **once** at session start to load all eight brainkm
+   Tools are deferred: call `ToolSearch` **once** at session start to load all seven brainkm
    schemas, not per-tool. Pass `session_id` on every call.
 
 **Bypass is narrow, not a default:** only a pure mechanical edit (typo, rename, formatting)

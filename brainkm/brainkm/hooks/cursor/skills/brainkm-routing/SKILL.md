@@ -1,9 +1,9 @@
 ---
 name: brainkm-routing
 description: >-
-  When to use brainkm MCP tools (recall, context_pack, traverse, trace_changes, feedback)
-  vs Cursor search. Prefer file-seeded recall and verify packs in source. Install with
-  brainkm install.
+  When to use brainkm MCP tools (recall, context_pack, traverse, trace_changes,
+  feedback) vs project search. Prefer file-seeded recall and verify packs in
+  source. Install with brainkm install.
 ---
 
 # brainkm tool routing

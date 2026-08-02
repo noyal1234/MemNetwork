@@ -92,3 +92,29 @@ def get_tool_feedback(conn: sqlite3.Connection, tool_name: str) -> ToolFeedbackS
         failure_count=int(row["failure_count"]),
         last_failure=row["last_failure"],
     )
+
+
+def get_tool_failure_rates(
+    conn: sqlite3.Connection, *, min_calls: int = 5
+) -> dict[str, float]:
+    """tool_name -> failure rate, for tools with enough calls to be meaningful.
+
+    First consumer of this table (record_tool_result previously wrote it with
+    no reader) — surfaced via brain_stats.tool_failure_rates.
+    """
+    if not _table_ready(conn):
+        return {}
+    rows = conn.execute(
+        """
+        SELECT tool_name, success_count, failure_count
+        FROM tool_feedback
+        WHERE success_count + failure_count >= ?
+        """,
+        (min_calls,),
+    ).fetchall()
+    out: dict[str, float] = {}
+    for row in rows:
+        total = int(row["success_count"]) + int(row["failure_count"])
+        if total:
+            out[str(row["tool_name"])] = round(int(row["failure_count"]) / total, 3)
+    return out

@@ -12,7 +12,7 @@ This project uses **brainkm** — a local SQLite project brain at `.brain/brain.
 5. SessionStart injects a **FROZEN** snapshot that does **NOT** update. You **MUST** still call
    live `recall` / `traverse` / `context_pack` / `trace_changes` when the question matches —
    the snapshot is **NOT** a substitute. Tools are deferred: call `ToolSearch` **once** at the
-   start of the session (not per-tool) to load all eight brainkm schemas, then call them directly
+   start of the session (not per-tool) to load all seven brainkm schemas, then call them directly
    for the rest of the session.
 6. Pass **`session_id`** (from SessionStart / UserPromptSubmit) on every brainkm call.
 7. **Symptom before forensics.** On any error, traceback, or "X isn't working / isn't firing /
