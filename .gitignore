@@ -47,3 +47,4 @@ snapshot_report.html
 .env
 .brain/mcp_http_token
 .brain/exports/
+.codex/skills/brainkm-context/

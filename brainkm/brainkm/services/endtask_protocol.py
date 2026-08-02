@@ -32,7 +32,7 @@ TokensSource = Literal["host_usage", "unavailable"]
 # with shared WITH_ARM_MCP_PREFIX (Cursor routing parity, 2026-07-30).
 H2H_PUBLISH_SET = "endtask_h2h/2"
 
-# Shared with-arm prompt nudge (Cursor / Antigravity / Claude harnesses).
+# Shared with-arm prompt nudge (Cursor / Antigravity / Claude / Codex harnesses).
 # Required for fair --require-mcp H2H under protocol/1.1 — without it, agents
 # often solve path-explicit tasks via Grep/Read and never call brainkm.
 WITH_ARM_MCP_PREFIX = (
@@ -434,7 +434,11 @@ def render_protocol_markdown(
         )
 
     lines.extend(["", "## Notes", ""])
+    seen: set[str] = set()
     for n in list(manifest.notes) + list(report.notes):
+        if n in seen:
+            continue
+        seen.add(n)
         lines.append(f"- {n}")
     lines.append("")
     return "\n".join(lines)

@@ -108,6 +108,64 @@ def capture_cmd(
     )
 
 
+@app.command("codex-capture")
+def codex_capture_cmd(
+    project_dir: Path | None = typer.Option(
+        None,
+        "--project-dir",
+        help="Target project root (defaults to cwd)",
+    ),
+    limit: int = typer.Option(20, "--limit", help="Max matching rollouts to scan"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="List matches without capturing"),
+    quiet: bool = typer.Option(False, "--quiet", help="Suppress output (git-hook use)"),
+    context: bool = typer.Option(
+        True,
+        "--context/--no-context",
+        help="Also refresh .codex/skills/brainkm-context (Codex injection substitute)",
+    ),
+) -> None:
+    """Capture this project's Codex rollout transcripts into the brain.
+
+    Codex cannot run brainkm hooks (see services/codex_rollout), so this is the
+    SessionEnd substitute: it reads ``$CODEX_HOME/sessions/**/rollout-*.jsonl``,
+    keeps only rollouts whose recorded ``cwd`` is inside this project, and runs
+    the normal capture pipeline. Duplicate-safe, so it can run on every commit.
+    """
+    from brainkm.services.codex_rollout import capture_codex_rollouts
+
+    root = project_dir if project_dir is not None else Path.cwd()
+    try:
+        result = capture_codex_rollouts(
+            root,
+            limit=limit if limit > 0 else None,
+            dry_run=dry_run,
+            sync_context=context and not dry_run,
+        )
+    except Exception as exc:  # noqa: BLE001 - never break a git hook
+        logger.warning("codex-capture failed: %s", exc)
+        if not quiet:
+            typer.echo(f"codex-capture failed: {exc}", err=True)
+        raise typer.Exit(code=0) from exc
+
+    if quiet:
+        return
+    if dry_run:
+        typer.echo(
+            f"Would capture {result.matched} rollout(s) "
+            f"(scanned {result.scanned}): {', '.join(result.captured_sessions) or 'none'}"
+        )
+        return
+    typer.echo(
+        f"Codex rollouts: scanned {result.scanned}, matched {result.matched}, "
+        f"captured {result.captured} ({result.neuron_count} neurons), "
+        f"{result.skipped_duplicate} already ingested"
+    )
+    if result.context_skill is not None:
+        typer.echo(f"Context skill refreshed: {result.context_skill}")
+    for err in result.errors:
+        typer.echo(f"  warn: {err}", err=True)
+
+
 def _hook_client_option() -> str:
     return typer.Option(
         "cursor",
@@ -925,7 +983,9 @@ def post_tool_cmd(
 
     _run_stdin_hook(
         "PostToolUse",
-        lambda raw: run_post_tool_use(raw, project_dir=project_dir, failed=False),
+        lambda raw: run_post_tool_use(
+            raw, project_dir=project_dir, failed=False, client=client
+        ),
         event=event,
         client=client,
     )
@@ -946,7 +1006,9 @@ def post_tool_failure_cmd(
 
     _run_stdin_hook(
         "PostToolUseFailure",
-        lambda raw: run_post_tool_use(raw, project_dir=project_dir, failed=True),
+        lambda raw: run_post_tool_use(
+            raw, project_dir=project_dir, failed=True, client=client
+        ),
         client=client,
     )
 
@@ -1006,9 +1068,12 @@ def subagent_stop_cmd(
         typer.echo("--stdin is required for subagent-stop hook", err=True)
         raise typer.Exit(code=1)
 
+    # Codex rejects plain-text stdout on its hook events, so it needs the event
+    # set to emit {"continue": true}. Claude is capture-only here and stays silent.
     _run_stdin_hook(
         "SubagentStop",
         lambda raw: run_subagent_stop(raw, project_dir=project_dir),
+        event="subagentStop" if (client or "").strip().lower() == "codex" else None,
         client=client,
     )
 
@@ -1031,10 +1096,13 @@ def agent_stop_cmd(
         typer.echo("--stdin is required for agent-stop hook", err=True)
         raise typer.Exit(code=1)
 
+    # Codex rejects plain-text stdout on Stop, so it needs the event set to emit
+    # {"continue": true} (build_codex_hook_stdout). Claude/Cursor are capture-only
+    # here and stay silent.
     _run_stdin_hook(
         "Stop",
         lambda raw: run_agent_stop(raw, project_dir=project_dir, client=client),
-        event=event if (client or "").strip().lower() == "antigravity" else None,
+        event=event if (client or "").strip().lower() in ("antigravity", "codex") else None,
         client=client,
     )
 

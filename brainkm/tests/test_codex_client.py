@@ -45,10 +45,22 @@ def test_build_codex_hooks_config_schema() -> None:
     events = hooks["hooks"]
     assert "SessionStart" in events
     assert "Stop" in events
-    assert "SessionEnd" not in events
+    # Codex DOES fire SessionEnd — verified against the codex-cli 0.146 wire
+    # schema. An earlier revision asserted `"SessionEnd" not in events` and
+    # routed capture through Stop; Stop marks the end of an agent loop and can
+    # fire repeatedly per conversation, which re-captured every turn.
+    assert "SessionEnd" in events
     assert "UserPromptSubmit" in events
     assert "PreCompact" in events
     assert "PostCompact" in events
+    # Codex 0.146 supports subagent lifecycle too — these were missed when the
+    # Codex client was first wired.
+    assert "SubagentStart" in events
+    assert "SubagentStop" in events
+    # PermissionRequest is a real Codex hook event but is deliberately NOT
+    # wired: brainkm has no handler and must not auto-answer permission
+    # prompts on the user's behalf.
+    assert "PermissionRequest" not in events
 
     start = events["SessionStart"][0]
     assert start["matcher"] == "startup|resume|clear"
@@ -56,8 +68,15 @@ def test_build_codex_hooks_config_schema() -> None:
     assert "--client codex" in cmd
     assert "session-start" in cmd
 
+    # Capture/distill belongs on SessionEnd (once per session)...
+    session_end_cmd = events["SessionEnd"][0]["hooks"][0]["command"]
+    assert "session-end" in session_end_cmd
+    assert "--client codex" in session_end_cmd
+
+    # ...and Stop only flushes counters, matching the Claude wiring.
     stop_cmd = events["Stop"][0]["hooks"][0]["command"]
-    assert "session-end" in stop_cmd
+    assert "agent-stop" in stop_cmd
+    assert "session-end" not in stop_cmd
     assert "--client codex" in stop_cmd
 
     pre = events["PreToolUse"][0]
@@ -112,6 +131,32 @@ def test_build_codex_hook_stdout_session_start() -> None:
     assert out["continue"] is True
 
 
+def test_build_codex_hook_stdout_subagent_start_injects() -> None:
+    """Codex defines SubagentStartHookSpecificOutputWire, so SubagentStart is an
+    inject-capable event. If it were missing from _CODEX_INJECT_EVENTS the wired
+    hook would silently degrade to {"continue": true} and drop the pack."""
+    result = HookRunResult(
+        hook="SubagentStart",
+        session_id="s1",
+        skipped=False,
+        reason=None,
+        additional_context="## subagent pack",
+    )
+    out = build_codex_hook_stdout(result, "subagentStart")
+    specific = out["hookSpecificOutput"]
+    assert specific["hookEventName"] == "SubagentStart"
+    assert specific["additionalContext"] == "## subagent pack"
+
+
+def test_build_codex_hook_stdout_subagent_stop_is_json_continue() -> None:
+    """SubagentStop has no *HookSpecificOutputWire — continue-only, but must
+    still be valid JSON (Codex rejects plain text)."""
+    result = HookRunResult(
+        hook="SubagentStop", session_id="s1", skipped=False, reason=None
+    )
+    assert build_codex_hook_stdout(result, "subagentStop") == {"continue": True}
+
+
 def test_build_codex_hook_stdout_stop_is_json_continue() -> None:
     result = HookRunResult(
         hook="SessionEnd",
@@ -162,7 +207,9 @@ def test_run_install_codex_writes_toml_hooks_skill(tmp_path: Path) -> None:
     hooks_data = json.loads(hooks.read_text(encoding="utf-8"))
     assert "SessionStart" in hooks_data["hooks"]
     assert "Stop" in hooks_data["hooks"]
-    assert "session-end" in hooks_data["hooks"]["Stop"][0]["hooks"][0]["command"]
+    assert "SessionEnd" in hooks_data["hooks"]
+    assert "session-end" in hooks_data["hooks"]["SessionEnd"][0]["hooks"][0]["command"]
+    assert "agent-stop" in hooks_data["hooks"]["Stop"][0]["hooks"][0]["command"]
     assert any("trust" in w.lower() or "/hooks" in w for w in result.warnings)
     assert "OpenAI Codex" in agents.read_text(encoding="utf-8")
 
@@ -299,3 +346,37 @@ def test_doctor_inspects_codex_wiring(tmp_path: Path) -> None:
     assert codex.present
     assert codex.hooks_present
     assert codex.transport == "stdio"
+
+
+def test_doctor_does_not_claim_codex_lacks_session_end(tmp_path: Path) -> None:
+    """A freshly installed Codex wiring must produce no SessionEnd complaints.
+
+    The doctor used to assert 'Codex does not fire that event' and tell users
+    to move capture onto Stop — wrong for codex-cli 0.146, which defines
+    SessionEnd in its hook wire schema.
+    """
+    migrate(project_dir=tmp_path, run_integrity_check=False)
+    run_install(tmp_path, dev=True, force=True, client="codex", no_graph=True)
+    notes = inspect_codex_wiring(tmp_path)
+    blob = " ".join(notes)
+    assert "does not fire" not in blob
+    assert "Codex has no SessionEnd" not in blob
+    assert not any("SessionEnd hook should run" in n for n in notes)
+
+
+def test_doctor_flags_capture_left_on_stop(tmp_path: Path) -> None:
+    """Legacy wiring (capture on Stop) must now be flagged, since Stop can fire
+    repeatedly per conversation and would re-capture every turn."""
+    import json as _json
+
+    migrate(project_dir=tmp_path, run_integrity_check=False)
+    run_install(tmp_path, dev=True, force=True, client="codex", no_graph=True)
+    hooks_path = tmp_path / ".codex" / "hooks.json"
+    data = _json.loads(hooks_path.read_text(encoding="utf-8"))
+    # Simulate the old layout: capture on Stop, no SessionEnd.
+    data["hooks"]["Stop"] = data["hooks"].pop("SessionEnd")
+    hooks_path.write_text(_json.dumps(data), encoding="utf-8")
+
+    notes = inspect_codex_wiring(tmp_path)
+    assert any("SessionEnd hook should run" in n for n in notes)
+    assert any("re-captures every turn" in n for n in notes)

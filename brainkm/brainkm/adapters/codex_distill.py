@@ -23,9 +23,12 @@ def resolve_codex_bin() -> str | None:
     path = shutil.which("codex")
     if path:
         return path
-    local = Path.home() / ".local" / "bin" / "codex"
-    if local.is_file() and os.access(local, os.X_OK):
-        return str(local)
+    for candidate in (
+        Path.home() / ".local" / "bin" / "codex",
+        Path("/Applications/ChatGPT.app/Contents/Resources/codex"),
+    ):
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
     return None
 
 

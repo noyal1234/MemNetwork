@@ -11,6 +11,7 @@ from brainkm.models.brain_config import BrainConfig
 from brainkm.services.hooks import (
     HookRunResult,
     build_claude_hook_stdout,
+    build_codex_hook_stdout,
     build_cursor_hook_stdout,
     pre_tool_matcher,
     run_pre_tool_use,
@@ -140,14 +141,34 @@ def test_pre_tool_denies_git_history_in_a_pipeline(tmp_path: Path) -> None:
     assert result.deny_reason is not None
 
 
-def test_pre_tool_deny_is_claude_only(tmp_path: Path) -> None:
-    """Cursor/Codex deny semantics differ; brainkm must not block them."""
+def test_pre_tool_deny_extends_to_cursor_and_codex(tmp_path: Path) -> None:
+    """P6: Cursor and Codex both have a real deny channel (permission=deny /
+    permissionDecision=deny), so the redundant-git-history deny applies to
+    them the same as Claude — this behavior was extended deliberately.
+    """
+    (tmp_path / "svc.py").write_text("x = 1\n", encoding="utf-8")
+    for client in ("cursor", "codex"):
+        result = run_pre_tool_use(
+            _git_history_payload("git log --oneline svc.py"),
+            project_dir=tmp_path,
+            config=BrainConfig(),
+            client=client,
+        )
+        assert result.deny_reason is not None, client
+        assert "trace_changes" in result.deny_reason
+
+
+def test_pre_tool_deny_excludes_antigravity(tmp_path: Path) -> None:
+    """Antigravity's `decision` field semantics for this case are the least
+    documented of the four hosts — a wrong value risks hanging the turn
+    rather than cleanly declining the call, so it stays excluded.
+    """
     (tmp_path / "svc.py").write_text("x = 1\n", encoding="utf-8")
     result = run_pre_tool_use(
         _git_history_payload("git log --oneline svc.py"),
         project_dir=tmp_path,
         config=BrainConfig(),
-        client="cursor",
+        client="antigravity",
     )
     assert result.deny_reason is None
 
@@ -256,6 +277,38 @@ def test_build_cursor_hook_stdout_pre_tool_injects_agent_message() -> None:
     }
 
 
+def test_build_cursor_hook_stdout_pre_tool_deny() -> None:
+    result = HookRunResult(
+        hook="PreToolUse",
+        session_id="s1",
+        skipped=False,
+        reason="redundant with trace_changes",
+        deny_reason="brainkm: use trace_changes for single-file history, not `git log svc.py`.",
+    )
+    assert build_cursor_hook_stdout(result, "preToolUse") == {
+        "permission": "deny",
+        "agent_message": result.deny_reason,
+    }
+
+
+def test_build_codex_hook_stdout_pre_tool_deny() -> None:
+    result = HookRunResult(
+        hook="PreToolUse",
+        session_id="s1",
+        skipped=False,
+        reason="redundant with trace_changes",
+        deny_reason="brainkm: use trace_changes for single-file history, not `git log svc.py`.",
+    )
+    assert build_codex_hook_stdout(result, "preToolUse") == {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": result.deny_reason,
+        },
+        "continue": True,
+    }
+
+
 def test_build_cursor_hook_stdout_session_start_empty_when_no_context() -> None:
     result = HookRunResult(
         hook="SessionStart",
@@ -333,6 +386,27 @@ def test_session_start_cursor_pack_omits_toolsearch(tmp_path: Path) -> None:
     assert result.additional_context is not None
     assert "ToolSearch" not in result.additional_context
     assert "Frozen at session start" in result.additional_context
+
+
+def test_toolsearch_select_covers_every_rule_mandated_tool() -> None:
+    """P2: the ToolSearch select string must load every tool the routing rules
+    tell Claude to call without a second ToolSearch — previously `feedback`
+    was mandated by brainkm.md but missing from the select list.
+    """
+    from brainkm.services.snapshot import _TOOL_SEARCH_SELECT
+
+    for tool in (
+        "recall",
+        "traverse",
+        "context_pack",
+        "brain_stats",
+        "remember",
+        "trace_changes",
+        "feedback",
+    ):
+        assert f"mcp__brainkm__{tool}" in _TOOL_SEARCH_SELECT
+    # checkpoint is deliberately excluded (Claude has native PreCompact).
+    assert "mcp__brainkm__checkpoint" not in _TOOL_SEARCH_SELECT
 
 
 def test_graph_status_line_omits_toolsearch_for_cursor(tmp_path: Path) -> None:
@@ -577,7 +651,102 @@ def test_routing_nudge_rearms_after_drift(tmp_path: Path) -> None:
     assert "trace_changes" in result.additional_context
     assert "already loaded" in result.additional_context
     assert "not loaded" not in result.additional_context
+
+
+def _seed_drift_activity(tmp_path: Path, session_id: str, *, drift_calls: int = 3) -> None:
+    conn = connect(brain_db_path(tmp_path))
+    try:
+        conn.execute(
+            """
+            INSERT INTO session_activity (id, session_id, kind, node_id, tool_name, source, created_at)
+            VALUES (?, ?, 'tool_use', NULL, 'recall', 'mcp', datetime('now', '-1 minute'))
+            """,
+            (new_ulid(), session_id),
+        )
+        for _ in range(drift_calls):
+            conn.execute(
+                """
+                INSERT INTO session_activity (id, session_id, kind, node_id, tool_name, source, created_at)
+                VALUES (?, ?, 'tool_use', NULL, 'Read', 'post_tool', datetime('now'))
+                """,
+                (new_ulid(), session_id),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_drift_nudge_fires_for_cursor_without_toolsearch_copy(tmp_path: Path) -> None:
+    """P10: the drift nudge ('N tool calls since your last brainkm call') names
+    no ToolSearch step and is host-neutral — it must not be suppressed by the
+    Claude-only gate that guards the 'tools not loaded' copy.
+    """
+    session_id = "sess-drift-cursor"
+    migrate(project_dir=tmp_path, run_integrity_check=False)
+    cfg = BrainConfig(
+        injection={"routing_nudge_rearm_after_calls": 3, "routing_nudge_max_per_session": 5}
+    )
+    _seed_drift_activity(tmp_path, session_id, drift_calls=3)
+
+    result = run_user_prompt_submit(
+        json.dumps({"session_id": session_id, "prompt": "still editing"}),
+        project_dir=tmp_path,
+        config=cfg,
+        client="cursor",
+    )
+    assert result.additional_context is not None
     assert "ToolSearch" not in result.additional_context
+    assert "already loaded" in result.additional_context
+
+
+def test_drift_nudge_fires_for_antigravity_without_toolsearch_copy(tmp_path: Path) -> None:
+    session_id = "sess-drift-agy"
+    migrate(project_dir=tmp_path, run_integrity_check=False)
+    cfg = BrainConfig(
+        injection={"routing_nudge_rearm_after_calls": 3, "routing_nudge_max_per_session": 5}
+    )
+    _seed_drift_activity(tmp_path, session_id, drift_calls=3)
+
+    result = run_user_prompt_submit(
+        json.dumps({"session_id": session_id, "prompt": "still editing"}),
+        project_dir=tmp_path,
+        config=cfg,
+        client="antigravity",
+    )
+    assert result.additional_context is not None
+    assert "ToolSearch" not in result.additional_context
+
+
+def test_never_loaded_nudge_stays_claude_only_and_does_not_burn_budget(
+    tmp_path: Path,
+) -> None:
+    """A suppressed 'never loaded' nudge on a non-Claude host must not insert a
+    routing_nudge row — otherwise it silently exhausts
+    routing_nudge_max_per_session on messages nobody ever sees.
+    """
+    session_id = "sess-never-loaded-cursor"
+    migrate(project_dir=tmp_path, run_integrity_check=False)
+    cfg = BrainConfig(injection={"routing_nudge_max_per_session": 1})
+
+    for _ in range(3):
+        result = run_user_prompt_submit(
+            json.dumps({"session_id": session_id, "prompt": "hi"}),
+            project_dir=tmp_path,
+            config=cfg,
+            client="cursor",
+        )
+        assert result.additional_context is None
+
+    conn = connect(brain_db_path(tmp_path))
+    try:
+        count = conn.execute(
+            "SELECT COUNT(*) AS c FROM session_activity "
+            "WHERE session_id = ? AND kind = 'routing_nudge'",
+            (session_id,),
+        ).fetchone()["c"]
+    finally:
+        conn.close()
+    assert count == 0
 
 
 def test_pre_tool_matcher_includes_read_patterns() -> None:
@@ -599,3 +768,195 @@ def test_claude_rules_template_has_no_paths_frontmatter() -> None:
     text = path.read_text(encoding="utf-8")
     assert not text.lstrip().startswith("---")
     assert "\npaths:" not in text and not text.startswith("paths:")
+
+
+# --- P3: host-neutral PostToolUse failure detection --------------------------
+
+
+def _post_tool_failure_cases() -> list[dict]:
+    return [
+        {"is_error": True},
+        {"exit_code": 1},
+        {"error": "command not found"},
+        {"tool_response": {"error": "ENOENT"}},
+    ]
+
+
+def _post_tool_success_cases() -> list[dict]:
+    return [
+        {},
+        {"exit_code": 0},
+        {"error": ""},
+        {"is_error": False},
+        # Successful commands write to stderr constantly. Treating stderr text
+        # as failure would not merely create bogus error neurons — it also
+        # suppresses record_file_seed / graph sync / process_post_tool for that
+        # call, silently degrading file-seeded recall and procedure learning.
+        {"tool_response": {"stdout": "ok", "stderr": "Switched to branch main"}},
+        {"tool_response": {"stdout": "done", "stderr": "npm WARN deprecated"}},
+        {"tool_response": {"stdout": "", "stderr": "2 passed in 0.4s"}},
+    ]
+
+
+def test_post_tool_infers_failure_from_payload(tmp_path: Path) -> None:
+    from brainkm.services.hooks import run_post_tool_use
+    from brainkm.services.tool_feedback import get_tool_feedback
+
+    migrate(project_dir=tmp_path, run_integrity_check=False)
+    for i, extra in enumerate(_post_tool_failure_cases()):
+        payload = {"session_id": f"s-fail-{i}", "tool_name": "Bash", **extra}
+        result = run_post_tool_use(json.dumps(payload), project_dir=tmp_path)
+        assert result.skipped is False
+
+    conn = connect(brain_db_path(tmp_path))
+    try:
+        summary = get_tool_feedback(conn, "Bash")
+        assert summary is not None
+        assert summary.failure_count == len(_post_tool_failure_cases())
+        assert summary.success_count == 0
+    finally:
+        conn.close()
+
+
+def test_post_tool_success_not_misread_as_failure(tmp_path: Path) -> None:
+    from brainkm.services.hooks import run_post_tool_use
+    from brainkm.services.tool_feedback import get_tool_feedback
+
+    migrate(project_dir=tmp_path, run_integrity_check=False)
+    for i, extra in enumerate(_post_tool_success_cases()):
+        payload = {"session_id": f"s-ok-{i}", "tool_name": "Read", **extra}
+        run_post_tool_use(json.dumps(payload), project_dir=tmp_path)
+
+    conn = connect(brain_db_path(tmp_path))
+    try:
+        summary = get_tool_feedback(conn, "Read")
+        assert summary is not None
+        assert summary.failure_count == 0
+        assert summary.success_count == len(_post_tool_success_cases())
+    finally:
+        conn.close()
+
+
+def test_detect_tool_failure_can_be_disabled(tmp_path: Path) -> None:
+    from brainkm.services.hooks import run_post_tool_use
+    from brainkm.services.tool_feedback import get_tool_feedback
+
+    migrate(project_dir=tmp_path, run_integrity_check=False)
+    config = BrainConfig()
+    config.capture.detect_tool_failure = False
+    payload = {"session_id": "s-disabled", "tool_name": "Bash", "exit_code": 1}
+    run_post_tool_use(json.dumps(payload), project_dir=tmp_path, config=config)
+
+    conn = connect(brain_db_path(tmp_path))
+    try:
+        summary = get_tool_feedback(conn, "Bash")
+        assert summary is not None
+        assert summary.failure_count == 0
+        assert summary.success_count == 1
+    finally:
+        conn.close()
+
+
+def test_successful_write_with_stderr_still_records_file_seed(tmp_path: Path) -> None:
+    """Regression: stderr text on a *successful* Write must not be read as
+    failure. failed=True skips record_file_seed / graph sync / procedure
+    learning, so a false positive here silently degrades retrieval.
+    """
+    from brainkm.services.hooks import run_post_tool_use
+
+    migrate(project_dir=tmp_path, run_integrity_check=False)
+    payload = {
+        "session_id": "s-stderr-write",
+        "tool_name": "Write",
+        "tool_input": {"file_path": str(tmp_path / "svc.py")},
+        "tool_response": {"stdout": "", "stderr": "warning: LF will be replaced by CRLF"},
+    }
+    run_post_tool_use(json.dumps(payload), project_dir=tmp_path)
+
+    # Assert on the raw file_seed row: load_file_seeds() resolves paths through
+    # the code graph and returns node ids, which are empty in a fresh brain.
+    conn = connect(brain_db_path(tmp_path))
+    try:
+        rows = conn.execute(
+            "SELECT tool_name FROM session_activity "
+            "WHERE session_id = ? AND kind = 'file_seed'",
+            ("s-stderr-write",),
+        ).fetchall()
+    finally:
+        conn.close()
+    assert rows, "successful Write with stderr must still record a file seed"
+    assert rows[0][0].endswith("svc.py")
+
+
+def test_post_tool_failure_suppresses_graph_sync_and_procedure(tmp_path: Path) -> None:
+    """A payload-inferred failure must behave exactly like failed=True — no
+    graph sync request, no procedure reinforcement (process_post_tool skip)."""
+    from brainkm.services.hooks import run_post_tool_use
+
+    migrate(project_dir=tmp_path, run_integrity_check=False)
+    config = BrainConfig()
+    payload = {
+        "session_id": "s-graph",
+        "tool_name": "Write",
+        "exit_code": 2,
+        "tool_input": {"path": "x.py"},
+    }
+    result = run_post_tool_use(json.dumps(payload), project_dir=tmp_path, config=config)
+    assert result.skipped is False
+
+
+# --- P8: --client forwarded to PostToolUse -----------------------------------
+
+
+def test_post_tool_use_client_antigravity_resolves_project_dir_without_sniff_keys(
+    tmp_path: Path,
+) -> None:
+    """A payload with no workspacePaths/conversationId key must still resolve
+    the Antigravity project_dir when client="antigravity" is passed explicitly
+    — the key-sniff fallback alone would miss this and risk a shadow brain
+    under cwd (.agents/) instead of the real project root.
+    """
+    from brainkm.services.hooks import run_post_tool_use
+
+    migrate(project_dir=tmp_path, run_integrity_check=False)
+    payload = {
+        "session_id": "s-agy-explicit",
+        "tool_name": "write_to_file",
+        "tool_input": {"TargetFile": str(tmp_path / "notes.py")},
+    }
+    result = run_post_tool_use(
+        json.dumps(payload),
+        project_dir=tmp_path,
+        client="antigravity",
+    )
+    assert result.skipped is False
+    # No shadow .agents/.brain directory should have been created under tmp_path.
+    assert not (tmp_path / ".agents" / ".brain").exists()
+
+
+# --- P7: Cursor stop hook -----------------------------------------------------
+
+
+def test_run_agent_stop_flushes_use_counts_for_cursor(tmp_path: Path) -> None:
+    """P7: Cursor's `stop` hook (confirmed via Cursor docs — distinct from
+    sessionEnd, fires when the agent loop ends) reaches run_agent_stop just
+    like Claude/Antigravity's Stop does.
+    """
+    from brainkm.services.hooks import run_agent_stop
+    from brainkm.services.session_activity import record_mcp_tool_use
+
+    migrate(project_dir=tmp_path, run_integrity_check=False)
+    conn = connect(brain_db_path(tmp_path))
+    try:
+        record_mcp_tool_use(conn, "sess-cursor-stop", "recall", result_count=1)
+        conn.commit()
+    finally:
+        conn.close()
+
+    result = run_agent_stop(
+        json.dumps({"session_id": "sess-cursor-stop"}),
+        project_dir=tmp_path,
+        client="cursor",
+    )
+    assert result.hook == "Stop"
+    assert result.skipped is False

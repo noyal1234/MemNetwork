@@ -72,15 +72,22 @@ export CURSOR_API_KEY=cursor_...
 python brainkm/scripts/endtask_harness.py --backend cursor --tier core --repeats 3 \
   --protocol-scorecard --require-mcp
 
-# Antigravity Core (Google OAuth / plan quota):
+# Antigravity Core (Google OAuth / plan quota) — prefer a flash-low model if quota is tight:
 export PATH="$HOME/.local/bin:$PATH"
 python brainkm/scripts/antigravity_endtask_harness.py \
   --allow-skip-permissions --home-mcp-swap --require-mcp \
-  --tier core --repeats 3
+  --tier core --repeats 3 --model gemini-3.6-flash-low
 ```
 
-**Groq** remains knowledge-only pack A/B (`--backend groq`). Claude/Codex: pending
-(same protocol when those benches start).
+**Groq** remains knowledge-only pack A/B (`--backend groq`). Claude: pending.
+**Codex** harness is ready (ChatGPT login; default cheap model):
+
+```bash
+python brainkm/scripts/codex_endtask_harness.py \
+  --allow-skip-permissions --require-mcp \
+  --tier core --repeats 3 \
+  --model gpt-5.6-luna --reasoning-effort low
+```
 
 #### Current artifacts (`endtask_h2h/2`)
 
@@ -88,6 +95,10 @@ python brainkm/scripts/antigravity_endtask_harness.py \
 |------|------|----------|------|
 | **Cursor** | **Core** | `endtask_protocol/1.1` | [2026-07-30-endtask-cursor-core](benchmarks/2026-07-30-endtask-cursor-core.md) |
 | **Antigravity** | **Core** | `endtask_protocol/1` (prefix already applied; Core-compatible) | [2026-07-22-endtask-antigravity-core](benchmarks/2026-07-22-endtask-antigravity-core.md) |
+
+> **AGY 0.9.0 remasure not published:** multi-model / flash-low runs hit quota and
+> produced only PARTIAL mcp_ok — do not replace the Jul 22 H2H card until a clean
+> single-model Core remasure finishes.
 
 #### Cross-host Core (`endtask_h2h/2`)
 
@@ -111,7 +122,7 @@ Compare pass / tools / mcp across hosts; **% token reduction only** where
 | 2026-07-21 | Cursor Full (pre-protocol) | 120 runs, content+tokens only; MCP injected but **not** gated | [2026-07-21-endtask-cursor](benchmarks/2026-07-21-endtask-cursor.md) (−5% tokens, 60/60) |
 | 2026-07-22 | AGY host-smoke | Pre-protocol AGY smoke | [2026-07-22-antigravity-endtask](benchmarks/2026-07-22-antigravity-endtask.md) |
 | 2026-07-30 | Cursor Core pre-routing | Protocol Core **before** WITH_ARM_MCP_PREFIX — mcp_ok **9/18** | [2026-07-30-endtask-cursor-core-pre-mcp-routing](benchmarks/2026-07-30-endtask-cursor-core-pre-mcp-routing.md) |
-| 2026-07-22 | AGY Core (current AGY) | First protocol Core publish | [2026-07-22-endtask-antigravity-core](benchmarks/2026-07-22-endtask-antigravity-core.md) |
+| 2026-07-22 | AGY Core (current AGY) | First protocol Core publish (brainkm **0.8.1**, 6 MCP tools) | [2026-07-22-endtask-antigravity-core](benchmarks/2026-07-22-endtask-antigravity-core.md) |
 | 2026-07-30 | Cursor Core (current Cursor) | Protocol **1.1** + routing; mcp_ok **18/18**, **−30%** tokens | [2026-07-30-endtask-cursor-core](benchmarks/2026-07-30-endtask-cursor-core.md) |
 
 Protocol **1 → 1.1:** same Core/Full + MCP integrity; **1.1** requires shared
@@ -124,7 +135,7 @@ inside a hard token budget without drowning the agent in noise**.
 
 | Corpus | recall@budget | Mean pack tokens | Pack noise | Artifact |
 |--------|---------------|------------------|------------|----------|
-| CMA v3 (coding-agent) | **0.833** | **323** / 1500 | 0.885 | [cma-v3-budget](benchmarks/2026-07-19-cma-v3-budget.md) |
+| CMA v3 (coding-agent) | **0.810** | **175** / 1500 | 0.721 | [2026-07-31-cma](benchmarks/2026-07-31-cma.md) |
 | LongMemEval-S full 500 | **0.892** | **373** / 1500 | 0.724 | [lme-full](benchmarks/2026-07-19-longmemeval-s-full.md) |
 
 Agentmemory’s published LongMemEval protocol does not report a hard pack budget
@@ -148,21 +159,21 @@ recall@budget + hard-slice lift** publicly; ability micro-avg is a **regression 
 | `multi_session` | Facts evolving across seeded sessions |
 | `procedure` | Procedure neuron ranked for how-to queries |
 
-Latest published artifact: [docs/benchmarks/2026-07-19-cma-v3-budget.md](benchmarks/2026-07-19-cma-v3-budget.md) (brainkm **0.5.0**, CMA **v3**):
+Latest published artifact: [docs/benchmarks/2026-07-31-cma.md](benchmarks/2026-07-31-cma.md) (brainkm **0.9.0**, CMA **v3**):
 
 | Metric | Result |
 |--------|--------|
-| **recall@budget** | **0.833** (floor ≥0.80, n=42) |
-| Pack noise | **0.885** (report-only) |
-| Mean pack tokens | **~323** / 1500 |
+| **recall@budget** | **0.810** (floor ≥0.80, n=42) |
+| Pack noise | **0.721** (report-only) |
+| Mean pack tokens | **~175** / 1500 |
 | Ability micro-avg (gate) | **100%** (hard subset **100%**, n=32) |
-| Recall / pack p95 | **~13 / 18 ms** |
+| Recall / pack p95 | **~9 / 14 ms** |
 | Baselines (full) | brain **1.00** vs BM25 **0.88** / title-scan **0.83** |
 | Hard-slice lift | brain **1.00** vs BM25 **0.55** (**+0.45**, n=11) |
 | Decision+structure scorecard | **8/8** |
 | Theme-leak (gated) | **2/2** |
 
-Prior: [cma-v3](benchmarks/2026-07-19-cma-v3.md), [2026-07-18 cma-v3](benchmarks/2026-07-18-cma-v3.md).
+Prior: [2026-07-19-cma-v3-budget](benchmarks/2026-07-19-cma-v3-budget.md) (0.5.0), [cma-v3](benchmarks/2026-07-19-cma-v3.md), [2026-07-18 cma-v3](benchmarks/2026-07-18-cma-v3.md).
 
 ### LongMemEval-S shared-protocol footnote (vs agentmemory)
 
@@ -211,11 +222,15 @@ brainkm bench run longmemeval --chunked --stratify 10      # legacy all-chunk in
 
 Without a dataset the suite **skips cleanly** (PASS with instructions). Requires `pip install -e "./brainkm[semantic]"` for `--semantic`.
 
-## Headline results (MemNetwork project brain, brainkm 0.3.2)
+## Headline results (MemNetwork project brain, brainkm 0.9.0)
 
-> Measured on **0.3.2**; retrieval/latency methodology unchanged in **0.4.x**. Re-run `bench run eval` after major retrieval changes. Prefer **CMA** for public agentic-memory comparison.
+> Measured on **0.9.0** (2026-07-31). Public agentic-memory claim remains **CMA**
+> ([2026-07-31-cma](benchmarks/2026-07-31-cma.md)); product `eval` below is regression
+> signal on this repo’s live brain. Historical 0.3.2 snapshot kept only in git history
+> of this file.
 
-Hardware / corpus: macOS (darwin), hashing embedder (semantic off), **populated** `.brain/brain.db` (~1483 code nodes + project neurons), measured **2026-07-16**.
+Hardware / corpus: macOS (darwin), hashing embedder (semantic off), **populated**
+`.brain/brain.db` (code graph + project neurons).
 
 ### Product-grade (`bench run eval`)
 
@@ -225,11 +240,9 @@ Hardware / corpus: macOS (darwin), hashing embedder (semantic off), **populated*
 | **Retrieval** | MRR / nDCG@5 | **0.94 / 0.91** | Ephemeral gold corpus; floors in fixture |
 | **Retrieval** | Theme-leak accuracy | **100%** (5/5) | In-corpus noise queries: theme neurons must not appear in top-5 |
 | **Retrieval** | Abstain accuracy | **100%** (5/5) | True off-topic queries with abstention enabled |
-| **Task** | Gold-fact coverage | **with 100% / without 85%** | 23 MemNetwork tasks; selective-read baseline (not full files) |
-| **Task** | Pass rate | **23/23 (100%)** | Hard gate: all `answer_facts` in pack + pack ≤1500 |
-| **Latency smoke** | recall / pack p95 | **0.9 / 1.1 ms** | Ephemeral tiny brain; targets ≤150 / ≤250 ms |
-| **Latency loaded** | recall / pack p95 | **648 / 758 ms** | Live brain; targets ≤1200 / ≤1500 ms |
-| **Eval aggregate** | All cases | **84/84 (100%)** | Includes regression canaries below |
+| **Task** | Pass rate | **17/23 (74%)** | Live-brain `answer_facts` gate; fixture drift vs 0.3.2’s 23/23 — not the public claim |
+| **Latency smoke** | recall / pack p95 | **2.1 / 3.3 ms** | Ephemeral tiny brain; targets ≤150 / ≤250 ms |
+| **Latency loaded** | recall / pack p95 | **808 / 224 ms** | Live brain; targets ≤1200 / ≤1500 ms |
 
 ### Cursor-framed pack-vs-dump (`compare` / `compare_v1`)
 
@@ -378,9 +391,10 @@ Loaded targets are calibrated for populated brains (~1k+ code nodes). Smoke targ
 
 ONNX MiniLM + CE rerank: `pip install -e "./brainkm[semantic]"` + `brainkm semantic doctor`. Not part of default eval gate.
 
-## Noise control and policy surfacing (0.3.2+)
+## Noise control and policy surfacing (since 0.3.2)
 
-Product fixes behind the split retrieval metrics and redaction task pass:
+Product fixes behind the split retrieval metrics and redaction task pass (landed in
+**0.3.2**; still in force on **0.9.0**):
 
 - **FTS overlap filter** — multi-token queries drop single-token collision hits (e.g. `learning`, `score`, `gate`) after OR-FTS retrieval.
 - **Abstention BM25 floor** — `RecallConfig.min_bm25_strength` (default 3.0) abstains when best BM25 is weak even if percentile would pass.

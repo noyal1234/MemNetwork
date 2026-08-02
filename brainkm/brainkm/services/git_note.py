@@ -425,15 +425,23 @@ def detect_external_hook_manager(project_dir: Path) -> str | None:
 
 
 def _hook_snippet(brainkm_bin: str) -> str:
-    """Prefer PATH ``brainkm``; fall back to resolved bin if PATH misses."""
+    """Prefer PATH ``brainkm``; fall back to resolved bin if PATH misses.
+
+    Also runs ``codex-capture``: Codex cannot execute brainkm hooks (see
+    services/codex_rollout), so a git hook is the only host-independent trigger
+    that reliably fires after Codex does work. It is duplicate-safe and quiet,
+    and a no-op when no Codex rollouts belong to this project.
+    """
     bin_q = quote(brainkm_bin)
     return (
         f"{HOOK_MARKER}\n"
         f'ROOT="$(git rev-parse --show-toplevel)"\n'
         f"if command -v brainkm >/dev/null 2>&1; then\n"
         f'  brainkm git-note --project-dir "$ROOT" >/dev/null 2>&1 || true\n'
+        f'  brainkm codex-capture --project-dir "$ROOT" --quiet >/dev/null 2>&1 || true\n'
         f"elif [ -x {bin_q} ]; then\n"
         f'  {bin_q} git-note --project-dir "$ROOT" >/dev/null 2>&1 || true\n'
+        f'  {bin_q} codex-capture --project-dir "$ROOT" --quiet >/dev/null 2>&1 || true\n'
         f"fi\n"
     )
 

@@ -75,7 +75,7 @@
         ]
       }
     ],
-    "Stop": [
+    "SessionEnd": [
       {
         "hooks": [
           {
@@ -83,6 +83,39 @@
             "command": "brainkm session-end --stdin --client codex",
             "timeout": 120,
             "statusMessage": "brainkm capture"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "brainkm agent-stop --stdin --client codex",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "brainkm subagent-start --stdin --client codex",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "brainkm subagent-stop --stdin --client codex",
+            "timeout": 60
           }
         ]
       }

@@ -41,6 +41,9 @@ BRAINKM_CLAUDE_MCP_TOOL_WILDCARD = "mcp__brainkm__*"
 # Cursor does not implement postCompact (use preCompact handover + sessionStart instead).
 # postToolUseFailure is Claude-oriented; Cursor surfaces failures on postToolUse payloads.
 CURSOR_UNSUPPORTED_HOOK_EVENTS = frozenset({"postCompact", "postToolUseFailure"})
+# Kept here (not in codex_rollout) so GITIGNORE_ENTRIES stays a single literal
+# list and uninstall can strip the same string.
+CODEX_CONTEXT_SKILL_IGNORE = ".codex/skills/brainkm-context/"
 GITIGNORE_ENTRIES = (
     ".brain/brain.db",
     ".brain/brain.db-wal",
@@ -49,6 +52,9 @@ GITIGNORE_ENTRIES = (
     ".brain/exports/",
     ".env",
     "graphify-out/",
+    # Regenerated memory pack for Codex (see services/codex_rollout). Rewritten
+    # on every commit by the post-commit hook, so it must never be tracked.
+    CODEX_CONTEXT_SKILL_IGNORE,
 )
 RULE_OVERLAP_KEYWORDS = (
     "project brain",
@@ -162,6 +168,12 @@ def build_hooks_config(
                 {
                     "command": f"{bin_q} user-prompt --stdin --client cursor",
                     "timeout": 5,
+                }
+            ],
+            "stop": [
+                {
+                    "command": f"{bin_q} agent-stop --stdin --client cursor",
+                    "timeout": 15,
                 }
             ],
         },
@@ -531,9 +543,22 @@ def build_codex_hooks_config(
 ) -> dict[str, object]:
     """Codex CLI hooks for ``.codex/hooks.json`` (PascalCase nested schema).
 
-    Codex has no SessionEnd — Stop runs ``session-end`` for capture/distill.
+    Codex *does* fire SessionEnd — verified against codex-cli 0.146 wire schema,
+    which defines SessionStart, SessionEnd, PreToolUse, PostToolUse,
+    UserPromptSubmit, PreCompact, PostCompact, Stop, SubagentStart and
+    SubagentStop. An earlier version of this builder claimed otherwise and
+    routed capture through Stop; Stop can fire repeatedly within one
+    conversation (it marks the end of an agent loop, not the session), so
+    capture belongs on SessionEnd and Stop only flushes counters.
+
     Tool matchers include ``Bash`` (Codex 0.130+ routes many edits through shell)
     plus ``apply_patch`` / ``Edit`` / ``Write`` and MCP ``mcp__.*``.
+
+    Codex 0.146 defines 11 hook events. We wire 10. ``PermissionRequest`` is
+    deliberately NOT wired: it exists so a hook can approve/deny a permission
+    prompt, and brainkm has no handler for it and no business auto-answering
+    permission requests on the user's behalf. That omission is a decision, not
+    an oversight — do not "fix" it by pointing it at an unrelated handler.
     """
     _ = config
     tool_matcher = "Bash|apply_patch|Edit|Write|mcp__.*"
@@ -581,7 +606,7 @@ def build_codex_hooks_config(
                 _codex_hook_command(brainkm_bin, "post-compact", "--stdin", timeout=30),
                 matcher="manual|auto",
             ),
-            "Stop": _claude_event_group(
+            "SessionEnd": _claude_event_group(
                 _codex_hook_command(
                     brainkm_bin,
                     "session-end",
@@ -589,6 +614,15 @@ def build_codex_hooks_config(
                     timeout=120,
                     status_message="brainkm capture",
                 ),
+            ),
+            "Stop": _claude_event_group(
+                _codex_hook_command(brainkm_bin, "agent-stop", "--stdin", timeout=15),
+            ),
+            "SubagentStart": _claude_event_group(
+                _codex_hook_command(brainkm_bin, "subagent-start", "--stdin", timeout=30),
+            ),
+            "SubagentStop": _claude_event_group(
+                _codex_hook_command(brainkm_bin, "subagent-stop", "--stdin", timeout=60),
             ),
         },
     }

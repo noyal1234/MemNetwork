@@ -65,9 +65,19 @@ _CLAUDE_INJECT_EVENTS = frozenset(
 )
 
 # Codex uses the same PascalCase hookEventName envelope as Claude for inject events.
-_CODEX_INJECT_EVENTS = frozenset({"sessionStart", "userPromptSubmit", "preToolUse", "postCompact"})
+# Events where Codex accepts hookSpecificOutput.additionalContext. Verified
+# against the codex-cli 0.146 wire schema, which defines *HookSpecificOutputWire
+# for exactly: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse,
+# SubagentStart, PermissionRequest. subagentStart MUST be here — it is an
+# inject-capable event, and omitting it silently downgrades a wired
+# SubagentStart hook to {"continue": true}, dropping the pack.
+_CODEX_INJECT_EVENTS = frozenset(
+    {"sessionStart", "userPromptSubmit", "preToolUse", "postCompact", "subagentStart"}
+)
 # Codex Stop / compact events must emit valid JSON (plain text is invalid for Stop).
-_CODEX_CONTINUE_EVENTS = frozenset({"sessionEnd", "stop", "preCompact", "postToolUse"})
+_CODEX_CONTINUE_EVENTS = frozenset(
+    {"sessionEnd", "stop", "preCompact", "postToolUse", "subagentStop"}
+)
 
 
 @dataclass(frozen=True)
@@ -87,12 +97,19 @@ class HookRunResult:
 def build_cursor_hook_stdout(result: HookRunResult, event: str) -> dict[str, object]:
     """Build JSON stdout for Cursor command hooks (stdout must be valid JSON)."""
     if event == "preToolUse":
+        if result.deny_reason:
+            return {"permission": "deny", "agent_message": result.deny_reason}
         response: dict[str, object] = {"permission": "allow"}
         if result.additional_context:
             response["agent_message"] = result.additional_context
         return response
 
     if event in {"sessionStart", "postToolUse", "postCompact"}:
+        # postCompact is kept only so a hand-wired hooks.json does not crash —
+        # brainkm never installs it for Cursor (install.merge_hooks_json strips
+        # it via CURSOR_UNSUPPORTED_HOOK_EVENTS, because Cursor has no such
+        # event). Do not treat this branch as evidence Cursor gets a post-
+        # compaction snapshot refresh; it currently does not.
         response: dict[str, object] = {}
         if result.additional_context:
             response["additional_context"] = result.additional_context
@@ -147,8 +164,20 @@ def build_codex_hook_stdout(result: HookRunResult, event: str) -> dict[str, obje
 
     Inject events use Claude-compatible ``hookSpecificOutput.additionalContext``.
     Capture / continue events return ``{"continue": true}`` and never ``decision: block``.
+    The one exception is an exactly-equivalent brainkm route on PreToolUse
+    (``result.deny_reason``) — same narrow case as Claude, denied via
+    ``permissionDecision=deny``.
     """
     if event in _CODEX_INJECT_EVENTS:
+        if event == "preToolUse" and result.deny_reason:
+            return {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": result.deny_reason,
+                },
+                "continue": True,
+            }
         if result.skipped or not result.additional_context:
             if event == "preToolUse":
                 return {
@@ -166,8 +195,6 @@ def build_codex_hook_stdout(result: HookRunResult, event: str) -> dict[str, obje
             "hookEventName": hook_event_name,
             "additionalContext": result.additional_context,
         }
-        # Prefer additionalContext-only for PreToolUse; Codex denies via
-        # permissionDecision=deny / exit 2 — we never block from brainkm.
         out: dict[str, object] = {"hookSpecificOutput": specific, "continue": True}
         return out
 
@@ -217,6 +244,50 @@ def _tool_input_from_payload(data: dict[str, object]) -> dict[str, object]:
         if isinstance(args, dict):
             return args
     return {}
+
+
+_FAILURE_FLAG_KEYS = ("is_error", "isError", "failed", "error_occurred")
+_FAILURE_CODE_KEYS = ("exit_code", "exitCode", "status_code", "returncode")
+# Deliberately excludes ``stderr``: successful commands write to it routinely
+# (git branch switches, npm WARN, pytest summaries), so treating any stderr
+# text as failure misclassifies most successful shell calls. Only fields whose
+# *name* asserts an error count here.
+_FAILURE_TEXT_KEYS = ("error", "failure", "error_message")
+_FAILURE_NESTED_KEYS = ("tool_response", "toolResponse", "result", "output")
+
+
+def _failed_from_payload(data: dict[str, object], *, _depth: int = 0) -> bool:
+    """True when a PostToolUse payload indicates the tool call failed.
+
+    Host-neutral substitute for Claude's PostToolUseFailure event (Cursor has
+    no such event at all — see install.CURSOR_UNSUPPORTED_HOOK_EVENTS).
+
+    Conservative on purpose. A false positive is expensive: ``failed=True``
+    does not merely write a bogus subtype=error neuron via
+    observe.record_observation — it also suppresses record_file_seed,
+    request_graph_sync, and process_post_tool for that call, silently
+    degrading file-seeded recall and procedure learning. So failure must be
+    asserted by an explicit boolean flag, a non-zero exit code, or a field
+    literally named as an error — never inferred from stream content.
+    """
+    for key in _FAILURE_FLAG_KEYS:
+        if data.get(key) is True:
+            return True
+    for key in _FAILURE_CODE_KEYS:
+        value = data.get(key)
+        if isinstance(value, int) and not isinstance(value, bool) and value != 0:
+            return True
+    for key in _FAILURE_TEXT_KEYS:
+        value = data.get(key)
+        if isinstance(value, str) and value.strip():
+            return True
+    if _depth >= 2:
+        return False
+    for key in _FAILURE_NESTED_KEYS:
+        nested = data.get(key)
+        if isinstance(nested, dict) and _failed_from_payload(nested, _depth=_depth + 1):
+            return True
+    return False
 
 
 def normalize_antigravity_stdin(
@@ -728,8 +799,13 @@ def run_pre_tool_use(
 
     # Deny before any pack work: a blocked call needs no context injected, and
     # this must not depend on the DB being reachable.
+    # Cursor/Codex both expose a real deny channel (permission="deny" / Codex
+    # permissionDecision=deny) — Antigravity is excluded because its
+    # "decision" field semantics for this case are the least documented of
+    # the four, and a wrong value there risks hanging the turn rather than
+    # cleanly declining the call.
     if (
-        (client or "").strip().lower() == "claude"
+        (client or "").strip().lower() in {"claude", "cursor", "codex"}
         and cfg.injection.deny_redundant_shell
         and _pattern_matches_tool("run_terminal", tool_name)
     ):
@@ -900,10 +976,18 @@ def run_post_tool_use(
     project_dir: Path | None = None,
     config: BrainConfig | None = None,
     failed: bool = False,
+    client: str | None = None,
 ) -> HookRunResult:
     """PostToolUse — observations, graph sync, co-activation / procedure promotion."""
     data = _parse_hook_object(raw)
-    if data.get("workspacePaths") or data.get("workspace_paths") or data.get("conversationId"):
+    # client="antigravity" is authoritative when present; the key-sniff below
+    # is the fallback for callers (or older installed hooks.json) that don't
+    # pass --client through. Relying on the sniff alone risks resolving
+    # project_dir to cwd (.agents/ under AGY) and recreating a shadow brain.
+    is_agy = (client or "").strip().lower() == "antigravity" or bool(
+        data.get("workspacePaths") or data.get("workspace_paths") or data.get("conversationId")
+    )
+    if is_agy:
         from brainkm.services.antigravity_session import resolve_antigravity_project_dir
 
         data = normalize_antigravity_stdin(data, event="PostToolUse")
@@ -911,6 +995,9 @@ def run_post_tool_use(
     cfg = config or load_brain_config(project_dir)
     session_id = _session_id_from_payload(data)
     tool_name = _tool_name_from_payload(data) or ""
+
+    if not failed and cfg.capture.detect_tool_failure:
+        failed = _failed_from_payload(data)
 
     if (
         cfg.graphify.enabled
@@ -994,17 +1081,24 @@ def _maybe_routing_nudge(
     *,
     client: str | None = None,
 ) -> str | None:
-    """Reminder to use brainkm MCP tools — Claude Code only (ToolSearch friction).
+    """Reminder to use brainkm MCP tools.
+
+    Two independent things bundled here:
+    - "tools not loaded — run ToolSearch" copy: Claude Code only. ToolSearch
+      deferred-tool friction is a Claude-specific mechanic; missing/None
+      client must not inherit this copy (Cursor/Codex/AGY never see it — see
+      the no-cross-contamination rule).
+    - "N tool calls since your last brainkm call" drift copy: host-neutral —
+      it names no ToolSearch step — so it is not gated by client. Previously
+      the whole function returned early for any non-Claude client, which
+      suppressed this host-neutral message too.
 
     Eligible when brainkm was never used this session, or after
     ``routing_nudge_rearm_after_calls`` tool_use rows since the last mcp call
     (sustained drift). Cap: ``routing_nudge_max_per_session`` (default 5).
     Nudge text is additive outside the SessionStart 1500-token pack (~40–80 tok each).
-    Missing/None client must not inherit Claude ToolSearch copy (Cursor/Codex/AGY).
     """
     kind = (client or "").strip().lower() or None
-    if kind != "claude":
-        return None
     if not cfg.injection.routing_nudge or not session_id:
         return None
 
@@ -1033,6 +1127,12 @@ def _maybe_routing_nudge(
         if int(drift) < int(cfg.injection.routing_nudge_rearm_after_calls):
             return None
         drift_calls = int(drift)
+
+    # The "never loaded" ToolSearch copy is Claude-only. Check this before the
+    # nudge_count/INSERT below — a suppressed message must not still burn a
+    # non-Claude session's routing_nudge_max_per_session budget.
+    if not drift_calls and kind != "claude":
+        return None
 
     nudge_count = conn.execute(
         "SELECT COUNT(*) AS c FROM session_activity WHERE session_id = ? AND kind = 'routing_nudge'",
@@ -1456,6 +1556,20 @@ def run_pre_invocation(
             transcript_bytes = tpath.stat().st_size
         except OSError:
             transcript_bytes = 0
+
+    # Cache session→transcript so the checkpoint MCP tool can force a handover.
+    # AGY has no SessionStart/UserPromptSubmit hook, so this is the only place
+    # the binding can be written — without it checkpoint always returns
+    # skipped="no transcript path cached", on the one host it exists for.
+    if session_id:
+        from brainkm.services.hook_session import set_last_hook_session
+
+        set_last_hook_session(
+            session_id=session_id,
+            client=client or "antigravity",
+            transcript_path=tpath,
+            project_dir=project_dir,
+        )
 
     did_handover = False
     if (

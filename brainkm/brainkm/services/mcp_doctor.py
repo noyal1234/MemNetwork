@@ -30,6 +30,7 @@ _CURSOR_EXPECTED_HOOK_EVENTS = (
     "preToolUse",
     "postToolUse",
     "beforeSubmitPrompt",
+    "stop",
 )
 
 
@@ -758,19 +759,25 @@ def inspect_codex_wiring(project_dir: Path) -> list[str]:
             "run `brainkm connect codex --hooks`"
         )
     else:
-        # Schema sanity: Stop should call session-end (Codex has no SessionEnd).
+        # Schema sanity: Codex *does* fire SessionEnd (verified against the
+        # codex-cli 0.146 wire schema). Capture belongs there, not on Stop —
+        # Stop marks the end of an agent loop and can fire repeatedly within a
+        # single conversation, so capture/distill on Stop re-runs every turn.
         try:
             data = json.loads(hooks_path.read_text(encoding="utf-8"))
-            stop_groups = (data.get("hooks") or {}).get("Stop") if isinstance(data, dict) else None
-            stop_blob = json.dumps(stop_groups) if stop_groups else ""
-            if "session-end" not in stop_blob:
+            hooks_obj = data.get("hooks") or {} if isinstance(data, dict) else {}
+            session_end_blob = json.dumps(hooks_obj.get("SessionEnd") or "")
+            stop_blob = json.dumps(hooks_obj.get("Stop") or "")
+            if "session-end" not in session_end_blob:
                 notes.append(
-                    "Codex Stop hook should run `brainkm session-end` (Codex has no SessionEnd)"
+                    "Codex SessionEnd hook should run `brainkm session-end` for "
+                    "capture/distill — re-run `brainkm connect codex --hooks`"
                 )
-            if "SessionEnd" in (data.get("hooks") or {}):
+            if "session-end" in stop_blob:
                 notes.append(
-                    "Codex hooks include SessionEnd — Codex does not fire that event; "
-                    "prefer Stop → session-end"
+                    "Codex Stop runs `session-end` — Stop can fire repeatedly per "
+                    "conversation, so this re-captures every turn; move capture to "
+                    "SessionEnd via `brainkm connect codex --hooks`"
                 )
         except json.JSONDecodeError:
             notes.append("Codex hooks.json is not valid JSON")
@@ -778,6 +785,26 @@ def inspect_codex_wiring(project_dir: Path) -> list[str]:
         notes.append(
             "Reminder (Codex UI): if SessionStart/Stop stay quiet, trust the project "
             "`.codex/` layer and `/hooks` — files alone cannot prove Codex trust"
+        )
+
+    # Be explicit that a present hooks.json does NOT mean Codex runs it. As of
+    # codex-cli 0.146 there is no working delivery path: `.codex/hooks.json` is
+    # not on a Codex component-discovery path, and a plugin manifest `hooks`
+    # key is rejected by Codex's own validate_plugin.py allowed_keys. Capture
+    # therefore comes from rollout transcripts, not from a SessionEnd hook.
+    notes.append(
+        "Codex hook delivery is not supported upstream (codex-cli 0.146): a present "
+        ".codex/hooks.json does not mean Codex runs it. Memory capture for Codex comes "
+        "from `brainkm codex-capture` (reads $CODEX_HOME rollouts, scoped by cwd), which "
+        "the post-commit git hook runs automatically. MCP tools and the routing skill are "
+        "unaffected and work normally."
+    )
+    from brainkm.services.git_note import post_commit_hook_installed
+
+    if not post_commit_hook_installed(root):
+        notes.append(
+            "post-commit git hook missing — Codex sessions will not be captured "
+            "automatically; run `brainkm install` or `brainkm codex-capture` manually"
         )
 
     return notes
