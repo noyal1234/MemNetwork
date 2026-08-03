@@ -93,7 +93,7 @@ Same method on the Cursor-framed `compare` suite averages **~94%**.
 
 Every pack stays under the hard **1,500-token** cap. Typical latency: **~13–18 ms**. Idle shared server: **~55–70 MB RAM**.
 
-Full scorecard → [docs/BENCHMARKS.md](docs/BENCHMARKS.md) · Cursor Core → [2026-07-30-endtask-cursor-core](docs/benchmarks/2026-07-30-endtask-cursor-core.md) · AGY Core → [2026-07-22-endtask-antigravity-core](docs/benchmarks/2026-07-22-endtask-antigravity-core.md) · Codex memory Core → [2026-08-03-endtask-codex-memory-core](docs/benchmarks/2026-08-03-endtask-codex-memory-core.md) · pack-vs-dump → [live run](docs/benchmarks/2026-07-21-antigravity-live.md) · [footprint](docs/benchmarks/2026-07-21-footprint.md) · CMA → [2026-07-31-cma](docs/benchmarks/2026-07-31-cma.md)
+Full scorecard → [docs/BENCHMARKS.md](docs/BENCHMARKS.md) · Cursor Core → [2026-07-30-endtask-cursor-core](docs/benchmarks/2026-07-30-endtask-cursor-core.md) · AGY Core → [2026-07-22-endtask-antigravity-core](docs/benchmarks/2026-07-22-endtask-antigravity-core.md) · Codex memory Core → [2026-08-03-endtask-codex-memory-core](docs/benchmarks/2026-08-03-endtask-codex-memory-core.md) · pack-vs-dump → [live run](docs/benchmarks/2026-07-21-antigravity-live.md) · [trajectory proxy](docs/benchmarks/2026-07-22-antigravity-trajectory-live.md) · [footprint](docs/benchmarks/2026-07-21-footprint.md) · CMA → [2026-07-31-cma](docs/benchmarks/2026-07-31-cma.md)
 
 ---
 

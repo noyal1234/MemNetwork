@@ -355,8 +355,15 @@ Default `--mode tokens-only` needs no API key. Optional `--mode llm` calls Groq/
 and only scores keyword hits when an arm **finishes** (413 / rate-limit dump failures
 are failures, not “0% decisions after 5 tool hops”).
 
-Latest: [2026-07-22-antigravity-trajectory-live.md](benchmarks/2026-07-22-antigravity-trajectory-live.md).
+**Published (brainkm 0.9.0, tokens-only):** dump → pack **95.7%** reduction
+(18 642 → 794 tokens, ~23.5×) across `agy_arch_pivot` / `agy_ast_refactor` /
+`agy_git_join`.
+Card: [2026-07-22-antigravity-trajectory-live](benchmarks/2026-07-22-antigravity-trajectory-live.md).
 
+```bash
+PYTHONPATH=brainkm .venv/bin/python brainkm/scripts/antigravity_trajectory_bench.py \
+  --mode tokens-only
+```
 ### Regression canaries (not headline claims)
 
 | Suite | Result | DB |
