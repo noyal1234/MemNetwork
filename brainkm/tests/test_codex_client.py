@@ -45,11 +45,13 @@ def test_build_codex_hooks_config_schema() -> None:
     events = hooks["hooks"]
     assert "SessionStart" in events
     assert "Stop" in events
-    # Codex DOES fire SessionEnd — verified against the codex-cli 0.146 wire
-    # schema. An earlier revision asserted `"SessionEnd" not in events` and
-    # routed capture through Stop; Stop marks the end of an agent loop and can
-    # fire repeatedly per conversation, which re-captured every turn.
-    assert "SessionEnd" in events
+    # SessionEnd is deliberately NOT wired: it never lands in Codex's own
+    # trust ledger (~/.codex/config.toml [hooks.state]) even after narrowing
+    # its timeout, confirmed 2026-08-02 on codex-cli 0.146 — despite an
+    # earlier revision of this builder claiming the wire schema fires it.
+    # Capture for Codex comes from `brainkm codex-capture` (rollout JSONL) via
+    # the post-commit git hook, not from any hook event.
+    assert "SessionEnd" not in events
     assert "UserPromptSubmit" in events
     assert "PreCompact" in events
     assert "PostCompact" in events
@@ -68,12 +70,8 @@ def test_build_codex_hooks_config_schema() -> None:
     assert "--client codex" in cmd
     assert "session-start" in cmd
 
-    # Capture/distill belongs on SessionEnd (once per session)...
-    session_end_cmd = events["SessionEnd"][0]["hooks"][0]["command"]
-    assert "session-end" in session_end_cmd
-    assert "--client codex" in session_end_cmd
-
-    # ...and Stop only flushes counters, matching the Claude wiring.
+    # Stop only flushes counters, matching the Claude wiring — it does not
+    # carry capture (no hook does, for Codex; see codex_rollout.py).
     stop_cmd = events["Stop"][0]["hooks"][0]["command"]
     assert "agent-stop" in stop_cmd
     assert "session-end" not in stop_cmd
@@ -207,8 +205,7 @@ def test_run_install_codex_writes_toml_hooks_skill(tmp_path: Path) -> None:
     hooks_data = json.loads(hooks.read_text(encoding="utf-8"))
     assert "SessionStart" in hooks_data["hooks"]
     assert "Stop" in hooks_data["hooks"]
-    assert "SessionEnd" in hooks_data["hooks"]
-    assert "session-end" in hooks_data["hooks"]["SessionEnd"][0]["hooks"][0]["command"]
+    assert "SessionEnd" not in hooks_data["hooks"]
     assert "agent-stop" in hooks_data["hooks"]["Stop"][0]["hooks"][0]["command"]
     assert any("trust" in w.lower() or "/hooks" in w for w in result.warnings)
     assert "OpenAI Codex" in agents.read_text(encoding="utf-8")
@@ -348,35 +345,52 @@ def test_doctor_inspects_codex_wiring(tmp_path: Path) -> None:
     assert codex.transport == "stdio"
 
 
-def test_doctor_does_not_claim_codex_lacks_session_end(tmp_path: Path) -> None:
-    """A freshly installed Codex wiring must produce no SessionEnd complaints.
-
-    The doctor used to assert 'Codex does not fire that event' and tell users
-    to move capture onto Stop — wrong for codex-cli 0.146, which defines
-    SessionEnd in its hook wire schema.
-    """
-    migrate(project_dir=tmp_path, run_integrity_check=False)
-    run_install(tmp_path, dev=True, force=True, client="codex", no_graph=True)
-    notes = inspect_codex_wiring(tmp_path)
-    blob = " ".join(notes)
-    assert "does not fire" not in blob
-    assert "Codex has no SessionEnd" not in blob
-    assert not any("SessionEnd hook should run" in n for n in notes)
-
-
-def test_doctor_flags_capture_left_on_stop(tmp_path: Path) -> None:
-    """Legacy wiring (capture on Stop) must now be flagged, since Stop can fire
-    repeatedly per conversation and would re-capture every turn."""
+def test_doctor_flags_stale_session_end_wiring(tmp_path: Path) -> None:
+    """A hooks.json still carrying SessionEnd (from a pre-fix install) must be
+    flagged: it never registers in Codex's trust ledger and only adds a
+    spurious /hooks trust prompt for a dead event."""
     import json as _json
 
     migrate(project_dir=tmp_path, run_integrity_check=False)
     run_install(tmp_path, dev=True, force=True, client="codex", no_graph=True)
     hooks_path = tmp_path / ".codex" / "hooks.json"
     data = _json.loads(hooks_path.read_text(encoding="utf-8"))
-    # Simulate the old layout: capture on Stop, no SessionEnd.
-    data["hooks"]["Stop"] = data["hooks"].pop("SessionEnd")
+    data["hooks"]["SessionEnd"] = [
+        {
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": "brainkm session-end --stdin --client codex",
+                }
+            ]
+        }
+    ]
     hooks_path.write_text(_json.dumps(data), encoding="utf-8")
 
     notes = inspect_codex_wiring(tmp_path)
-    assert any("SessionEnd hook should run" in n for n in notes)
+    assert any("never registers in Codex's trust ledger" in n for n in notes)
+
+
+def test_doctor_flags_capture_left_on_stop(tmp_path: Path) -> None:
+    """Capture on Stop must be flagged, since Stop can fire repeatedly per
+    conversation and would re-capture every turn."""
+    import json as _json
+
+    migrate(project_dir=tmp_path, run_integrity_check=False)
+    run_install(tmp_path, dev=True, force=True, client="codex", no_graph=True)
+    hooks_path = tmp_path / ".codex" / "hooks.json"
+    data = _json.loads(hooks_path.read_text(encoding="utf-8"))
+    data["hooks"]["Stop"] = [
+        {
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": "brainkm session-end --stdin --client codex",
+                }
+            ]
+        }
+    ]
+    hooks_path.write_text(_json.dumps(data), encoding="utf-8")
+
+    notes = inspect_codex_wiring(tmp_path)
     assert any("re-captures every turn" in n for n in notes)

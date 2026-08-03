@@ -83,16 +83,17 @@ Not a Cursor plugin. Not a second `@codebase`. Cursor locates symbols; MemNetwor
 
 Same method on the Cursor-framed `compare` suite averages **~94%**.
 
-**Full-agent Core A/B** (`endtask_h2h/2`, brainkm **0.9.0** — same 6×2×3 schedule, `--require-mcp`):
+**Full-agent Core A/B** (`endtask_h2h/3`, brainkm **0.9.0** — 6×2×3 schedule, `--require-mcp`):
 
-| Host | Pass with / without | mcp_ok | Session prompt tokens |
-|------|---------------------|--------|------------------------|
-| **Cursor** | **18/18** / 17/18 | **18/18** | **−30%** (71 115 vs 102 091) |
-| **Antigravity** | **18/18** / 12/18 | **18/18** | N/A (print-mode) |
+| Host | Fixture | Pass with / without | mcp_ok | Session prompt tokens |
+|------|---------|---------------------|--------|------------------------|
+| **Cursor** | `endtask_v1` | **18/18** / 17/18 | **18/18** | **−30%** (71 115 vs 102 091) |
+| **Antigravity** | `endtask_v1` | **18/18** / 12/18 | **18/18** | N/A (print-mode) |
+| **Codex** | `endtask_memory_v1` | **18/18** / 2/18 | **18/18** | **−17%** cum. / **−10%** per round |
 
 Every pack stays under the hard **1,500-token** cap. Typical latency: **~13–18 ms**. Idle shared server: **~55–70 MB RAM**.
 
-Full scorecard → [docs/BENCHMARKS.md](docs/BENCHMARKS.md) · Cursor Core → [2026-07-30-endtask-cursor-core](docs/benchmarks/2026-07-30-endtask-cursor-core.md) · AGY Core → [2026-07-22-endtask-antigravity-core](docs/benchmarks/2026-07-22-endtask-antigravity-core.md) · pack-vs-dump → [live run](docs/benchmarks/2026-07-21-antigravity-live.md) · [footprint](docs/benchmarks/2026-07-21-footprint.md)
+Full scorecard → [docs/BENCHMARKS.md](docs/BENCHMARKS.md) · Cursor Core → [2026-07-30-endtask-cursor-core](docs/benchmarks/2026-07-30-endtask-cursor-core.md) · AGY Core → [2026-07-22-endtask-antigravity-core](docs/benchmarks/2026-07-22-endtask-antigravity-core.md) · Codex memory Core → [2026-08-03-endtask-codex-memory-core](docs/benchmarks/2026-08-03-endtask-codex-memory-core.md) · pack-vs-dump → [live run](docs/benchmarks/2026-07-21-antigravity-live.md) · [footprint](docs/benchmarks/2026-07-21-footprint.md) · CMA → [2026-07-31-cma](docs/benchmarks/2026-07-31-cma.md)
 
 ---
 
@@ -278,12 +279,12 @@ Strict path: **MCP tool → service → adapter → SQLite** (DB-touching handle
 - [x] Cursor / Claude / Antigravity / Codex adapters
 - [x] Compaction survival (PreCompact + SessionEnd)
 - [x] Pack-vs-dump token benchmarks (**95.2%** live / **~94%** `compare`)
-- [x] Full-agent Core H2H (`endtask_h2h/2`): Cursor **−30%** tokens + mcp_ok 18/18; Antigravity **18/18 vs 12/18** + mcp_ok 18/18
+- [x] Full-agent Core H2H (`endtask_h2h/3`): Cursor **−30%** tokens + mcp_ok 18/18; Antigravity **18/18 vs 12/18** + mcp_ok 18/18; Codex memory **18/18 vs 2/18**, **−17%** cum. tokens + mcp_ok 18/18
 - [x] Shared HTTP MCP Bearer auth + loopback guards
 - [x] Browser graph explorer (`brainkm viz`) + optional TUI (`brainkm configure`)
 - [ ] PyPI / `uvx` one-liner (deferred — public release)
 - [ ] MCP Registry / host one-click installers (deferred)
-- [ ] End-task Full tier (120) + Claude/Codex hosts (optional stretch)
+- [ ] End-task Full tier (120) + Claude host (optional stretch)
 
 ---
 

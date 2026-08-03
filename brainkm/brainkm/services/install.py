@@ -543,18 +543,28 @@ def build_codex_hooks_config(
 ) -> dict[str, object]:
     """Codex CLI hooks for ``.codex/hooks.json`` (PascalCase nested schema).
 
-    Codex *does* fire SessionEnd — verified against codex-cli 0.146 wire schema,
-    which defines SessionStart, SessionEnd, PreToolUse, PostToolUse,
-    UserPromptSubmit, PreCompact, PostCompact, Stop, SubagentStart and
-    SubagentStop. An earlier version of this builder claimed otherwise and
-    routed capture through Stop; Stop can fire repeatedly within one
-    conversation (it marks the end of an agent loop, not the session), so
-    capture belongs on SessionEnd and Stop only flushes counters.
+    ``SessionEnd`` is deliberately NOT wired. Codex's wire schema claims to
+    define it, but empirically it never lands in Codex's own trust ledger
+    (``~/.codex/config.toml`` ``[hooks.state]``): all other 9 events we wire
+    get a ``trusted_hash`` entry after `/hooks` trust, ``session_end`` never
+    does, even after narrowing its declared timeout well under the other
+    events' — confirmed 2026-08-02 on codex-cli 0.146. A prior revision of
+    this docstring asserted the opposite ("Codex *does* fire SessionEnd —
+    verified against the wire schema") and wired it anyway; that revision was
+    wrong. Do not re-add it without a live re-verification against the
+    installed `codex` CLI's own hook schema, not against the earlier claim.
+
+    Capture for Codex is NOT hook-driven at all: it comes from
+    ``brainkm codex-capture`` reading Codex rollout JSONL, invoked by the
+    project's post-commit git hook (see ``services/codex_rollout.py``). Stop
+    only flushes use counters, matching the Claude wiring — it does not
+    substitute for capture (Stop can fire repeatedly within one conversation,
+    since it marks the end of an agent loop, not the session).
 
     Tool matchers include ``Bash`` (Codex 0.130+ routes many edits through shell)
     plus ``apply_patch`` / ``Edit`` / ``Write`` and MCP ``mcp__.*``.
 
-    Codex 0.146 defines 11 hook events. We wire 10. ``PermissionRequest`` is
+    Codex 0.146 defines 11 hook events. We wire 9. ``PermissionRequest`` is
     deliberately NOT wired: it exists so a hook can approve/deny a permission
     prompt, and brainkm has no handler for it and no business auto-answering
     permission requests on the user's behalf. That omission is a decision, not
@@ -605,15 +615,6 @@ def build_codex_hooks_config(
             "PostCompact": _claude_event_group(
                 _codex_hook_command(brainkm_bin, "post-compact", "--stdin", timeout=30),
                 matcher="manual|auto",
-            ),
-            "SessionEnd": _claude_event_group(
-                _codex_hook_command(
-                    brainkm_bin,
-                    "session-end",
-                    "--stdin",
-                    timeout=120,
-                    status_message="brainkm capture",
-                ),
             ),
             "Stop": _claude_event_group(
                 _codex_hook_command(brainkm_bin, "agent-stop", "--stdin", timeout=15),

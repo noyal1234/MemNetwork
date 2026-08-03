@@ -1,6 +1,6 @@
 # OpenAI Codex CLI + brainkm
 
-First-class Codex adapter: MCP lives in **`.codex/config.toml`** (not JSON `mcp.json`). Codex has **no SessionEnd** — **Stop** runs session-end capture. Project hooks require an explicit trust step.
+First-class Codex adapter: MCP lives in **`.codex/config.toml`** (not JSON `mcp.json`). Codex has **no working `SessionEnd`** — it never lands in Codex's own hook trust ledger, so it isn't wired at all. **Stop** only flushes counters; live hook capture/distill does not run on Codex. Capture instead comes from post-commit `brainkm codex-capture` reading Codex rollout JSONL. Project hooks require an explicit trust step.
 
 **Shared brain:** same `.brain/brain.db` as Cursor / Claude / Antigravity.  
 **Clone once:** [INSTALL.md](../INSTALL.md) · then wire this host.

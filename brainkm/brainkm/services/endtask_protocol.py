@@ -1,8 +1,27 @@
 """Uniform multi-host endtask protocol (Cursor / Antigravity / future hosts).
 
-``endtask_protocol/1.1`` — shared fixture tiers, MCP integrity, nullable tokens,
+``endtask_protocol/1.2`` — shared fixture tiers, MCP integrity, nullable tokens,
 run manifests, and with-arm MCP routing prefix so scorecards are comparable
 across hosts. Publish set label: ``endtask_h2h/2`` (see ``H2H_PUBLISH_SET``).
+
+Tokens, and why 1.2 exists
+--------------------------
+Hosts report per-turn ``input_tokens`` as the **cumulative** prompt bill across
+every model round-trip inside that turn — each tool result re-sends the whole
+conversation. So ``prompt_tokens`` grows superlinearly with tool-call count, and
+comparing raw ``mean_prompt_tokens`` across arms silently compares *round counts*,
+not context size. An arm that calls one extra tool looks "2x more expensive"
+even when its per-round context is smaller.
+
+1.2 therefore reports both:
+
+* ``mean_prompt_tokens`` — cumulative billed input (the real $ cost).
+* ``mean_tokens_per_round`` — cumulative / rounds (context size per model call).
+
+``model_rounds`` is derived as ``tool_calls + 1``: the host issues one model call
+to open the turn and one after each tool result. It is an approximation — it
+cannot see model calls that emitted no tool call and no final message — so treat
+it as a normalizer, not an exact round count.
 """
 
 from __future__ import annotations
@@ -24,7 +43,7 @@ from brainkm.services.endtask_bench import (
     select_tasks,
 )
 
-PROTOCOL_VERSION = "endtask_protocol/1.1"
+PROTOCOL_VERSION = "endtask_protocol/1.2"
 TokensSource = Literal["host_usage", "unavailable"]
 
 # Publish-set label for docs / scorecard notes (dated H2H refresh).
@@ -193,7 +212,12 @@ def mcp_ok_for_arm(*, arm: ArmName, mcp_calls: int) -> bool:
 
 
 def resolve_prompt_tokens(rec: EndTaskRunRecord) -> int | None:
-    """Host session input tokens, or None when unavailable."""
+    """Cumulative host input tokens billed across the turn, or None.
+
+    This is the sum over model round-trips, not the context size of any single
+    call — see the module docstring. Normalize with :func:`resolve_model_rounds`
+    before comparing arms that differ in tool-call count.
+    """
     if getattr(rec, "prompt_tokens", None) is not None:
         return rec.prompt_tokens
     if rec.context_tokens is not None:
@@ -201,6 +225,22 @@ def resolve_prompt_tokens(rec: EndTaskRunRecord) -> int | None:
     if rec.input_tokens is not None:
         return rec.input_tokens
     return None
+
+
+def resolve_model_rounds(rec: EndTaskRunRecord) -> int:
+    """Approximate model round-trips in the turn: one to open, one per tool result."""
+    explicit = getattr(rec, "model_rounds", None)
+    if explicit is not None:
+        return max(int(explicit), 1)
+    return max(int(rec.tool_calls or 0), 0) + 1
+
+
+def resolve_tokens_per_round(rec: EndTaskRunRecord) -> float | None:
+    """Cumulative input tokens divided by model rounds — per-call context size."""
+    pt = resolve_prompt_tokens(rec)
+    if pt is None:
+        return None
+    return float(pt) / float(resolve_model_rounds(rec))
 
 
 def resolve_completion_tokens(rec: EndTaskRunRecord) -> int | None:
@@ -288,6 +328,8 @@ def _arm_protocol_stats(
             "passed": 0,
             "rate": None,
             "mean_prompt_tokens": None,
+            "mean_tokens_per_round": None,
+            "mean_rounds": None,
             "mean_tools": None,
             "mean_mcp": None,
             "mcp_ok_n": 0,
@@ -297,6 +339,7 @@ def _arm_protocol_stats(
     mcp = [float(getattr(r, "mcp_calls", 0) or 0) for r in subset]
     mcp_ok_n = sum(1 for r in subset if getattr(r, "mcp_ok", True))
     tok_vals: list[float] = []
+    per_round_vals: list[float] = []
     if tokens_supported:
         for r in subset:
             if tokens_source_for_record(r) != "host_usage":
@@ -304,11 +347,17 @@ def _arm_protocol_stats(
             pt = resolve_prompt_tokens(r)
             if pt is not None:
                 tok_vals.append(float(pt))
+                per_round_vals.append(resolve_tokens_per_round(r) or 0.0)
+    rounds = [float(resolve_model_rounds(r)) for r in subset]
     return {
         "n": len(subset),
         "passed": passed,
         "rate": passed / len(subset),
         "mean_prompt_tokens": (sum(tok_vals) / len(tok_vals)) if tok_vals else None,
+        "mean_tokens_per_round": (
+            (sum(per_round_vals) / len(per_round_vals)) if per_round_vals else None
+        ),
+        "mean_rounds": sum(rounds) / len(rounds),
         "mean_tools": sum(tools) / len(tools),
         "mean_mcp": sum(mcp) / len(mcp),
         "mcp_ok_n": mcp_ok_n,
@@ -339,20 +388,28 @@ def render_protocol_markdown(
         t = stats.get("mean_prompt_tokens")
         return "—" if t is None else f"{t:.0f}"
 
-    token_note = ""
-    if (
-        manifest.tokens_supported
-        and with_s.get("mean_prompt_tokens") is not None
-        and without_s.get("mean_prompt_tokens") is not None
-        and float(without_s["mean_prompt_tokens"]) > 0
-    ):
-        w = float(with_s["mean_prompt_tokens"])
-        wo = float(without_s["mean_prompt_tokens"])
+    def _fmt_round_tok(stats: dict[str, Any]) -> str:
+        if not manifest.tokens_supported:
+            return "N/A"
+        t = stats.get("mean_tokens_per_round")
+        return "—" if t is None else f"{t:.0f}"
+
+    def _delta_note(key: str) -> str:
+        """Signed comparison of with-arm vs without-arm on one token metric."""
+        if not manifest.tokens_supported:
+            return ""
+        w_raw, wo_raw = with_s.get(key), without_s.get(key)
+        if w_raw is None or wo_raw is None or float(wo_raw) <= 0:
+            return ""
+        w, wo = float(w_raw), float(wo_raw)
         if w <= wo:
-            pct = (1.0 - w / wo) * 100.0
-            token_note = f" (−{pct:.0f}% vs without)"
-        else:
-            token_note = f" ({w / wo:.1f}× vs without)"
+            return f" (−{(1.0 - w / wo) * 100.0:.0f}% vs without)"
+        return f" ({w / wo:.1f}× vs without)"
+
+    # Cumulative tokens scale with round count, so this delta conflates context
+    # size with tool-call count. Per-round is the like-for-like comparison.
+    token_note = _delta_note("mean_prompt_tokens")
+    round_token_note = _delta_note("mean_tokens_per_round")
 
     integrity = "ok"
     with_recs = [r for r in report.records if r.arm == "with_brainkm" and not r.dry_run]
@@ -383,22 +440,41 @@ def render_protocol_markdown(
         "",
         "## Headline",
         "",
-        "| Arm | Pass | Mean tools | Mean MCP_db | mcp_ok | Mean prompt tokens |",
-        "|-----|------|------------|-------------|--------|--------------------|",
+        "| Arm | Pass | Mean tools | Mean MCP_db | mcp_ok | Mean rounds | "
+        "Cumulative prompt tokens | Tokens / round |",
+        "|-----|------|------------|-------------|--------|-------------|"
+        "--------------------------|----------------|",
         (
             f"| **with brainkm** | {_fmt_pass(with_s)} | "
             f"{(with_s['mean_tools'] if with_s['mean_tools'] is not None else 0):.1f} | "
             f"{(with_s['mean_mcp'] if with_s['mean_mcp'] is not None else 0):.1f} | "
-            f"{with_s['mcp_ok_n']}/{with_s['n']} | {_fmt_tok(with_s)}{token_note} |"
+            f"{with_s['mcp_ok_n']}/{with_s['n']} | "
+            f"{(with_s['mean_rounds'] if with_s['mean_rounds'] is not None else 0):.1f} | "
+            f"{_fmt_tok(with_s)}{token_note} | {_fmt_round_tok(with_s)}{round_token_note} |"
         ),
         (
             f"| without | {_fmt_pass(without_s)} | "
             f"{(without_s['mean_tools'] if without_s['mean_tools'] is not None else 0):.1f} | "
             f"{(without_s['mean_mcp'] if without_s['mean_mcp'] is not None else 0):.1f} | "
-            f"{without_s['mcp_ok_n']}/{without_s['n']} | {_fmt_tok(without_s)} |"
+            f"{without_s['mcp_ok_n']}/{without_s['n']} | "
+            f"{(without_s['mean_rounds'] if without_s['mean_rounds'] is not None else 0):.1f} | "
+            f"{_fmt_tok(without_s)} | {_fmt_round_tok(without_s)} |"
         ),
         "",
     ]
+    if manifest.tokens_supported:
+        lines.extend(
+            [
+                "> **Reading the token columns.** Hosts bill `input_tokens` cumulatively "
+                "across model round-trips — every tool result re-sends the whole "
+                "conversation. **Cumulative prompt tokens** is therefore the real $ cost "
+                "but scales with round count, so it cannot be read as \"this arm sends more "
+                "context\". **Tokens / round** (cumulative ÷ rounds) is the like-for-like "
+                "context-size comparison. When the two columns disagree in sign, the "
+                "difference is tool-call count, not pack size.",
+                "",
+            ]
+        )
     if not manifest.tokens_supported:
         lines.extend(
             [
@@ -413,23 +489,27 @@ def render_protocol_markdown(
             "## Per-run",
             "",
             "| Task | Class | Arm | Rep | Pass | Tools | MCP_db | mcp_ok | "
-            "prompt_tok | Status | Detail |",
+            "rounds | prompt_tok | tok/round | Status | Detail |",
             "|------|-------|-----|-----|------|-------|--------|--------|"
-            "------------|--------|--------|",
+            "--------|------------|-----------|--------|--------|",
         ]
     )
     for r in report.records:
         pt = resolve_prompt_tokens(r)
+        tpr = resolve_tokens_per_round(r)
         if not manifest.tokens_supported:
             pt_s = "N/A"
+            tpr_s = "N/A"
         else:
             pt_s = "—" if pt is None else str(pt)
+            tpr_s = "—" if tpr is None else f"{tpr:.0f}"
         detail = (r.grade_detail or r.error or "").replace("|", "\\|")[:100]
         lines.append(
             f"| `{r.task_id}` | {r.task_class} | {r.arm} | {r.repeat} | "
             f"{'Y' if r.passed else 'N'} | {r.tool_calls} | "
             f"{getattr(r, 'mcp_calls', 0)} | "
-            f"{'Y' if getattr(r, 'mcp_ok', True) else 'N'} | {pt_s} | "
+            f"{'Y' if getattr(r, 'mcp_ok', True) else 'N'} | "
+            f"{resolve_model_rounds(r)} | {pt_s} | {tpr_s} | "
             f"`{r.status}` | {detail} |"
         )
 

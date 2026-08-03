@@ -759,25 +759,30 @@ def inspect_codex_wiring(project_dir: Path) -> list[str]:
             "run `brainkm connect codex --hooks`"
         )
     else:
-        # Schema sanity: Codex *does* fire SessionEnd (verified against the
-        # codex-cli 0.146 wire schema). Capture belongs there, not on Stop —
-        # Stop marks the end of an agent loop and can fire repeatedly within a
-        # single conversation, so capture/distill on Stop re-runs every turn.
+        # Schema sanity: SessionEnd is deliberately NOT wired for Codex — it
+        # never lands in Codex's own trust ledger (~/.codex/config.toml
+        # [hooks.state]) even after narrowing its timeout, confirmed
+        # 2026-08-02 on codex-cli 0.146, despite the wire schema claiming to
+        # define it. Flag it if a stale hooks.json still carries it (from an
+        # install predating this fix), and flag capture left on Stop, which
+        # can fire repeatedly per conversation and would re-capture every turn.
         try:
             data = json.loads(hooks_path.read_text(encoding="utf-8"))
             hooks_obj = data.get("hooks") or {} if isinstance(data, dict) else {}
             session_end_blob = json.dumps(hooks_obj.get("SessionEnd") or "")
             stop_blob = json.dumps(hooks_obj.get("Stop") or "")
-            if "session-end" not in session_end_blob:
+            if "session-end" in session_end_blob:
                 notes.append(
-                    "Codex SessionEnd hook should run `brainkm session-end` for "
-                    "capture/distill — re-run `brainkm connect codex --hooks`"
+                    "Codex hooks.json still wires SessionEnd — it never registers in "
+                    "Codex's trust ledger and only adds a spurious `/hooks` trust "
+                    "prompt; re-run `brainkm connect codex --hooks` to drop it"
                 )
             if "session-end" in stop_blob:
                 notes.append(
                     "Codex Stop runs `session-end` — Stop can fire repeatedly per "
-                    "conversation, so this re-captures every turn; move capture to "
-                    "SessionEnd via `brainkm connect codex --hooks`"
+                    "conversation, so this re-captures every turn; capture for Codex "
+                    "comes from `brainkm codex-capture` (rollout JSONL) via the "
+                    "post-commit git hook, not from any live hook"
                 )
         except json.JSONDecodeError:
             notes.append("Codex hooks.json is not valid JSON")

@@ -4,8 +4,9 @@ Local project brain for **agentic coding IDEs** — MCP server backed by SQLite 
 
 **Product overview** (hero, features, benchmarks, multi-host setup): see the repo root [README.md](../README.md).
 
-**End-task H2H** (publish set `endtask_h2h/2`): Cursor + Antigravity Core under
-`endtask_protocol/1.1` — see [docs/BENCHMARKS.md](../docs/BENCHMARKS.md).
+**End-task H2H** (publish set `endtask_h2h/3`): Cursor + Antigravity Core
+(`endtask_v1`) plus Codex memory Core (`endtask_memory_v1` / protocol `1.2`) —
+see [docs/BENCHMARKS.md](../docs/BENCHMARKS.md).
 
 **Version:** `0.9.0`
 

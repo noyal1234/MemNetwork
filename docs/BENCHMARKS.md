@@ -51,12 +51,15 @@ Optional LLM judge (Ollama): `brainkm bench run task --judge`
 
 ### End-task A/B (agent with brainkm vs without)
 
-Uniform protocol **`endtask_protocol/1.1`** — shared fixture `endtask_v1`, Core/Full
-tiers, MCP integrity via `session_activity`, nullable host tokens, and shared
-with-arm MCP routing (`WITH_ARM_MCP_PREFIX`).
+Uniform protocol **`endtask_protocol/1.1`** (Cursor / AGY) and **`1.2`** (Codex —
+adds tokens/round reporting). Core/Full tiers, MCP integrity via
+`session_activity`, nullable host tokens, and shared with-arm MCP routing
+(`WITH_ARM_MCP_PREFIX`).
 
-**Publish set:** **`endtask_h2h/2`** (2026-07-30, brainkm **0.9.0**) — Cursor +
-Antigravity Core both measured under the same schedule. Prior cards remain under
+**Publish set:** **`endtask_h2h/3`** (2026-08-03, brainkm **0.9.0**) — Cursor +
+Antigravity Core on fixture `endtask_v1`, plus Codex Core on headroom-positive
+`endtask_memory_v1` (private seeded facts; `endtask_v1` is repo-answerable and
+cannot discriminate on a strong Codex model). Prior cards remain under
 [History](#end-task-history-preserved).
 
 | Tier | Schedule | When to publish |
@@ -77,39 +80,40 @@ export PATH="$HOME/.local/bin:$PATH"
 python brainkm/scripts/antigravity_endtask_harness.py \
   --allow-skip-permissions --home-mcp-swap --require-mcp \
   --tier core --repeats 3 --model gemini-3.6-flash-low
-```
 
-**Groq** remains knowledge-only pack A/B (`--backend groq`). Claude: pending.
-**Codex** harness is ready (ChatGPT login; default cheap model):
-
-```bash
+# Codex Core (ChatGPT login; memory fixture — not endtask_v1):
 python brainkm/scripts/codex_endtask_harness.py \
   --allow-skip-permissions --require-mcp \
-  --tier core --repeats 3 \
+  --tier core --fixture endtask_memory_v1 --repeats 3 \
   --model gpt-5.6-luna --reasoning-effort low
 ```
 
-#### Current artifacts (`endtask_h2h/2`)
+**Groq** remains knowledge-only pack A/B (`--backend groq`). Claude: pending.
 
-| Host | Tier | Protocol | Card |
-|------|------|----------|------|
-| **Cursor** | **Core** | `endtask_protocol/1.1` | [2026-07-30-endtask-cursor-core](benchmarks/2026-07-30-endtask-cursor-core.md) |
-| **Antigravity** | **Core** | `endtask_protocol/1` (prefix already applied; Core-compatible) | [2026-07-22-endtask-antigravity-core](benchmarks/2026-07-22-endtask-antigravity-core.md) |
+#### Current artifacts (`endtask_h2h/3`)
+
+| Host | Tier | Fixture | Protocol | Card |
+|------|------|---------|----------|------|
+| **Cursor** | **Core** | `endtask_v1` | `endtask_protocol/1.1` | [2026-07-30-endtask-cursor-core](benchmarks/2026-07-30-endtask-cursor-core.md) |
+| **Antigravity** | **Core** | `endtask_v1` | `endtask_protocol/1` (prefix already applied; Core-compatible) | [2026-07-22-endtask-antigravity-core](benchmarks/2026-07-22-endtask-antigravity-core.md) |
+| **Codex** | **Core** | `endtask_memory_v1` | `endtask_protocol/1.2` | [2026-08-03-endtask-codex-memory-core](benchmarks/2026-08-03-endtask-codex-memory-core.md) |
 
 > **AGY 0.9.0 remasure not published:** multi-model / flash-low runs hit quota and
 > produced only PARTIAL mcp_ok — do not replace the Jul 22 H2H card until a clean
 > single-model Core remasure finishes.
 
-#### Cross-host Core (`endtask_h2h/2`)
+#### Cross-host Core (`endtask_h2h/3`)
 
-| Host | Pass with / without | mcp_ok | Mean MCP_db (with) | Mean prompt tokens |
-|------|---------------------|--------|--------------------|--------------------|
-| **Cursor** | **18/18** / 17/18 | **18/18** | **1.4** | **−30%** (71 115 vs 102 091) |
-| **Antigravity** | **18/18** / 12/18 | **18/18** | **1.7** | N/A (print-mode) |
-| Claude / Codex | pending | — | — | — |
+| Host | Fixture | Pass with / without | mcp_ok | Mean MCP_db (with) | Mean prompt tokens |
+|------|---------|---------------------|--------|--------------------|--------------------|
+| **Cursor** | `endtask_v1` | **18/18** / 17/18 | **18/18** | **1.4** | **−30%** (71 115 vs 102 091) |
+| **Antigravity** | `endtask_v1` | **18/18** / 12/18 | **18/18** | **1.7** | N/A (print-mode) |
+| **Codex** | `endtask_memory_v1` | **18/18** / 2/18 | **18/18** | **1.9** | **−17%** cum. (170 128 vs 204 602); **−10%** / round |
+| Claude | — | pending | — | — | — |
 
-Compare pass / tools / mcp across hosts; **% token reduction only** where
-`tokens_supported=true` (Cursor today).
+Compare pass / tools / mcp across hosts. **% token reduction only** where
+`tokens_supported=true` (Cursor, Codex). Codex uses a different fixture on purpose —
+see [COMPARISON.md](benchmarks/COMPARISON.md) (cost model / headroom).
 
 **Pack-vs-dump (public pack claim):** `compare`, Antigravity live, and
 `brainkm/scripts/antigravity_trajectory_bench.py` (Antigravity-**themed** scenarios;
@@ -124,10 +128,13 @@ Compare pass / tools / mcp across hosts; **% token reduction only** where
 | 2026-07-30 | Cursor Core pre-routing | Protocol Core **before** WITH_ARM_MCP_PREFIX — mcp_ok **9/18** | [2026-07-30-endtask-cursor-core-pre-mcp-routing](benchmarks/2026-07-30-endtask-cursor-core-pre-mcp-routing.md) |
 | 2026-07-22 | AGY Core (current AGY) | First protocol Core publish (brainkm **0.8.1**, 6 MCP tools) | [2026-07-22-endtask-antigravity-core](benchmarks/2026-07-22-endtask-antigravity-core.md) |
 | 2026-07-30 | Cursor Core (current Cursor) | Protocol **1.1** + routing; mcp_ok **18/18**, **−30%** tokens | [2026-07-30-endtask-cursor-core](benchmarks/2026-07-30-endtask-cursor-core.md) |
+| 2026-08-02 | Codex Core `endtask_v1` (not published) | Strong model already short-circuits repo-answerable Core — no memory headroom | [2026-08-02-endtask-codex-core](benchmarks/2026-08-02-endtask-codex-core.md) |
+| 2026-08-03 | Codex Core memory (current Codex) | Protocol **1.2** + `endtask_memory_v1`; **18/18 vs 2/18**, mcp_ok 18/18, **−17%** cum. tokens | [2026-08-03-endtask-codex-memory-core](benchmarks/2026-08-03-endtask-codex-memory-core.md) |
 
 Protocol **1 → 1.1:** same Core/Full + MCP integrity; **1.1** requires shared
 `WITH_ARM_MCP_PREFIX` (and Cursor `setting_sources=project`) so `--require-mcp`
-measures real brainkm use, not optional Grep/Read shortcuts.
+measures real brainkm use, not optional Grep/Read shortcuts. **1.2** adds
+tokens/round beside cumulative prompt tokens (Codex billing is multi-round).
 ## Headline: recall@budget (≤1500-token pack)
 
 brainkm’s contract is not “gold in top-5 of an unbounded list” — it is **gold fact
@@ -309,16 +316,36 @@ Average **95.2% token reduction (~21.4× savings)** across Antigravity scenarios
 > Significance: **quality + proven MCP use** on a uniform fixture — not pack-vs-dump.
 > Card: [2026-07-22-endtask-antigravity-core](benchmarks/2026-07-22-endtask-antigravity-core.md).
 >
-> #### Cross-host Core (`endtask_h2h/2`)
+> #### End-task A/B scorecard — Codex Core (`endtask_protocol/1.2`, fixture `endtask_memory_v1`, publish set `endtask_h2h/3`)
 >
-> | Host | Tier | Pass with / without | mcp_ok | Mean prompt tokens |
-> |------|------|---------------------|--------|--------------------|
-> | Cursor | Core (`1.1`) | **18/18** / 17/18 | **18/18** | **−30%** (71 115 vs 102 091) |
-> | Antigravity | Core (`1`) | **18/18** / 12/18 | **18/18** | N/A |
-> | Claude / Codex | — | pending | — | — |
+> **Finding:** On the headroom-positive memory Core (36 live `gpt-5.6-luna`
+> / `effort=low` runs, `--require-mcp`, with-arm `WITH_ARM_MCP_PREFIX`), brainkm
+> went **18/18 pass vs 2/18 without**, with **mcp_ok 18/18** on both arms (with
+> mean **MCP_db=1.9**). Cumulative prompt tokens **−17%** (170 128 vs 204 602);
+> tokens/round **−10%** (25 323 vs 28 192). Private seeded facts are not in the
+> repo — without-arm cannot Grep them away.
+>
+> | Arm | Pass | Mean tools | Mean MCP_db | mcp_ok | Cum. prompt | Tokens / round |
+> |-----|------|------------|-------------|--------|-------------|----------------|
+> | **with brainkm** | **18/18** | 5.6 | **1.9** | **18/18** | **170 128 (−17%)** | **25 323 (−10%)** |
+> | without | 2/18 | 5.8 | 0.0 | 18/18 | 204 602 | 28 192 |
+>
+> Card:
+> [2026-08-03-endtask-codex-memory-core](benchmarks/2026-08-03-endtask-codex-memory-core.md).
+> Non-discriminating `endtask_v1` Codex probe kept under
+> [history](#end-task-history-preserved).
+>
+> #### Cross-host Core (`endtask_h2h/3`)
+>
+> | Host | Fixture | Tier | Pass with / without | mcp_ok | Mean prompt tokens |
+> |------|---------|------|---------------------|--------|--------------------|
+> | Cursor | `endtask_v1` | Core (`1.1`) | **18/18** / 17/18 | **18/18** | **−30%** (71 115 vs 102 091) |
+> | Antigravity | `endtask_v1` | Core (`1`) | **18/18** / 12/18 | **18/18** | N/A |
+> | Codex | `endtask_memory_v1` | Core (`1.2`) | **18/18** / 2/18 | **18/18** | **−17%** cum. / **−10%** per round |
+> | Claude | — | — | pending | — | — |
 >
 > Compare pass/tools/mcp across hosts; **% token reduction only** where
-> `tokens_supported=true` (Cursor today). Full tier (120) remains optional stretch.
+> `tokens_supported=true` (Cursor, Codex). Full tier (120) remains optional stretch.
 
 ### Pack-vs-dump proxy script (Antigravity-themed)
 

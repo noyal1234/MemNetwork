@@ -1,0 +1,28 @@
+{
+  "protocol_version": "endtask_protocol/1.2",
+  "fixture_id": "endtask_memory_v1",
+  "fixture_version": 1,
+  "tier": "core",
+  "brainkm_version": "0.9.0",
+  "host": "codex",
+  "host_cli_version": "codex-cli 0.146.0-alpha.9.2",
+  "model": "gpt-5.6-luna/effort=low",
+  "repo_git_sha": "2e1a094",
+  "harness_git_sha": "2e1a094",
+  "started_at": "2026-08-03T05:21:05.812991+00:00",
+  "finished_at": "2026-08-03T05:49:02.776910+00:00",
+  "run_id": "2026-08-03-codex-core-2e1a094",
+  "tokens_supported": true,
+  "notes": [
+    "protocol=endtask_protocol/1.2",
+    "tier=core",
+    "host=codex; tokens_supported=true (codex exec --json turn.completed.usage)",
+    "isolation: temp CODEX_HOME (auth only) + --ignore-rules --ephemeral; AGENTS.md neutralized",
+    "with-arm: temp CODEX_HOME [mcp_servers.brainkm] + WITH_ARM_MCP_PREFIX",
+    "auth: ChatGPT login / CODEX_API_KEY (API key not required when logged in)",
+    "model=gpt-5.6-luna",
+    "model_reasoning_effort=low",
+    "timeout=600s",
+    "require-mcp enabled"
+  ]
+}

@@ -75,18 +75,6 @@
         ]
       }
     ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "brainkm session-end --stdin --client codex",
-            "timeout": 120,
-            "statusMessage": "brainkm capture"
-          }
-        ]
-      }
-    ],
     "Stop": [
       {
         "hooks": [

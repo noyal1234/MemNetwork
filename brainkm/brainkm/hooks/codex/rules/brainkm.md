@@ -81,7 +81,7 @@ rediscovered the hard way.
 
 - **PreCompact** runs `brainkm handover` before lossy summarize.
 - **PostCompact** refreshes the frozen injection snapshot.
-- **Stop** captures the transcript into neurons (Codex has no SessionEnd).
+- **Stop** only flushes use counters (Codex has no working `SessionEnd` — it never registers in Codex's own hook trust ledger). Transcript capture instead comes from post-commit `brainkm codex-capture`, reading Codex rollout JSONL.
 
 ## Distill
 

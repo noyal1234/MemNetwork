@@ -381,6 +381,16 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--repo", type=Path, default=_REPO)
     p.add_argument("--tier", choices=("core", "full"), default="core")
+    p.add_argument(
+        "--fixture",
+        type=str,
+        default=None,
+        help=(
+            "Fixture path or packaged name (default: endtask_v1). Use "
+            "endtask_memory_v1 for the headroom-positive suite — endtask_v1 is "
+            "repo-answerable and cannot discriminate a memory arm on this host."
+        ),
+    )
     p.add_argument("--tasks", type=str, default="", help="Comma-separated task ids")
     p.add_argument("--repeats", type=int, default=1)
     p.add_argument("--arms", type=str, default="with_brainkm,without")
@@ -436,7 +446,7 @@ def main(argv: list[str] | None = None) -> int:
         for a in args.arms.split(",")
         if a.strip() in ("with_brainkm", "without")
     ]
-    fixture = load_endtask_fixture()
+    fixture = load_endtask_fixture(args.fixture)
     tasks = select_tasks_for_tier(fixture, tier=args.tier, task_ids=task_ids or None)
     if not tasks:
         print("No tasks selected", file=sys.stderr)

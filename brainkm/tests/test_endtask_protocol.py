@@ -6,8 +6,8 @@ from pathlib import Path
 
 from brainkm.services.endtask_bench import EndTaskReport, EndTaskRunRecord, load_endtask_fixture
 from brainkm.services.endtask_protocol import (
-    PROTOCOL_VERSION,
     H2H_PUBLISH_SET,
+    PROTOCOL_VERSION,
     WITH_ARM_MCP_PREFIX,
     RunManifest,
     core_task_ids,
@@ -93,11 +93,12 @@ def test_render_tokens_na_when_unsupported() -> None:
     )
     assert "N/A" in md
     assert PROTOCOL_VERSION in md
-    assert "Mean prompt tokens" in md
+    assert "Cumulative prompt tokens" in md
+    assert "Tokens / round" in md
 
 
 def test_with_arm_mcp_prefix_shared() -> None:
-    assert PROTOCOL_VERSION == "endtask_protocol/1.1"
+    assert PROTOCOL_VERSION == "endtask_protocol/1.2"
     assert H2H_PUBLISH_SET == "endtask_h2h/2"
     assert "brainkm MCP" in WITH_ARM_MCP_PREFIX
     assert "context_pack" in WITH_ARM_MCP_PREFIX
@@ -110,3 +111,51 @@ def test_cursor_harness_applies_with_arm_routing() -> None:
     assert "WITH_ARM_MCP_PREFIX" in text
     assert 'setting_sources = ["project"]' in text
     assert "WITH_ARM_MCP_PREFIX + base_prompt" in text
+
+
+def test_tokens_per_round_normalizes_cumulative_billing() -> None:
+    """A high-tool arm must not look context-heavy when its per-round context is smaller.
+
+    Hosts bill input_tokens cumulatively across round-trips, so cumulative alone
+    conflates round count with context size — the defect that made the 2026-08-02
+    Codex card read as "brainkm costs 2.1x context".
+    """
+    from brainkm.services.endtask_protocol import (
+        resolve_model_rounds,
+        resolve_tokens_per_round,
+    )
+
+    def _rec(arm: str, tools: int, prompt: int) -> EndTaskRunRecord:
+        return EndTaskRunRecord(
+            task_id="t",
+            task_class="knowledge",
+            arm=arm,  # type: ignore[arg-type]
+            repeat=1,
+            passed=True,
+            grade_detail="",
+            grade_method="regex",
+            context_tokens=prompt,
+            input_tokens=prompt,
+            output_tokens=10,
+            tokens_proxy=None,
+            wall_ms=1.0,
+            tool_calls=tools,
+            status="finished",
+            prompt_tokens=prompt,
+            tokens_source="host_usage",
+        )
+
+    # with-arm: 4 rounds x 10k. without-arm: 2 rounds x 15k.
+    # Cumulative says with-arm is 1.33x worse; per-round says it is 33% better.
+    with_rec = _rec("with_brainkm", tools=3, prompt=40_000)
+    without_rec = _rec("without", tools=1, prompt=30_000)
+
+    assert resolve_model_rounds(with_rec) == 4
+    assert resolve_model_rounds(without_rec) == 2
+    assert resolve_tokens_per_round(with_rec) == 10_000
+    assert resolve_tokens_per_round(without_rec) == 15_000
+
+    # An explicit model_rounds overrides the tool_calls + 1 derivation.
+    with_rec.model_rounds = 5
+    assert resolve_model_rounds(with_rec) == 5
+    assert resolve_tokens_per_round(with_rec) == 8_000

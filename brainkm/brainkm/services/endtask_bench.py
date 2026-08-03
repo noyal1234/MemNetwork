@@ -58,6 +58,11 @@ class EndTaskRunRecord:
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
     tokens_source: str = "unavailable"
+    # endtask_protocol/1.2: model round-trips in the turn. prompt_tokens is the
+    # cumulative bill across these rounds, so it must be normalized by this
+    # before arms with different tool-call counts are compared. None => derive
+    # as tool_calls + 1 (see endtask_protocol.resolve_model_rounds).
+    model_rounds: int | None = None
 
 
 @dataclass
@@ -79,13 +84,32 @@ class EndTaskReport:
     notes: list[str] = field(default_factory=list)
 
 
-def load_endtask_fixture(path: Path | None = None) -> dict[str, Any]:
-    """Load endtask fixture JSON from path or package data."""
-    if path is not None:
-        return json.loads(path.read_text(encoding="utf-8"))
+def load_endtask_fixture(path: Path | str | None = None) -> dict[str, Any]:
+    """Load endtask fixture JSON from a path, a bare fixture name, or package data.
+
+    Accepts a filesystem path, or a packaged fixture name such as
+    ``"endtask_memory_v1"`` (with or without the ``.json`` suffix) so hosts can
+    select a fixture without knowing where the package data lives. Defaults to
+    ``endtask_v1``.
+    """
     fixtures = resources.files("brainkm.bench.fixtures")
-    candidate = fixtures.joinpath("endtask_v1.json")
-    return json.loads(candidate.read_text(encoding="utf-8"))
+    if path is None:
+        return json.loads(
+            fixtures.joinpath("endtask_v1.json").read_text(encoding="utf-8")
+        )
+    candidate = Path(path)
+    if candidate.exists():
+        return json.loads(candidate.read_text(encoding="utf-8"))
+    # Not a real path — treat it as a packaged fixture name.
+    name = candidate.name
+    if not name.endswith(".json"):
+        name = f"{name}.json"
+    packaged = fixtures.joinpath(name)
+    if not packaged.is_file():
+        raise FileNotFoundError(
+            f"no endtask fixture at {path!r} and no packaged fixture named {name!r}"
+        )
+    return json.loads(packaged.read_text(encoding="utf-8"))
 
 
 def select_tasks(

@@ -1,0 +1,231 @@
+{
+  "id": "endtask_memory_v1",
+  "version": 1,
+  "description": "Headroom-positive end-task A/B. Every answer lives ONLY in seeded neurons and is provably absent from the working tree, so the no-memory arm cannot recover it by grep. Companion to endtask_v1, which is repo-answerable and therefore cannot discriminate (see docs/benchmarks/2026-08-02-endtask-codex-core.md).",
+  "design_note": "endtask_v1 asks about brainkm's own config inside the brainkm repo, so `rg` answers it in one call and the with-memory arm only adds cost. A project brain can only be measured on facts the code does not contain: rejected alternatives, superseded values, pivot rationale, incident causes, and team conventions. Every task here carries a headroom_check \u2014 a ripgrep pattern that MUST return no matches against the working tree. If a headroom_check ever starts matching, that task has leaked into the repo and is no longer a valid memory test.",
+  "core_task_ids": [
+    "m_rejected_chunking",
+    "m_superseded_budget",
+    "m_incident_shadow_write",
+    "m_pivot_semantic",
+    "c_apply_quorum_floor",
+    "c_hydration_guard_flag"
+  ],
+  "tiers": {
+    "core": "6 pinned tasks (4 knowledge + 2 change) x 2 arms x repeats",
+    "full": "All 8 tasks x 2 arms x repeats"
+  },
+  "headroom_contract": {
+    "rule": "For every task, running its headroom_check against the repo worktree must yield zero matches BEFORE the run. Enforced by tests/test_endtask_memory_fixture.py.",
+    "excluded_paths": [
+      ".brain/",
+      ".git/",
+      "docs/benchmarks/",
+      "brainkm/brainkm/bench/fixtures/",
+      "brainkm/build/",
+      "graphify-out/",
+      "*.html (generated snapshot reports)",
+      "brainkm/tests/test_endtask_memory_fixture.py"
+    ],
+    "why_excluded": "The fixture, this test, prior scorecards, and generated caches contain the answers by construction or by numeric coincidence. What must stay clean is the source an agent would actually mine for a decision."
+  },
+  "seed_neurons": [
+    {
+      "id": "etm_dec_chunking_rejected",
+      "title": "Fixed-window chunking rejected before dual-grain",
+      "subtype": "decision",
+      "content": "Before dual-grain retrieval we tried fixed 576-token windows over session text. It scored R@5 0.71 on the stratified slice versus 0.93 for whole-session blobs. Rejected because session boundaries carry most of the retrieval signal and fixed windows cut across them. No fixed-window code was ever merged."
+    },
+    {
+      "id": "etm_dec_budget_superseded",
+      "title": "Pack budget was 4200 before the noise regression",
+      "subtype": "decision",
+      "content": "budget.total_tokens shipped at 4200 through v0.4. Pack noise measured 0.87 at that cap and agents began ignoring injected packs entirely. Cut to the current value after noise fell to 0.74. The 4200 era is why the budget is a hard cap rather than advisory."
+    },
+    {
+      "id": "etm_err_shadow_write",
+      "title": "Shadow brain write incident",
+      "subtype": "error",
+      "content": "Symptom: remember() returned success but recall() never found the neuron. Cause: the MCP server resolved --project-dir relative to its own cwd, so writes landed in a second brain.db under the server's launch directory instead of the project. Fix: resolve project_dir to an absolute path at server startup before opening any connection. Detection signal: brain_stats neuron count not incrementing after a successful remember."
+    },
+    {
+      "id": "etm_dec_semantic_deferred",
+      "title": "Full-500 semantic deferred behind a 0.87 gate",
+      "subtype": "decision",
+      "content": "Full-500 --semantic runs are deferred until the stratified hybrid clears R@5 0.87, which is the FTS blob baseline plus margin. Hybrid peaked at 0.73 stratified, so the gate is not met. The gate exists because a hybrid that loses to plain FTS would still cost an embedding pass per session."
+    },
+    {
+      "id": "etm_rule_quorum_floor",
+      "title": "Retrieval quorum_floor standardized at 3",
+      "subtype": "rule",
+      "content": "Any new retrieval path must set quorum_floor to 3 \u2014 a result is only promoted when at least three independent signals agree. Standardized after two-signal promotion produced theme-leak on keyword collisions. Applies to every retrieval config added from v0.6 onward."
+    },
+    {
+      "id": "etm_rule_hydration_guard",
+      "title": "hydration_guard required on all pack readers",
+      "subtype": "rule",
+      "content": "Every code path that reads a context pack must be gated behind the hydration_guard flag, default false. Added because packs read before graph sync completed returned partial neighborhoods that looked like real abstentions and were silently trusted."
+    },
+    {
+      "id": "etm_ctx_reindex_epoch",
+      "title": "reindex_epoch bumped only on schema change",
+      "subtype": "context",
+      "content": "The reindex_epoch counter is bumped only when the neuron schema changes, never on content writes. An early version bumped it per write, which invalidated the FTS index on every remember and made capture O(n^2). Current value at the time of this note: 7."
+    },
+    {
+      "id": "etm_dec_distill_peer",
+      "title": "Distill peer chosen by extractor backend, not IDE",
+      "subtype": "decision",
+      "content": "capture.distill_mode names the extractor backend, not the host IDE. A Codex session may legitimately distill with claude -p if that is the configured backend. This was a recurring misconfiguration: users set distill_mode to match their editor and got a fallback to rules mode when that CLI was absent."
+    }
+  ],
+  "seed_edges": [
+    {
+      "from_id": "etm_dec_budget_superseded",
+      "to_id": "etm_dec_chunking_rejected",
+      "relationship": "relates_to"
+    },
+    {
+      "from_id": "etm_rule_hydration_guard",
+      "to_id": "etm_err_shadow_write",
+      "relationship": "relates_to"
+    },
+    {
+      "from_id": "etm_dec_semantic_deferred",
+      "to_id": "etm_dec_chunking_rejected",
+      "relationship": "relates_to"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "m_rejected_chunking",
+      "class": "knowledge",
+      "smoke": true,
+      "prompt": "Before dual-grain retrieval, what chunking approach did this project try and reject, what did it score, and why was it rejected?",
+      "max_turns": 3,
+      "grade": {
+        "type": "regex",
+        "patterns": [
+          "576",
+          "0\\.71",
+          "(?i)(boundar|session)"
+        ]
+      },
+      "headroom_check": "576|0\\.71",
+      "reference": "Fixed 576-token windows, R@5 0.71, rejected because session boundaries carry the signal."
+    },
+    {
+      "id": "m_superseded_budget",
+      "class": "knowledge",
+      "smoke": true,
+      "prompt": "What was budget.total_tokens set to before its current value, and what measurement caused the change?",
+      "max_turns": 3,
+      "grade": {
+        "type": "regex",
+        "patterns": [
+          "4200",
+          "0\\.87",
+          "(?i)noise"
+        ]
+      },
+      "headroom_check": "4200|0\\.87",
+      "reference": "4200 through v0.4; pack noise 0.87 forced the cut."
+    },
+    {
+      "id": "m_incident_shadow_write",
+      "class": "knowledge",
+      "smoke": true,
+      "prompt": "remember() reports success but recall() never finds the neuron. This has happened before in this project. What was the cause and the fix?",
+      "max_turns": 3,
+      "grade": {
+        "type": "regex",
+        "patterns": [
+          "(?i)(cwd|working director|relative)",
+          "(?i)absolute",
+          "(?i)(project.?dir|second brain|shadow)"
+        ]
+      },
+      "headroom_check": "shadow brain write incident",
+      "reference": "project_dir resolved relative to server cwd -> second brain.db; fix is absolute resolution at startup."
+    },
+    {
+      "id": "m_pivot_semantic",
+      "class": "knowledge",
+      "smoke": true,
+      "prompt": "What specific R@5 gate must the stratified hybrid clear before full-500 --semantic runs are enabled, and what does the hybrid currently score?",
+      "max_turns": 3,
+      "grade": {
+        "type": "regex",
+        "patterns": [
+          "0\\.87",
+          "0\\.73"
+        ]
+      },
+      "headroom_check": "0\\.87|0\\.73",
+      "reference": "Gate is R@5 0.87; stratified hybrid peaked at 0.73."
+    },
+    {
+      "id": "m_reindex_epoch",
+      "class": "knowledge",
+      "smoke": false,
+      "prompt": "When is reindex_epoch bumped in this project, and what went wrong with the earlier policy?",
+      "max_turns": 3,
+      "grade": {
+        "type": "regex",
+        "patterns": [
+          "(?i)schema",
+          "(?i)(per write|every write|each write|content write)",
+          "(?i)(n\\^2|quadratic|o\\(n)"
+        ]
+      },
+      "headroom_check": "reindex_epoch",
+      "reference": "Bumped only on schema change; per-write bumping made capture O(n^2)."
+    },
+    {
+      "id": "m_distill_peer",
+      "class": "knowledge",
+      "smoke": false,
+      "prompt": "A user on Codex set capture.distill_mode to codex and got rules-mode fallback. What is the actual rule for choosing distill_mode?",
+      "max_turns": 3,
+      "grade": {
+        "type": "regex",
+        "patterns": [
+          "(?i)(extractor|backend)",
+          "(?i)not (the )?(ide|host|editor)|rather than the (ide|host|editor)"
+        ]
+      },
+      "headroom_check": "extractor backend, not the IDE",
+      "reference": "distill_mode names the extractor backend, not the host IDE."
+    },
+    {
+      "id": "c_apply_quorum_floor",
+      "class": "change",
+      "smoke": true,
+      "prompt": "Add a retrieval quorum floor setting to BudgetConfig in brainkm/brainkm/models/brain_config.py, following this project's standardized value for it.",
+      "max_turns": 6,
+      "grade": {
+        "type": "checker",
+        "command": "rg -n 'quorum_floor.*(=|:).*3|quorum_floor.*default.*3' brainkm/brainkm/models/brain_config.py"
+      },
+      "headroom_check": "quorum_floor",
+      "reference": "quorum_floor must default to 3 \u2014 memory-only convention."
+    },
+    {
+      "id": "c_hydration_guard_flag",
+      "class": "change",
+      "smoke": true,
+      "prompt": "Add the project's required guard flag for context-pack readers to BudgetConfig in brainkm/brainkm/models/brain_config.py, with the project's mandated default.",
+      "max_turns": 6,
+      "grade": {
+        "type": "checker",
+        "command": "rg -n 'hydration_guard.*(=|:).*(False|false)' brainkm/brainkm/models/brain_config.py"
+      },
+      "headroom_check": "hydration_guard",
+      "reference": "hydration_guard, default false \u2014 memory-only convention."
+    }
+  ],
+  "cost_estimate": {
+    "usd_per_run_rough": 0.05,
+    "note": "Same shape as endtask_v1; 8 tasks x 2 arms x 3 repeats = 48 runs at full tier."
+  }
+}
