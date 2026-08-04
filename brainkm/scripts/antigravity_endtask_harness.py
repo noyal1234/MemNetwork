@@ -6,6 +6,7 @@ Optional ``--tier host-smoke`` keeps the older AGY-only soft-grade scenarios.
 
 MCP: prefer ``--home-mcp-swap`` (agy 1.1.x often ignores workspace
 ``.agents/mcp_config.json``). Tokens: always N/A (``tokens_source=unavailable``).
+Pass ``--model`` (e.g. ``gemini-3.6-flash-low``) to conserve plan quota.
 
 Examples::
 
@@ -13,7 +14,7 @@ Examples::
 
     python brainkm/scripts/antigravity_endtask_harness.py \\
       --allow-skip-permissions --home-mcp-swap --require-mcp \\
-      --tier core --repeats 3
+      --tier core --repeats 3 --model gemini-3.6-flash-low
 """
 
 from __future__ import annotations
@@ -248,6 +249,47 @@ def home_mcp_swap(*, enabled: bool, with_brainkm: bool, mcp_project_dir: Path) -
                 path.write_text(prev, encoding="utf-8")
 
 
+def _parse_print_timeout_seconds(print_timeout: str) -> int:
+    """Parse agy ``--print-timeout`` values like ``5m``, ``90s``, ``120`` → seconds."""
+    raw = (print_timeout or "5m").strip().lower()
+    if raw.endswith("ms") and raw[:-2].isdigit():
+        return max(1, int(raw[:-2]) // 1000)
+    if raw.endswith("s") and raw[:-1].isdigit():
+        return max(1, int(raw[:-1]))
+    if raw.endswith("m") and raw[:-1].isdigit():
+        return max(1, int(raw[:-1]) * 60)
+    if raw.endswith("h") and raw[:-1].isdigit():
+        return max(1, int(raw[:-1]) * 3600)
+    if raw.isdigit():
+        return max(1, int(raw))
+    return 300
+
+
+def _is_quota_error(status: str, text: str = "") -> bool:
+    blob = f"{status}\n{text}".lower()
+    return "individual quota reached" in blob or "quota reached" in blob
+
+
+def load_finished_records_from_ndjson(path: Path) -> list[EndTaskRunRecord]:
+    """Load prior schedule rows with ``status == finished`` for resume/merge."""
+    from dataclasses import fields
+
+    known = {f.name for f in fields(EndTaskRunRecord)}
+    out: list[EndTaskRunRecord] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        raw = json.loads(line)
+        if "_manifest" in raw:
+            continue
+        if str(raw.get("status") or "") != "finished":
+            continue
+        payload = {k: v for k, v in raw.items() if k in known}
+        out.append(EndTaskRunRecord(**payload))  # type: ignore[arg-type]
+    return out
+
+
 def run_agy_print(
     *,
     agy_bin: str,
@@ -255,32 +297,94 @@ def run_agy_print(
     prompt: str,
     allow_skip_permissions: bool,
     print_timeout: str,
+    model: str | None = None,
+    effort: str | None = None,
 ) -> tuple[str, float, str]:
+    import signal
+    import subprocess
+    import tempfile
+
     cmd = [agy_bin, f"--print-timeout={print_timeout}"]
+    if model:
+        cmd.append(f"--model={model}")
+    if effort:
+        cmd.append(f"--effort={effort}")
     if allow_skip_permissions:
         cmd.append("--dangerously-skip-permissions")
     cmd.extend(["--print", prompt])
+    # Temp files (not pipes): agy often leaves zombie parents while grandchildren
+    # keep stdout/stderr open, which hangs subprocess.communicate forever.
+    wall_timeout_s = _parse_print_timeout_seconds(print_timeout) + 60
     t0 = time.perf_counter()
+    out_path = err_path = None
+    proc = None
     try:
-        completed = __import__("subprocess").run(
-            cmd,
-            cwd=str(worktree),
-            capture_output=True,
-            text=True,
-            timeout=None,
-            check=False,
-            env={**os.environ, "PATH": f"{Path(agy_bin).parent}:{os.environ.get('PATH', '')}"},
-        )
+        with (
+            tempfile.NamedTemporaryFile(
+                prefix="agy_stdout_", suffix=".txt", delete=False
+            ) as out_f,
+            tempfile.NamedTemporaryFile(
+                prefix="agy_stderr_", suffix=".txt", delete=False
+            ) as err_f,
+        ):
+            out_path, err_path = Path(out_f.name), Path(err_f.name)
+            proc = subprocess.Popen(
+                cmd,
+                cwd=str(worktree),
+                stdout=out_f,
+                stderr=err_f,
+                text=True,
+                start_new_session=True,
+                env={
+                    **os.environ,
+                    "PATH": f"{Path(agy_bin).parent}:{os.environ.get('PATH', '')}",
+                },
+            )
+        deadline = t0 + wall_timeout_s
+        while proc.poll() is None:
+            if time.perf_counter() >= deadline:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pass
+                out = out_path.read_text(encoding="utf-8", errors="replace").strip()
+                err = err_path.read_text(encoding="utf-8", errors="replace").strip()
+                return (
+                    (out or err).strip(),
+                    (time.perf_counter() - t0) * 1000.0,
+                    f"error:wall_timeout_{wall_timeout_s}s",
+                )
+            time.sleep(0.25)
+        out = out_path.read_text(encoding="utf-8", errors="replace").strip()
+        err = err_path.read_text(encoding="utf-8", errors="replace").strip()
+        wall_ms = (time.perf_counter() - t0) * 1000.0
+        rc = proc.returncode or 0
+        if rc != 0:
+            status = f"error:exit_{rc}:{err[:200] or out[:200]}"
+            return out or err, wall_ms, status
+        if "headless mode cannot prompt" in out or "headless mode cannot prompt" in err:
+            return out, wall_ms, "error:permissions_denied"
+        if _is_quota_error("", out) or _is_quota_error("", err):
+            return out or err, wall_ms, f"error:quota:{(err or out)[:200]}"
+        return out, wall_ms, "finished"
     except Exception as exc:  # noqa: BLE001
+        if proc is not None and proc.poll() is None:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
         return "", (time.perf_counter() - t0) * 1000.0, f"error:{exc}"
-    wall_ms = (time.perf_counter() - t0) * 1000.0
-    out = (completed.stdout or "").strip()
-    err = (completed.stderr or "").strip()
-    if completed.returncode != 0:
-        return out or err, wall_ms, f"error:exit_{completed.returncode}:{err[:200]}"
-    if "headless mode cannot prompt" in out or "headless mode cannot prompt" in err:
-        return out, wall_ms, "error:permissions_denied"
-    return out, wall_ms, "finished"
+    finally:
+        for p in (out_path, err_path):
+            if p is not None:
+                try:
+                    p.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
 
 def _agy_version(agy_bin: str) -> str:
@@ -320,6 +424,19 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--allow-skip-permissions", action="store_true")
     p.add_argument("--print-timeout", type=str, default="5m")
+    p.add_argument(
+        "--model",
+        type=str,
+        default="",
+        help="agy --model id (e.g. gemini-3.6-flash-low). Empty = account default.",
+    )
+    p.add_argument(
+        "--effort",
+        type=str,
+        default="",
+        choices=("", "low", "medium", "high"),
+        help="Optional agy --effort (omit when model id already encodes effort).",
+    )
     p.add_argument("--home-mcp-swap", action="store_true")
     p.add_argument("--require-mcp", action="store_true")
     p.add_argument("--no-graph-sync", action="store_true")
@@ -330,7 +447,23 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument("--out", type=Path, default=None)
     p.add_argument("--keep-worktrees", action="store_true")
+    p.add_argument(
+        "--resume-from",
+        type=Path,
+        default=None,
+        help="Prior protocol ndjson: keep finished rows, re-run only unfinished/missing slots.",
+    )
     args = p.parse_args(argv)
+    model = (args.model or "").strip() or None
+    effort = (args.effort or "").strip() or None
+    resume_from = args.resume_from.resolve() if args.resume_from else None
+    prior_finished: list[EndTaskRunRecord] = []
+    if resume_from is not None:
+        if not resume_from.is_file():
+            print(f"--resume-from not found: {resume_from}", file=sys.stderr)
+            return 1
+        prior_finished = load_finished_records_from_ndjson(resume_from)
+        print(f"Resume: loaded {len(prior_finished)} finished rows from {resume_from}")
 
     agy_bin = ensure_agy_on_path()
     if not agy_bin:
@@ -381,20 +514,44 @@ def main(argv: list[str] | None = None) -> int:
         "host=antigravity; tokens_supported=false",
         "MCP via session_activity; prefer --home-mcp-swap",
         f"print-timeout={args.print_timeout}",
+        f"model={model or 'agy-default'}",
     ]
+    if effort:
+        notes.append(f"effort={effort}")
+    if resume_from is not None:
+        notes.append(f"resume-from={resume_from.name} kept_finished={len(prior_finished)}")
+        notes.append(
+            "multi-model schedule: prior finished rows retained; "
+            f"new slots use model={model or 'agy-default'}"
+        )
     if args.home_mcp_swap:
         notes.append("home-mcp-swap enabled")
     if args.require_mcp:
         notes.append("require-mcp enabled")
 
     n_runs = len(tasks) * len(arms) * args.repeats
+    skip_keys = {(r.task_id, r.arm, r.repeat) for r in prior_finished}
+    schedule_keys = {
+        (str(t["id"]), arm, rep)
+        for t in tasks
+        for arm in arms
+        for rep in range(1, args.repeats + 1)
+    }
+    resume_skip_n = len(skip_keys & schedule_keys)
+    remaining = len(schedule_keys) - resume_skip_n
     print(
-        f"Plan: agy={agy_bin} tier={args.tier} tasks={len(tasks)} arms={arms} "
-        f"repeats={args.repeats} → {n_runs} runs dry_run={args.dry_run}"
+        f"Plan: agy={agy_bin} tier={args.tier} model={model or 'agy-default'} "
+        f"effort={effort or '-'} tasks={len(tasks)} arms={arms} "
+        f"repeats={args.repeats} → {n_runs} slots "
+        f"(resume_skip={resume_skip_n} remaining={remaining}) dry_run={args.dry_run}"
     )
     if args.dry_run:
         for t in tasks:
-            print(f"  - {t['id']}")
+            for arm in arms:
+                for rep in range(1, args.repeats + 1):
+                    key = (str(t["id"]), arm, rep)
+                    mark = "skip" if key in skip_keys else "RUN"
+                    print(f"  [{mark}] {t['id']}-{arm}-r{rep}")
         return 0
 
     if not args.allow_skip_permissions:
@@ -407,10 +564,19 @@ def main(argv: list[str] | None = None) -> int:
         print("git required for worktrees", file=sys.stderr)
         return 1
 
-    records: list[EndTaskRunRecord] = []
+    records: list[EndTaskRunRecord] = list(prior_finished)
+    quota_abort = False
     for task in tasks:
+        if quota_abort:
+            break
         for arm in arms:
+            if quota_abort:
+                break
             for rep in range(1, args.repeats + 1):
+                key = (str(task["id"]), arm, rep)
+                if key in skip_keys:
+                    print(f"\n=== {task['id']}-{arm}-r{rep} ===\n  resume-skip (finished)")
+                    continue
                 label = f"{task['id']}-{arm}-r{rep}"
                 print(f"\n=== {label} ===")
                 worktree = create_worktree(repo, args.work_root.resolve(), label)
@@ -447,6 +613,8 @@ def main(argv: list[str] | None = None) -> int:
                         prompt=prompt,
                         allow_skip_permissions=True,
                         print_timeout=args.print_timeout,
+                        model=model,
+                        effort=effort,
                     )
                 time.sleep(0.4)
                 transcript = newest_transcript_after(mtime_before)
@@ -519,7 +687,48 @@ def main(argv: list[str] | None = None) -> int:
                 if not args.keep_worktrees:
                     remove_worktree(repo, worktree)
 
+                if _is_quota_error(status, final_text or ""):
+                    print(
+                        "\nABORT: Antigravity quota reached — refusing incomplete "
+                        "scorecard. Re-run after quota resets.",
+                        file=sys.stderr,
+                    )
+                    quota_abort = True
+                    break
+
+    if quota_abort:
+        notes.append("ABORTED: individual quota reached — not publishable")
+        abort_out = out.with_name(out.stem + "-quota-aborted.md")
+        out = abort_out
+
+    # Stable schedule order for the merged scorecard.
+    # When resuming a subset, keep prior rows ordered by Core/Full ids.
+    if resume_from is not None and args.tier in ("core", "full") and not host_smoke:
+        order_tasks = select_tasks_for_tier(fixture, tier=args.tier)
+        order_arms: list[ArmName] = ["with_brainkm", "without"]
+        order_reps = 3
+    else:
+        order_tasks = tasks
+        order_arms = arms
+        order_reps = args.repeats
+    order_index = {
+        (str(t["id"]), arm, rep): i
+        for i, (t, arm, rep) in enumerate(
+            (t, arm, rep)
+            for t in order_tasks
+            for arm in order_arms
+            for rep in range(1, order_reps + 1)
+        )
+    }
+    records.sort(
+        key=lambda r: order_index.get((r.task_id, r.arm, r.repeat), 10_000)
+    )
+
     finished = utc_now_iso()
+    if resume_from is not None and model:
+        manifest_model = f"mixed:{model}+prior"
+    else:
+        manifest_model = model or "agy-default"
     manifest = RunManifest(
         protocol_version=PROTOCOL_VERSION,
         fixture_id=str(fixture.get("id") or "endtask_v1"),
@@ -527,7 +736,7 @@ def main(argv: list[str] | None = None) -> int:
         tier=args.tier,
         host="antigravity",
         host_cli_version=_agy_version(agy_bin),
-        model="agy-default",
+        model=manifest_model,
         repo_git_sha=sha,
         harness_git_sha=sha,
         started_at=started,
@@ -552,9 +761,42 @@ def main(argv: list[str] | None = None) -> int:
     print(md)
 
     with_recs = [r for r in records if r.arm == "with_brainkm"]
+    if quota_abort:
+        return 4
+    # Resume merges prior finished rows; expect the full retained schedule,
+    # not just this invocation's task×arm×repeat product.
+    expected_keys = set(order_index.keys()) if resume_from is not None else {
+        (str(t["id"]), arm, rep)
+        for t in tasks
+        for arm in arms
+        for rep in range(1, args.repeats + 1)
+    }
+    got_keys = {(r.task_id, r.arm, r.repeat) for r in records}
+    if expected_keys - got_keys:
+        print(
+            f"WARNING: incomplete schedule missing={sorted(expected_keys - got_keys)[:8]} "
+            f"({len(got_keys)}/{len(expected_keys)}) — not publishable",
+            file=sys.stderr,
+        )
+        return 5
+    unfinished = [r for r in records if r.status != "finished"]
+    if unfinished:
+        print(
+            f"WARNING: {len(unfinished)} non-finished runs — not publishable",
+            file=sys.stderr,
+        )
+        return 5
     if args.require_mcp and with_recs and not any(r.mcp_ok for r in with_recs):
         print("WARNING: no with_brainkm MCP_ok — not H2H-publishable", file=sys.stderr)
         return 3
+    if args.require_mcp and with_recs:
+        mcp_ok_n = sum(1 for r in with_recs if r.mcp_ok)
+        if mcp_ok_n < len(with_recs):
+            print(
+                f"WARNING: with-arm mcp_ok {mcp_ok_n}/{len(with_recs)} — "
+                "partial MCP integrity (publish only if intentional)",
+                file=sys.stderr,
+            )
     return 0
 
 

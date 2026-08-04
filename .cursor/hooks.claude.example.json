@@ -2,6 +2,7 @@
   "hooks": {
     "SessionStart": [
       {
+        "matcher": "startup|resume|clear",
         "hooks": [
           {
             "type": "command",
@@ -47,7 +48,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Write|Edit|Bash",
+        "matcher": "Write|Edit|Bash|Read|Grep|Glob",
         "hooks": [
           {
             "type": "command",

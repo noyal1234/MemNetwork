@@ -51,9 +51,63 @@ def test_print_argv_order() -> None:
     text = _SCRIPT.read_text(encoding="utf-8")
     assert 'cmd.extend(["--print", prompt])' in text
     assert 'cmd = [agy_bin, "--print", f"--print-timeout=' not in text
+    assert 'cmd.append(f"--model={model}")' in text
 
 
 def test_tier_default_is_core() -> None:
     text = _SCRIPT.read_text(encoding="utf-8")
     assert 'default="core"' in text
     assert "select_tasks_for_tier" in text
+
+
+def test_quota_error_detection() -> None:
+    bench = _load()
+    assert bench._is_quota_error(
+        "error:exit_1:Error: Individual quota reached. Please upgrade"
+    )
+    assert not bench._is_quota_error("error:exit_1:timeout waiting")
+
+def test_load_finished_records_skips_errors(tmp_path: Path) -> None:
+    bench = _load()
+    nd = tmp_path / "partial.ndjson"
+    rows = [
+        {"_manifest": {"model": "x"}},
+        {
+            "task_id": "k_budget_cap",
+            "task_class": "knowledge",
+            "arm": "with_brainkm",
+            "repeat": 1,
+            "passed": True,
+            "grade_detail": "ok",
+            "grade_method": "regex",
+            "context_tokens": None,
+            "input_tokens": None,
+            "output_tokens": None,
+            "tokens_proxy": 1,
+            "wall_ms": 1.0,
+            "tool_calls": 1,
+            "status": "finished",
+            "mcp_ok": True,
+        },
+        {
+            "task_id": "k_layers",
+            "task_class": "knowledge",
+            "arm": "without",
+            "repeat": 1,
+            "passed": False,
+            "grade_detail": "quota",
+            "grade_method": "regex",
+            "context_tokens": None,
+            "input_tokens": None,
+            "output_tokens": None,
+            "tokens_proxy": 0,
+            "wall_ms": 1.0,
+            "tool_calls": 0,
+            "status": "error:exit_1:quota",
+            "mcp_ok": True,
+        },
+    ]
+    nd.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    loaded = bench.load_finished_records_from_ndjson(nd)
+    assert len(loaded) == 1
+    assert loaded[0].task_id == "k_budget_cap"

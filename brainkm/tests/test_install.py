@@ -228,6 +228,21 @@ def test_run_install_writes_cursor_and_brain_files(tmp_path: Path) -> None:
 
     gitignore = (tmp_path / ".gitignore").read_text(encoding="utf-8")
     assert ".brain/brain.db" in gitignore
+    assert ".cursor/mcp.json" in gitignore
+
+
+def test_run_install_dev_claude_gitignores_mcp_json(tmp_path: Path) -> None:
+    run_install(tmp_path, dev=True, force=True, client="claude")
+
+    gitignore = (tmp_path / ".gitignore").read_text(encoding="utf-8")
+    assert ".mcp.json" in gitignore
+
+
+def test_run_install_prod_does_not_gitignore_mcp_json(tmp_path: Path) -> None:
+    run_install(tmp_path, dev=False, force=True)
+
+    gitignore = (tmp_path / ".gitignore").read_text(encoding="utf-8")
+    assert ".cursor/mcp.json" not in gitignore
 
 
 def test_run_install_skips_existing_config_without_force(tmp_path: Path) -> None:

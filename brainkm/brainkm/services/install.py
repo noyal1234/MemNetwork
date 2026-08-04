@@ -56,6 +56,13 @@ GITIGNORE_ENTRIES = (
     # on every commit by the post-commit hook, so it must never be tracked.
     CODEX_CONTEXT_SKILL_IGNORE,
 )
+# Dev installs (``--dev``) bake the local venv's absolute ``brainkm`` binary path
+# into the client's MCP config, which breaks for any other machine/teammate.
+# Gitignore that file by default so it never leaves the dev checkout accidentally.
+DEV_MCP_CONFIG_GITIGNORE_PATHS: dict[str, str] = {
+    "cursor": ".cursor/mcp.json",
+    "claude": ".mcp.json",
+}
 RULE_OVERLAP_KEYWORDS = (
     "project brain",
     "brainkm",
@@ -1515,7 +1522,13 @@ def run_install(
         save_brain_config(root, cfg)
         result.files_written.append(config_dst)
 
-    for entry in GITIGNORE_ENTRIES:
+    gitignore_entries = GITIGNORE_ENTRIES
+    if dev:
+        dev_mcp_entry = DEV_MCP_CONFIG_GITIGNORE_PATHS.get(adapter.kind)
+        if dev_mcp_entry is not None:
+            gitignore_entries = (*gitignore_entries, dev_mcp_entry)
+
+    for entry in gitignore_entries:
         if _ensure_gitignore_entry(root, entry):
             result.files_written.append(root / ".gitignore")
 
