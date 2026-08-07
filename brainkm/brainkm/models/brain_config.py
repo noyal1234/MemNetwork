@@ -116,6 +116,13 @@ class InjectionConfig(BaseModel):
     # tool — currently single-file `git log/blame` vs trace_changes. Advisory
     # context loses to habit; only a deny reliably re-routes. Claude Code only.
     deny_redundant_shell: bool = True
+    # Antigravity has no SessionStart (fires once/session) — PreInvocation
+    # fires every turn instead. should_inject_pack() already gates re-injection
+    # on frozen-pack content change (same pack_hash => no repeat send), so this
+    # is only a periodic "still here" cadence, not a per-turn resend. 0 disables
+    # the periodic resend entirely and relies solely on the pack_hash gate
+    # (content changes, e.g. after a synthetic-precompact handover, still inject).
+    agy_reinject_every_n: int = Field(default=8, ge=0, le=50)
 
 
 class LearningConfig(BaseModel):

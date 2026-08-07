@@ -65,6 +65,11 @@ def build_distill_status(
     from brainkm.adapters.claude_distill import resolve_claude_bin
     from brainkm.adapters.codex_distill import resolve_codex_bin
 
+    if project_dir is not None:
+        from brainkm.config import apply_project_env
+
+        apply_project_env(project_dir)
+
     cfg_path = config_path(project_dir)
     active_mode = "cursor"
     ollama_base = "http://127.0.0.1:11434"

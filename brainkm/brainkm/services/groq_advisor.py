@@ -157,6 +157,12 @@ def build_groq_report(
     api_key: str | None = None,
 ) -> GroqDoctorReport:
     """Assemble Groq key, reachability, and config status."""
+    # Settings.env_file=".env" is cwd-relative; configure/doctor often run with
+    # --project-dir pointing elsewhere. Load that project's .env first.
+    if api_key is None and project_dir is not None:
+        from brainkm.config import apply_project_env
+
+        apply_project_env(project_dir)
     resolved_key = api_key if api_key is not None else get_settings().groq_api_key
     cfg_path = config_path(project_dir)
     config_model: str | None = None

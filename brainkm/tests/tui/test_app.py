@@ -34,11 +34,12 @@ async def test_screens_are_bound_to_project_dir(
     the TUI read/write the wrong project's `.brain/` directory.
     """
     app = BrainkmConfigureApp(project_dir=tui_project)
+    expected = tui_project.expanduser().resolve()
     async with app.run_test() as pilot:
         app.switch_screen(screen_name)
         await pilot.pause()
         assert isinstance(app.screen, screen_cls)
-        assert app.screen._project_dir == tui_project
+        assert app.screen._project_dir == expected
 
 
 async def test_launches_dashboard_when_brain_exists(tui_project: Path) -> None:

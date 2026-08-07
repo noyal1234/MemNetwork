@@ -1089,7 +1089,10 @@ class WizardScreen(Screen):
 
     @work(thread=True, group="wizard", exit_on_error=False)
     def _do_apply_api_key(self, api_key: str) -> dict[str, Any]:
-        env_path = self._project_dir / ".env"
+        from brainkm.services.install import resolve_project_dir
+
+        root = resolve_project_dir(self._project_dir)
+        env_path = root / ".env"
         lines: list[str] = []
         found = False
         if env_path.is_file():
@@ -1111,7 +1114,7 @@ class WizardScreen(Screen):
         try:
             from brainkm.services.groq_advisor import build_groq_report
 
-            report = build_groq_report(project_dir=self._project_dir)
+            report = build_groq_report(project_dir=root)
             return {
                 "step": STEP_APIKEY,
                 "reachable": report.status.reachable,

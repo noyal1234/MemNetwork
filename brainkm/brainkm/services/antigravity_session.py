@@ -149,11 +149,17 @@ class AgyHealResult:
 
     hooks_rewritten: bool = False
     shadow_removed: bool = False
+    permissions_healed: bool = False
     sessions_merged: int = 0
 
     @property
     def changed(self) -> bool:
-        return self.hooks_rewritten or self.shadow_removed or self.sessions_merged > 0
+        return (
+            self.hooks_rewritten
+            or self.shadow_removed
+            or self.permissions_healed
+            or self.sessions_merged > 0
+        )
 
 
 def _merge_agy_session_states(
@@ -274,6 +280,16 @@ def heal_antigravity_wiring(
                 logger.info("agy_heal rewritten hooks with --project-dir path=%s", hooks_path)
             except Exception:  # noqa: BLE001
                 logger.warning("agy_heal failed to rewrite hooks", exc_info=True)
+
+    mcp_path = agents / "mcp_config.json"
+    if mcp_path.is_file():
+        try:
+            from brainkm.services.install import ensure_antigravity_mcp_config_permissions
+
+            ensure_antigravity_mcp_config_permissions(root)
+            result.permissions_healed = True
+        except Exception:  # noqa: BLE001
+            logger.warning("agy_heal failed to heal mcp permissions", exc_info=True)
 
     return result
 

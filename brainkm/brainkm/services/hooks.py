@@ -1613,6 +1613,7 @@ def run_pre_invocation(
             state,
             invocation_num=invocation_num,
             pack_hash=pack_hash,
+            every_n=cfg.injection.agy_reinject_every_n,
         )
         if inject and pack_text:
             record_neuron_activity(

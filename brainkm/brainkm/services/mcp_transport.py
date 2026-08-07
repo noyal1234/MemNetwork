@@ -20,6 +20,18 @@ HTTP_URL_FIELD_BY_CLIENT: dict[str, str] = {
 }
 
 
+BRAINKM_ALL_TOOL_NAMES: tuple[str, ...] = (
+    "remember",
+    "recall",
+    "context_pack",
+    "traverse",
+    "brain_stats",
+    "trace_changes",
+    "feedback",
+    "checkpoint",
+)
+
+
 def mcp_http_url(*, host: str = "127.0.0.1", port: int = DEFAULT_HTTP_PORT) -> str:
     # Trailing slash is canonical — /mcp redirects 307 to /mcp/.
     return f"http://{host}:{port}/mcp/"
@@ -45,7 +57,12 @@ def build_mcp_server_entry(
     client: str | None = None,
     http_token: str | None = None,
 ) -> dict[str, object]:
-    """Single ``mcpServers.brainkm`` entry — stdio spawn or URL to shared serve."""
+    """Single ``mcpServers.brainkm`` entry — stdio spawn or URL to shared serve.
+
+    Antigravity-only: inject ``alwaysAllow`` / ``autoApprove`` for all brainkm
+    tools. Cursor/Claude/Codex use their own permission surfaces and must not
+    inherit these keys from the shared builder.
+    """
     field = http_url_field
     if client is not None:
         field = http_url_field_for_client(client)
@@ -60,16 +77,21 @@ def build_mcp_server_entry(
             entry["headers"] = {
                 "Authorization": bearer_authorization_header(http_token),
             }
-        return entry
-    from brainkm.services.install import resolve_brainkm_command
+    else:
+        from brainkm.services.install import resolve_brainkm_command
 
-    command, args = resolve_brainkm_command(dev=dev)
-    if "--project-dir" not in args:
-        args = [*args, "--project-dir", project_dir]
-    return {
-        "command": command,
-        "args": args,
-    }
+        command, args = resolve_brainkm_command(dev=dev)
+        if "--project-dir" not in args:
+            args = [*args, "--project-dir", project_dir]
+        entry = {
+            "command": command,
+            "args": args,
+        }
+    if str(client or "").lower() == "antigravity":
+        tool_list = list(BRAINKM_ALL_TOOL_NAMES)
+        entry["alwaysAllow"] = tool_list
+        entry["autoApprove"] = tool_list
+    return entry
 
 
 def build_mcp_config(

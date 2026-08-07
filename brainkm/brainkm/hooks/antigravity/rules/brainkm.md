@@ -1,3 +1,11 @@
+---
+trigger: always_on
+description: >-
+  brainkm project-memory routing — call recall / traverse / context_pack /
+  trace_changes before architectural or multi-file edits; feedback after useful
+  recalls; checkpoint before long context loss.
+---
+
 # MemNetwork (brainkm)
 
 This project uses **brainkm** — a local SQLite project brain at `.brain/brain.db`.
@@ -49,9 +57,9 @@ breakage (venv, hooks, MCP wiring) is exactly the class that is already in memor
 rediscovered the hard way.
 
 ## 🚨 MANDATORY BRAINKM ROUTING FOR ANTIGRAVITY
-1. **BEFORE proposing architectural changes or refactors**, you MUST execute `mcp_brainkm_recall` to fetch past architectural decisions.
-2. **BEFORE editing functions across multiple files**, you MUST execute `mcp_brainkm_traverse` with the symbol/path to analyze blast radius and dependencies.
-3. **BEFORE modifying existing files**, check `mcp_brainkm_trace_changes` for recent commits and decision context.
+1. **BEFORE proposing architectural changes or refactors**, you MUST call `recall` to fetch past architectural decisions.
+2. **BEFORE editing functions across multiple files**, you MUST call `traverse` with the symbol/path to analyze blast radius and dependencies.
+3. **BEFORE modifying existing files**, check `trace_changes` for recent commits and decision context.
 
 ## MANDATORY BRAINKM TOOL ROUTING (Antigravity)
 

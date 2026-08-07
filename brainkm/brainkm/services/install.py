@@ -21,21 +21,18 @@ from brainkm.services.config_loader import example_config_path
 from brainkm.services.graph_import import import_project_graph
 from brainkm.services.hooks import pre_tool_matcher
 from brainkm.services.mcp_http_auth import restrict_secret_file
+from brainkm.services.mcp_transport import BRAINKM_ALL_TOOL_NAMES
 
 logger = get_logger("services.install")
 
 CURSOR_MIN_VERSION_NOTE = "0.46"
 BRAINKM_MCP_SERVER_KEY = "brainkm"
-# Claude Code permission names for MCP tools (must stay in sync with TOOL_DEFINITIONS).
-BRAINKM_CLAUDE_MCP_TOOL_ALLOWS: tuple[str, ...] = (
-    "mcp__brainkm__remember",
-    "mcp__brainkm__recall",
-    "mcp__brainkm__context_pack",
-    "mcp__brainkm__traverse",
-    "mcp__brainkm__brain_stats",
-    "mcp__brainkm__trace_changes",
-    "mcp__brainkm__feedback",
-    "mcp__brainkm__checkpoint",
+# Claude & Antigravity tool permission names (must stay in sync with TOOL_DEFINITIONS).
+BRAINKM_CLAUDE_MCP_TOOL_ALLOWS: tuple[str, ...] = tuple(
+    f"mcp__brainkm__{name}" for name in BRAINKM_ALL_TOOL_NAMES
+)
+BRAINKM_ANTIGRAVITY_MCP_TOOL_ALLOWS: tuple[str, ...] = tuple(
+    f"brainkm/{name}" for name in BRAINKM_ALL_TOOL_NAMES
 )
 BRAINKM_CLAUDE_MCP_TOOL_WILDCARD = "mcp__brainkm__*"
 # Cursor does not implement postCompact (use preCompact handover + sessionStart instead).
@@ -82,7 +79,9 @@ class InstallResult:
 
 
 def resolve_project_dir(project_dir: Path | None) -> Path:
-    return (project_dir if project_dir is not None else Path.cwd()).resolve()
+    """Absolute project root; expands ``~`` (Typer/Path do not)."""
+    root = project_dir if project_dir is not None else Path.cwd()
+    return root.expanduser().resolve()
 
 
 def _venv_brainkm_bin() -> Path:
@@ -462,6 +461,42 @@ def ensure_claude_settings_local_permissions(
     tmp_path = path.with_suffix(path.suffix + ".brainkm-tmp")
     tmp_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     tmp_path.replace(path)
+    return path
+
+
+def ensure_antigravity_mcp_config_permissions(
+    root: Path,
+    *,
+    server_key: str = BRAINKM_MCP_SERVER_KEY,
+) -> Path:
+    """Ensure ``.agents/mcp_config.json`` contains pre-authorized permissions for all 8 brainkm tools."""
+    root = resolve_project_dir(root)
+    path = root / ".agents" / "mcp_config.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    data: dict[str, object] = {}
+    if path.is_file():
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                data = loaded
+        except json.JSONDecodeError:
+            data = {}
+
+    mcp_servers = data.get("mcpServers")
+    if not isinstance(mcp_servers, dict):
+        mcp_servers = {}
+    entry = mcp_servers.get(server_key)
+    if not isinstance(entry, dict):
+        entry = {}
+
+    tool_list = list(BRAINKM_ALL_TOOL_NAMES)
+    entry["alwaysAllow"] = tool_list
+    entry["autoApprove"] = tool_list
+    mcp_servers[server_key] = entry
+    data["mcpServers"] = mcp_servers
+
+    _write_json(path, data)
     return path
 
 
@@ -1024,14 +1059,23 @@ def _copy_guidance_text(
     content: str | None = None,
     result: GuidanceAssetsResult,
 ) -> None:
-    """Write ``dst`` from ``content`` or ``src``; skip when present unless force."""
+    """Write ``dst`` from ``content`` or ``src``.
+
+    Managed guidance files (rules/skills) refresh when the template content
+    differs, even without ``force`` — otherwise installs leave stale copies
+    after template updates. Identical content is skipped.
+    """
     if content is None:
         if src is None or not src.is_file():
             return
         content = src.read_text(encoding="utf-8")
     if dst.is_file() and not force:
-        result.files_skipped.append(dst)
-        return
+        try:
+            if dst.read_text(encoding="utf-8") == content:
+                result.files_skipped.append(dst)
+                return
+        except OSError:
+            pass
     _write_text(dst, content)
     result.files_written.append(dst)
 
@@ -1367,7 +1411,7 @@ def run_install(
         agents_dir = root / ".agents"
         agents_dir.mkdir(parents=True, exist_ok=True)
 
-        mcp_path = agents_dir / "mcp_config.json"
+        mcp_path = ensure_antigravity_mcp_config_permissions(root)
         if mcp_path.is_file():
             existing_mcp = json.loads(mcp_path.read_text(encoding="utf-8"))
             merged_mcp = _normalize_merged_mcp_payload(_deep_merge_dict(existing_mcp, mcp_payload))

@@ -14,11 +14,18 @@ from brainkm.services.hooks import (
     normalize_antigravity_stdin,
 )
 from brainkm.services.install import (
+    BRAINKM_ANTIGRAVITY_MCP_TOOL_ALLOWS,
     build_antigravity_hooks_config,
+    ensure_antigravity_mcp_config_permissions,
+    install_client_guidance_assets,
     merge_antigravity_hooks_json,
     run_install,
 )
-from brainkm.services.mcp_transport import build_mcp_config, http_url_field_for_client
+from brainkm.services.mcp_transport import (
+    BRAINKM_ALL_TOOL_NAMES,
+    build_mcp_config,
+    http_url_field_for_client,
+)
 
 
 def test_antigravity_adapter_kind() -> None:
@@ -40,6 +47,17 @@ def test_mcp_config_antigravity_http_uses_server_url() -> None:
     assert "serverUrl" in entry
     assert "url" not in entry
     assert entry["serverUrl"] == "http://127.0.0.1:8765/mcp/"
+    assert entry["alwaysAllow"] == list(BRAINKM_ALL_TOOL_NAMES)
+    assert entry["autoApprove"] == list(BRAINKM_ALL_TOOL_NAMES)
+
+
+def test_mcp_config_non_antigravity_omits_tool_allowlists() -> None:
+    """Cursor/Claude/generic must not inherit Antigravity alwaysAllow keys."""
+    for client in ("cursor", "claude", "generic", None):
+        payload = build_mcp_config(transport="http", host="127.0.0.1", port=8765, client=client)
+        entry = payload["mcpServers"]["brainkm"]
+        assert "alwaysAllow" not in entry, client
+        assert "autoApprove" not in entry, client
 
 
 def test_mcp_config_path() -> None:
@@ -329,6 +347,46 @@ def test_agy_session_inject_and_stop_gates() -> None:
     assert not idle and force
 
 
+def test_agy_reinject_every_n_configurable_and_disable() -> None:
+    """agy_reinject_every_n is a real BrainConfig field, not a hardcoded 8.
+
+    every_n=0 relies solely on the pack_hash gate: no periodic resend, but a
+    content change (e.g. after synthetic-precompact handover) still injects.
+    """
+    from brainkm.models.brain_config import BrainConfig, InjectionConfig
+    from brainkm.services.antigravity_session import AgySessionState, should_inject_pack
+
+    cfg = BrainConfig(injection=InjectionConfig(agy_reinject_every_n=0))
+    assert cfg.injection.agy_reinject_every_n == 0
+
+    state = AgySessionState(conversation_id="c2", bootstrap_done=True)
+    state.last_inject_invocation = 0
+    state.last_inject_pack_hash = "a"
+    every_n = cfg.injection.agy_reinject_every_n
+    # Unchanged content, many turns later: no periodic resend when disabled.
+    assert not should_inject_pack(state, invocation_num=100, pack_hash="a", every_n=every_n)
+    # Content actually changed: still injects regardless of every_n.
+    assert should_inject_pack(state, invocation_num=100, pack_hash="b", every_n=every_n)
+
+
+def test_agy_post_tool_use_never_injects_context() -> None:
+    """auto_observe writes to the local DB only — Antigravity PostToolUse /
+    PostInvocation stdout is always {} regardless of additional_context, so
+    observation recording adds zero per-turn context tokens on this host.
+    """
+    from brainkm.services.hooks import HookRunResult, build_antigravity_hook_stdout
+
+    result = HookRunResult(
+        hook="PostToolUse",
+        session_id="s1",
+        skipped=False,
+        reason=None,
+        additional_context="this must never reach the model",
+    )
+    assert build_antigravity_hook_stdout(result, "PostToolUse") == {}
+    assert build_antigravity_hook_stdout(result, "PostInvocation") == {}
+
+
 def test_resolve_antigravity_project_dir_from_workspace_and_agents_cwd(
     tmp_path: Path,
 ) -> None:
@@ -535,8 +593,95 @@ def test_inspect_antigravity_wiring_rules_and_doctor_client(tmp_path: Path) -> N
     )
     notes = inspect_antigravity_wiring(tmp_path)
     assert not any("lacks imperative routing directives" in n for n in notes)
+    assert not any("missing feedback/checkpoint" in n for n in notes)
+    assert not any("stale mcp_brainkm_" in n for n in notes)
+    assert not any("lacks YAML frontmatter" in n for n in notes)
+    rules = (tmp_path / ".agents" / "rules" / "brainkm.md").read_text(encoding="utf-8")
+    assert "trigger: always_on" in rules.split("---", 2)[1]
 
     report = build_mcp_doctor_report(tmp_path)
     report.clients = [c for c in report.clients if c.client == "antigravity"]
     assert len(report.clients) == 1
     assert report.clients[0].client == "antigravity"
+
+
+def test_antigravity_rules_template_has_always_on_frontmatter() -> None:
+    """AGY skips workspace rules without YAML trigger frontmatter."""
+    template = (
+        Path(__file__).resolve().parents[1]
+        / "brainkm"
+        / "hooks"
+        / "antigravity"
+        / "rules"
+        / "brainkm.md"
+    )
+    text = template.read_text(encoding="utf-8")
+    assert text.lstrip().startswith("---")
+    assert "trigger: always_on" in text.split("---", 2)[1]
+    assert "feedback" in text and "checkpoint" in text
+    # Only allowed as a negative example in the call_mcp_tool dispatch note.
+    assert text.count("mcp_brainkm_") == 1
+    assert "Do **not** invent names like" in text
+    assert "mcp_brainkm_recall" not in text.split("Do **not** invent names like")[0]
+
+
+def test_antigravity_routing_skill_description_triggers_on_edit_tasks() -> None:
+    skill = (
+        Path(__file__).resolve().parents[1]
+        / "brainkm"
+        / "hooks"
+        / "antigravity"
+        / "skills"
+        / "brainkm-routing"
+        / "SKILL.md"
+    )
+    text = skill.read_text(encoding="utf-8")
+    # Skill activation is description-gated; keep action verbs, not passive "when to use".
+    desc = text.split("---", 2)[1]
+    assert "architectural" in desc.lower() or "multiple files" in desc.lower()
+    assert "call_mcp_tool" in desc or "brainkm" in desc.lower()
+
+
+def test_guidance_assets_refresh_stale_antigravity_rules_without_force(tmp_path: Path) -> None:
+    """Re-install must overwrite stale managed rules even when force=False."""
+    rules = tmp_path / ".agents" / "rules" / "brainkm.md"
+    rules.parent.mkdir(parents=True)
+    rules.write_text(
+        "# stale\nMUST call recall\nDo not invent names like mcp_brainkm_recall.\n",
+        encoding="utf-8",
+    )
+    result = install_client_guidance_assets(tmp_path, "antigravity", force=False)
+    assert rules in result.files_written
+    text = rules.read_text(encoding="utf-8")
+    assert "feedback" in text and "checkpoint" in text
+    assert "mcp_brainkm_recall" not in text.split("Do **not** invent names like")[0]
+
+    # Identical re-copy is a no-op skip.
+    again = install_client_guidance_assets(tmp_path, "antigravity", force=False)
+    assert rules in again.files_skipped
+
+
+def test_doctor_flags_stale_antigravity_rules(tmp_path: Path) -> None:
+    from brainkm.services.mcp_doctor import inspect_antigravity_wiring
+
+    rules = tmp_path / ".agents" / "rules" / "brainkm.md"
+    rules.parent.mkdir(parents=True)
+    rules.write_text(
+        "# MemNetwork\nMUST call mcp_brainkm_recall\nMANDATORY routing\n",
+        encoding="utf-8",
+    )
+    notes = inspect_antigravity_wiring(tmp_path)
+    assert any("lacks YAML frontmatter" in n for n in notes)
+    assert any("missing feedback/checkpoint" in n for n in notes)
+    assert any("stale mcp_brainkm_" in n for n in notes)
+
+
+def test_ensure_antigravity_mcp_config_permissions(tmp_path: Path) -> None:
+    path = ensure_antigravity_mcp_config_permissions(tmp_path)
+    assert path == tmp_path / ".agents" / "mcp_config.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    entry = data["mcpServers"]["brainkm"]
+    assert entry["alwaysAllow"] == list(BRAINKM_ALL_TOOL_NAMES)
+    assert entry["autoApprove"] == list(BRAINKM_ALL_TOOL_NAMES)
+    assert "feedback" in entry["alwaysAllow"]
+    assert "checkpoint" in entry["alwaysAllow"]

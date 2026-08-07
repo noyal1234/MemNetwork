@@ -142,6 +142,40 @@ def test_format_groq_report_missing_key() -> None:
     assert "Free tier" in text
 
 
+def test_build_groq_report_loads_project_env_when_cwd_differs(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Regression: doctor/configure --project-dir must see my-app/.env, not cwd."""
+    import os
+
+    from brainkm.config import get_settings
+
+    project = tmp_path / "my-app"
+    other = tmp_path / "other-cwd"
+    project.mkdir()
+    other.mkdir()
+    (project / ".brain").mkdir()
+    (project / ".brain" / "config.json").write_text("{}\n", encoding="utf-8")
+    (project / ".env").write_text("GROQ_API_KEY=gsk_from_project_env\n", encoding="utf-8")
+
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    get_settings.cache_clear()
+    old = Path.cwd()
+    try:
+        os.chdir(other)
+        get_settings.cache_clear()
+        assert get_settings().groq_api_key is None
+        status = GroqStatus(reachable=True, models=("llama-3.3-70b-versatile",))
+        with patch("brainkm.services.groq_advisor.probe_groq", return_value=status):
+            report = build_groq_report(project_dir=project)
+        assert report.api_key_present is True
+        assert report.api_key_masked == "gsk_..._env"
+    finally:
+        os.chdir(old)
+        monkeypatch.delenv("GROQ_API_KEY", raising=False)
+        get_settings.cache_clear()
+
+
 def test_format_groq_report_reachable(tmp_path: Path) -> None:
     brain_dir = tmp_path / ".brain"
     brain_dir.mkdir()

@@ -413,10 +413,13 @@ class ConfigEditorScreen(Screen):
         except Exception as exc:
             return {"error": str(exc)}
 
+        from brainkm.services.install import resolve_hook_command, resolve_project_dir
+
+        root = resolve_project_dir(self._project_dir)
+
         if api_key:
             try:
-                project = self._project_dir or Path.cwd()
-                env_path = project / ".env"
+                env_path = root / ".env"
                 lines: list[str] = []
                 found = False
                 if env_path.is_file():
@@ -448,9 +451,6 @@ class ConfigEditorScreen(Screen):
                 install_post_commit_hook,
                 uninstall_post_commit_hook,
             )
-            from brainkm.services.install import resolve_hook_command, resolve_project_dir
-
-            root = resolve_project_dir(self._project_dir)
             validated = BrainConfig.model_validate(output)
             if should_install_commit_hook(root, validated):
                 hook_result = install_post_commit_hook(

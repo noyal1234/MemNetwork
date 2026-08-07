@@ -582,6 +582,8 @@ def inspect_antigravity_wiring(project_dir: Path) -> list[str]:
                 parts.append("rewrote hooks with --project-dir")
             if heal.shadow_removed:
                 parts.append("removed shadow .agents/.brain")
+            if heal.permissions_healed:
+                parts.append("auto-allowed all 8 brainkm MCP tools")
             if heal.sessions_merged:
                 parts.append(f"merged {heal.sessions_merged} agy session(s)")
             notes.append("Antigravity auto-heal: " + "; ".join(parts))
@@ -612,10 +614,39 @@ def inspect_antigravity_wiring(project_dir: Path) -> list[str]:
     else:
         try:
             content = rules_path.read_text(encoding="utf-8")
+            # AGY ignores workspace rules without YAML trigger frontmatter
+            # (graphify#785 / antigravity.google/docs/rules-workflows).
+            if not content.lstrip().startswith("---") or "trigger:" not in content[:200]:
+                notes.append(
+                    "Antigravity .agents/rules/brainkm.md lacks YAML frontmatter "
+                    "(need `trigger: always_on`) — AGY will not load the rule; "
+                    "run `brainkm install --client antigravity` to refresh"
+                )
+            elif "trigger: always_on" not in content[:200]:
+                notes.append(
+                    "Antigravity .agents/rules/brainkm.md is not `trigger: always_on` — "
+                    "routing may stay inactive until activated; refresh the template or "
+                    "set always_on in Customizations → Rules"
+                )
             if "MUST" not in content and "MANDATORY" not in content:
                 notes.append(
                     "Antigravity .agents/rules/brainkm.md lacks imperative routing directives — "
                     "re-run `brainkm connect antigravity`"
+                )
+            # Stale installs often predate feedback/checkpoint guidance.
+            if "feedback" not in content or "checkpoint" not in content:
+                notes.append(
+                    "Antigravity .agents/rules/brainkm.md is missing feedback/checkpoint "
+                    "routing — run `brainkm install --client antigravity` (or connect) to refresh"
+                )
+            # Negative example in the call_mcp_tool dispatch note is fine; flag
+            # only when mcp_brainkm_* appears as a positive instruction.
+            positive = content.split("Do **not** invent names like")[0]
+            if "mcp_brainkm_" in positive:
+                notes.append(
+                    "Antigravity .agents/rules/brainkm.md still uses stale mcp_brainkm_* "
+                    "tool names — refresh from the package template via "
+                    "`brainkm install --client antigravity`"
                 )
         except OSError:
             notes.append("Could not read .agents/rules/brainkm.md")

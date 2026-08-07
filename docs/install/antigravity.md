@@ -13,7 +13,7 @@ First-class Antigravity adapter under **`.agents/`**. HTTP MCP uses **`serverUrl
 |---------|-------------------------------|
 | **MCP** | `.agents/mcp_config.json` — shared HTTP field is **`serverUrl`** |
 | **Hooks** | `.agents/hooks.json` — named `brainkm` handler; `preInvocation`, `preToolUse`, `postToolUse`, idle **Stop** |
-| **Rules / skill** | `.agents/rules/` + routing skill; upserts `AGENTS.md` |
+| **Rules / skill** | `.agents/rules/brainkm.md` (**requires** `trigger: always_on` YAML frontmatter) + routing skill; also upserts repo-root `AGENTS.md` snippet |
 | **No host PreCompact** | Synthetic precompact on **PreInvocation** instead |
 | **Project-dir bake** | Stop / PreInvocation commands embed absolute `--project-dir` so distill never lands in a shadow `.agents/.brain` |
 | **Auto-heal** | `doctor` / PreInvocation rewrite missing `--project-dir`; merge `agy_sessions.json` then remove leftover shadow brain |
@@ -56,7 +56,7 @@ brainkm connect antigravity --http --hooks
 |------|------|
 | `.agents/mcp_config.json` | MCP (`serverUrl` for HTTP) |
 | `.agents/hooks.json` | PreInvocation inject + Stop distill |
-| `.agents/rules/` + skill | Routing guidance |
+| `.agents/rules/brainkm.md` + skill | Always-on routing (`trigger: always_on` frontmatter required) |
 | Project `.brain/` | Live brain — **not** `.agents/.brain` |
 
 If a shadow `.agents/.brain` appears, run `brainkm doctor` (or reconnect) so auto-heal can merge and remove it.

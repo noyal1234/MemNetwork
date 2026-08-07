@@ -7,8 +7,19 @@ from brainkm.services.install import (
     build_hooks_config,
     build_mcp_config,
     merge_hooks_json,
+    resolve_project_dir,
     run_install,
 )
+
+
+def test_resolve_project_dir_expands_tilde(tmp_path: Path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    target = home / "code" / "my-app"
+    target.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    resolved = resolve_project_dir(Path("~/code/my-app"))
+    assert resolved == target.resolve()
 
 
 def _settings_with_pretool_matcher(root: Path, matcher: str) -> Path:

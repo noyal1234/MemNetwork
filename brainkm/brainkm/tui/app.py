@@ -54,7 +54,11 @@ class BrainkmConfigureApp(App):
     }
 
     def __init__(self, project_dir: Path | None = None) -> None:
-        self._project_dir = project_dir
+        from brainkm.services.install import resolve_project_dir
+
+        # Always absolute + expanduser so Config/Wizard .env writes and doctor
+        # probes hit the intended project when launched with --project-dir.
+        self._project_dir = resolve_project_dir(project_dir)
         # Bind screen factories to project_dir as an *instance* attribute
         # before calling super().__init__() — App.__init__() copies
         # self.SCREENS into its internal registry immediately, so setting
