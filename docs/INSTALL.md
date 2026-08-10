@@ -1,14 +1,24 @@
 # Installing MemNetwork / brainkm
 
-Clone this repo on a new machine and run brainkm as an MCP server for your coding IDE(s).
+**Main purpose:** give *your* coding project a local brain (`.brain/`) and wire your IDE(s) to it.
+This repo is the **package home** you clone once; you then point `brainkm` at each app you work on.
 
 **License:** Apache-2.0 — [LICENSE](../LICENSE), [NOTICE](../NOTICE). Copyright © 2026 Noyal Bastin Benny. Contributions: [CONTRIBUTING.md](../CONTRIBUTING.md) + [CLA.md](../CLA.md).
 
 **Public install:** PyPI / `uvx` one-liner is deferred until the repository is public and the installable package name is finalized. Until then, use the clone + editable install below. See [PUBLIC_RELEASE_CHECKLIST.md](PUBLIC_RELEASE_CHECKLIST.md).
 
+## Mental model
+
+| Layer | Where | Shared? |
+|-------|-------|---------|
+| **Package** (`brainkm` CLI + MCP server) | One MemNetwork clone + `.venv` | Once per machine |
+| **Project brain + IDE wiring** | Each app’s `.brain/`, `.cursor/` / `.agents/` / … | Per project |
+
+Same `.brain/brain.db` across all hosts in one project. Multi-app: `brainkm configure` → **Start Brain**.
+
 ## Per-host guides
 
-Each IDE has different MCP paths, hook events, and trust quirks. Pick yours:
+Each IDE has different MCP paths, hook events, and trust quirks. Pick yours after wiring a project:
 
 | Host | Guide | Exclusive highlights |
 |------|-------|----------------------|
@@ -18,29 +28,75 @@ Each IDE has different MCP paths, hook events, and trust quirks. Pick yours:
 | **OpenAI Codex** | [install/codex.md](install/codex.md) | `.codex/config.toml`; trust project + `/hooks`; Stop → session-end |
 | **Generic MCP** | [install/generic.md](install/generic.md) | No hooks — manual `capture` / `handover` |
 
-Same `.brain/brain.db` across all hosts. Multi-app: `brainkm configure` → **Start Brain**.
-
 ## Prerequisites
 
 - Python **3.11 or 3.12** (`requires-python = ">=3.11"` in `brainkm/pyproject.toml`)
 - At least one supported host (Cursor ~0.46+ for PreCompact, Claude Code, Antigravity, Codex CLI, or any MCP client)
 
-## Clone and setup
+## 1. Clone MemNetwork once (package home)
+
+Put the clone somewhere stable (not inside each app repo):
 
 ```bash
-git clone <your-remote-url> MemNetwork
-cd MemNetwork
+git clone https://github.com/noyal1234/MemNetwork.git ~/tools/MemNetwork
+cd ~/tools/MemNetwork
 
 bash brainkm/scripts/setup_dev.sh
 source .venv/bin/activate
-brainkm install --dev
-brainkm graph sync          # optional: first code graph
-brainkm graph status
-pytest
+pip install -e "./brainkm[tui]"   # recommended — enables brainkm configure
 brainkm version   # expect 0.9.0
 ```
 
-Restart your IDE or reload MCP servers after `brainkm install --dev`.
+This creates `.venv` and the `brainkm` binary. It does **not** yet create a brain for your app — that is the next step.
+
+## 2. Wire brainkm into your project (main step)
+
+Point the same venv at the repo you actually code in. Prefer an **absolute** `--project-dir` (or `cd` into that project first).
+
+**Recommended — guided TUI:**
+
+```bash
+source ~/tools/MemNetwork/.venv/bin/activate
+brainkm configure --project-dir /path/to/your-app
+# equivalent: cd /path/to/your-app && brainkm configure
+```
+
+The wizard asks **which coding apps you use** in plain language:
+
+- **One app** → silent memory, no extra terminal (the host starts the brain for you).
+- **Two or more** → shared brain across apps; on the last screen click **Start Brain** (or use Dashboard → Start Brain). You only start it once while you work — not every chat.
+- **Claude Code** → writes `.claude/settings.json` hooks + project `.mcp.json` (not `.claude/hooks.json`). Dashboard shows Claude hooks status when present.
+- **Antigravity** → writes `.agents/mcp_config.json` (HTTP uses `serverUrl`) + `.agents/hooks.json` + rules/skills. Dashboard shows AGY hooks when `.agents/` is present. Installed Stop/PreInvocation commands bake absolute `--project-dir` so distill always hits the **project** `.brain/` (Antigravity often runs hooks with cwd=`.agents/`). `brainkm doctor` / PreInvocation auto-heal rewrite missing `--project-dir` and remove a leftover shadow `.agents/.brain` after merging `agy_sessions.json`.
+- **Codex CLI** → writes `.codex/config.toml` (`[mcp_servers.brainkm]`), `.codex/hooks.json` (PascalCase nested schema), skill, and upserts `AGENTS.md`. **Required after install:** trust the project `.codex/` layer, then open `/hooks` and trust brainkm commands — MCP can look enabled (gear locked) while untrusted hooks are still skipped. See [install/codex.md](install/codex.md).
+
+You do **not** need to memorize `serve` / `connect` commands. See [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
+
+**CLI — same outcome without TUI:**
+
+```bash
+source ~/tools/MemNetwork/.venv/bin/activate
+brainkm install --dev --client cursor --project-dir /path/to/your-app
+# or: claude | antigravity | codex | generic
+brainkm graph sync --project-dir /path/to/your-app   # optional first code graph
+brainkm doctor --project-dir /path/to/your-app
+```
+
+Your app gets its own `.brain/` plus host MCP/hooks/rules. MCP/hooks invoke the **MemNetwork** venv binary with `--project-dir` set to that app (usually `.` when the IDE opens the app folder).
+
+### After wiring
+
+1. Open **your app** as the IDE workspace (not only the MemNetwork clone).
+2. Reload MCP servers / restart the IDE.
+3. Confirm tools appear (`recall`, `context_pack`, … — eight tools in 0.9.0).
+4. Optional: `brainkm viz --project-dir /path/to/your-app`
+
+### Groq / secrets
+
+`install` does **not** create `.env`. Put `GROQ_API_KEY` in the **project** `.env` (Config Editor → New key → Save, or wizard API-key step), never in `.brain/config.json`.
+
+### More than one app repo
+
+Repeat step 2 with a different `--project-dir`. Each project keeps a separate `.brain/`; they share the same MemNetwork `.venv`.
 
 ### Optional: commit change trace
 
@@ -48,35 +104,28 @@ New installs default `git.commit_trace=true` and write a merge-safe `.git/hooks/
 
 ```bash
 # TUI: Config → Git → Commit Trace Hook → Save
-brainkm configure
+brainkm configure --project-dir /path/to/your-app
 
-# Or set in .brain/config.json then reinstall:
+# Or set in that project's .brain/config.json then reinstall:
 # "git": { "commit_trace": true, "commit_retention_days": 90 }
-brainkm install --dev
+brainkm install --dev --project-dir /path/to/your-app
 
-brainkm trace path/to/file.py   # same as MCP trace_changes
+brainkm trace path/to/file.py --project-dir /path/to/your-app
 ```
 
 Dashboard **STATUS → Commit Trace** shows `on` / `off` / `on · no hook` / `skipped` (husky/lefthook/`core.hooksPath`).
 
-### Easiest path: guided setup (recommended)
+## 3. Developing MemNetwork itself (contributors)
+
+Only if you are changing brainkm source or dogfooding this repo as the project:
 
 ```bash
-pip install -e "./brainkm[tui]"
-brainkm configure
+cd ~/tools/MemNetwork
+source .venv/bin/activate
+brainkm install --dev          # wires .brain/ into the clone
+brainkm graph sync
+pytest
 ```
-
-The wizard asks **which coding apps you use** in plain language:
-
-- **One app** → silent memory, no extra terminal (the app starts the brain for you).
-- **Two or more** → shared brain across apps; on the last screen click **Start Brain** (or use Dashboard → Start Brain). You only start it once while you work — not every chat.
-- **Claude Code** → writes `.claude/settings.json` hooks + project `.mcp.json` (not `.claude/hooks.json`). Dashboard shows Claude hooks status when present.
-- **Antigravity** → writes `.agents/mcp_config.json` (HTTP uses `serverUrl`) + `.agents/hooks.json` + rules/skills. Dashboard shows AGY hooks when `.agents/` is present. Installed Stop/PreInvocation commands bake absolute `--project-dir` so distill always hits the **project** `.brain/` (Antigravity often runs hooks with cwd=`.agents/`). `brainkm doctor` / PreInvocation auto-heal rewrite missing `--project-dir` and remove a leftover shadow `.agents/.brain` after merging `agy_sessions.json`.
-- **Codex CLI** → writes `.codex/config.toml` (`[mcp_servers.brainkm]`), `.codex/hooks.json` (PascalCase nested schema), skill, and upserts `AGENTS.md`. **Required after install:** trust the project `.codex/` layer, then open `/hooks` and trust brainkm commands — MCP can look enabled (gear locked) while untrusted hooks are still skipped. See [install/codex.md](install/codex.md).
-
-You do **not** need to memorize `serve` / `connect` commands.
-
-Opens the dashboard (or first-run wizard if `.brain/` is missing). See [TUI_APP_PLAN.md](TUI_APP_PLAN.md).
 
 ### macOS: `ModuleNotFoundError: No module named 'brainkm'`
 
@@ -144,30 +193,19 @@ You can copy examples manually, or rely on `brainkm install --dev` to create the
 | `.cursor/rules/` | No | Policy rules + `brainkm.mdc` (local only) |
 | `.cursor/mcp.json`, `.cursor/hooks.json` | No | Machine-specific paths |
 
-## Install brainkm into another project
+## Shared multi-agent brain (same project, several IDEs)
 
-Use the same venv from this clone:
-
-```bash
-source /path/to/MemNetwork/.venv/bin/activate
-brainkm install --dev --project-dir /path/to/other-project
-```
-
-That project gets its own `.brain/` and `.cursor/` wiring.
-
-### Shared multi-agent brain (same machine)
-
-Prefer `brainkm configure` in that project (check two+ apps → **Start Brain**). Power path:
+Prefer `brainkm configure --project-dir /path/to/your-app` (check two+ apps → **Start Brain**). Power path:
 
 ```bash
-brainkm install --dev --http --project-dir /path/to/other-project
+brainkm install --dev --http --project-dir /path/to/your-app
 # terminal 1 (or TUI Start Brain)
-brainkm serve --project-dir /path/to/other-project
+brainkm serve --project-dir /path/to/your-app
 # wire additional clients
-brainkm connect claude --http --project-dir /path/to/other-project
-brainkm connect antigravity --http --project-dir /path/to/other-project
-brainkm connect codex --http --hooks --project-dir /path/to/other-project
-brainkm doctor --project-dir /path/to/other-project
+brainkm connect claude --http --project-dir /path/to/your-app
+brainkm connect antigravity --http --project-dir /path/to/your-app
+brainkm connect codex --http --hooks --project-dir /path/to/your-app
+brainkm doctor --project-dir /path/to/your-app
 ```
 
 For Codex: trust the project's `.codex/` layer, then open `/hooks` and trust the brainkm commands (MCP can show enabled/locked while hooks stay skipped until then).

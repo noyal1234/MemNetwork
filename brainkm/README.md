@@ -20,20 +20,26 @@ PyPI / `uvx` install is deferred until the installable name is finalized and the
 - See [requirements.txt](../requirements.txt) for core dependencies
 - See [requirements-dev.txt](../requirements-dev.txt) for development
 
-## Install (development)
+## Install
 
-From the MemNetwork repo root:
+**Main path:** clone MemNetwork once, then wire **your** app with `--project-dir` (see [docs/INSTALL.md](../docs/INSTALL.md)).
 
 ```bash
+# 1) Package home (once per machine)
 bash brainkm/scripts/setup_dev.sh
 source .venv/bin/activate
-pip install -e "./brainkm[tui]"   # optional but recommended
-brainkm configure                 # guided setup — pick any apps you use
-# or: brainkm install --dev --client cursor|claude|antigravity|codex|generic
+pip install -e "./brainkm[tui]"   # recommended
 brainkm version
+
+# 2) Your coding project (repeat per app)
+brainkm configure --project-dir /path/to/your-app
+# or: brainkm install --dev --client cursor|claude|antigravity|codex|generic \
+#        --project-dir /path/to/your-app
 ```
 
-Or manually:
+Contributors dogfooding this repo can omit `--project-dir` (wires the clone itself).
+
+Or manually create the venv:
 
 ```bash
 python3 -m venv .venv

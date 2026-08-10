@@ -101,23 +101,25 @@ Full scorecard → [docs/BENCHMARKS.md](docs/BENCHMARKS.md) · Cursor Core → [
 
 **Prerequisites:** Python 3.11 or 3.12.
 
-### 1. Clone and install
+Clone MemNetwork **once** (package home), then wire brainkm into **the project you code in**. That second step is the main purpose — not an optional extra.
+
+### 1. Clone MemNetwork once
 
 ```bash
-git clone https://github.com/noyal1234/MemNetwork.git
-cd MemNetwork
+git clone https://github.com/noyal1234/MemNetwork.git ~/tools/MemNetwork
+cd ~/tools/MemNetwork
 
 bash brainkm/scripts/setup_dev.sh
 source .venv/bin/activate
+pip install -e "./brainkm[tui]"   # recommended
 ```
 
-### 2. Configure your IDE(s)
+### 2. Wire your app project
 
-**Recommended** — guided TUI:
+**Recommended** — guided TUI (absolute path or `cd` into the app first):
 
 ```bash
-pip install -e "./brainkm[tui]"
-brainkm configure
+brainkm configure --project-dir /path/to/your-app
 ```
 
 - **One IDE** → silent memory; that host starts the brain for you.
@@ -127,17 +129,20 @@ brainkm configure
 **Without TUI** — core CLI:
 
 ```bash
-brainkm install --dev --client cursor   # or claude | antigravity | codex | generic
-brainkm graph sync                      # optional first code graph
-brainkm doctor
+brainkm install --dev --client cursor --project-dir /path/to/your-app
+# or: claude | antigravity | codex | generic
+brainkm graph sync --project-dir /path/to/your-app   # optional first code graph
+brainkm doctor --project-dir /path/to/your-app
 ```
 
-### 3. Reload MCP and explore
+Your app gets `.brain/` + IDE MCP/hooks; the `brainkm` binary stays in the MemNetwork `.venv`.
 
-Restart the IDE (or reload MCP servers), then optionally:
+### 3. Open your app and reload MCP
+
+Open **your-app** in the IDE (not only the MemNetwork clone), reload MCP / restart the host, then optionally:
 
 ```bash
-brainkm viz       # browser graph explorer
+brainkm viz --project-dir /path/to/your-app
 brainkm version   # expect 0.9.0
 ```
 
